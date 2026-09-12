@@ -1,0 +1,105 @@
+/* Bienvenida de primer arranque y recorrido guiado. Usa los tonos declarados en
+   theme.css; se carga antes que ese archivo para que la identidad siga siendo la
+   última capa. */
+
+.welcome-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 34px 20px max(34px, env(safe-area-inset-bottom));
+  background: var(--canvas);
+}
+.welcome-card {
+  width: min(560px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: clamp(24px, 5vw, 40px);
+  box-shadow: 0 14px 44px #30241c14;
+}
+.welcome-mark {
+  display: block;
+  width: 88px;
+  height: 88px;
+  margin-left: -7px; /* El trazo no llega al borde del lienzo: compensa la sangría óptica. */
+  color: var(--clay);
+}
+.welcome-card h1 {
+  font-size: clamp(1.9rem, 5vw, 2.5rem);
+  font-weight: 800;
+  letter-spacing: -.038em;
+  line-height: 1.05;
+  margin: 22px 0 0;
+}
+.welcome-promise { margin: 12px 0 0; color: var(--ink-muted); line-height: 1.55; }
+.welcome-points { list-style: none; padding: 0; margin: 24px 0 0; display: grid; gap: 11px; }
+.welcome-points li { display: flex; gap: 11px; align-items: flex-start; line-height: 1.5; }
+.welcome-points li::before { content: "—"; color: var(--clay); font-weight: 700; flex: none; }
+.welcome-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+.welcome-actions .btn { flex: 1 1 195px; }
+.welcome-note { margin: 13px 0 0; font-size: .84rem; color: var(--ink-muted); line-height: 1.45; }
+.welcome-foot {
+  margin: 22px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: .8rem;
+  color: var(--ink-muted);
+  line-height: 1.45;
+}
+
+/* El recorrido no lleva velo: la pantalla que se explica tiene que seguir
+   visible detrás de la tarjeta. */
+.tour {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 35;
+  width: min(392px, calc(100vw - 48px));
+  background: var(--surface);
+  border: 1px solid var(--clay-line);
+  border-radius: 18px;
+  padding: 17px 20px 20px;
+  box-shadow: 0 16px 44px #30241c2e;
+}
+.tour-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.tour-step {
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--clay-dark);
+}
+.tour .progress { margin-top: 11px; }
+.tour .progress span { background: var(--clay); }
+.tour h2 { font-size: 1.15rem; font-weight: 700; letter-spacing: -.02em; margin: 15px 0 0; }
+.tour p { margin: 9px 0 0; font-size: .9rem; line-height: 1.55; }
+.tour .tour-tip {
+  margin-top: 13px;
+  background: var(--clay-light);
+  border-radius: 11px;
+  padding: 10px 12px;
+  font-size: .83rem;
+  color: #5a4c42;
+}
+.tour-actions { display: flex; align-items: center; gap: 8px; margin-top: 18px; }
+.tour-spacer { margin-left: auto; }
+/* El aviso emergente vive abajo y taparía los botones del recorrido, sobre todo
+   en móvil, donde la tarjeta ocupa todo el ancho inferior. */
+body.tour-open #toast { top: 18px; bottom: auto; }
+
+@media (max-width: 700px) {
+  .welcome-screen { place-items: start center; padding-top: 26px; }
+  .welcome-card { background: transparent; border: 0; box-shadow: none; padding: 4px 0; }
+  .tour {
+    right: 0;
+    left: 0;
+    bottom: 0;
+    width: auto;
+    border-radius: 18px 18px 0 0;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+  }
+}

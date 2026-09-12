@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="¿Qué comemos?">
+  <rect width="64" height="64" fill="#a04b22"/>
+  <g transform="translate(32 32) scale(.82) translate(-32 -29.2)" fill="none" stroke="#fbf7f1" stroke-width="6.5" stroke-linecap="round">
+    <path d="M23.97 46.22A19 19 0 1 1 40.03 46.22"/>
+    <path d="M25.6 25.63A6.5 6.5 0 1 1 35.73 29.82C34.6 33 32 34.6 31.4 38.6"/>
+    <circle cx="32" cy="48" r="3.6" fill="#fbf7f1" stroke="none"/>
+  </g>
+</svg>

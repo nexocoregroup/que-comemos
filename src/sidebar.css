@@ -1,0 +1,38 @@
+/* Menú lateral plegable y panel móvil. */
+.shell { transition: grid-template-columns .24s ease; }
+
+/* La barra necesita aire a la derecha: con Montserrat las etiquetas largas
+   ("Productos y datos") llegaban al borde. Ensancha la columna y separa el
+   texto del final de la línea. Repite el ancho en la consulta de 1050 px
+   porque la regla de styles.css vive en un archivo que se carga antes. */
+.shell { grid-template-columns: 254px minmax(0, 1fr); }
+.sidebar { padding: 30px 24px 30px 20px; }
+.nav button, .secondary button { padding-right: 20px; }
+.brand, .side-foot { padding-right: 6px; }
+@media (max-width: 1050px) {
+  .shell { grid-template-columns: 212px minmax(0, 1fr); }
+  .sidebar { padding: 25px 18px 25px 13px; }
+}
+.sidebar { min-width: 0; transition: transform .24s ease, visibility .24s ease; }
+.shell.sidebar-collapsed { grid-template-columns: 0 minmax(0, 1fr); }
+.shell.sidebar-collapsed .sidebar { transform: translateX(-105%); visibility: hidden; pointer-events: none; }
+.sidebar-head { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.sidebar-close { align-self: flex-end; flex: none; }
+.topline-heading { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.menu-toggle { width: 42px; height: 42px; display: grid; place-items: center; flex: none; border: 1px solid var(--clay-line); border-radius: 12px; background: #fff; color: var(--clay-dark); font-size: 21px; font-weight: 700; line-height: 1; }
+.menu-toggle:hover, .sidebar-close:hover { background: var(--clay-light); }
+.menu-toggle:focus-visible, .sidebar-close:focus-visible { outline: 3px solid var(--clay); outline-offset: 2px; }
+.drawer-scrim { display: none; }
+
+@media (max-width: 700px) {
+  body.menu-open { overflow: hidden; }
+  .desktop-menu-toggle { display: none; }
+  .mobile-brand .menu-toggle { width: 36px; height: 36px; border-radius: 10px; font-size: 19px; margin-right: 3px; }
+  .sidebar { display: flex; position: fixed; top: 0; bottom: 0; left: 0; z-index: 42; width: min(84vw, 300px); height: 100dvh; min-height: 0; overflow-y: auto; padding: 18px 20px 24px; transform: translateX(-105%); visibility: hidden; pointer-events: none; box-shadow: 10px 0 35px #30241c26; }
+  .shell.drawer-open .sidebar { transform: translateX(0); visibility: visible; pointer-events: auto; }
+  .drawer-scrim { display: block; position: fixed; inset: 0; z-index: 41; border: 0; background: #30241c9e; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .24s ease, visibility .24s ease; }
+  .shell.drawer-open .drawer-scrim { opacity: 1; visibility: visible; pointer-events: auto; }
+  .sidebar-head { gap: 8px; }
+  .sidebar-close { width: 38px; height: 38px; }
+  .sidebar .brand { font-size: 1.24rem; }
+}
