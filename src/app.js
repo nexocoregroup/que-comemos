@@ -382,6 +382,9 @@ render();
 // El trabajador de servicio permite instalar la app y abrirla sin conexión. El
 // navegador solo lo acepta en contexto seguro (https o localhost); sobre http en
 // una IP de la red local lo ignora y la app sigue funcionando como página.
-if ('serviceWorker' in navigator) {
+//
+// Dentro del APK no se registra: ahí los archivos ya viajan en la aplicación, y
+// un caché viejo podría seguir sirviendo la versión anterior tras actualizarla.
+if ('serviceWorker' in navigator && !globalThis.Capacitor) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => { /* Sin contexto seguro no hay instalación; no es un error de la app. */ }));
 }

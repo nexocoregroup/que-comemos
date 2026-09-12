@@ -43,6 +43,35 @@ git push -u origin main
 
 Con el plan gratuito de GitHub, Pages solo funciona en repositorios públicos. El código queda a la vista, pero no los datos de la casa: cada navegador guarda los suyos y nunca salen del dispositivo.
 
+### Compilar el APK
+
+El proyecto lleva un envoltorio de Capacitor que mete la app dentro de una aplicación de Android. El APK resultante no depende de ningún dominio ni de que haya internet: los archivos viajan adentro.
+
+Hace falta instalar dos cosas que no vienen con Node:
+
+```powershell
+winget install EclipseAdoptium.Temurin.21.JDK
+winget install Google.AndroidStudio
+```
+
+Abre Android Studio una vez para que descargue el SDK, y cierra. Después, desde la carpeta del proyecto:
+
+```powershell
+npm run android
+cd android
+.\gradlew assembleDebug
+```
+
+El archivo queda en `android/app/build/outputs/apk/debug/app-debug.apk`. Pásalo al celular y ábrelo; Android pedirá permiso para instalar desde esa fuente.
+
+`npm run android` hace dos cosas: `build.js` copia el casco web a `www/`, y `cap sync` lo lleva dentro del proyecto de Android. Hay que ejecutarlo después de cada cambio en la app; el APK no se actualiza solo.
+
+El APK está firmado con la clave de depuración que genera Android. Sirve para instalarlo en casa, pero no para publicarlo en Play Store: eso pide una clave propia y `assembleRelease`.
+
+Una excepción a lo de «no necesita internet»: **Montserrat se carga de Google Fonts**. Sin conexión la app abre y funciona igual, solo cambia la letra por la del sistema. Para que sea completamente autónoma habría que guardar la tipografía dentro del proyecto.
+
+Dentro del APK la app no registra el trabajador de servicio: los archivos ya están en el dispositivo, y un caché viejo podría seguir mostrando la versión anterior después de actualizar.
+
 ## Línea gráfica
 
 El isotipo es un plato abierto con un signo de pregunta dentro y el punto en la boca del plato. Vive en dos formas: `src/logo.svg`, el ícono terracota con el signo en crema que se usa como favicon, y `src/brand.js`, el mismo trazo sin fondo que hereda el color de su contenedor y se inserta en la cabecera de la barra lateral y del móvil. Al cambiar la geometría hay que tocar los dos archivos.
@@ -96,6 +125,11 @@ La propuesta mensual usa reglas de repetición sencillas y solo preparaciones de
 - `manifest.webmanifest`: nombre, ícono y modo de la app instalada.
 - `sw.js`: trabajador de servicio; guarda el casco para abrir sin conexión.
 - `src/icon-192.png`: ícono de la app, rasterizado desde `logo.svg`. Para tamaños mayores el manifiesto usa el propio SVG, que el navegador escala sin perder nitidez.
+- `build.js`: copia el casco web a `www/` para empaquetarlo. Es todo el «build» que hay.
+- `capacitor.config.json`: identificador y nombre de la aplicación de Android.
+- `android/`: proyecto nativo generado por Capacitor. Solo está retocado el ícono, que es un vector con las mismas curvas de `logo.svg`, y el color de la pantalla de arranque. Si lo regeneras con `npx cap add android` pierdes esos dos cambios.
+
+Las únicas dependencias del proyecto son las de Capacitor, y solo sirven para compilar el APK. La app web no usa ninguna: `npm start` y `npm test` funcionan sin instalar nada.
 - `tests/model.test.js`: pruebas de reglas centrales.
 - `server.js`: servidor estático local sin dependencias.
 
