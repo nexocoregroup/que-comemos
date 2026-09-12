@@ -30,6 +30,19 @@ Para instalarla de verdad —ícono propio, sin barra del navegador y funcionand
 
 Cada dispositivo guarda sus propios datos: la computadora y el celular no comparten nada. Para pasar los datos de uno a otro, exporta el respaldo e impórtalo del otro lado.
 
+### Publicar en GitHub Pages
+
+Todas las rutas del proyecto son relativas, así que la app funciona igual servida desde la raíz de un dominio o desde una subcarpeta como `usuario.github.io/que-comemos/`. El archivo `.nojekyll` evita que GitHub procese los archivos antes de servirlos.
+
+Crea un repositorio vacío en GitHub, súbelo y activa Pages desde `Settings → Pages`, eligiendo la rama `main` y la carpeta raíz:
+
+```powershell
+git remote add origin https://github.com/USUARIO/que-comemos.git
+git push -u origin main
+```
+
+Con el plan gratuito de GitHub, Pages solo funciona en repositorios públicos. El código queda a la vista, pero no los datos de la casa: cada navegador guarda los suyos y nunca salen del dispositivo.
+
 ## Línea gráfica
 
 El isotipo es un plato abierto con un signo de pregunta dentro y el punto en la boca del plato. Vive en dos formas: `src/logo.svg`, el ícono terracota con el signo en crema que se usa como favicon, y `src/brand.js`, el mismo trazo sin fondo que hereda el color de su contenedor y se inserta en la cabecera de la barra lateral y del móvil. Al cambiar la geometría hay que tocar los dos archivos.
