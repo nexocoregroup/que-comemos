@@ -1,5 +1,16 @@
 export const SLOTS = ['desayuno', 'almuerzo', 'cena'];
 export const UNITS = ['unidad', 'lb', 'taza', 'lata', 'paquete', 'rueda', 'rebanada'];
+// Una «rueda» no mide lo mismo en dos casas: quien corta fino saca el doble de
+// ruedas del mismo salami. El grosor no convierte nada por sí solo —para eso
+// está la equivalencia—, pero deja escrito qué significa una rueda aquí, que es
+// justo lo que hace comparable el conteo de una semana con el de la siguiente.
+export const SLICEABLE = ['rueda', 'rebanada'];
+export const SLICE_STYLES = [
+  { id: 'fina', label: 'Fina', range: '2–3 mm' },
+  { id: 'media', label: 'Mediana', range: '4–5 mm' },
+  { id: 'gruesa', label: 'Gruesa', range: '6–8 mm' }
+];
+export const sliceStyle = id => SLICE_STYLES.find(item => item.id === id) || null;
 const EPS = 1e-8;
 const round = value => Math.round((value + Number.EPSILON) * 1000) / 1000;
 export const todayISO = () => {
@@ -45,13 +56,23 @@ export function addProduct(state, fields) {
   const name = String(fields.name || '').trim();
   if (!name) throw new Error('Escribe el nombre del producto.');
   if (!UNITS.includes(fields.controlUnit) || !UNITS.includes(fields.purchaseUnit)) throw new Error('Selecciona unidades válidas.');
-  const item = { id: nextId(state, 'producto'), name, controlUnit: fields.controlUnit, purchaseUnit: fields.purchaseUnit, equivalences: {} };
+  const item = { id: nextId(state, 'producto'), name, controlUnit: fields.controlUnit, purchaseUnit: fields.purchaseUnit, equivalences: {}, slice: null };
   state.products.push(item);
+  setSlice(state, item.id, fields.slice);
   // Lo que ya hay en casa al registrar el producto. Es la apertura del saldo:
   // se fija una sola vez, aquí, porque después el inventario solo se mueve con
   // compras, revisiones y correcciones.
   state.opening[item.id] = fields.opening === '' || fields.opening === undefined || fields.opening === null ? 0 : quantity(fields.opening, true);
   return item;
+}
+// El grosor solo tiene sentido en lo que se corta en ruedas o rebanadas. En
+// cualquier otra unidad se guarda en null en vez de rechazarse: el formulario
+// puede mandar el valor de un radio que quedó oculto al cambiar de unidad.
+export function setSlice(state, productId, value) {
+  const item = product(state, productId);
+  if (!item) throw new Error('Selecciona un producto.');
+  item.slice = SLICEABLE.includes(item.controlUnit) && sliceStyle(value) ? value : null;
+  return item.slice;
 }
 export function setEquivalence(state, productId, unit, factor) {
   const item = product(state, productId);

@@ -55,6 +55,14 @@
 .more > summary:focus-visible { outline: 3px solid var(--clay); outline-offset: 2px; border-radius: 6px; }
 .more > p { margin: 0 0 12px; }
 
+/* El grosor de las ruedas aparece y desaparece según la unidad elegida, sin
+   volver a dibujar el formulario. Hace falta la regla porque .field declara
+   display grid, que gana por especificidad al display:none del atributo
+   hidden que trae el navegador. */
+.field[hidden] { display: none; }
+.cut-option { display: grid; gap: 1px; line-height: 1.25; }
+.cut-option .tiny { white-space: nowrap; }
+
 .sidebar { background: var(--sidebar-bg); border-right-color: var(--line); }
 /* En la app el isotipo va suelto, sin recuadro: el trazo en terracota sobre el
    fondo de la barra. El fondo lleno queda solo para el ícono de la app y el

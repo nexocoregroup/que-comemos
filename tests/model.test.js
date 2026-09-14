@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { addDays, addProduct, addPurchase, balances, convert, correctReview, createEmptyState, createReview, exportState, importState, inventoryNow, linkPlan, makeRecipePlan, repeatWeek, saveReview, setAbsence, setEquivalence, shoppingList, todayISO, updatePlan, upsertPerson, upsertRecipe, weekStart } from '../src/model.js';
+import { addDays, addProduct, setSlice, addPurchase, balances, convert, correctReview, createEmptyState, createReview, exportState, importState, inventoryNow, linkPlan, makeRecipePlan, repeatWeek, saveReview, setAbsence, setEquivalence, shoppingList, todayISO, updatePlan, upsertPerson, upsertRecipe, weekStart } from '../src/model.js';
 import { loadState, saveState, STORAGE_KEY } from '../src/storage.js';
 
 function setup() {
@@ -143,4 +143,28 @@ test('un producto nuevo arranca con lo que ya hay en casa, no en cero', () => {
   assert.equal(inventoryNow(state)[platano], 7);
   assert.equal(inventoryNow(state)[sal], 0, 'sin cantidad declarada, arranca en cero');
   assert.throws(() => addProduct(state, { name: 'Arroz', controlUnit: 'taza', purchaseUnit: 'lb', opening: -1 }));
+});
+
+test('el grosor solo se guarda en lo que de verdad se corta en ruedas', () => {
+  const state = createEmptyState();
+  const salami = addProduct(state, { name: 'Salami', controlUnit: 'rueda', purchaseUnit: 'paquete', slice: 'gruesa' });
+  assert.equal(salami.slice, 'gruesa');
+  const arroz = addProduct(state, { name: 'Arroz', controlUnit: 'lb', purchaseUnit: 'lb', slice: 'fina' });
+  assert.equal(arroz.slice, null, 'una libra de arroz no tiene grosor de rueda');
+  const queso = addProduct(state, { name: 'Queso', controlUnit: 'rebanada', purchaseUnit: 'rebanada' });
+  assert.equal(queso.slice, null, 'sin declararlo queda vacío, no se inventa un grosor');
+  // Un valor que no está en la lista se descarta en vez de guardarse tal cual.
+  assert.equal(setSlice(state, salami.id, 'finisima'), null);
+  assert.equal(setSlice(state, salami.id, 'media'), 'media');
+  assert.throws(() => setSlice(state, 'producto-inexistente', 'fina'), /producto/);
+});
+
+test('un respaldo anterior al grosor sigue siendo válido', () => {
+  const state = createEmptyState();
+  const salami = addProduct(state, { name: 'Salami', controlUnit: 'rueda', purchaseUnit: 'rueda', opening: 4 }).id;
+  const old = JSON.parse(exportState(state));
+  delete old.products[0].slice;
+  const restored = importState(JSON.stringify(old));
+  assert.equal(restored.products[0].slice, undefined);
+  assert.equal(inventoryNow(restored)[salami], 4, 'las existencias se leen igual sin el campo nuevo');
 });

@@ -68,15 +68,13 @@ El archivo queda en `android/app/build/outputs/apk/debug/app-debug.apk`. Pásalo
 
 El APK está firmado con la clave de depuración que genera Android. Sirve para instalarlo en casa, pero no para publicarlo en Play Store: eso pide una clave propia y `assembleRelease`.
 
-Una excepción a lo de «no necesita internet»: **Montserrat se carga de Google Fonts**. Sin conexión la app abre y funciona igual, solo cambia la letra por la del sistema. Para que sea completamente autónoma habría que guardar la tipografía dentro del proyecto.
-
 Dentro del APK la app no registra el trabajador de servicio: los archivos ya están en el dispositivo, y un caché viejo podría seguir mostrando la versión anterior después de actualizar.
 
 ## Línea gráfica
 
 El isotipo es un plato abierto con un signo de pregunta dentro y el punto en la boca del plato. Vive en dos formas: `src/logo.svg`, el ícono terracota con el signo en crema que se usa como favicon, y `src/brand.js`, el mismo trazo sin fondo que hereda el color de su contenedor y se inserta en la cabecera de la barra lateral y del móvil. Al cambiar la geometría hay que tocar los dos archivos.
 
-La tipografía es **Montserrat**, cargada desde Google Fonts en `index.html`. Sin conexión el navegador usa el respaldo de sistema declarado en `src/theme.css`; la app sigue funcionando, solo cambia la letra. Montserrat es más ancha que la pila anterior, así que `theme.css` suaviza el interletrado negativo de los títulos y recorta el de las etiquetas en mayúscula.
+La tipografía es **Montserrat** y viaja dentro del proyecto, en `src/fonts/`. Cargarla desde Google Fonts ataba la app a tener internet, que es justo lo que no queremos dentro del APK; ahora no hay ni una petición a un servidor ajeno. El descriptor `unicode-range` de `src/theme.css` hace que el subconjunto latin-ext solo se descargue si aparece un carácter de ese rango. Montserrat es más ancha que la pila anterior, así que `theme.css` suaviza el interletrado negativo de los títulos y recorta el de las etiquetas en mayúscula.
 
 La identidad usa **terracota anaranjada** (`#A04B22`) para navegación y acciones, **crema** (`#FBF7F1`) como fondo, **tinta oscura** (`#342A24`) para el texto y **salvia** (`#5F6947`) solo para estados favorables de existencias o revisión. La intención es evocar una mesa familiar y mantener la lectura tranquila durante la planificación diaria. Los colores de advertencia y error conservan un significado distinto.
 
@@ -94,12 +92,15 @@ La primera apertura muestra una **pantalla de bienvenida** con dos caminos: **Ve
 
 La bienvenida solo aparece mientras no haya nada guardado en este navegador. Con los datos de demostración puedes probar la preparación de hoy, una porción reservada para mañana, las compras y una revisión de consumo. Para pasar a tus datos, usa **Borrar ejemplos** y confirma. Antes de borrar o cambiar de navegador, usa **Productos y datos → Exportar respaldo**.
 
-1. En **Productos y datos**, crea alimentos con su unidad de control y de compra. Configura equivalencias solo cuando las conozcas; por ejemplo, cuántas ruedas de salami contiene un paquete.
-2. En **Personas**, agrega quiénes comen en casa, restricciones, cantidades habituales y ausencias por fecha y comida.
-3. En **Preparaciones**, guarda comidas habituales con alimentos principales, cantidades, personas cubiertas, variantes y notas.
-4. En **Menú**, asigna comidas, cambia cantidades por fecha, mueve o copia, repite una semana o genera una propuesta mensual. Puedes marcar comidas fuera de casa, pedidos y comidas sin planificar. Para cocinar una vez y servir después, abre una comida y usa **Reservar para otra comida**.
-5. En **Compras**, elige quincena o fechas, revisa la lista sugerida y confirma la compra real con las cantidades adquiridas. La sugerencia no aumenta las existencias. Los productos de **Otros productos que faltan** son una lista manual aparte.
-6. En **Revisión**, abre una revisión: la tabla carga los productos disponibles automáticamente. Escribe cuánto se consumió, incluso **0** cuando no hubo consumo. Puedes guardar pendiente, confirmar, corregir una revisión confirmada o corregir el conteo de existencias.
+En **Hoy**, **Menú**, **Compras** y **Revisión** hay un botón **+** flotante abajo a la derecha. Abre los mismos formularios que viven en Ajustes —producto, preparación, persona, compra, revisión, corrección de existencias y ausencia— sin obligar a cambiar de sección para anotar algo. No sustituye a nada: las pantallas originales siguen igual.
+
+1. En **Productos y datos**, crea alimentos con su unidad de control y cuánto tienes ahora. Esa cantidad es la apertura del saldo y se pregunta una sola vez, al crear el producto: después el inventario solo se mueve con compras, revisiones y correcciones. Si lo compras en otra medida, despliega **Lo compro en otra medida** y anota ahí mismo la equivalencia; por ejemplo, cuántas ruedas de salami trae un paquete.
+2. Lo que se cuenta en **ruedas** o **rebanadas** lleva además el grosor con que se corta en casa: fina (2–3 mm), mediana (4–5 mm) o gruesa (6–8 mm). No convierte cantidades —para eso está la equivalencia— pero deja escrito qué significa una rueda aquí, que es lo que hace comparable el conteo de una semana con el de la siguiente. El campo solo aparece cuando la unidad de control es una de esas dos.
+3. En **Personas**, agrega quiénes comen en casa, restricciones, cantidades habituales y ausencias por fecha y comida. Las cantidades habituales quedan guardadas: al crear una preparación, **Traer cantidades habituales** suma las de todas las personas que cubre y llena la lista de alimentos de una vez.
+4. En **Preparaciones**, guarda comidas habituales con alimentos principales, cantidades, personas cubiertas, variantes y notas.
+5. En **Menú**, asigna comidas, cambia cantidades por fecha, mueve o copia, repite una semana o genera una propuesta mensual. Puedes marcar comidas fuera de casa, pedidos y comidas sin planificar. Para cocinar una vez y servir después, abre una comida y usa **Reservar para otra comida**.
+6. En **Compras**, elige quincena o fechas, revisa la lista sugerida y confirma la compra real con las cantidades adquiridas. La sugerencia no aumenta las existencias. Los productos de **Otros productos que faltan** son una lista manual aparte.
+7. En **Revisión**, abre una revisión: la tabla carga los productos disponibles automáticamente. Escribe cuánto se consumió, incluso **0** cuando no hubo consumo. Puedes guardar pendiente, confirmar, corregir una revisión confirmada o corregir el conteo de existencias.
 
 El menú **no descuenta existencias**. Solo las compras confirmadas, revisiones confirmadas y correcciones modifican los saldos. Una preparación compartida se cuenta en la fecha en que se prepara; la parte reservada no vuelve a contarse al servirla. Cuando faltan comidas o equivalencias, Compras muestra avisos de lista incompleta.
 
@@ -107,7 +108,7 @@ El menú **no descuenta existencias**. Solo las compras confirmadas, revisiones 
 
 Los datos se guardan en `localStorage` **solo en ese navegador y dispositivo**. La app funciona en pantallas de celular, pero **no sincroniza** datos entre dispositivos. Exporta un JSON como respaldo e impórtalo desde Productos y datos para recuperarlos. Importar reemplaza los datos locales actuales. No hay cuentas ni servidor de datos.
 
-La propuesta mensual usa reglas de repetición sencillas y solo preparaciones del catálogo. Puede dejar comidas sin opción compatible. Las cantidades habituales de Personas son referencias editables; no se aplican automáticamente a una preparación. Las equivalencias no se infieren y las unidades incompatibles no se convierten. La lista sugerida para un período futuro usa las existencias actuales hasta que registres consumo real mediante una revisión.
+La propuesta mensual usa reglas de repetición sencillas y solo preparaciones del catálogo. Puede dejar comidas sin opción compatible. Las cantidades habituales de Personas no se aplican solas: hay que pedirlas con **Traer cantidades habituales** al escribir una preparación, y lo que traen es la suma de las personas que esa preparación cubre, sin ajustar por quién falta ese día. El grosor de las ruedas es una etiqueta, no un factor: cambiarlo no recalcula ninguna equivalencia ya guardada. Las equivalencias no se infieren y las unidades incompatibles no se convierten. La lista sugerida para un período futuro usa las existencias actuales hasta que registres consumo real mediante una revisión.
 
 ## Estructura para continuar el desarrollo
 
@@ -122,6 +123,7 @@ La propuesta mensual usa reglas de repetición sencillas y solo preparaciones de
 - `src/logo.svg`: isotipo con fondo, usado como favicon.
 - `src/onboarding.js`: texto de la bienvenida y de los pasos del recorrido.
 - `src/onboarding.css`: bienvenida y tarjeta del recorrido.
+- `src/quick-add.css`: botón **+** flotante y su hoja de atajos. Documenta el reparto de capas: barra inferior 20, botón 25, modal 30, recorrido 35.
 - `manifest.webmanifest`: nombre, ícono y modo de la app instalada.
 - `sw.js`: trabajador de servicio; guarda el casco para abrir sin conexión.
 - `src/icon-192.png`: ícono de la app, rasterizado desde `logo.svg`. Para tamaños mayores el manifiesto usa el propio SVG, que el navegador escala sin perder nitidez.

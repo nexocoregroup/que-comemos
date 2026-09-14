@@ -1,4 +1,4 @@
-import { SLOTS, UNITS, addDays, addProduct, addPurchase, convert, copyPlan, correctReview, correctStock, createEmptyState, createReview, dateRange, deletePlan, deleteRecipe, dependents, exportState, generateMonth, incompatibleItems, inventoryNow, isAbsent, lastStockReview, linkPlan, makeRecipePlan, monthBounds, movePlan, nextId, planFor, product, quantity, repeatWeek, reservedQuantity, reviewAvailability, saveReview, setAbsence, setEquivalence, setStatusPlan, shoppingList, syncReviewProducts, todayISO, updatePlan, upsertPerson, upsertRecipe, weekStart, importState } from './model.js';
+import { SLICEABLE, SLICE_STYLES, SLOTS, UNITS, addDays, addProduct, addPurchase, convert, copyPlan, correctReview, correctStock, createEmptyState, createReview, dateRange, deletePlan, deleteRecipe, dependents, exportState, generateMonth, incompatibleItems, inventoryNow, isAbsent, lastStockReview, linkPlan, makeRecipePlan, monthBounds, movePlan, nextId, planFor, product, quantity, repeatWeek, reservedQuantity, reviewAvailability, saveReview, setAbsence, setEquivalence, setSlice, setStatusPlan, shoppingList, sliceStyle, syncReviewProducts, todayISO, updatePlan, upsertPerson, upsertRecipe, weekStart, importState } from './model.js';
 import { hasSavedState, loadState, saveState } from './storage.js';
 import { BRAND_MARK } from './brand.js';
 import { TOUR_STEPS, WELCOME } from './onboarding.js';
@@ -19,6 +19,14 @@ const personName = id => state.people.find(person => person.id === id)?.name || 
 const productName = id => product(state, id)?.name || 'Producto eliminado';
 const unitText = (unit, amount) => amount > 0 && amount <= 1 ? unit : ({ unidad: 'unidades', taza: 'tazas', lata: 'latas', paquete: 'paquetes', rueda: 'ruedas', rebanada: 'rebanadas' }[unit] || unit);
 const measure = (amount, unit) => `${fmt(amount)} ${esc(unitText(unit, amount))}`;
+// «14 ruedas» no dice nada si no se sabe cómo las cortan en esta casa.
+const cutText = (item, amount) => {
+  const style = sliceStyle(item?.slice);
+  if (!style) return '';
+  const word = style.label.toLowerCase();
+  return ` ${amount > 0 && amount <= 1 ? word : `${word}s`}`;
+};
+const stockText = (amount, item) => `${measure(amount, item?.controlUnit || '')}${esc(cutText(item, amount))}`;
 const itemText = item => `${measure(item.quantity, item.unit)} · ${esc(productName(item.productId))}`;
 const planTitle = plan => plan.kind === 'recipe' || plan.kind === 'linked' ? plan.title : ({ outside: 'Fuera de casa', order: 'Pedir comida', unplanned: 'Sin planificar' }[plan.kind] || 'Sin planificar');
 const button = (label, action, cls = 'btn-secondary', attrs = '') => `<button type="button" class="btn ${cls}" data-action="${action}" ${attrs}>${label}</button>`;
@@ -26,6 +34,21 @@ const notice = (title, detail, tone = '') => `<div class="notice ${tone}"><span>
 const empty = (emoji, title, text, action = '') => `<div class="empty"><span class="emoji">${emoji}</span><h3>${title}</h3><p>${text}</p>${action}</div>`;
 const nav = [ ['hoy','☀️','Hoy'], ['menu','▦','Menú'], ['compras','🧺','Compras'], ['revision','✓','Revisión'] ];
 const secondary = [ ['catalogo','📖','Preparaciones'], ['personas','👨‍👩‍👧‍👦','Personas'], ['productos','⚙️','Productos y datos'] ];
+// El botón + repite en las pantallas del día a día lo que se puede escribir
+// desde Ajustes, para no obligar a cambiar de sección solo para anotar algo.
+// Las dos entradas con destino lo tienen por necesidad: la revisión abierta se
+// ve únicamente en Revisión, y un período de fechas mal puesto se explica en
+// Compras. Las demás dejan al usuario donde estaba.
+const QUICK_PAGES = ['hoy', 'menu', 'compras', 'revision'];
+const QUICK_ACTIONS = [
+  ['open-product', '', '🥬', 'Producto', 'Un alimento y cuánto tienes ahora'],
+  ['open-recipe', '', '📖', 'Preparación', 'Una comida que se repite en casa'],
+  ['open-person', '', '👥', 'Persona', 'Quién come, qué evita y cuánto'],
+  ['open-purchase', 'compras', '🧺', 'Compra', 'Lo que compraste, con sus cantidades'],
+  ['open-new-review', 'revision', '✓', 'Revisión', 'Cuánto se consumió desde la última'],
+  ['open-correction', '', '⚖️', 'Corregir existencias', 'Se dañó algo o el conteo no cuadra'],
+  ['open-absence', '', '🚪', 'Ausencia', 'Alguien no come en casa ese día']
+];
 let toastTimer;
 function toast(message, error = false) {
   const el = document.querySelector('#toast');
@@ -78,7 +101,7 @@ function render() {
       ${loadError ? notice('No se pudieron leer los datos guardados.', `${esc(loadError)} Importa un respaldo o borra los datos del navegador desde Productos y datos.`, 'error') : ''}
       ${state.demo ? `<div class="demo-banner"><span>✦</span><div><strong>Estás viendo datos de demostración</strong>Las cantidades son solo ejemplos para probar el flujo; no son recomendaciones de alimentación.</div>${button('Borrar ejemplos', 'clear-demo', 'btn-secondary btn-small')}</div>` : ''}
       ${({ hoy: renderToday, menu: renderMenu, compras: renderShopping, revision: renderReviews, catalogo: renderCatalog, personas: renderPeople, productos: renderProducts })[ui.page]()}
-    </main><nav class="mobile-nav" aria-label="Navegación principal">${nav.map(([id, icon, label]) => `<button type="button" class="${ui.page === id ? 'active' : ''}" data-action="navigate" data-page="${id}"><span>${icon}</span>${label}</button>`).join('')}</nav></div>`;
+    </main>${QUICK_PAGES.includes(ui.page) && !ui.modal ? `<button type="button" class="fab" data-action="open-quick" aria-label="Añadir algo"><span aria-hidden="true">+</span></button>` : ''}<nav class="mobile-nav" aria-label="Navegación principal">${nav.map(([id, icon, label]) => `<button type="button" class="${ui.page === id ? 'active' : ''}" data-action="navigate" data-page="${id}"><span>${icon}</span>${label}</button>`).join('')}</nav></div>`;
   document.querySelector('#modal-root').innerHTML = ui.modal ? renderModal() : ui.tour === null ? '' : tourCard();
 }
 function servings(plan) {
@@ -165,7 +188,7 @@ function renderReviews() {
   if (selected) syncReviewProducts(state, selected);
   return `<div class="grid grid-3"><div class="card"><div class="stat">${state.products.filter(item => (stock[item.id] || 0) > 0).length}</div><div class="stat-label">productos con existencias</div></div><div class="card"><div class="stat">${state.reviews.filter(item => item.status === 'confirmed').length}</div><div class="stat-label">revisiones confirmadas</div></div><div class="card"><div class="stat">${latest ? esc(niceDate(latest, { day: 'numeric', month: 'short' })) : '—'}</div><div class="stat-label">última revisión o ajuste</div></div></div>
     <div class="section-head"><div><h2>Existencias actuales</h2><p>Compras confirmadas menos consumo revisado, con ajustes de conteo.</p></div><div class="inline">${button('Corregir existencias', 'open-correction', 'btn-secondary btn-small')}${button('Nueva revisión', 'open-new-review', 'btn-primary btn-small')}</div></div>
-    <div class="card">${state.products.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>Producto</th><th class="num">Disponible</th></tr></thead><tbody>${state.products.map(item => `<tr><td>${esc(item.name)}</td><td class="num strong">${measure(stock[item.id] || 0, item.controlUnit)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Primero agrega productos para llevar sus existencias.</p>'}</div>
+    <div class="card">${state.products.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>Producto</th><th class="num">Disponible</th></tr></thead><tbody>${state.products.map(item => `<tr><td>${esc(item.name)}</td><td class="num strong">${stockText(stock[item.id] || 0, item)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Primero agrega productos para llevar sus existencias.</p>'}</div>
     ${selected ? `<div class="section-head"><div><h2>${selected.status === 'confirmed' ? 'Revisión confirmada' : 'Revisión pendiente'}</h2><p>${niceDate(selected.date, { day: 'numeric', month: 'long', year: 'numeric' })}</p></div>${selected.status === 'confirmed' ? button(ui.correctingReview ? 'Cancelar corrección' : 'Corregir revisión', 'toggle-correct-review', 'btn-secondary btn-small') : ''}</div>${reviewTable(selected)}` : `<div class="section-head"><h2>Revisión semanal</h2></div>${empty('✓','Todavía no hay revisiones','Abre una revisión y registra cuánto se consumió de cada producto. Un campo vacío queda pendiente.', button('Empezar revisión', 'open-new-review', 'btn-primary'))}`}
     <div class="section-head"><h2>Historial</h2></div>${state.reviews.length || state.corrections.length ? `<div class="card">${[...state.reviews.map(item => ({ ...item, event: 'review' })), ...state.corrections.map(item => ({ ...item, event: 'correction' }))].sort((a,b) => b.date.localeCompare(a.date) || b.seq - a.seq).map(item => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${item.event === 'review' ? 'Revisión' : 'Corrección de existencias'} · ${niceDate(item.date, { day: 'numeric', month: 'short', year: 'numeric' })}</div><div class="list-row-sub">${item.event === 'review' ? `${item.productIds.filter(id => item.consumed[id] !== undefined).length}/${item.productIds.length} productos revisados` : `${esc(productName(item.productId))}: ${item.delta >= 0 ? '+' : ''}${measure(item.delta, product(state, item.productId)?.controlUnit || '')}${item.reason ? ` · ${esc(item.reason)}` : ''}`}</div></div>${item.event === 'review' ? button(item.status === 'confirmed' ? 'Ver' : 'Continuar', 'select-review', 'btn-secondary btn-small', `data-id="${item.id}"`) : '<span class="pill gray">Ajuste</span>'}</div>`).join('')}</div>` : ''}`;
 }
@@ -174,7 +197,7 @@ function reviewTable(review) {
   const editing = review.status === 'draft' || ui.correctingReview;
   return `<form data-form="review" data-id="${review.id}" class="card"><div class="table-wrap"><table class="data-table"><thead><tr><th>Producto</th><th class="num">Antes</th><th class="num">Consumida</th><th class="num">Restante</th></tr></thead><tbody>${review.productIds.map(id => {
     const amount = review.consumed[id]; const remain = amount === undefined ? null : Math.max(0, (available[id] || 0) - amount);
-    return `<tr data-review-product="${id}" data-available="${available[id] || 0}"><td><strong>${esc(productName(id))}</strong><div class="small muted">${esc(product(state, id)?.controlUnit || '')}</div></td><td class="num">${fmt(available[id] || 0)}</td><td class="num">${editing ? `<input class="text" type="number" name="consume-${id}" aria-label="Cantidad consumida de ${esc(productName(id))}" min="0" max="${available[id] || 0}" step="any" inputmode="decimal" placeholder="Pendiente" value="${amount === undefined ? '' : amount}">` : fmt(amount)}</td><td class="num remaining ${remain === null ? 'pending' : 'good'}">${remain === null ? 'Pendiente' : fmt(remain)}</td></tr>`;
+    return `<tr data-review-product="${id}" data-available="${available[id] || 0}"><td><strong>${esc(productName(id))}</strong><div class="small muted">${esc(product(state, id)?.controlUnit || '')}${esc(cutText(product(state, id), 1))}</div></td><td class="num">${fmt(available[id] || 0)}</td><td class="num">${editing ? `<input class="text" type="number" name="consume-${id}" aria-label="Cantidad consumida de ${esc(productName(id))}" min="0" max="${available[id] || 0}" step="any" inputmode="decimal" placeholder="Pendiente" value="${amount === undefined ? '' : amount}">` : fmt(amount)}</td><td class="num remaining ${remain === null ? 'pending' : 'good'}">${remain === null ? 'Pendiente' : fmt(remain)}</td></tr>`;
   }).join('')}</tbody></table></div>${review.productIds.length ? '' : '<p class="muted">No hay productos con existencias antes de esta revisión.</p>'}<div class="modal-actions">${editing ? review.status === 'draft' ? `<button type="submit" name="intent" value="save" class="btn btn-secondary">Guardar pendiente</button><button type="submit" name="intent" value="confirm" class="btn btn-primary">Confirmar revisión</button>` : `<button type="submit" name="intent" value="correct" class="btn btn-primary">Guardar corrección</button>` : `<span class="pill">Confirmada · el consumo ya se descontó</span>`}</div></form>`;
 }
 function renderCatalog() {
@@ -182,14 +205,14 @@ function renderCatalog() {
     ${state.recipes.length ? `<div class="grid grid-2">${state.recipes.map(recipe => `<article class="card"><div class="between"><h2>${esc(recipe.name)}</h2><span class="pill warm">${recipe.uses.map(cap).join(' · ')}</span></div><p class="small muted">${recipe.covers.length ? recipe.covers.map(id => esc(personName(id))).join(', ') : 'Para quienes participen'}${recipe.servings ? ` · ${fmt(recipe.servings)} raciones` : ''}</p>${foodList(recipe.items)}${recipe.note ? `<p class="small"><strong>Nota:</strong> ${esc(recipe.note)}</p>` : ''}<div class="inline">${button('Editar', 'open-recipe', 'btn-secondary btn-small', `data-id="${recipe.id}"`)}${button('Eliminar', 'delete-recipe', 'btn-danger btn-small', `data-id="${recipe.id}"`)}</div></article>`).join('')}</div>` : empty('📖','Tu catálogo está vacío','Agrega las comidas habituales con sus alimentos principales y variantes por persona.', button('Crear preparación', 'open-recipe', 'btn-primary'))}`;
 }
 function renderPeople() {
-  return `<div class="section-head" style="margin-top:0"><div><h2>Quiénes comen en casa</h2><p>Guarda restricciones y cantidades habituales como referencia.</p></div><div class="inline">${button('Registrar ausencia', 'open-absence', 'btn-secondary')}${button('+ Añadir persona', 'open-person', 'btn-primary')}</div></div>
+  return `<div class="section-head" style="margin-top:0"><div><h2>Quiénes comen en casa</h2><p>Lo que se guarda aquí queda para siempre: las cantidades habituales se traen a una preparación con un toque.</p></div><div class="inline">${button('Registrar ausencia', 'open-absence', 'btn-secondary')}${button('+ Añadir persona', 'open-person', 'btn-primary')}</div></div>
     ${state.people.length ? `<div class="grid grid-2">${state.people.map(person => `<article class="card"><div class="between"><h2>${esc(person.name)}</h2>${button('Editar', 'open-person', 'btn-secondary btn-small', `data-id="${person.id}"`)}</div><p class="small"><strong>Evitar:</strong> ${person.restrictions.length ? person.restrictions.map(id => esc(productName(id))).join(', ') : 'Sin restricciones registradas'}</p><p class="small"><strong>Cantidades habituales:</strong> ${person.habitual.length ? person.habitual.map(item => `${fmt(item.quantity)} ${esc(item.unit)} de ${esc(productName(item.productId))}`).join(' · ') : 'Sin referencias todavía'}</p></article>`).join('')}</div>` : empty('👨‍👩‍👧‍👦','Agrega a las personas de casa','Después podrás indicar variantes y ausencias por comida.', button('Añadir persona', 'open-person', 'btn-primary'))}
     <div class="section-head"><h2>Ausencias registradas</h2></div>${state.absences.length ? `<div class="card">${state.absences.sort((a,b) => a.date.localeCompare(b.date)).map(item => `<div class="list-row"><div>${esc(personName(item.personId))} · ${cap(item.slot)} · ${niceDate(item.date, { day: 'numeric', month: 'long' })}</div>${button('Quitar', 'remove-absence', 'btn-quiet btn-small', `data-date="${item.date}" data-slot="${item.slot}" data-id="${item.personId}"`)}</div>`).join('')}</div>` : '<p class="muted">No hay ausencias indicadas.</p>'}`;
 }
 function renderProducts() {
   return `<div class="card soft" style="margin-bottom:20px"><h2>Organización de la casa</h2><p class="muted small">Edita las comidas habituales y las personas que participan. El recorrido explica cada pantalla paso a paso.</p><div class="inline">${button('Preparaciones', 'navigate', 'btn-secondary', 'data-page="catalogo"')}${button('Personas', 'navigate', 'btn-secondary', 'data-page="personas"')}${button('Cómo funciona', 'open-tour', 'btn-secondary')}</div></div>
     <div class="section-head" style="margin-top:0"><div><h2>Productos y equivalencias</h2><p>La unidad de control define cómo se cuentan las existencias.</p></div>${button('+ Añadir producto', 'open-product', 'btn-primary')}</div>
-    ${state.products.length ? `<div class="card">${state.products.map(item => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${esc(item.name)}</div><div class="list-row-sub">Control: ${esc(item.controlUnit)} · Compra: ${esc(item.purchaseUnit)}${Object.entries(item.equivalences || {}).length ? ` · ${Object.entries(item.equivalences).map(([unit,factor]) => `1 ${esc(unit)} = ${fmt(factor)} ${esc(item.controlUnit)}`).join(' · ')}` : ''}</div></div><div class="inline">${button('Equivalencia', 'open-equivalence', 'btn-secondary btn-small', `data-id="${item.id}"`)}${button('Editar', 'open-product', 'btn-secondary btn-small', `data-id="${item.id}"`)}</div></div>`).join('')}</div>` : empty('🥬','Sin productos todavía','Agrega los alimentos principales que quieres controlar.', button('Añadir producto', 'open-product', 'btn-primary'))}
+    ${state.products.length ? `<div class="card">${state.products.map(item => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${esc(item.name)}</div><div class="list-row-sub">Control: ${esc(item.controlUnit)}${esc(cutText(item, 1))} · Compra: ${esc(item.purchaseUnit)}${Object.entries(item.equivalences || {}).length ? ` · ${Object.entries(item.equivalences).map(([unit,factor]) => `1 ${esc(unit)} = ${stockText(factor, item)}`).join(' · ')}` : ''}</div></div><div class="inline">${button('Equivalencia', 'open-equivalence', 'btn-secondary btn-small', `data-id="${item.id}"`)}${button('Editar', 'open-product', 'btn-secondary btn-small', `data-id="${item.id}"`)}</div></div>`).join('')}</div>` : empty('🥬','Sin productos todavía','Agrega los alimentos principales que quieres controlar.', button('Añadir producto', 'open-product', 'btn-primary'))}
     <div class="section-head"><h2>Tus datos</h2></div><div class="grid grid-2"><div class="card"><h2>Respaldo</h2><p class="muted">Los datos viven solo en este navegador y dispositivo. Exporta un archivo para conservarlos o importarlos aquí más tarde.</p><div class="inline">${button('Exportar respaldo', 'export', 'btn-primary')}${button('Importar respaldo', 'open-import', 'btn-secondary')}</div></div><div class="card"><h2>Comenzar con datos reales</h2><p class="muted">Borra las demostraciones y empieza desde cero. Esta acción elimina todos los datos locales de la app; exporta un respaldo antes si quieres conservarlos.</p>${button('Borrar todos los datos', 'clear-demo', 'btn-danger')}</div></div>`;
 }
 function options(values, selected, placeholder = '') { return `${placeholder ? `<option value="">${placeholder}</option>` : ''}${values.map(([value,label]) => `<option value="${esc(value)}" ${String(value) === String(selected) ? 'selected' : ''}>${esc(label)}</option>`).join('')}`; }
@@ -208,6 +231,7 @@ function checkPeople(name, selected, date = null, slot = null) {
 }
 function renderModal() {
   const m = ui.modal;
+  if (m.type === 'quick') return modal('Anotar algo', 'Lo mismo que puedes escribir desde Ajustes, sin salir de aquí.', `<div class="quick-grid">${QUICK_ACTIONS.map(([action, goto, icon, title, detail]) => `<button type="button" class="quick-item" data-action="${action}" ${goto ? `data-goto="${goto}"` : ''}><span class="quick-icon" aria-hidden="true">${icon}</span><span class="quick-text"><strong>${esc(title)}</strong><span>${esc(detail)}</span></span></button>`).join('')}</div>`);
   if (m.type === 'meal') {
     const plan = planFor(state, m.date, m.slot);
     const context = `${cap(m.slot)} · ${niceDate(m.date, { weekday: 'long', day: 'numeric', month: 'long' })}`;
@@ -222,23 +246,29 @@ function renderModal() {
   }
   if (m.type === 'recipe') {
     const recipe = state.recipes.find(item => item.id === m.id);
-    return modal(recipe ? 'Editar preparación' : 'Nueva preparación', 'Guarda las cantidades que usas normalmente. Podrás cambiarlas en cada fecha.', `<form data-form="recipe" data-id="${recipe?.id || ''}"><label class="field"><span>Nombre</span><input name="name" required value="${esc(recipe?.name || '')}" placeholder="Ej. Arroz con carne"></label><div class="field" style="margin-top:14px"><span>Se usa en</span><div class="checks">${SLOTS.map(slot => `<label class="check-chip"><input type="checkbox" name="uses" value="${slot}" ${recipe?.uses.includes(slot) ? 'checked' : ''}>${cap(slot)}</label>`).join('')}</div></div><div class="field" style="margin-top:14px"><span>Personas que cubre</span>${checkPeople('covers', recipe?.covers || [])}<small>Si no seleccionas a nadie, se ofrece a quienes participen ese día.</small></div><label class="field" style="margin-top:14px"><span>Raciones que cubre (opcional)</span><input name="servings" type="number" min="0.1" step="any" inputmode="decimal" value="${recipe?.servings ?? ''}" placeholder="Ej. 4"></label><div class="section-head"><h3>Alimentos principales</h3></div><div data-item-list="ingredient">${(recipe?.items || [{}]).map(item => itemRow(item)).join('')}</div>${button('+ Añadir alimento', 'add-item', 'btn-secondary btn-small', 'data-type="ingredient"')}<label class="field" style="margin-top:17px"><span>Nota para quien cocina (opcional)</span><textarea name="note" placeholder="Ej. dejar una parte para mañana">${esc(recipe?.note || '')}</textarea></label><div class="modal-actions"><button class="btn btn-primary" type="submit">Guardar preparación</button></div></form>`, true);
+    return modal(recipe ? 'Editar preparación' : 'Nueva preparación', 'Guarda las cantidades que usas normalmente. Podrás cambiarlas en cada fecha.', `<form data-form="recipe" data-id="${recipe?.id || ''}"><label class="field"><span>Nombre</span><input name="name" required value="${esc(recipe?.name || '')}" placeholder="Ej. Arroz con carne"></label><div class="field" style="margin-top:14px"><span>Se usa en</span><div class="checks">${SLOTS.map(slot => `<label class="check-chip"><input type="checkbox" name="uses" value="${slot}" ${recipe?.uses.includes(slot) ? 'checked' : ''}>${cap(slot)}</label>`).join('')}</div></div><div class="field" style="margin-top:14px"><span>Personas que cubre</span>${checkPeople('covers', recipe?.covers || [])}<small>Si no seleccionas a nadie, se ofrece a quienes participen ese día.</small></div><label class="field" style="margin-top:14px"><span>Raciones que cubre (opcional)</span><input name="servings" type="number" min="0.1" step="any" inputmode="decimal" value="${recipe?.servings ?? ''}" placeholder="Ej. 4"></label><div class="section-head"><h3>Alimentos principales</h3></div><div data-item-list="ingredient">${(recipe?.items || [{}]).map(item => itemRow(item)).join('')}</div><div class="inline">${button('+ Añadir alimento', 'add-item', 'btn-secondary btn-small', 'data-type="ingredient"')}${state.people.some(person => person.habitual?.length) ? button('↺ Traer cantidades habituales', 'fill-habitual', 'btn-secondary btn-small') : ''}</div><label class="field" style="margin-top:17px"><span>Nota para quien cocina (opcional)</span><textarea name="note" placeholder="Ej. dejar una parte para mañana">${esc(recipe?.note || '')}</textarea></label><div class="modal-actions"><button class="btn btn-primary" type="submit">Guardar preparación</button></div></form>`, true);
   }
   if (m.type === 'person') {
     const person = state.people.find(item => item.id === m.id);
-    return modal(person ? 'Editar persona' : 'Añadir persona', 'Las restricciones evitan asignaciones automáticas incompatibles.', `<form data-form="person" data-id="${person?.id || ''}"><label class="field"><span>Nombre</span><input name="name" required value="${esc(person?.name || '')}" placeholder="Nombre de la persona"></label><div class="field" style="margin-top:16px"><span>Alimentos incompatibles</span><div class="checks">${state.products.map(item => `<label class="check-chip"><input type="checkbox" name="restrictions" value="${item.id}" ${person?.restrictions.includes(item.id) ? 'checked' : ''}>${esc(item.name)}</label>`).join('') || '<span class="muted small">Agrega productos primero para configurar restricciones.</span>'}</div></div><div class="section-head"><h3>Cantidades habituales (opcional)</h3></div><div data-item-list="habitual">${(person?.habitual || []).map(item => itemRow(item)).join('')}</div>${button('+ Añadir cantidad', 'add-item', 'btn-secondary btn-small', 'data-type="habitual"')}<div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar persona</button></div></form>`, true);
+    return modal(person ? 'Editar persona' : 'Añadir persona', 'Las restricciones evitan asignaciones automáticas incompatibles.', `<form data-form="person" data-id="${person?.id || ''}"><label class="field"><span>Nombre</span><input name="name" required value="${esc(person?.name || '')}" placeholder="Nombre de la persona"></label><div class="field" style="margin-top:16px"><span>Alimentos incompatibles</span><div class="checks">${state.products.map(item => `<label class="check-chip"><input type="checkbox" name="restrictions" value="${item.id}" ${person?.restrictions.includes(item.id) ? 'checked' : ''}>${esc(item.name)}</label>`).join('') || '<span class="muted small">Agrega productos primero para configurar restricciones.</span>'}</div></div><div class="section-head"><div><h3>Cantidades habituales</h3><p class="small muted" style="margin:0">Cuánto come normalmente esta persona. Queda guardado y no hay que volver a escribirlo: al crear una preparación se suman con un toque las de todos los que comen.</p></div></div><div data-item-list="habitual">${(person?.habitual || []).map(item => itemRow(item)).join('')}</div>${button('+ Añadir cantidad', 'add-item', 'btn-secondary btn-small', 'data-type="habitual"')}<div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar persona</button></div></form>`, true);
   }
   if (m.type === 'product') {
     const item = product(state, m.id);
     const stock = item ? inventoryNow(state)[item.id] || 0 : 0;
     const otherUnit = item && item.purchaseUnit !== item.controlUnit;
+    const controlUnit = item?.controlUnit || 'unidad';
     return modal(item ? 'Editar producto' : 'Añadir producto', item ? '' : 'Anota cómo cuentas este alimento y cuánto tienes ahora mismo.', `<form data-form="product" data-id="${item?.id || ''}" class="stack">
       <label class="field"><span>Nombre</span><input name="name" required value="${esc(item?.name || '')}" placeholder="Ej. Plátano maduro"></label>
       <div class="form-grid">
-        <label class="field"><span>¿En qué unidad lo cuentas?</span><select name="controlUnit" ${item ? 'disabled' : ''}>${unitOptions(item?.controlUnit || 'unidad')}</select><small>${item ? 'No se cambia cuando ya hay movimientos.' : 'Así verás sus existencias en la casa.'}</small></label>
+        <label class="field"><span>¿En qué unidad lo cuentas?</span><select name="controlUnit" ${item ? 'disabled' : ''}>${unitOptions(controlUnit)}</select><small>${item ? 'No se cambia cuando ya hay movimientos.' : 'Así verás sus existencias en la casa.'}</small></label>
         ${item
-          ? `<div class="field"><span>Existencias ahora</span><div class="hint" style="min-height:42px;display:flex;align-items:center">${measure(stock, item.controlUnit)}</div><small>Se cambia con una compra, una revisión o ${button('corregir existencias', 'open-correction', 'btn-quiet btn-small')}.</small></div>`
+          ? `<div class="field"><span>Existencias ahora</span><div class="hint" style="min-height:42px;display:flex;align-items:center">${stockText(stock, item)}</div><small>Se cambia con una compra, una revisión o ${button('corregir existencias', 'open-correction', 'btn-quiet btn-small')}.</small></div>`
           : `<label class="field"><span>¿Cuánto tienes ahora?</span><input name="opening" type="number" min="0" step="any" inputmode="decimal" value="0" placeholder="0"><small>Déjalo en 0 si no tienes nada todavía.</small></label>`}
+      </div>
+      <div class="field" data-cut-field ${SLICEABLE.includes(controlUnit) ? '' : 'hidden'}>
+        <span>¿De qué grosor las cortan en casa?</span>
+        <div class="checks">${SLICE_STYLES.map(style => `<label class="check-chip"><input type="radio" name="slice" value="${style.id}" ${(item?.slice || 'media') === style.id ? 'checked' : ''}><span class="cut-option"><strong>${esc(style.label)}</strong><span class="muted tiny">${esc(style.range)}</span></span></label>`).join('')}</div>
+        <small>Cada casa corta distinto, así que una rueda no mide lo mismo en todas. Esto no convierte cantidades: deja escrito qué significa una rueda aquí para que dos conteos se puedan comparar.</small>
       </div>
       <details class="more" ${otherUnit ? 'open' : ''}>
         <summary>Lo compro en otra medida</summary>
@@ -304,8 +334,12 @@ document.addEventListener('click', event => {
   if (event.target.matches('[data-overlay]')) { closeModal(); return; }
   const el = event.target.closest('[data-action]'); if (!el) return;
   const action = el.dataset.action;
+  // Un atajo del botón + puede pedir que la app se sitúe antes en la pantalla
+  // donde se verá el resultado de lo que se está por escribir.
+  if (el.dataset.goto) ui.page = el.dataset.goto;
   try {
     if (action === 'navigate') { ui.page = el.dataset.page; ui.modal = null; ui.drawerOpen = false; render(); }
+    else if (action === 'open-quick') openModal('quick');
     else if (action === 'welcome-demo') { ui.welcome = false; ui.page = TOUR_STEPS[0].page; ui.tour = 0; commit('Datos de demostración cargados.'); }
     else if (action === 'welcome-empty') { state = createEmptyState(); ui.welcome = false; ui.page = TOUR_STEPS[0].page; ui.tour = 0; commit('Todo listo para empezar con tus datos.'); }
     else if (action === 'open-tour') goTour(0);
@@ -337,7 +371,26 @@ document.addEventListener('click', event => {
     else if (action === 'replace-status') { const children = dependents(state, el.dataset.id); if (children.length && !window.confirm(`Esta preparación tiene ${children.length} comida(s) vinculadas. Cambiarla también eliminará esas comidas. ¿Continuar?`)) return; const old = state.plans.find(item => item.id === el.dataset.id); deletePlan(state, old.id, true); setStatusPlan(state, old.date, old.slot, el.dataset.kind); ui.modal = null; commit('Comida actualizada.'); }
     else if (action === 'delete-plan') { const children = dependents(state, el.dataset.id); if (children.length && !window.confirm(`Esta preparación tiene ${children.length} comida(s) vinculadas. Si la eliminas, esas comidas también se quitarán. ¿Continuar?`)) return; deletePlan(state, el.dataset.id, true); ui.modal = null; commit('Comida eliminada del menú.'); }
     else if (action === 'delete-recipe') { if (!window.confirm('¿Eliminar esta preparación del catálogo? Las comidas ya asignadas conservarán sus cantidades.')) return; deleteRecipe(state, el.dataset.id); commit('Preparación eliminada.'); }
-    else if (action === 'add-item') { const list = el.parentElement.querySelector(`[data-item-list="${el.dataset.type}"]`); list?.insertAdjacentHTML('beforeend', itemRow({}, el.dataset.type)); }
+    else if (action === 'add-item') { const list = el.closest('form').querySelector(`[data-item-list="${el.dataset.type}"]`); list?.insertAdjacentHTML('beforeend', itemRow({}, el.dataset.type)); }
+    // Las cantidades habituales de Personas se guardan para siempre; esto las
+    // convierte en el punto de partida de una preparación en vez de dejarlas
+    // como una nota que hay que volver a teclear a mano.
+    else if (action === 'fill-habitual') {
+      const form = el.closest('form');
+      const list = form.querySelector('[data-item-list="ingredient"]');
+      const chosen = selected(form, 'covers');
+      const people = state.people.filter(person => (!chosen.length || chosen.includes(person.id)) && person.habitual?.length);
+      const totals = new Map();
+      for (const person of people) for (const row of person.habitual) {
+        const key = `${row.productId}|${row.unit}`;
+        totals.set(key, (totals.get(key) || 0) + Number(row.quantity));
+      }
+      if (!totals.size) throw new Error(chosen.length ? 'Las personas marcadas no tienen cantidades habituales guardadas.' : 'Todavía no hay cantidades habituales guardadas en Personas.');
+      const written = [...list.querySelectorAll('[data-item-row]')].some(row => row.querySelector('[name="productId"]')?.value);
+      if (written && !window.confirm('Se reemplazarán los alimentos escritos por la suma de las cantidades habituales. ¿Continuar?')) return;
+      list.innerHTML = [...totals].map(([key, total]) => { const [productId, unit] = key.split('|'); return itemRow({ productId, quantity: Math.round(total * 1000) / 1000, unit }); }).join('');
+      toast(`${totals.size} alimento(s) sumados de ${people.length} persona(s).`);
+    }
     else if (action === 'remove-item') el.closest('[data-item-row]')?.remove();
     else if (action === 'clear-demo') { if (!window.confirm('¿Borrar todos los datos de esta aplicación en este navegador? Esta acción no se puede deshacer sin un respaldo exportado.')) return; state = createEmptyState(); loadError = ''; ui.modal = null; ui.reviewId = null; commit('Datos borrados. Ya puedes empezar con los tuyos.'); }
     else if (action === 'export') { const blob = new Blob([exportState(state)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `que-comemos-respaldo-${today}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 5000); toast('Respaldo descargado.'); }
@@ -362,6 +415,9 @@ document.addEventListener('change', event => {
   if (['date','slot'].includes(el.name) && el.closest('[data-form="absence"]')) { const form = el.closest('form'), date = form.querySelector('[name="date"]').value, slot = form.querySelector('[name="slot"]').value; form.querySelectorAll('[name="absent"]').forEach(input => input.checked = isAbsent(state, date, slot, input.value)); }
   if (el.name === 'productId' && el.closest('[data-item-row]')) { const row = el.closest('[data-item-row]'); const item = product(state, el.value); if (item) row.querySelector('[name="unit"]').value = row.closest('[data-item-list="purchase"]') ? item.purchaseUnit : item.controlUnit; }
   if (el.name === 'productId' && el.closest('[data-form="correction"]')) { el.form.querySelector('[name="actual"]').value = inventoryNow(state)[el.value] || 0; }
+  // El grosor solo aparece en lo que se corta; se oculta sin volver a dibujar
+  // el formulario para no perder lo ya escrito.
+  if (el.name === 'controlUnit' && el.closest('[data-form="product"]')) { const field = el.form.querySelector('[data-cut-field]'); if (field) field.hidden = !SLICEABLE.includes(el.value); }
 });
 document.addEventListener('input', event => {
   const input = event.target;
@@ -387,11 +443,12 @@ document.addEventListener('submit', async event => {
       const controlUnit = existing ? existing.controlUnit : data.get('controlUnit');
       const purchaseUnit = data.get('purchaseUnit') || controlUnit;
       const factor = String(data.get('factor') || '').trim();
-      const item = existing || addProduct(state, { name: data.get('name'), controlUnit, purchaseUnit, opening: data.get('opening') });
+      const item = existing || addProduct(state, { name: data.get('name'), controlUnit, purchaseUnit, opening: data.get('opening'), slice: data.get('slice') });
       if (existing) {
         existing.name = String(data.get('name')).trim();
         if (!existing.name) throw new Error('Escribe el nombre.');
         existing.purchaseUnit = purchaseUnit;
+        setSlice(state, existing.id, data.get('slice'));
       }
       // La equivalencia se guarda aquí mismo para no mandar a otra pantalla.
       // Sin ella la app no convierte: Compras avisa de que la lista está incompleta.

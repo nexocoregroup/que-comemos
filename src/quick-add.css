@@ -1,0 +1,60 @@
+/* Botón + flotante y su hoja de atajos.
+   Existe porque anotar algo no debería costar un cambio de sección: las mismas
+   entradas que viven en Ajustes quedan a un toque desde las pantallas del día.
+
+   Las capas importan y están repartidas así: la barra inferior del móvil ocupa
+   la 20, este botón la 25, el modal la 30 y el recorrido la 35. Por eso el
+   botón desaparece detrás del modal sin tener que ocultarlo a mano, y se
+   esconde durante el recorrido, donde la tarjeta se sienta en la misma
+   esquina. */
+.fab {
+  position: fixed;
+  right: clamp(16px, 3vw, 30px);
+  bottom: clamp(16px, 3vw, 30px);
+  width: 60px;
+  height: 60px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--clay);
+  color: white;
+  font-size: 32px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 8px 22px #75391642, 0 2px 6px #30241c1f;
+  z-index: 25;
+}
+.fab span { display: block; margin-top: -3px; }
+.fab:hover { background: var(--clay-dark); }
+.fab:active { transform: translateY(1px); }
+.fab:focus-visible { outline: 3px solid var(--clay-dark); outline-offset: 3px; }
+body.tour-open .fab { display: none; }
+
+.quick-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.quick-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 68px;
+  text-align: left;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 13px 14px;
+}
+.quick-item:hover { background: var(--clay-light); border-color: var(--clay-line); }
+.quick-item:focus-visible { outline: 3px solid var(--clay); outline-offset: 2px; }
+.quick-icon { font-size: 23px; line-height: 1; flex-shrink: 0; }
+.quick-text { display: grid; gap: 3px; min-width: 0; }
+.quick-text strong { font-weight: 780; letter-spacing: -.02em; }
+.quick-text span { font-size: .79rem; color: var(--ink-muted); line-height: 1.35; }
+
+@media (max-width: 700px) {
+  /* Por encima de la barra de navegación inferior, que mide unos 62 px más el
+     área segura del teléfono. */
+  .fab { width: 56px; height: 56px; right: 16px; bottom: calc(74px + env(safe-area-inset-bottom)); }
+  .quick-grid { grid-template-columns: minmax(0, 1fr); }
+  .quick-item { min-height: 60px; }
+}
