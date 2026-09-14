@@ -1,4 +1,4 @@
-import { addDays, addProduct, addPurchase, createEmptyState, linkPlan, makeRecipePlan, setEquivalence, todayISO, upsertPerson, upsertRecipe } from './model.js';
+import { addDays, addProduct, addPurchase, createEmptyState, linkPlan, setBasket, makeRecipePlan, setEquivalence, todayISO, upsertPerson, upsertRecipe } from './model.js';
 
 export function createDemoState() {
   const state = createEmptyState();
@@ -49,5 +49,15 @@ export function createDemoState() {
   state.opening = { [platano]: 8, [huevo]: 6, [arroz]: 2, [carne]: 1, [salami]: 0, [jamon]: 0, [atun]: 2, [pan]: 0 };
   addPurchase(state, { date: today, lines: [{ productId: salami, quantity: 1, unit: 'paquete' }, { productId: jamon, quantity: 1, unit: 'paquete' }] });
   state.manualItems.push({ id: `otro-${++state.seq}`, name: 'Detergente · ejemplo', quantity: '', done: false });
+  // Una canasta de ejemplo para ver la otra forma de comprar: sin planificar el
+  // menú, a partir de lo que la casa consume en un mes corriente.
+  setBasket(state, [
+    { productId: arroz, quantity: 90, unit: 'taza' },
+    { productId: huevo, quantity: 60, unit: 'unidad' },
+    { productId: carne, quantity: 8, unit: 'lb' },
+    { productId: platano, quantity: 40, unit: 'unidad' },
+    { productId: salami, quantity: 4, unit: 'paquete' },
+    { productId: atun, quantity: 8, unit: 'lata' }
+  ]);
   return state;
 }

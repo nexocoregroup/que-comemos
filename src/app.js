@@ -1,4 +1,4 @@
-import { SLICEABLE, SLICE_STYLES, SLOTS, UNITS, addDays, addProduct, addPurchase, convert, copyPlan, correctReview, correctStock, createEmptyState, createReview, dateRange, deletePlan, deleteRecipe, dependents, exportState, generateMonth, incompatibleItems, inventoryNow, isAbsent, lastStockReview, linkPlan, makeRecipePlan, monthBounds, movePlan, nextId, planFor, product, quantity, repeatWeek, reservedQuantity, reviewAvailability, saveReview, setAbsence, setEquivalence, setSlice, setStatusPlan, shoppingList, sliceStyle, syncReviewProducts, todayISO, updatePlan, upsertPerson, upsertRecipe, weekStart, importState } from './model.js';
+import { SLICEABLE, SLICE_STYLES, SLOTS, UNITS, addDays, addProduct, addPurchase, basketShare, convert, copyPlan, correctReview, correctStock, createEmptyState, createReview, dateRange, deletePlan, deleteRecipe, dependents, exportState, generateMonth, incompatibleItems, inventoryNow, isAbsent, lastStockReview, linkPlan, makeRecipePlan, monthBounds, movePlan, nextId, planFor, product, quantity, repeatWeek, reservedQuantity, reviewAvailability, saveReview, setAbsence, setBasket, setEquivalence, setSlice, setStatusPlan, shoppingList, sliceStyle, syncReviewProducts, todayISO, updatePlan, upsertPerson, upsertRecipe, weekStart, importState } from './model.js';
 import { hasSavedState, loadState, saveState } from './storage.js';
 import { BRAND_MARK } from './brand.js';
 import { TOUR_STEPS, WELCOME } from './onboarding.js';
@@ -9,7 +9,7 @@ try { state = loadState(); } catch (error) { state = createEmptyState(); loadErr
 const today = todayISO();
 const SIDEBAR_KEY = 'que-comemos-sidebar-collapsed';
 const sidebarInitiallyCollapsed = (() => { try { return localStorage.getItem(SIDEBAR_KEY) === '1'; } catch { return false; } })();
-const ui = { page: 'hoy', menuDate: today, menuMode: 'week', shopMonth: today.slice(0, 7), shopKind: Number(today.slice(8)) <= 15 ? 'first' : 'second', customStart: today, customEnd: addDays(today, 14), modal: null, reviewId: null, correctingReview: false, generationResult: null, sidebarCollapsed: sidebarInitiallyCollapsed, drawerOpen: false, welcome: firstRun, tour: null };
+const ui = { page: 'hoy', menuDate: today, menuMode: 'week', shopMonth: today.slice(0, 7), shopKind: Number(today.slice(8)) <= 15 ? 'first' : 'second', customStart: today, customEnd: addDays(today, 14), shopBasis: 'menu', modal: null, reviewId: null, correctingReview: false, generationResult: null, sidebarCollapsed: sidebarInitiallyCollapsed, drawerOpen: false, welcome: firstRun, tour: null };
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const fmt = value => new Intl.NumberFormat('es-DO', { maximumFractionDigits: 3 }).format(Number(value || 0));
 const cap = value => value.charAt(0).toUpperCase() + value.slice(1);
@@ -45,6 +45,7 @@ const QUICK_ACTIONS = [
   ['open-recipe', '', '📖', 'Preparación', 'Una comida que se repite en casa'],
   ['open-person', '', '👥', 'Persona', 'Quién come, qué evita y cuánto'],
   ['open-purchase', 'compras', '🧺', 'Compra', 'Lo que compraste, con sus cantidades'],
+  ['open-basket', 'compras', '🗒️', 'Canasta del mes', 'Lo que la casa consume en un mes'],
   ['open-new-review', 'revision', '✓', 'Revisión', 'Cuánto se consumió desde la última'],
   ['open-correction', '', '⚖️', 'Corregir existencias', 'Se dañó algo o el conteo no cuadra'],
   ['open-absence', '', '🚪', 'Ausencia', 'Alguien no come en casa ese día']
@@ -163,19 +164,27 @@ function shopPeriod() {
 }
 function renderShopping() {
   const period = shopPeriod();
-  let list, periodError = ''; try { list = shoppingList(state, period.start, period.end); } catch (error) { periodError = error.message; list = { lines: [], missing: [], pending: [], lastReview: null, future: false }; }
+  const basket = ui.shopBasis === 'basket';
+  let list, periodError = ''; try { list = shoppingList(state, period.start, period.end, ui.shopBasis); } catch (error) { periodError = error.message; list = { lines: [], missing: [], pending: [], lastReview: null, future: false }; }
   const suggested = list.lines.filter(line => line.shortfall > 0);
   const incomplete = list.missing.length || list.pending.length;
-  return `<div class="card"><div class="section-head" style="margin:0 0 16px"><div><h2>Compra según el menú</h2><p>Necesario en el período menos lo que hay hoy.</p></div></div>
+  return `<div class="card"><div class="section-head shop-head" style="margin:0 0 16px"><div><h2>${basket ? 'Compra según la canasta' : 'Compra según el menú'}</h2><p>${basket ? 'Lo que la casa consume en un mes, ajustado a este período, menos lo que hay hoy.' : 'Necesario en el período menos lo que hay hoy.'}</p></div><div class="segmented"><button type="button" data-action="shop-basis" data-basis="menu" class="${basket ? '' : 'active'}">Menú</button><button type="button" data-action="shop-basis" data-basis="basket" class="${basket ? 'active' : ''}">Canasta</button></div></div>
     <div class="shopping-period"><label class="field"><span>Período</span><select id="shop-kind"><option value="first" ${ui.shopKind === 'first' ? 'selected' : ''}>Primera quincena</option><option value="second" ${ui.shopKind === 'second' ? 'selected' : ''}>Segunda quincena</option><option value="custom" ${ui.shopKind === 'custom' ? 'selected' : ''}>Fechas personalizadas</option></select></label>
     ${ui.shopKind === 'custom' ? `<label class="field"><span>Desde</span><input id="shop-start" type="date" value="${esc(ui.customStart)}"></label><label class="field"><span>Hasta</span><input id="shop-end" type="date" value="${esc(ui.customEnd)}"></label>` : `<label class="field"><span>Mes</span><input id="shop-month" type="month" value="${esc(ui.shopMonth)}"></label>`}
     ${button('Preparar compra', 'open-purchase', 'btn-primary')}</div></div>
     ${periodError ? notice('Revisa las fechas de compra.', esc(periodError), 'error') : ''}
+    ${basket && !periodError && state.basket.length ? notice(`La canasta es mensual y este período cubre ${list.days} de los ${list.monthDays} días de ${esc(monthName(list.month))}.`, `Por eso se pide el ${Math.round(list.share * 100)}% de cada cantidad escrita, no la del mes completo.`) : ''}
     <div class="section-head"><div><h2>Lista sugerida</h2><p>Existencias según compras y revisiones confirmadas.</p></div><span class="pill">${suggested.length} productos por comprar</span></div>
     ${list.lastReview ? notice('Última revisión de existencias: ' + niceDate(list.lastReview, { day: 'numeric', month: 'long', year: 'numeric' }) + '.', '') : notice('Todavía no hay una revisión confirmada.', 'La lista usa las existencias actuales. Haz una revisión para comprobar qué queda.', 'warn')}
     ${list.future ? notice('Compra para un período futuro.', 'Este cálculo usa las existencias de hoy. Actualízalas antes de comprar; el menú previsto no se descuenta como consumo real.', 'warn') : ''}
-    ${suggested.length ? `<div class="card table-wrap"><table class="data-table"><thead><tr><th>Producto</th><th class="num">Necesario</th><th class="num">Disponible</th><th class="num">Por comprar</th></tr></thead><tbody>${suggested.map(line => `<tr><td><strong>${esc(productName(line.productId))}</strong>${line.purchaseQuantity === null ? '<div class="small pending">Falta equivalencia de compra</div>' : ''}</td><td class="num">${measure(line.need, product(state, line.productId).controlUnit)}</td><td class="num">${fmt(line.available)}</td><td class="num strong">${line.purchaseQuantity === null ? '—' : measure(line.purchaseQuantity, line.purchaseUnit)}</td></tr>`).join('')}</tbody></table></div>` : empty('🧺','Nada que comprar por ahora','Planifica comidas o revisa el período seleccionado para calcular cantidades.')}
+    ${suggested.length ? `<div class="card table-wrap"><table class="data-table"><thead><tr><th>Producto</th><th class="num">Necesario</th><th class="num">Disponible</th><th class="num">Por comprar</th></tr></thead><tbody>${suggested.map(line => `<tr><td><strong>${esc(productName(line.productId))}</strong>${line.purchaseQuantity === null ? '<div class="small pending">Falta equivalencia de compra</div>' : ''}</td><td class="num">${measure(line.need, product(state, line.productId).controlUnit)}</td><td class="num">${fmt(line.available)}</td><td class="num strong">${line.purchaseQuantity === null ? '—' : measure(line.purchaseQuantity, line.purchaseUnit)}</td></tr>`).join('')}</tbody></table></div>` : basket && !state.basket.length ? empty('🧺','La canasta está vacía','Escribe una vez lo que tu casa consume en un mes corriente. Después solo cambias lo que varía.', button('Escribir la canasta', 'open-basket', 'btn-primary')) : empty('🧺','Nada que comprar por ahora', basket ? 'Con lo que hay en casa alcanza para este período, o el período seleccionado no cubre días suficientes.' : 'Planifica comidas o revisa el período seleccionado para calcular cantidades.')}
     ${incomplete ? `<div class="section-head"><h2>Antes de comprar</h2></div><div class="grid grid-2">${list.pending.length ? `<div class="notice warn"><span>↔</span><div><strong>${list.pending.length} equivalencia(s) pendiente(s)</strong>${[...new Set(list.pending.map(item => `${productName(item.productId)}: ${item.unit} → ${product(state, item.productId)?.controlUnit || '?'}`))].slice(0, 5).map(esc).join('<br>')}<br>${button('Configurar', 'navigate', 'btn-secondary btn-small', 'data-page="productos"')}</div></div>` : ''}${list.missing.length ? `<div class="notice warn"><span>◌</span><div><strong>${list.missing.length} comida(s) sin planificar</strong>La compra podría quedar incompleta. ${list.missing.slice(0, 5).map(item => `${cap(item.slot)} ${niceDate(item.date, { day: 'numeric', month: 'short' })}`).join(', ')}${list.missing.length > 5 ? '…' : ''}</div></div>` : ''}</div>` : ''}
+    <div class="section-head"><div><h2>Canasta del mes</h2><p>Lo que la casa consume en un mes corriente. Se escribe una vez y se reutiliza cada mes; solo cambias lo que varía.</p></div>${state.basket.length ? button('Editar canasta', 'open-basket', 'btn-secondary') : ''}</div>
+    ${state.basket.length
+      ? basket
+        ? `<div class="card table-wrap"><table class="data-table"><thead><tr><th>Producto</th><th class="num">Al mes</th><th class="num">En este período</th></tr></thead><tbody>${state.basket.map(line => `<tr><td><strong>${esc(productName(line.productId))}</strong></td><td class="num">${measure(line.quantity, line.unit)}</td><td class="num strong">${periodError ? '—' : measure(Math.round(line.quantity * list.share * 1000) / 1000, line.unit)}</td></tr>`).join('')}</tbody></table></div>`
+        : `<div class="card"><div class="between"><div><div class="list-row-title">${state.basket.length} producto(s) escritos</div><div class="list-row-sub">Ahora mismo la lista se calcula con el menú. Cambia arriba a <strong>Canasta</strong> para comprar con estas cantidades sin planificar día por día.</div></div>${button('Ver y editar', 'open-basket', 'btn-secondary btn-small')}</div></div>`
+      : empty('🗒️','Todavía no hay canasta','Si cada mes compras prácticamente lo mismo, escríbelo una vez aquí y la lista sale sin tener que planificar el menú día por día.', button('Escribir la canasta', 'open-basket', 'btn-primary'))}
     <div class="section-head"><div><h2>Otros productos que faltan</h2><p>Sal, aceite, detergente y lo que prefieras anotar sin seguimiento.</p></div></div>
     <form data-form="manual-item" class="inline"><input class="text" name="name" placeholder="Producto" required style="max-width:250px"><input class="text" name="quantity" placeholder="Cantidad (opcional)" style="max-width:185px"> <button class="btn btn-secondary" type="submit">Agregar</button></form>
     <div class="card" style="margin-top:15px">${state.manualItems.length ? state.manualItems.map(item => `<div class="list-row"><label class="inline"><input type="checkbox" data-action="toggle-manual" data-id="${item.id}" ${item.done ? 'checked' : ''}><span style="${item.done ? 'text-decoration:line-through;color:#6b5b51' : ''}">${esc(item.name)} ${item.quantity ? `<span class="muted">· ${esc(item.quantity)}</span>` : ''}</span></label>${button('Quitar', 'delete-manual', 'btn-quiet btn-small', `data-id="${item.id}"`)}</div>`).join('') : '<p class="muted">Anota aquí productos que no forman parte del menú.</p>'}</div>
@@ -221,9 +230,11 @@ const productOptions = selected => options(state.products.map(item => [item.id, 
 const personOptions = selected => options([['','Para todos'], ...state.people.map(item => [item.id, item.name])], selected || '');
 function itemRow(item = {}, type = 'ingredient') {
   const isPurchase = type === 'purchase';
-  const isHabitual = type === 'habitual';
+  // Solo los alimentos de una preparación se reparten por persona; la compra,
+  // las cantidades habituales y la canasta son de la casa entera.
+  const noPerson = type !== 'ingredient';
   const defaultProduct = product(state, item.productId);
-  return `<div class="item-row" data-item-row><input type="hidden" name="itemId" value="${esc(item.id || '')}"><label class="field"><span>Producto</span><select name="productId" required>${productOptions(item.productId || '')}</select></label><label class="field"><span>Cantidad</span><input name="quantity" type="number" min="0" step="any" inputmode="decimal" value="${item.quantity ?? ''}" placeholder="0"></label><label class="field"><span>Unidad</span><select name="unit">${unitOptions(item.unit || defaultProduct?.[isPurchase ? 'purchaseUnit' : 'controlUnit'] || 'unidad')}</select></label>${isPurchase || isHabitual ? '<span></span>' : `<label class="field person-select"><span>Para quién</span><select name="personId">${personOptions(item.personId)}</select></label>`}<button type="button" class="btn btn-quiet remove-item" data-action="remove-item" aria-label="Quitar alimento">✕</button></div>`;
+  return `<div class="item-row" data-item-row><input type="hidden" name="itemId" value="${esc(item.id || '')}"><label class="field"><span>Producto</span><select name="productId" required>${productOptions(item.productId || '')}</select></label><label class="field"><span>Cantidad</span><input name="quantity" type="number" min="0" step="any" inputmode="decimal" value="${item.quantity ?? ''}" placeholder="0"></label><label class="field"><span>Unidad</span><select name="unit">${unitOptions(item.unit || defaultProduct?.[isPurchase ? 'purchaseUnit' : 'controlUnit'] || 'unidad')}</select></label>${noPerson ? '<span></span>' : `<label class="field person-select"><span>Para quién</span><select name="personId">${personOptions(item.personId)}</select></label>`}<button type="button" class="btn btn-quiet remove-item" data-action="remove-item" aria-label="Quitar alimento">✕</button></div>`;
 }
 function modal(title, subtitle, body, wide = false) { return `<div class="modal-overlay" data-overlay><div class="modal ${wide ? 'modal-wide' : ''}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="modal-head"><div><h2>${esc(title)}</h2>${subtitle ? `<p>${esc(subtitle)}</p>` : ''}</div><button type="button" class="icon-btn" data-action="close-modal" aria-label="Cerrar">×</button></div>${body}</div></div>`; }
 function checkPeople(name, selected, date = null, slot = null) {
@@ -279,6 +290,20 @@ function renderModal() {
         </div>
       </details>
       <div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar producto</button></div></form>`);
+  }
+  if (m.type === 'basket') {
+    return modal('Canasta del mes', 'Lo que tu casa consume en un mes corriente. Queda guardada y se reutiliza; solo cambias lo que varía.', `<div class="hint">Escribe las cantidades de un <strong>mes completo</strong>. Al comprar por quincena la app pide la mitad, y por fechas sueltas la parte que toque. Esto no cambia las existencias: solo calcula qué falta.</div>
+      <form data-form="basket">
+        <div class="section-head"><h3>Productos del mes</h3></div>
+        <div data-item-list="basket">${(state.basket.length ? state.basket : [{}]).map(line => itemRow(line, 'basket')).join('')}</div>
+        <div class="inline">${button('+ Añadir producto', 'add-item', 'btn-secondary btn-small', 'data-type="basket"')}</div>
+        <details class="more" style="margin-top:17px">
+          <summary>Llenarla con lo que compré un mes</summary>
+          <p class="small muted">Suma las compras confirmadas de ese mes y reemplaza lo escrito arriba. Suele ser la forma rápida de empezar: lo que compraste el mes pasado ya es, casi siempre, tu canasta.</p>
+          <div class="inline"><label class="field" style="max-width:190px"><span>Mes</span><input type="month" id="basket-seed-month" value="${esc(shiftMonth(today.slice(0, 7), -1))}"></label>${button('Traer ese mes', 'seed-basket', 'btn-secondary')}</div>
+        </details>
+        <div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar canasta</button></div>
+      </form>`, true);
   }
   if (m.type === 'equivalence') {
     const item = product(state, m.id);
@@ -358,6 +383,23 @@ document.addEventListener('click', event => {
     else if (action === 'open-move') openModal('move', { id: el.dataset.id });
     else if (action === 'open-copy') openModal('copy', { id: el.dataset.id });
     else if (action === 'open-purchase') openModal('purchase');
+    else if (action === 'open-basket') openModal('basket');
+    else if (action === 'shop-basis') { ui.shopBasis = el.dataset.basis; render(); }
+    // Lo que compraste un mes es casi siempre lo que tu casa consume en un mes.
+    else if (action === 'seed-basket') {
+      const form = el.closest('form');
+      const month = form.querySelector('#basket-seed-month').value;
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error('Elige un mes válido.');
+      const totals = new Map();
+      for (const purchase of state.purchases) {
+        if (purchase.date.slice(0, 7) !== month) continue;
+        for (const line of purchase.lines) totals.set(line.productId, (totals.get(line.productId) || 0) + line.controlQuantity);
+      }
+      if (!totals.size) throw new Error(`No hay compras confirmadas en ${monthName(month)}.`);
+      if (!window.confirm(`Se reemplazará lo escrito con los ${totals.size} producto(s) que compraste en ${monthName(month)}. ¿Continuar?`)) return;
+      form.querySelector('[data-item-list="basket"]').innerHTML = [...totals].map(([productId, total]) => itemRow({ productId, quantity: Math.round(total * 1000) / 1000, unit: product(state, productId)?.controlUnit || 'unidad' }, 'basket')).join('');
+      toast(`${totals.size} producto(s) traídos de ${monthName(month)}.`);
+    }
     else if (action === 'open-new-review') openModal('new-review');
     else if (action === 'open-correction') openModal('correction');
     else if (action === 'open-absence') openModal('absence');
@@ -457,6 +499,7 @@ document.addEventListener('submit', async event => {
       commit('Producto guardado.');
     }
     else if (kind === 'equivalence') { setEquivalence(state, form.dataset.id, data.get('unit'), data.get('factor')); ui.modal = null; commit('Equivalencia guardada.'); }
+    else if (kind === 'basket') { const lines = setBasket(state, collectItems(form)); ui.modal = null; commit(lines.length ? `Canasta guardada con ${lines.length} producto(s).` : 'Canasta vacía.'); }
     else if (kind === 'assign') { makeRecipePlan(state, data.get('recipeId'), data.get('date'), data.get('slot'), selected(form,'participants')); ui.modal = null; commit('Preparación asignada.'); }
     else if (kind === 'plan') { const plan = state.plans.find(item => item.id === form.dataset.id); updatePlan(state, plan.id, { title: data.get('title'), note: data.get('note'), participants: selected(form,'participants'), items: collectItems(form).map(item => ({ ...item, id: item.id || nextId(state,'alimento'), quantity: quantity(item.quantity) })) }); ui.modal = null; commit('Comida actualizada.'); }
     else if (kind === 'link') { const source = state.plans.find(item => item.id === form.dataset.id); const allocation = Object.fromEntries(source.items.map(item => [item.id, data.get(`reserve-${item.id}`)])); linkPlan(state, source.id, data.get('date'), data.get('slot'), allocation, collectItems(form), selected(form,'participants')); ui.modal = null; commit('Comida vinculada. La parte reservada no duplica la compra.'); }

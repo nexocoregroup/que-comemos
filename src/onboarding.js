@@ -7,7 +7,7 @@ export const WELCOME = {
   promise: 'Planifica el desayuno, el almuerzo y la cena de la casa, compra según lo que realmente queda y anota lo que se consumió.',
   points: [
     ['Un menú', 'por semana o por mes, con las cantidades de cada comida y para quién es.'],
-    ['Una lista de compra', 'que sale del menú y le resta lo que ya tienes en casa.'],
+    ['Una lista de compra', 'que sale del menú, o de la canasta que tu casa consume cada mes, menos lo que ya tienes.'],
     ['Un inventario', 'que solo se mueve cuando confirmas una compra o una revisión.']
   ],
   note: 'Los dos caminos empiezan con un recorrido corto por la app. Puedes saltarlo cuando quieras.',
@@ -19,7 +19,7 @@ export const TOUR_STEPS = [
     page: 'hoy',
     title: 'Hoy en casa',
     body: 'Lo primero que ves cada día: las tres comidas con sus cantidades, para quién es cada cosa y la nota de quien cocina. Más abajo queda un vistazo a mañana.',
-    tip: 'Cuando una comida ya está decidida, aquí sale lista para cocinar sin abrir nada más.'
+    tip: 'El botón + de abajo a la derecha abre, sin salir de aquí, todo lo que se puede anotar: un producto, una preparación, una persona, una compra o una revisión.'
   },
   {
     page: 'menu',
@@ -56,6 +56,12 @@ export const TOUR_STEPS = [
     title: 'La compra sale del menú',
     body: 'Eliges una quincena o unas fechas y la app calcula lo que hace falta: lo que pide el menú menos lo que ya tienes. Revisas la lista y confirmas con las cantidades que realmente compraste.',
     tip: 'La lista sugerida no cambia nada. Solo la compra confirmada aumenta las existencias.'
+  },
+  {
+    page: 'compras',
+    title: 'O sale de la canasta del mes',
+    body: 'Si tu casa consume casi lo mismo todos los meses, escríbelo una sola vez en la canasta y cambia arriba a «Canasta». La lista sale de ahí, sin tener que planificar el menú día por día.',
+    tip: 'La canasta se escribe por mes completo. Al comprar por quincena la app pide la mitad. Las dos bases no se suman: o el menú, o la canasta.'
   },
   {
     page: 'revision',

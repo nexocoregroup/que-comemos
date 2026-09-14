@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { addDays, addProduct, setSlice, addPurchase, balances, convert, correctReview, createEmptyState, createReview, exportState, importState, inventoryNow, linkPlan, makeRecipePlan, repeatWeek, saveReview, setAbsence, setEquivalence, shoppingList, todayISO, updatePlan, upsertPerson, upsertRecipe, weekStart } from '../src/model.js';
+import { addDays, addProduct, setSlice, setBasket, addPurchase, balances, convert, correctReview, createEmptyState, createReview, exportState, importState, inventoryNow, linkPlan, makeRecipePlan, repeatWeek, saveReview, setAbsence, setEquivalence, shoppingList, todayISO, updatePlan, upsertPerson, upsertRecipe, weekStart } from '../src/model.js';
 import { loadState, saveState, STORAGE_KEY } from '../src/storage.js';
 
 function setup() {
@@ -167,4 +167,36 @@ test('un respaldo anterior al grosor sigue siendo válido', () => {
   const restored = importState(JSON.stringify(old));
   assert.equal(restored.products[0].slice, undefined);
   assert.equal(inventoryNow(restored)[salami], 4, 'las existencias se leen igual sin el campo nuevo');
+});
+
+test('la canasta se escribe por mes y se pide por la parte del período que toca', () => {
+  const state = createEmptyState();
+  const arroz = addProduct(state, { name: 'Arroz', controlUnit: 'lb', purchaseUnit: 'lb', opening: 4 }).id;
+  setBasket(state, [{ productId: arroz, quantity: 30, unit: 'lb' }]);
+  // Septiembre tiene 30 días: una quincena de 15 pide la mitad de la canasta.
+  const quincena = shoppingList(state, '2026-09-01', '2026-09-15', 'basket');
+  const linea = quincena.lines.find(line => line.productId === arroz);
+  assert.equal(linea.need, 15);
+  assert.equal(linea.available, 4);
+  assert.equal(linea.shortfall, 11);
+  assert.deepEqual(quincena.missing, [], 'comprando por canasta no se reprochan las comidas sin planificar');
+  assert.equal(shoppingList(state, '2026-09-01', '2026-09-30', 'basket').lines[0].need, 30, 'el mes entero pide la canasta completa');
+  // Las dos bases son excluyentes: el menú por defecto no suma la canasta.
+  assert.equal(shoppingList(state, '2026-09-01', '2026-09-15').lines.length, 0);
+  assert.equal(inventoryNow(state)[arroz], 4, 'escribir la canasta no mueve existencias');
+  assert.throws(() => setBasket(state, [{ productId: 'producto-inventado', quantity: 1, unit: 'lb' }]), /alimento/);
+  assert.throws(() => setBasket(state, [{ productId: arroz, quantity: 0, unit: 'lb' }]), /mayor que cero/);
+  assert.equal(state.basket.length, 1, 'una canasta rechazada deja la anterior intacta');
+});
+
+test('un respaldo anterior a la canasta se rellena en vez de rechazarse', () => {
+  const state = createEmptyState();
+  addProduct(state, { name: 'Arroz', controlUnit: 'lb', purchaseUnit: 'lb', opening: 2 });
+  const viejo = JSON.parse(exportState(state));
+  delete viejo.basket;
+  assert.deepEqual(importState(JSON.stringify(viejo)).basket, []);
+  // Lo que existía desde la primera versión sigue siendo obligatorio.
+  const roto = JSON.parse(exportState(state));
+  delete roto.purchases;
+  assert.throws(() => importState(JSON.stringify(roto)), /no es un respaldo válido/);
 });

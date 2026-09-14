@@ -88,7 +88,7 @@ npm test
 
 ## Cómo empezar
 
-La primera apertura muestra una **pantalla de bienvenida** con dos caminos: **Ver el ejemplo**, que carga datos de demostración identificados con un aviso, o **Empezar desde cero**, que deja la app vacía. Los dos abren un **recorrido de nueve pasos** que lleva la app a cada sección mientras la explica, para que se vea la pantalla real detrás de la tarjeta. Cubre las siete pantallas y la diferencia entre unidad de control y unidad de compra. Se salta con **Saltar** o con la tecla Escape, y se vuelve a abrir desde **Productos y datos → Cómo funciona**.
+La primera apertura muestra una **pantalla de bienvenida** con dos caminos: **Ver el ejemplo**, que carga datos de demostración identificados con un aviso, o **Empezar desde cero**, que deja la app vacía. Los dos abren un **recorrido de diez pasos** que lleva la app a cada sección mientras la explica, para que se vea la pantalla real detrás de la tarjeta. Cubre las siete pantallas, la diferencia entre unidad de control y unidad de compra, y las dos formas de calcular la compra. Se salta con **Saltar** o con la tecla Escape, y se vuelve a abrir desde **Productos y datos → Cómo funciona**.
 
 La bienvenida solo aparece mientras no haya nada guardado en este navegador. Con los datos de demostración puedes probar la preparación de hoy, una porción reservada para mañana, las compras y una revisión de consumo. Para pasar a tus datos, usa **Borrar ejemplos** y confirma. Antes de borrar o cambiar de navegador, usa **Productos y datos → Exportar respaldo**.
 
@@ -100,19 +100,20 @@ En **Hoy**, **Menú**, **Compras** y **Revisión** hay un botón **+** flotante 
 4. En **Preparaciones**, guarda comidas habituales con alimentos principales, cantidades, personas cubiertas, variantes y notas.
 5. En **Menú**, asigna comidas, cambia cantidades por fecha, mueve o copia, repite una semana o genera una propuesta mensual. Puedes marcar comidas fuera de casa, pedidos y comidas sin planificar. Para cocinar una vez y servir después, abre una comida y usa **Reservar para otra comida**.
 6. En **Compras**, elige quincena o fechas, revisa la lista sugerida y confirma la compra real con las cantidades adquiridas. La sugerencia no aumenta las existencias. Los productos de **Otros productos que faltan** son una lista manual aparte.
-7. En **Revisión**, abre una revisión: la tabla carga los productos disponibles automáticamente. Escribe cuánto se consumió, incluso **0** cuando no hubo consumo. Puedes guardar pendiente, confirmar, corregir una revisión confirmada o corregir el conteo de existencias.
+7. Esa lista puede salir de dos bases distintas, con el interruptor **Menú / Canasta**. **Menú** suma lo que piden las comidas planificadas del período. **Canasta** usa la *canasta del mes*: lo que la casa consume en un mes corriente, escrito una vez y reutilizado. Sirve para comprar sin planificar el menú día por día. Las dos bases **no se suman** —sería contar dos veces el mismo arroz—, se elige una. Como la canasta está escrita por mes y se compra por quincena, la app pide la parte proporcional de días y lo dice en pantalla: quince de treinta días son el 50 %. **Llenarla con lo que compré un mes** suma las compras confirmadas de un mes y las escribe como canasta, que suele ser la forma rápida de empezar.
+8. En **Revisión**, abre una revisión: la tabla carga los productos disponibles automáticamente. Escribe cuánto se consumió, incluso **0** cuando no hubo consumo. Puedes guardar pendiente, confirmar, corregir una revisión confirmada o corregir el conteo de existencias.
 
-El menú **no descuenta existencias**. Solo las compras confirmadas, revisiones confirmadas y correcciones modifican los saldos. Una preparación compartida se cuenta en la fecha en que se prepara; la parte reservada no vuelve a contarse al servirla. Cuando faltan comidas o equivalencias, Compras muestra avisos de lista incompleta.
+Ni el menú ni la canasta **descuentan existencias**: los dos son previsiones de lo que hará falta. Solo las compras confirmadas, revisiones confirmadas y correcciones modifican los saldos. Una preparación compartida se cuenta en la fecha en que se prepara; la parte reservada no vuelve a contarse al servirla. Cuando faltan comidas o equivalencias, Compras muestra avisos de lista incompleta.
 
 ## Almacenamiento y límites de esta versión
 
 Los datos se guardan en `localStorage` **solo en ese navegador y dispositivo**. La app funciona en pantallas de celular, pero **no sincroniza** datos entre dispositivos. Exporta un JSON como respaldo e impórtalo desde Productos y datos para recuperarlos. Importar reemplaza los datos locales actuales. No hay cuentas ni servidor de datos.
 
-La propuesta mensual usa reglas de repetición sencillas y solo preparaciones del catálogo. Puede dejar comidas sin opción compatible. Las cantidades habituales de Personas no se aplican solas: hay que pedirlas con **Traer cantidades habituales** al escribir una preparación, y lo que traen es la suma de las personas que esa preparación cubre, sin ajustar por quién falta ese día. El grosor de las ruedas es una etiqueta, no un factor: cambiarlo no recalcula ninguna equivalencia ya guardada. Las equivalencias no se infieren y las unidades incompatibles no se convierten. La lista sugerida para un período futuro usa las existencias actuales hasta que registres consumo real mediante una revisión.
+La propuesta mensual usa reglas de repetición sencillas y solo preparaciones del catálogo. Puede dejar comidas sin opción compatible. Las cantidades habituales de Personas no se aplican solas: hay que pedirlas con **Traer cantidades habituales** al escribir una preparación, y lo que traen es la suma de las personas que esa preparación cubre, sin ajustar por quién falta ese día. El grosor de las ruedas es una etiqueta, no un factor: cambiarlo no recalcula ninguna equivalencia ya guardada. La canasta se reparte por días y nada más: no sabe de ausencias, de visitas ni de que en diciembre se come distinto. Si un mes es atípico, conviene revisar la lista antes de comprar o cambiar de base al menú. Las equivalencias no se infieren y las unidades incompatibles no se convierten. La lista sugerida para un período futuro usa las existencias actuales hasta que registres consumo real mediante una revisión.
 
 ## Estructura para continuar el desarrollo
 
-- `src/model.js`: datos y reglas de menú, equivalencias, compras e inventario por movimientos.
+- `src/model.js`: datos y reglas de menú, canasta, equivalencias, compras e inventario por movimientos.
 - `src/demo.js`: datos de ejemplo.
 - `src/storage.js`: lectura y escritura local.
 - `src/app.js`: pantallas e interacciones.
@@ -135,4 +136,4 @@ Las únicas dependencias del proyecto son las de Capacitor, y solo sirven para c
 - `tests/model.test.js`: pruebas de reglas centrales.
 - `server.js`: servidor estático local sin dependencias.
 
-Para añadir cuentas y sincronización más adelante, sustituye `src/storage.js` por un adaptador de API y conserva las reglas de `src/model.js` con pruebas. El formato actual del respaldo es `version: 1`; una futura migración deberá leer esa versión antes de cambiar la estructura.
+Para añadir cuentas y sincronización más adelante, sustituye `src/storage.js` por un adaptador de API y conserva las reglas de `src/model.js` con pruebas. El formato actual del respaldo es `version: 1`; una futura migración deberá leer esa versión antes de cambiar la estructura. Mientras tanto, los campos añadidos después de esa versión se declaran en `ADDED_AFTER_V1` dentro de `src/model.js`: al importar un respaldo que no los trae se rellenan con su valor vacío en lugar de rechazar el archivo. Añadir un campo nuevo al estado significa añadirlo también ahí, o los respaldos anteriores dejan de abrir.

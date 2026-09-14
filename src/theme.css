@@ -153,6 +153,11 @@ input.text:focus, select.text:focus, textarea.text:focus { border-color: var(--c
 .notice.error { background: #fff0ec; border-color: #edc6bd; color: #8d3a32; }
 
 @media (max-width: 700px) {
+  /* El interruptor Menú/Canasta baja bajo el título en vez de estrujarlo a
+     tres líneas, y sus dos mitades se reparten el ancho: se tocan mejor. */
+  .shop-head { flex-wrap: wrap; }
+  .shop-head .segmented { width: 100%; }
+  .shop-head .segmented button { flex: 1; }
   .shopping-period { grid-template-columns: minmax(0, 1fr); }
   .shopping-period .field input, .shopping-period .field select { min-width: 0; }
   .shopping-period .btn { grid-column: auto; }

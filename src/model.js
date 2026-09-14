@@ -36,7 +36,11 @@ export const dateRange = (start, end) => {
   for (let day = start; day <= end; day = addDays(day, 1)) dates.push(day);
   return dates;
 };
-export const createEmptyState = () => ({ version: 1, seq: 0, demo: false, products: [], people: [], recipes: [], plans: [], absences: [], opening: {}, purchases: [], reviews: [], corrections: [], manualItems: [] });
+export const createEmptyState = () => ({ version: 1, seq: 0, demo: false, products: [], people: [], recipes: [], plans: [], absences: [], opening: {}, purchases: [], reviews: [], corrections: [], manualItems: [], basket: [] });
+// Campos que aparecieron después de la primera versión del respaldo. Un archivo
+// exportado antes de que existieran se rellena al importarlo en vez de
+// rechazarse: nadie debería perder los datos de su casa porque la app creció.
+const ADDED_AFTER_V1 = { basket: [] };
 export function nextId(state, prefix) { state.seq += 1; return `${prefix}-${state.seq}`; }
 export function quantity(value, allowZero = false) {
   const n = Number(value);
@@ -78,6 +82,28 @@ export function setEquivalence(state, productId, unit, factor) {
   const item = product(state, productId);
   if (!item || !UNITS.includes(unit) || unit === item.controlUnit) throw new Error('Selecciona un producto y una unidad distinta de su unidad de control.');
   item.equivalences[unit] = quantity(factor);
+}
+// La canasta es lo que la casa consume en un mes corriente, escrito una vez y
+// reutilizado. Vive aparte del menú a propósito: sirve para comprar sin haber
+// planificado día por día. Como el menú, tampoco mueve existencias —eso sigue
+// siendo cosa de compras, revisiones y correcciones—, solo calcula qué falta.
+export function setBasket(state, lines) {
+  const items = (lines || []).map(line => {
+    if (!product(state, line.productId) || !UNITS.includes(line.unit)) throw new Error('Selecciona un alimento y su unidad.');
+    return { id: line.id || nextId(state, 'canasta'), productId: line.productId, quantity: quantity(line.quantity), unit: line.unit };
+  });
+  state.basket = items;
+  return items;
+}
+// Se escribe por mes y se compra por quincena o por fechas sueltas, así que a
+// un período le toca su proporción de días sobre el mes en que empieza: una
+// quincena de septiembre pide la mitad de la canasta.
+export function basketShare(start, end) {
+  const days = dateRange(start, end).length;
+  const month = start.slice(0, 7);
+  const bounds = monthBounds(month);
+  const monthDays = dateRange(bounds.start, bounds.end).length;
+  return { days, monthDays, month, share: days / monthDays };
 }
 export function upsertPerson(state, fields) {
   const name = String(fields.name || '').trim();
@@ -373,10 +399,19 @@ export function correctStock(state, productId, actual, reason) {
 export function lastStockReview(state) {
   return [...state.reviews.filter(item => item.status === 'confirmed'), ...state.corrections].sort((a, b) => b.date.localeCompare(a.date) || b.seq - a.seq)[0]?.date || null;
 }
-export function shoppingList(state, start, end) {
+// Dos bases posibles para calcular qué falta, y son excluyentes: el menú del
+// período o la canasta del mes. Sumarlas contaría dos veces el mismo arroz.
+export function shoppingList(state, start, end, basis = 'menu') {
   if (!validDate(start) || !validDate(end) || start > end) throw new Error('Selecciona un período válido.');
   const need = {}, pending = [];
-  for (const plan of state.plans) {
+  if (basis === 'basket') {
+    const { share } = basketShare(start, end);
+    for (const line of state.basket || []) {
+      const converted = convert(state, line.productId, line.quantity * share, line.unit);
+      if (converted === null) { pending.push({ productId: line.productId, unit: line.unit, date: null }); continue; }
+      need[line.productId] = round((need[line.productId] || 0) + converted);
+    }
+  } else for (const plan of state.plans) {
     if (plan.date < start || plan.date > end || !['recipe', 'linked'].includes(plan.kind)) continue;
     for (const item of plan.items) {
       const converted = convert(state, item.productId, item.quantity, item.unit);
@@ -402,15 +437,18 @@ export function shoppingList(state, start, end) {
     }
     return { productId: id, need: amount, available, shortfall, purchaseQuantity, purchaseUnit, acquiredControl };
   }).sort((a, b) => product(state, a.productId).name.localeCompare(product(state, b.productId).name));
-  const missing = dateRange(start, end).flatMap(date => SLOTS.filter(slot => !planFor(state, date, slot) || planFor(state, date, slot).kind === 'unplanned').map(slot => ({ date, slot })));
-  return { start, end, lines, missing, pending, lastReview: lastStockReview(state), future: start > todayISO() };
+  // Comprando por canasta el menú no hace falta, así que avisar de comidas sin
+  // planificar sería un reproche por algo que no se pidió.
+  const missing = basis === 'basket' ? [] : dateRange(start, end).flatMap(date => SLOTS.filter(slot => !planFor(state, date, slot) || planFor(state, date, slot).kind === 'unplanned').map(slot => ({ date, slot })));
+  return { start, end, basis, lines, missing, pending, lastReview: lastStockReview(state), future: start > todayISO(), ...(basis === 'basket' ? basketShare(start, end) : {}) };
 }
 export function exportState(state) { return JSON.stringify(state, null, 2); }
 export function importState(json) {
   const data = JSON.parse(json);
   const empty = createEmptyState();
+  if (data && typeof data === 'object') for (const [key, value] of Object.entries(ADDED_AFTER_V1)) if (!(key in data)) data[key] = structuredClone(value);
   if (!data || data.version !== 1 || !Number.isInteger(data.seq) || Object.keys(empty).some(key => !(key in data))) throw new Error('Este archivo no es un respaldo válido de ¿Qué comemos?.');
-  for (const key of ['products', 'people', 'recipes', 'plans', 'absences', 'purchases', 'reviews', 'corrections', 'manualItems']) if (!Array.isArray(data[key])) throw new Error('El respaldo tiene datos incompletos.');
+  for (const key of ['products', 'people', 'recipes', 'plans', 'absences', 'purchases', 'reviews', 'corrections', 'manualItems', 'basket']) if (!Array.isArray(data[key])) throw new Error('El respaldo tiene datos incompletos.');
   if (typeof data.opening !== 'object' || data.opening === null) throw new Error('El respaldo no tiene existencias válidas.');
   if (balances(data).problems.length) throw new Error('El respaldo contiene existencias negativas.');
   return data;
