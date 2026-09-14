@@ -4,7 +4,7 @@ import { join, resolve, sep } from 'node:path';
 
 const root = resolve(import.meta.dirname);
 const port = Number(process.env.PORT || 4173);
-const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.png': 'image/png' };
+const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.woff2': 'font/woff2', '.apk': 'application/vnd.android.package-archive' };
 http.createServer(async (req, res) => {
   try {
     const pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
@@ -16,7 +16,11 @@ http.createServer(async (req, res) => {
     if (!info.isFile()) throw new Error('Archivo no encontrado');
     const extension = filename.slice(filename.lastIndexOf('.'));
     const type = types[extension] || 'application/octet-stream';
-    res.writeHead(200, { 'Content-Type': type.startsWith('image/png') ? type : `${type}; charset=utf-8`, 'Cache-Control': 'no-store' });
+    // El charset solo se declara en los formatos de texto. Omitirlo en un SVG
+    // con acentos los rompe; ponerlo en un PNG, una fuente o un APK es ruido
+    // que algunos gestores de descarga de Android interpretan mal.
+    const textual = type.startsWith('text/') || type === 'image/svg+xml' || type === 'application/json' || type === 'application/manifest+json';
+    res.writeHead(200, { 'Content-Type': textual ? `${type}; charset=utf-8` : type, 'Cache-Control': 'no-store' });
     res.end(await readFile(filename));
   } catch {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });

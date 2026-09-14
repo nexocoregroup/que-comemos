@@ -230,7 +230,25 @@ function renderModal() {
   }
   if (m.type === 'product') {
     const item = product(state, m.id);
-    return modal(item ? 'Editar producto' : 'Añadir producto', 'Cada producto tiene una unidad de control para sus existencias.', `<form data-form="product" data-id="${item?.id || ''}" class="stack"><label class="field"><span>Nombre</span><input name="name" required value="${esc(item?.name || '')}" placeholder="Ej. Arroz"></label><div class="form-grid"><label class="field"><span>Unidad de control</span><select name="controlUnit" ${item ? 'disabled' : ''}>${unitOptions(item?.controlUnit || 'unidad')}</select>${item ? '<small>No se cambia cuando ya hay movimientos.</small>' : ''}</label><label class="field"><span>Unidad en que se compra</span><select name="purchaseUnit">${unitOptions(item?.purchaseUnit || item?.controlUnit || 'unidad')}</select></label></div><div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar producto</button></div></form>`);
+    const stock = item ? inventoryNow(state)[item.id] || 0 : 0;
+    const otherUnit = item && item.purchaseUnit !== item.controlUnit;
+    return modal(item ? 'Editar producto' : 'Añadir producto', item ? '' : 'Anota cómo cuentas este alimento y cuánto tienes ahora mismo.', `<form data-form="product" data-id="${item?.id || ''}" class="stack">
+      <label class="field"><span>Nombre</span><input name="name" required value="${esc(item?.name || '')}" placeholder="Ej. Plátano maduro"></label>
+      <div class="form-grid">
+        <label class="field"><span>¿En qué unidad lo cuentas?</span><select name="controlUnit" ${item ? 'disabled' : ''}>${unitOptions(item?.controlUnit || 'unidad')}</select><small>${item ? 'No se cambia cuando ya hay movimientos.' : 'Así verás sus existencias en la casa.'}</small></label>
+        ${item
+          ? `<div class="field"><span>Existencias ahora</span><div class="hint" style="min-height:42px;display:flex;align-items:center">${measure(stock, item.controlUnit)}</div><small>Se cambia con una compra, una revisión o ${button('corregir existencias', 'open-correction', 'btn-quiet btn-small')}.</small></div>`
+          : `<label class="field"><span>¿Cuánto tienes ahora?</span><input name="opening" type="number" min="0" step="any" inputmode="decimal" value="0" placeholder="0"><small>Déjalo en 0 si no tienes nada todavía.</small></label>`}
+      </div>
+      <details class="more" ${otherUnit ? 'open' : ''}>
+        <summary>Lo compro en otra medida</summary>
+        <p class="small muted">Por ejemplo: cuentas el salami por ruedas, pero en el colmado lo venden por paquetes.</p>
+        <div class="form-grid">
+          <label class="field"><span>Unidad de compra</span><select name="purchaseUnit">${options([['', 'La misma de arriba'], ...UNITS.map(unit => [unit, unit])], otherUnit ? item.purchaseUnit : '')}</select></label>
+          <label class="field"><span>Cada una trae…</span><input name="factor" type="number" min="0.001" step="any" inputmode="decimal" value="${otherUnit ? item.equivalences?.[item.purchaseUnit] ?? '' : ''}" placeholder="Ej. 16"><small>En la unidad con que lo cuentas.</small></label>
+        </div>
+      </details>
+      <div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar producto</button></div></form>`);
   }
   if (m.type === 'equivalence') {
     const item = product(state, m.id);
@@ -363,7 +381,24 @@ document.addEventListener('submit', async event => {
   try {
     if (kind === 'recipe') { upsertRecipe(state, { id: form.dataset.id, name: data.get('name'), uses: selected(form,'uses'), covers: selected(form,'covers'), servings: data.get('servings'), items: collectItems(form), note: data.get('note') }); ui.modal = null; commit('Preparación guardada.'); }
     else if (kind === 'person') { upsertPerson(state, { id: form.dataset.id, name: data.get('name'), restrictions: selected(form,'restrictions'), habitual: collectItems(form) }); ui.modal = null; commit('Persona guardada.'); }
-    else if (kind === 'product') { const existing = product(state, form.dataset.id); if (existing) { existing.name = String(data.get('name')).trim(); existing.purchaseUnit = data.get('purchaseUnit'); if (!existing.name) throw new Error('Escribe el nombre.'); } else { const item = addProduct(state, { name: data.get('name'), controlUnit: data.get('controlUnit'), purchaseUnit: data.get('purchaseUnit') }); state.opening[item.id] = 0; } ui.modal = null; commit('Producto guardado.'); }
+    else if (kind === 'product') {
+      const existing = product(state, form.dataset.id);
+      // Una unidad de compra vacía significa «la misma con la que lo cuento».
+      const controlUnit = existing ? existing.controlUnit : data.get('controlUnit');
+      const purchaseUnit = data.get('purchaseUnit') || controlUnit;
+      const factor = String(data.get('factor') || '').trim();
+      const item = existing || addProduct(state, { name: data.get('name'), controlUnit, purchaseUnit, opening: data.get('opening') });
+      if (existing) {
+        existing.name = String(data.get('name')).trim();
+        if (!existing.name) throw new Error('Escribe el nombre.');
+        existing.purchaseUnit = purchaseUnit;
+      }
+      // La equivalencia se guarda aquí mismo para no mandar a otra pantalla.
+      // Sin ella la app no convierte: Compras avisa de que la lista está incompleta.
+      if (purchaseUnit !== controlUnit && factor) setEquivalence(state, item.id, purchaseUnit, factor);
+      ui.modal = null;
+      commit('Producto guardado.');
+    }
     else if (kind === 'equivalence') { setEquivalence(state, form.dataset.id, data.get('unit'), data.get('factor')); ui.modal = null; commit('Equivalencia guardada.'); }
     else if (kind === 'assign') { makeRecipePlan(state, data.get('recipeId'), data.get('date'), data.get('slot'), selected(form,'participants')); ui.modal = null; commit('Preparación asignada.'); }
     else if (kind === 'plan') { const plan = state.plans.find(item => item.id === form.dataset.id); updatePlan(state, plan.id, { title: data.get('title'), note: data.get('note'), participants: selected(form,'participants'), items: collectItems(form).map(item => ({ ...item, id: item.id || nextId(state,'alimento'), quantity: quantity(item.quantity) })) }); ui.modal = null; commit('Comida actualizada.'); }

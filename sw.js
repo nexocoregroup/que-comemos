@@ -13,7 +13,8 @@ const SHELL = [
   './src/app.js', './src/model.js', './src/storage.js', './src/demo.js',
   './src/brand.js', './src/onboarding.js',
   './src/styles.css', './src/sidebar.css', './src/onboarding.css', './src/theme.css',
-  './src/logo.svg', './src/icon-192.png'
+  './src/logo.svg', './src/icon-192.png',
+  './src/fonts/montserrat-latin.woff2', './src/fonts/montserrat-latin-ext.woff2'
 ];
 
 self.addEventListener('install', event => {

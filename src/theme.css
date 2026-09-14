@@ -1,7 +1,27 @@
 /* Línea gráfica: mesa familiar. Terracota para acciones, crema para lectura y
-   salvia solo para estados favorables. Ver README para la investigación.
-   Tipografía: Montserrat, cargada desde Google Fonts en index.html. Sin
-   conexión el navegador usa el respaldo de sistema declarado abajo. */
+   salvia solo para estados favorables. Ver README para la investigación. */
+
+/* Montserrat viaja dentro del proyecto. Cargarla desde Google Fonts ataba la
+   app a tener internet, que es justo lo que no queremos dentro del APK.
+   El descriptor unicode-range hace que el navegador baje latin-ext solo si
+   aparece un carácter de ese rango: para español nunca hace falta, pero está
+   por si un nombre de producto trae algo raro. */
+@font-face {
+  font-family: Montserrat;
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url('fonts/montserrat-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: Montserrat;
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url('fonts/montserrat-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 :root {
   --canvas: #fbf7f1;
   --surface: #fffefd;
@@ -26,6 +46,14 @@
 .topline h1, .hero h2 { letter-spacing: -.038em; }
 .topline .eyebrow, .hero .eyebrow, .meal-card .slot, .day-cell .mini-slot,
 .data-table th { letter-spacing: .1em; }
+
+/* Secciones plegadas dentro de un formulario: lo que casi nadie necesita no
+   ocupa sitio, pero está a un toque. */
+.more { border: 1px solid var(--line); border-radius: 12px; padding: 0 14px; background: #fdfaf6; }
+.more[open] { padding-bottom: 14px; }
+.more > summary { cursor: pointer; padding: 12px 0; font-size: .88rem; font-weight: 750; color: var(--clay-dark); list-style-position: inside; }
+.more > summary:focus-visible { outline: 3px solid var(--clay); outline-offset: 2px; border-radius: 6px; }
+.more > p { margin: 0 0 12px; }
 
 .sidebar { background: var(--sidebar-bg); border-right-color: var(--line); }
 /* En la app el isotipo va suelto, sin recuadro: el trazo en terracota sobre el

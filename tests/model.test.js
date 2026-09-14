@@ -135,3 +135,12 @@ test('un período de compra inválido se rechaza sin calcular una lista engaños
   assert.throws(() => shoppingList(state, '2026-02-30', '2026-03-02'), /válido/);
   assert.throws(() => shoppingList(state, '2026-09-20', '2026-09-01'), /válido/);
 });
+
+test('un producto nuevo arranca con lo que ya hay en casa, no en cero', () => {
+  const state = createEmptyState();
+  const platano = addProduct(state, { name: 'Plátano', controlUnit: 'unidad', purchaseUnit: 'unidad', opening: 7 }).id;
+  const sal = addProduct(state, { name: 'Sal', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
+  assert.equal(inventoryNow(state)[platano], 7);
+  assert.equal(inventoryNow(state)[sal], 0, 'sin cantidad declarada, arranca en cero');
+  assert.throws(() => addProduct(state, { name: 'Arroz', controlUnit: 'taza', purchaseUnit: 'lb', opening: -1 }));
+});

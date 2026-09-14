@@ -47,6 +47,10 @@ export function addProduct(state, fields) {
   if (!UNITS.includes(fields.controlUnit) || !UNITS.includes(fields.purchaseUnit)) throw new Error('Selecciona unidades válidas.');
   const item = { id: nextId(state, 'producto'), name, controlUnit: fields.controlUnit, purchaseUnit: fields.purchaseUnit, equivalences: {} };
   state.products.push(item);
+  // Lo que ya hay en casa al registrar el producto. Es la apertura del saldo:
+  // se fija una sola vez, aquí, porque después el inventario solo se mueve con
+  // compras, revisiones y correcciones.
+  state.opening[item.id] = fields.opening === '' || fields.opening === undefined || fields.opening === null ? 0 : quantity(fields.opening, true);
   return item;
 }
 export function setEquivalence(state, productId, unit, factor) {
