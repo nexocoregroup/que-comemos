@@ -2,6 +2,10 @@
 // vive el contenido; el dibujo lo hace app.js con sus propios ayudantes, igual
 // que el resto de las pantallas. Cada paso indica en qué página se explica, y
 // el recorrido lleva la app hasta ahí para que se vea la pantalla real detrás.
+//
+// Un paso puede pedir `highlight`, que app.js convierte en una clase del body.
+// Por ahora solo lo usa el botón +, que el recorrido esconde el resto del
+// tiempo porque comparte esquina con la tarjeta.
 
 export const WELCOME = {
   promise: 'Planifica el desayuno, el almuerzo y la cena de la casa, compra según lo que realmente queda y anota lo que se consumió.',
@@ -10,7 +14,7 @@ export const WELCOME = {
     ['Una lista de compra', 'que sale del menú, o de la canasta que tu casa consume cada mes, menos lo que ya tienes.'],
     ['Un inventario', 'que solo se mueve cuando confirmas una compra o una revisión.']
   ],
-  note: 'Los dos caminos empiezan con un recorrido corto por la app. Puedes saltarlo cuando quieras.',
+  note: 'Los dos caminos empiezan con un recorrido por la app. Puedes saltarlo cuando quieras.',
   foot: 'Los datos se guardan solo en este navegador y dispositivo. No hay cuentas ni sincronización: exporta un respaldo antes de cambiar de equipo.'
 };
 
@@ -19,37 +23,50 @@ export const TOUR_STEPS = [
     page: 'hoy',
     title: 'Hoy en casa',
     body: 'Lo primero que ves cada día: las tres comidas con sus cantidades, para quién es cada cosa y la nota de quien cocina. Más abajo queda un vistazo a mañana.',
-    tip: 'El botón + de abajo a la derecha abre, sin salir de aquí, todo lo que se puede anotar: un producto, una preparación, una persona, una compra o una revisión.'
+    tip: 'Cuando una comida ya está decidida, aquí sale lista para cocinar sin abrir nada más.'
+  },
+  {
+    page: 'hoy',
+    highlight: 'fab',
+    title: 'El botón + lo abre todo',
+    body: 'Ahí abajo a la derecha. Está en Hoy, Menú, Compras y Revisión, y abre los mismos formularios que viven en Ajustes: un producto, una preparación, una persona, una compra, una revisión, una corrección de existencias o una ausencia.',
+    tip: 'Existe para que anotar algo no te obligue a cambiar de sección. Casi todos los atajos te dejan donde estabas; solo la revisión y la compra te llevan a su pantalla, porque es ahí donde se ve el resultado.'
   },
   {
     page: 'menu',
     title: 'El menú, por semana o por mes',
-    body: 'Toca cualquier comida del calendario para asignarle una preparación, cambiar las cantidades de esa fecha, moverla, copiarla o marcarla como fuera de casa, pedido o sin planificar.',
-    tip: 'Abajo hay dos atajos: repetir esta semana en el resto del mes, o pedir una propuesta para el mes completo.'
+    body: 'Toca cualquier comida del calendario para asignarle una preparación, cambiar las cantidades de esa fecha, moverla, copiarla o marcarla como fuera de casa, pedido o sin planificar. En el celular la semana se lee como una agenda, un día debajo de otro, y el mes reduce cada comida a su inicial para que quepan los treinta días sin arrastrar de lado.',
+    tip: 'Abajo hay dos atajos para llenarlo rápido: repetir esta semana en el resto del mes, o pedir una propuesta para el mes completo.'
   },
   {
     page: 'catalogo',
     title: 'Preparaciones: lo que se repite en casa',
-    body: 'Guarda aquí las comidas habituales con sus alimentos principales, cuánto lleva cada uno, a quién cubre y las variantes por persona. Desde el menú se copian a cualquier fecha.',
+    body: 'Guarda aquí las comidas habituales con sus alimentos principales, cuánto lleva cada uno, a quién cubre y las variantes por persona. Desde el menú se copian a cualquier fecha. Si las personas de la casa ya tienen cantidades habituales guardadas, «Traer cantidades habituales» las suma y te llena la lista de alimentos de una vez.',
     tip: 'Cambiar una preparación del catálogo no toca las comidas ya asignadas: cada fecha conserva su nombre y sus cantidades.'
   },
   {
     page: 'personas',
     title: 'Quiénes comen en casa',
-    body: 'Registra a cada persona, los alimentos que no puede comer y sus cantidades habituales. También puedes marcar ausencias por fecha y comida cuando alguien no come en casa.',
+    body: 'Registra a cada persona, los alimentos que no puede comer y cuánto come normalmente. Esas cantidades habituales quedan guardadas y no hay que volver a escribirlas: se traen a una preparación con un toque. También puedes marcar ausencias por fecha y comida cuando alguien no come en casa.',
     tip: 'Con las restricciones y las ausencias puestas, la propuesta automática deja de ofrecer comidas incompatibles.'
   },
   {
     page: 'productos',
     title: 'Los productos que quieres controlar',
-    body: 'Cada alimento tiene dos unidades: la de control, con la que cuentas lo que hay en casa, y la de compra, con la que lo compras en el colmado o el supermercado.',
-    tip: 'Si cuentas y compras en la misma unidad —el huevo, por ejemplo— no hay nada más que configurar.'
+    body: 'Al crear un alimento la app pregunta dos cosas: en qué unidad lo cuentas —unidad, libra, taza, lata, rueda, rebanada— y cuánto tienes ahora mismo en casa.',
+    tip: 'Lo que tienes se pregunta una sola vez, al crearlo, porque es el punto de partida del inventario. De ahí en adelante solo lo mueven las compras, las revisiones y las correcciones de conteo.'
   },
   {
     page: 'productos',
     title: 'Cuando contar y comprar no usan la misma medida',
-    body: 'El salami lo cuentas por ruedas pero lo compras por paquetes. Dile a la app cuántas ruedas trae un paquete: eso es una equivalencia, y se configura con el botón Equivalencia de cada producto.',
+    body: 'El salami lo cuentas por ruedas pero lo compras por paquetes. En el mismo formulario del producto despliega «Lo compro en otra medida» y escribe cuántas ruedas trae un paquete: eso es una equivalencia, y no hay que ir a otra pantalla a ponerla.',
     tip: 'La app nunca adivina una conversión. Sin la equivalencia te avisa de que la lista está incompleta, en vez de darte un número equivocado.'
+  },
+  {
+    page: 'productos',
+    title: 'Una rueda no mide lo mismo en dos casas',
+    body: 'Lo que cuentas por ruedas o rebanadas lleva además el grosor con que se corta en tu casa: fina de 2 a 3 mm, mediana de 4 a 5, gruesa de 6 a 8. El campo solo aparece cuando la unidad lo pide.',
+    tip: 'No convierte cantidades; de eso se encarga la equivalencia. Lo que hace es dejar escrito qué significa una rueda aquí, que es lo que permite comparar el conteo de una semana con el de la siguiente.'
   },
   {
     page: 'compras',
@@ -60,7 +77,7 @@ export const TOUR_STEPS = [
   {
     page: 'compras',
     title: 'O sale de la canasta del mes',
-    body: 'Si tu casa consume casi lo mismo todos los meses, escríbelo una sola vez en la canasta y cambia arriba a «Canasta». La lista sale de ahí, sin tener que planificar el menú día por día.',
+    body: 'Si tu casa consume casi lo mismo todos los meses, escríbelo una sola vez en la canasta y cambia arriba a «Canasta». La lista sale de ahí, sin tener que planificar el menú día por día. Para no teclearla entera, «Llenarla con lo que compré un mes» suma las compras confirmadas de ese mes.',
     tip: 'La canasta se escribe por mes completo. Al comprar por quincena la app pide la mitad. Las dos bases no se suman: o el menú, o la canasta.'
   },
   {
@@ -72,7 +89,7 @@ export const TOUR_STEPS = [
   {
     page: 'hoy',
     title: 'Eso es todo',
-    body: 'Un buen orden para empezar: crea tus productos, añade a las personas de la casa, guarda dos o tres preparaciones y arma la primera semana del menú.',
+    body: 'Un buen orden para empezar: crea tus productos con lo que ya tienes en casa, añade a las personas, guarda dos o tres preparaciones y arma la primera semana del menú. Todo eso cabe en el botón +.',
     tip: 'Puedes volver a abrir este recorrido cuando quieras desde Productos y datos → Cómo funciona.'
   }
 ];

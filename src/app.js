@@ -87,6 +87,9 @@ function goTour(index) {
 function render() {
   document.body.classList.toggle('menu-open', ui.drawerOpen);
   document.body.classList.toggle('tour-open', ui.tour !== null);
+  // Un paso puede pedir que se vea lo que está explicando. El botón + vive en
+  // la misma esquina que la tarjeta, así que el resto del recorrido lo esconde.
+  document.body.classList.toggle('tour-fab', ui.tour !== null && TOUR_STEPS[ui.tour].highlight === 'fab');
   if (ui.welcome) {
     document.querySelector('#app').innerHTML = renderWelcome();
     document.querySelector('#modal-root').innerHTML = '';

@@ -89,6 +89,10 @@
    en móvil, donde la tarjeta ocupa todo el ancho inferior. */
 body.tour-open #toast { top: 18px; bottom: auto; }
 
+/* En el paso del botón + la tarjeta sube para dejarlo a la vista. */
+body.tour-fab .tour { bottom: 104px; }
+body.tour-open.tour-fab #toast { top: auto; bottom: 25px; }
+
 @media (max-width: 700px) {
   .welcome-screen { place-items: start center; padding-top: 26px; }
   .welcome-card { background: transparent; border: 0; box-shadow: none; padding: 4px 0; }
@@ -102,5 +106,17 @@ body.tour-open #toast { top: 18px; bottom: auto; }
     border-right: 0;
     border-bottom: 0;
     padding-bottom: max(20px, env(safe-area-inset-bottom));
+  }
+  /* Aquí la tarjeta ocupa todo el ancho de abajo, así que apartarla unos
+     píxeles no serviría: en el paso del botón + se pasa entera arriba, que es
+     la única forma de que se vea lo que está señalando. */
+  body.tour-fab .tour {
+    top: 0;
+    bottom: auto;
+    border-radius: 0 0 18px 18px;
+    border-top: 0;
+    border-bottom: 1px solid var(--clay-line);
+    padding-top: max(17px, env(safe-area-inset-top));
+    padding-bottom: 20px;
   }
 }

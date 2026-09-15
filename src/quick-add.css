@@ -29,6 +29,9 @@
 .fab:active { transform: translateY(1px); }
 .fab:focus-visible { outline: 3px solid var(--clay-dark); outline-offset: 3px; }
 body.tour-open .fab { display: none; }
+/* Salvo en el paso que lo explica: ahí se muestra y es la tarjeta la que se
+   aparta. Explicar un botón que no se ve no explica nada. */
+body.tour-open.tour-fab .fab { display: grid; }
 
 .quick-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .quick-item {
