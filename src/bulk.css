@@ -3,11 +3,18 @@
 
    Las dos decisiones que mandan sobre el resto:
 
-   1. La tabla deja de ser tabla antes de que estorbe. Siete columnas no caben en
-      un teléfono, y arrastrar de lado para ver en qué quedó una fila es la forma
-      más rápida de que nadie revise nada. Bajo 860 px cada fila se convierte en
-      una tarjeta apilada —sin desplazamiento horizontal—, y es a partir de ahí
-      cuando la tabla vuelve a caber entera.
+   1. Las tarjetas son lo normal y la tabla es la excepción. Siete columnas no
+      caben en un teléfono, y arrastrar de lado para ver en qué quedó una fila es
+      la forma más rápida de que nadie revise nada. Así que cada fila se dibuja
+      como una tarjeta apilada —nunca hay desplazamiento horizontal— y solo
+      vuelve a ser tabla donde de verdad cabe.
+
+      Y ese «donde cabe» se mide sobre el contenedor, no sobre la ventana: la
+      misma pantalla vive en un modal de 820 px y en una página de 1180, y una
+      consulta a la ventana no distingue los dos casos. Un navegador que no
+      entienda `@container` se salta ese bloque y se queda con las tarjetas, que
+      es exactamente el comportamiento seguro: se ve bien en todas partes,
+      simplemente no aprovecha el ancho de una pantalla grande.
 
    2. El estado se dice con palabras. La fila dudosa lleva fondo y una barra de
       terracota, pero lo que de verdad la marca es la etiqueta que pone
@@ -18,17 +25,16 @@
 /* Un párrafo entero se escribe con sitio para verlo completo; el cuadro de tres
    líneas obliga a releer a ciegas lo que uno mismo acaba de dictar. */
 .bulk-texto { min-height: 148px; line-height: 1.55; }
-.bulk-destino { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.bulk-destino { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
 .bulk-entiende { margin: 8px 0 0; padding-left: 19px; display: grid; gap: 6px; line-height: 1.45; }
 .bulk-head { margin: 0; align-items: flex-start; flex-wrap: wrap; }
 .bulk-head p { margin: 5px 0 0; font-variant-numeric: tabular-nums; }
 
 /* Lo que existe para el lector de pantalla y no para la vista: la ayuda de cada
-   campo y, en el escritorio, la etiqueta que ya repite la cabecera de la tabla.
-   Se esconde con recorte, no con display:none, porque display:none también lo
+   campo y, cuando la tabla es tabla, la etiqueta que ya repite la cabecera. Se
+   esconde con recorte y no con display:none, porque display:none también lo
    esconde de quien navega escuchando. */
-.bulk-oculto,
-.bulk-table .field > span {
+.bulk-oculto {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -42,10 +48,46 @@
 }
 
 .bulk-caption { caption-side: top; text-align: left; padding: 0 0 12px; color: var(--ink-muted); font-size: .82rem; line-height: 1.4; }
-.bulk-wrap { overflow-x: auto; }
-.bulk-table { width: 100%; }
-.bulk-table td { vertical-align: top; padding: 12px 8px; }
-.bulk-table th { padding: 11px 8px; }
+/* El `overflow-x` es la red por si el contenedor se queda aún más estrecho de lo
+   previsto; el `container-type` es lo que deja medirlo. */
+.bulk-wrap { overflow-x: auto; container-type: inline-size; container-name: bulk; }
+
+/* ── Lo normal: cada fila, una tarjeta ─────────────────────────────────── */
+
+.bulk-table,
+.bulk-table tbody,
+.bulk-table caption { display: block; width: auto; }
+.bulk-table thead {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+}
+/* Dos columnas dentro de la tarjeta: cantidad y unidad son un solo dato, y
+   estado y quitar caben juntos al pie. El nombre y los dos desplegables largos
+   ocupan la fila entera. */
+.bulk-table tr {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+  align-items: end;
+  border: 1px solid var(--line);
+  border-left-width: 4px;
+  border-left-color: transparent;
+  border-radius: 16px;
+  background: var(--surface);
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.bulk-table td { display: block; border-bottom: 0; padding: 0; }
+.bulk-celda-nombre,
+.bulk-celda-categoria,
+.bulk-celda-accion { grid-column: 1 / -1; }
+.bulk-celda-estado { align-self: center; }
+.bulk-celda-estado:before { content: 'Estado: '; font-size: .82rem; font-weight: 780; color: var(--ink-muted); margin-right: 4px; }
+
 /* La regla general de .data-table aprieta los campos a 115 px, que sirve para
    una celda de revisión pero no para un nombre de alimento que hay que corregir. */
 .bulk-table td input { max-width: none; }
@@ -53,23 +95,76 @@
 .bulk-table .field input,
 .bulk-table .field select,
 .bulk-table .btn { min-height: 44px; }
-.bulk-celda-nombre { min-width: 200px; }
-.bulk-celda-cantidad { min-width: 96px; }
-.bulk-celda-unidad { min-width: 108px; }
-.bulk-celda-categoria { min-width: 130px; }
-.bulk-celda-accion { min-width: 190px; }
-.bulk-celda-estado { min-width: 92px; }
-.bulk-celda-quitar { min-width: 96px; }
-.bulk-quitar { width: 100%; padding-left: 10px; padding-right: 10px; }
+.bulk-quitar { padding-left: 10px; padding-right: 10px; }
 
 /* Lo que la fila tiene que explicar: de qué trozo salió, con qué se parece, qué
    se dedujo. Va bajo el nombre porque es la columna ancha y es donde se mira. */
 .bulk-nota { margin: 7px 0 0; color: var(--ink-muted); line-height: 1.45; }
 
 /* La duda se ve. El fondo y la barra acompañan a la etiqueta de texto, nunca la
-   sustituyen. */
-.bulk-destacada > td { background: var(--clay-light); }
-.bulk-destacada > td:first-child { box-shadow: inset 4px 0 0 var(--clay); }
+   sustituyen. Con el mismo peso que `.bulk-table tr`, o la tarjeta destacada se
+   quedaría con el fondo y el borde transparente de la regla de arriba. */
+.bulk-table tr.bulk-destacada { border-left-color: var(--clay); background: var(--clay-light); }
+
+/* ── Y donde hay sitio de sobra, una tabla de verdad ───────────────────── */
+
+@container bulk (min-width: 860px) {
+  .bulk-table { display: table; width: 100%; }
+  .bulk-table caption { display: table-caption; }
+  .bulk-table tbody { display: table-row-group; }
+  .bulk-table thead {
+    display: table-header-group;
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+    clip-path: none;
+  }
+  .bulk-table tr {
+    display: table-row;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    padding: 0;
+    margin: 0;
+  }
+  .bulk-table th { display: table-cell; padding: 11px 8px; }
+  .bulk-table td {
+    display: table-cell;
+    vertical-align: top;
+    padding: 12px 8px;
+    border-bottom: 1px solid var(--line);
+  }
+  .bulk-table tr:last-child td { border-bottom: 0; }
+  /* Con la cabecera arriba, la etiqueta de cada campo repetiría la columna. Se
+     recorta para la vista y sigue estando para el lector de pantalla. */
+  .bulk-table .field > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+  .bulk-celda-estado:before { content: none; }
+  .bulk-celda-nombre { min-width: 200px; }
+  .bulk-celda-cantidad { min-width: 108px; }
+  .bulk-celda-unidad { min-width: 108px; }
+  .bulk-celda-categoria { min-width: 130px; }
+  .bulk-celda-accion { min-width: 190px; }
+  .bulk-celda-estado { min-width: 92px; }
+  .bulk-celda-quitar { min-width: 96px; }
+  .bulk-quitar { width: 100%; }
+  .bulk-table tr.bulk-destacada > td { background: var(--clay-light); }
+  .bulk-table tr.bulk-destacada > td:first-child { box-shadow: inset 4px 0 0 var(--clay); }
+}
+
+/* ── Lo que queda fuera de la tabla ────────────────────────────────────── */
 
 .bulk-negadas { margin-top: 4px; }
 .bulk-negadas h3 { margin: 0; }
@@ -91,59 +186,13 @@
 .bulk-confirma { align-items: flex-start; line-height: 1.4; padding: 12px 14px; }
 .bulk-confirma input { margin-top: 2px; width: 20px; height: 20px; flex-shrink: 0; }
 
-@media (max-width: 860px) {
-  .bulk-destino { grid-template-columns: minmax(0, 1fr); }
-  /* Fuera la tabla: cada fila pasa a ser una tarjeta con sus propias etiquetas.
-     El `caption` se queda como texto de entrada y la cabecera desaparece de la
-     vista, pero sigue leyéndose. */
-  .bulk-wrap { overflow-x: visible; }
-  .bulk-table,
-  .bulk-table tbody,
-  .bulk-table caption { display: block; width: auto; }
-  .bulk-table thead {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    clip-path: inset(50%);
-  }
-  /* Dos columnas dentro de la tarjeta: cantidad y unidad son un solo dato, y
-     estado y quitar caben juntos al pie. El nombre y los dos desplegables
-     largos ocupan la fila entera. */
-  .bulk-table tr {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px 12px;
-    align-items: end;
-    border: 1px solid var(--line);
-    border-left-width: 4px;
-    border-left-color: transparent;
-    border-radius: 16px;
-    background: var(--surface);
-    padding: 14px;
-    margin-bottom: 12px;
-  }
-  .bulk-table td { display: block; border-bottom: 0; padding: 0; }
-  .bulk-celda-nombre,
-  .bulk-celda-categoria,
-  .bulk-celda-accion { grid-column: 1 / -1; }
-  .bulk-celda-estado { align-self: center; }
-  /* En la tarjeta la cabecera ya no está arriba, así que cada campo recupera su
-     etiqueta visible y el estado dice de qué habla. */
-  .bulk-table .field > span {
-    position: static;
-    width: auto;
-    height: auto;
-    margin: 0;
-    overflow: visible;
-    clip: auto;
-    clip-path: none;
-  }
-  .bulk-celda-estado:before { content: 'Estado: '; font-size: .82rem; font-weight: 780; color: var(--ink-muted); }
-  .bulk-destacada { border-left-color: var(--clay); background: var(--clay-light); }
-  .bulk-destacada > td,
-  .bulk-destacada > td:first-child { background: none; box-shadow: none; }
+@media (min-width: 701px) {
+  .bulk-destino { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 700px) {
+  /* En el teléfono ya son tarjetas por defecto; aquí solo se reparten los
+     botones, que a esta anchura se tocan mejor a lo ancho que en fila. */
   .bulk-head .inline { width: 100%; }
   .bulk-head .inline .btn { flex: 1; }
   .bulk-negadas-lista li .btn { width: 100%; }

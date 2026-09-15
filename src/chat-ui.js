@@ -654,7 +654,7 @@ export function renderChat(ctx) {
       ${dictado}
       <button type="submit" class="chat-icono chat-enviar" aria-label="Enviar el mensaje">↑</button>
     </form>
-    ${hayDictado() ? '' : '<p class="chat-pista">Este dispositivo no deja dictar dentro de la app. En Android, el micrófono del teclado dicta en cualquier campo: tócalo y habla.</p>'}
+    ${hayDictado() ? '' : '<p class="chat-pista">Aquí no se puede dictar dentro de la app. En Android, el micrófono del teclado dicta en cualquier campo: tócalo y habla.</p>'}
   </aside>`;
 }
 

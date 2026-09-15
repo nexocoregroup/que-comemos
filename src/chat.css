@@ -57,7 +57,11 @@
 }
 .chat-head strong { display: block; font-size: 1.05rem; font-weight: 800; letter-spacing: -.03em; }
 .chat-head span { display: block; margin-top: 3px; font-size: .78rem; line-height: 1.35; color: var(--ink-muted); }
+/* Cerrar y limpiar se tocan con el pulgar en un teléfono, así que aquí crecen
+   hasta los 44 px aunque el mismo botón mida menos en el resto de la app. */
 .chat-head-botones { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.chat-head-botones .btn { min-height: 44px; }
+.chat-head-botones .icon-btn { width: 44px; height: 44px; }
 
 /* El eje invertido: ver el comentario de arriba. */
 .chat-mensajes {

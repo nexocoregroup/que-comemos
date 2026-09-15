@@ -525,13 +525,84 @@ export function undoTo(state, saved) {
   return state;
 }
 
-// Las herramientas tal como se le describen a un modelo. Se genera de la misma
+// Las herramientas tal como se le describen a un modelo. Se generan de la misma
 // tabla que valida, así que no pueden desincronizarse: si una acción no existe
 // aquí, tampoco se puede ejecutar.
+//
+// La forma —nombre, descripcion, parametros— es la del contrato de
+// docs/backend.md, no una invención de este archivo. El backend traduce esos
+// parametros a lo que pida su proveedor. Que las dos formas coincidan lo
+// comprueba una prueba, porque un desajuste aquí no falla: simplemente el
+// modelo se queda sin poder llamar a nada, y eso no se nota hasta usarlo.
+const SOBRE = {
+  "buscar_producto": "Busca un alimento en el catálogo de la casa y devuelve los parecidos.",
+  "listar_productos": "Lista los alimentos del catálogo, opcionalmente de una categoría.",
+  "consultar_existencias": "Dice cuánto queda de un alimento, o de todos.",
+  "crear_producto": "Registra un alimento nuevo en el catálogo.",
+  "editar_producto": "Cambia el nombre, la unidad de compra o la categoría de un alimento.",
+  "archivar_producto": "Deja de ofrecer un alimento sin borrar su historial.",
+  "reactivar_producto": "Vuelve a ofrecer un alimento archivado.",
+  "unir_productos": "Une dos alimentos duplicados en uno solo. No se puede deshacer.",
+  "configurar_equivalencia": "Dice cuántas unidades de control trae una unidad de compra.",
+  "ver_canasta_base": "Devuelve la canasta base: lo que la casa consume en un mes corriente.",
+  "ver_canasta_mes": "Devuelve la canasta de un mes concreto.",
+  "comparar_mes_con_base": "Dice en qué se aparta la canasta de un mes de la canasta base.",
+  "agregar_a_base": "Pone o corrige el consumo mensual de un alimento en la canasta base.",
+  "quitar_de_base": "Quita un alimento de la canasta base, es decir, del hábito de la casa.",
+  "abrir_mes": "Crea la canasta de un mes copiando la canasta base.",
+  "agregar_a_mes": "Pone o corrige un alimento solo en la canasta de un mes, sin tocar la base.",
+  "quitar_de_mes": "Quita un alimento solo de la canasta de un mes, sin tocar la base.",
+  "aplicar_mes_a_base": "Pasa a la canasta base cambios que se hicieron en un mes.",
+  "crear_persona": "Registra a una persona que come en la casa.",
+  "agregar_restriccion": "Anota un alimento que una persona no puede comer.",
+  "registrar_ausencia": "Marca que una persona no come en casa en una fecha y comida.",
+  "cantidad_habitual": "Anota cuánto come normalmente una persona de un alimento.",
+  "crear_preparacion": "Crea una comida habitual con sus alimentos principales.",
+  "duplicar_preparacion": "Hace una copia de una preparación existente.",
+  "eliminar_preparacion": "Borra una preparación del catálogo.",
+  "ver_menu": "Dice qué hay planificado para una fecha.",
+  "asignar_comida": "Pone una preparación en una fecha y comida del menú.",
+  "copiar_comida": "Copia una comida del menú a otra fecha.",
+  "mover_comida": "Mueve una comida del menú a otra fecha.",
+  "marcar_comida": "Marca una comida como fuera de casa, pedida o sin planificar.",
+  "repetir_semana": "Copia una semana del menú al resto del mes.",
+  "proponer_mes": "Rellena las comidas vacías de un mes con las preparaciones guardadas.",
+  "calcular_lista": "Calcula qué falta comprar en un período y explica por qué.",
+  "registrar_compra": "Registra una compra ya hecha. Aumenta las existencias.",
+  "agregar_otro_producto": "Anota algo en la lista suelta de otros productos.",
+  "abrir_revision": "Abre una revisión de existencias.",
+  "registrar_restante": "Anota cuánto queda de un alimento; la app calcula lo consumido.",
+  "confirmar_revision": "Confirma la revisión abierta y descuenta el consumo.",
+  "corregir_existencias": "Ajusta las existencias de un alimento a la cantidad real."
+};
+
+const JSON_TIPO = {
+  texto: () => ({ type: 'string' }),
+  numero: () => ({ type: 'number', minimum: 0 }),
+  fecha: () => ({ type: 'string', description: 'Fecha en formato AAAA-MM-DD' }),
+  mes: () => ({ type: 'string', description: 'Mes en formato AAAA-MM' }),
+  unidad: () => ({ type: 'string', enum: UNITS }),
+  comida: () => ({ type: 'string', enum: SLOTS }),
+  prioridad: () => ({ type: 'string', enum: PRIORITIES }),
+  base: () => ({ type: 'string', enum: ['menu', 'base', 'mensual'] }),
+  lista: () => ({ type: 'array', items: { type: 'object' } }),
+  booleano: () => ({ type: 'boolean' }),
+  producto: () => ({ type: 'string', description: 'Nombre del alimento tal como lo dijo la persona' }),
+  persona: () => ({ type: 'string', description: 'Nombre de la persona' }),
+  preparacion: () => ({ type: 'string', description: 'Nombre de la preparación' })
+};
+
 export function toolSchemas() {
-  return ACTION_NAMES.map(name => ({
-    name,
-    kind: ACTIONS[name].kind,
-    arguments: Object.fromEntries(Object.entries(ACTIONS[name].args).map(([key, rule]) => [key, { type: rule.type, required: rule.required !== false }]))
-  }));
+  return ACTION_NAMES.map(name => {
+    const spec = ACTIONS[name];
+    const entradas = Object.entries(spec.args);
+    return {
+      nombre: name,
+      descripcion: SOBRE[name] || name.replace(/_/g, ' '),
+      parametros: {
+        properties: Object.fromEntries(entradas.map(([clave, regla]) => [clave, JSON_TIPO[regla.type]()])),
+        required: entradas.filter(([, regla]) => regla.required !== false).map(([clave]) => clave)
+      }
+    };
+  });
 }

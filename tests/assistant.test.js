@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ACTION_NAMES, describeAction, runActions, toolSchemas, undoTo, validateAction } from '../src/assistant.js';
-import { addProduct, baseLines, createEmptyState, inventoryNow, setBaseBasket, todayISO, upsertPerson } from '../src/model.js';
+import { UNITS, addProduct, baseLines, createEmptyState, inventoryNow, setBaseBasket, todayISO, upsertPerson } from '../src/model.js';
 
 function casa() {
   const state = createEmptyState();
@@ -209,4 +209,28 @@ test('varias acciones que tocan el inventario a la vez se confirman aunque cada 
   ]);
   assert.equal(result.needsConfirmation, true);
   assert.equal(result.preview.length, 2);
+});
+
+test('las herramientas que se le mandan al modelo tienen la forma que el backend espera', () => {
+  // Este desajuste no falla, que es lo peligroso: el backend filtra las
+  // herramientas que no reconoce y el modelo se queda sin poder llamar a nada.
+  // No se nota hasta usarlo. Por eso la forma del contrato se comprueba aquí.
+  const tools = toolSchemas();
+  assert.equal(tools.length, ACTION_NAMES.length, 'una herramienta por acción, ni más ni menos');
+  for (const tool of tools) {
+    assert.deepEqual(Object.keys(tool).sort(), ['descripcion', 'nombre', 'parametros'], `${tool.nombre}: las claves del contrato de docs/backend.md`);
+    assert.ok(ACTION_NAMES.includes(tool.nombre));
+    assert.ok(tool.descripcion.length > 12, `${tool.nombre} necesita una descripción que sirva para elegirla`);
+    assert.ok(Array.isArray(tool.parametros.required));
+    for (const [clave, esquema] of Object.entries(tool.parametros.properties)) {
+      assert.ok(typeof esquema.type === 'string', `${tool.nombre}.${clave} necesita un tipo de JSON Schema`);
+    }
+    for (const obligatorio of tool.parametros.required) {
+      assert.ok(obligatorio in tool.parametros.properties, `${tool.nombre}: «${obligatorio}» es obligatorio pero no está descrito`);
+    }
+  }
+  // Las unidades que se le ofrecen al modelo son las del modelo, no una copia
+  // que se pueda quedar atrás.
+  const unidades = tools.find(tool => tool.nombre === 'agregar_a_base').parametros.properties.unidad.enum;
+  assert.deepEqual(unidades, UNITS);
 });
