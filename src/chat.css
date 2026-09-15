@@ -1,0 +1,254 @@
+/* El asistente escrito: hoja inferior en el teléfono, columna lateral en el
+   escritorio a partir de 900 px.
+
+   Dos decisiones de esta hoja explican casi todo lo demás:
+
+   1. La lista de mensajes es `column-reverse` y cada mensaje lleva su `order`.
+      El panel se vuelve a dibujar entero en cada cambio, y con el eje invertido
+      el cero del scroll queda abajo: lo último dicho se ve siempre sin que
+      nadie tenga que mover el scroll con JavaScript después de pintar. El
+      `order` devuelve el orden cronológico a la vista, mientras el HTML
+      conserva el suyo para quien lee con lector de pantalla.
+
+   2. Las capas: la barra inferior del móvil ocupa la 20, el botón + la 25, el
+      modal la 30 y el recorrido la 35. El panel se sienta en la 28, encima del
+      botón + y de la barra, y debajo de un modal, que es lo que corresponde
+      cuando el asistente abre un formulario.
+
+   Los colores salen todos de las variables de theme.css. Las sombras y el velo
+   repiten valores que ya existen en el proyecto: no hay ningún color nuevo. */
+
+.chat-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 27;
+  background: #30241c9e;
+  border: 0;
+}
+
+.chat-panel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 28;
+  display: flex;
+  flex-direction: column;
+  /* dvh evita que la barra del navegador del teléfono corte el campo de texto;
+     vh queda de respaldo para los que no la conocen. */
+  max-height: 85vh;
+  max-height: 85dvh;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -18px 50px #30241c4d;
+  overflow: hidden;
+}
+
+.chat-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px 16px 13px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.chat-head strong { display: block; font-size: 1.05rem; font-weight: 800; letter-spacing: -.03em; }
+.chat-head span { display: block; margin-top: 3px; font-size: .78rem; line-height: 1.35; color: var(--ink-muted); }
+.chat-head-botones { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+/* El eje invertido: ver el comentario de arriba. */
+.chat-mensajes {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 16px;
+  background: var(--canvas);
+}
+
+.chat-fila { display: flex; flex-direction: column; gap: 7px; max-width: 92%; }
+.chat-fila.mia { align-self: flex-end; align-items: flex-end; }
+.chat-fila.suya { align-self: flex-start; align-items: flex-start; }
+
+.chat-burbuja {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 16px;
+  font-size: .92rem;
+  line-height: 1.5;
+  /* Las respuestas traen saltos de línea —la lista de compra es una lista— y
+     los nombres largos no pueden desbordar la burbuja. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.mia .chat-burbuja { background: var(--clay); color: white; border-bottom-right-radius: 6px; }
+.suya .chat-burbuja { background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-bottom-left-radius: 6px; }
+
+.chat-botones { display: flex; flex-wrap: wrap; gap: 7px; }
+/* Zona táctil: un botón de confirmar no puede medir menos que un dedo. */
+.chat-botones .btn { min-height: 44px; }
+
+.chat-pie { display: grid; gap: 10px; }
+.chat-pie:empty { display: none; }
+
+.chat-aparte {
+  background: var(--surface);
+  border: 1px solid var(--clay-line);
+  border-radius: 15px;
+  padding: 13px 14px;
+  display: grid;
+  gap: 10px;
+}
+/* El aviso de envío y el error ya traen su propio recuadro: van sueltos, sin
+   una segunda caja alrededor, y sin el margen con el que viven en las
+   pantallas grandes. */
+.chat-aviso { display: grid; gap: 10px; }
+.chat-aviso .notice { margin: 0; }
+
+.chat-titulin { margin: 0; font-weight: 780; font-size: .92rem; line-height: 1.4; }
+.chat-nota { margin: 0; font-size: .85rem; color: var(--ink-muted); line-height: 1.45; }
+.chat-previa { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: .88rem; line-height: 1.45; }
+.chat-previa li::marker { color: var(--clay); }
+.chat-confirma { border-color: var(--clay); }
+
+.chat-estado { display: flex; align-items: center; gap: 10px; font-size: .87rem; color: var(--ink-muted); }
+.chat-estado .btn { margin-left: auto; }
+
+.chat-onda {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--clay);
+  animation: chat-onda 1.4s ease-out infinite;
+}
+.chat-puntos { display: inline-flex; gap: 4px; flex-shrink: 0; }
+.chat-puntos i { width: 7px; height: 7px; border-radius: 50%; background: var(--clay); opacity: .35; animation: chat-latido 1.1s ease-in-out infinite; }
+.chat-puntos i:nth-child(2) { animation-delay: .18s; }
+.chat-puntos i:nth-child(3) { animation-delay: .36s; }
+
+@keyframes chat-onda {
+  0% { box-shadow: 0 0 0 0 #a04b2229; }
+  70% { box-shadow: 0 0 0 11px #a04b2200; }
+  100% { box-shadow: 0 0 0 0 #a04b2200; }
+}
+@keyframes chat-latido {
+  0%, 80%, 100% { opacity: .3; }
+  40% { opacity: 1; }
+}
+/* Quien pidió menos movimiento no pierde la información: el indicador se queda
+   quieto y encendido, que es lo que de verdad hay que ver. */
+@media (prefers-reduced-motion: reduce) {
+  .chat-onda, .chat-puntos i { animation: none; }
+  .chat-puntos i { opacity: 1; }
+  .chat-onda { box-shadow: 0 0 0 4px #a04b2229; }
+}
+
+.chat-vacio { display: grid; gap: 12px; }
+.chat-vacio p { margin: 0; font-size: .88rem; line-height: 1.5; color: var(--ink-muted); }
+.chat-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.chat-chip {
+  border: 1px solid var(--clay-line);
+  background: var(--clay-light);
+  color: var(--clay-dark);
+  border-radius: 100px;
+  padding: 9px 14px;
+  min-height: 40px;
+  font-size: .82rem;
+  font-weight: 700;
+  text-align: left;
+  line-height: 1.3;
+}
+.chat-chip:hover { background: var(--surface-soft); }
+.chat-chip:focus-visible { outline: 3px solid var(--clay); outline-offset: 2px; }
+
+.chat-escribe {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 12px max(11px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+.chat-campo {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 10px 16px;
+  background: var(--surface);
+  color: var(--ink);
+  outline: none;
+}
+.chat-campo:focus { border-color: var(--clay); box-shadow: 0 0 0 3px #a04b2229; }
+.chat-campo::placeholder { color: var(--ink-muted); }
+
+.chat-icono {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid var(--clay-line);
+  background: var(--surface);
+  color: var(--clay-dark);
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  line-height: 1;
+}
+.chat-icono:hover { background: var(--clay-light); }
+.chat-icono:focus-visible { outline: 3px solid var(--clay); outline-offset: 2px; }
+.chat-icono.escuchando { background: var(--clay-light); border-color: var(--clay); color: var(--clay-dark); }
+.chat-enviar { background: var(--clay); border-color: var(--clay); color: white; font-size: 20px; }
+.chat-enviar:hover { background: var(--clay-dark); border-color: var(--clay-dark); }
+
+.chat-pista {
+  margin: 0;
+  padding: 0 14px max(12px, env(safe-area-inset-bottom));
+  font-size: .78rem;
+  line-height: 1.45;
+  color: var(--ink-muted);
+  background: var(--surface);
+}
+
+/* Etiqueta que solo leen los lectores de pantalla: el campo tiene un marcador
+   de posición, pero un marcador de posición no es una etiqueta. */
+.chat-oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (min-width: 900px) {
+  /* En escritorio el asistente acompaña a la pantalla en vez de taparla, así
+     que el velo deja de oscurecer pero sigue cerrando al tocar fuera. */
+  .chat-scrim { background: transparent; }
+  .chat-panel {
+    top: 0;
+    left: auto;
+    right: 0;
+    width: min(420px, 38vw);
+    max-height: 100vh;
+    max-height: 100dvh;
+    border-radius: 0;
+    border: 0;
+    border-left: 1px solid var(--line);
+    box-shadow: -14px 0 40px #30241c33;
+  }
+  .chat-fila { max-width: 88%; }
+  .chat-escribe, .chat-pista { padding-bottom: 12px; }
+}

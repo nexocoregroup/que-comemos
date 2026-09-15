@@ -1,17 +1,17 @@
-import { addDays, addProduct, addPurchase, createEmptyState, linkPlan, setBasket, makeRecipePlan, setEquivalence, todayISO, upsertPerson, upsertRecipe } from './model.js';
+import { addDays, addProduct, addPurchase, createEmptyState, linkPlan, openMonthBasket, makeRecipePlan, setBaseBasket, setEquivalence, todayISO, upsertPerson, upsertRecipe } from './model.js';
 
 export function createDemoState() {
   const state = createEmptyState();
   state.demo = true;
-  const add = (name, controlUnit, purchaseUnit = controlUnit) => addProduct(state, { name, controlUnit, purchaseUnit }).id;
-  const platano = add('Plátano maduro', 'unidad');
-  const huevo = add('Huevo', 'unidad');
-  const arroz = add('Arroz', 'taza', 'lb');
-  const carne = add('Carne', 'lb');
-  const salami = add('Salami', 'rueda', 'paquete');
-  const jamon = add('Jamón', 'rebanada', 'paquete');
-  const atun = add('Atún', 'lata');
-  const pan = add('Pan', 'rebanada', 'paquete');
+  const add = (name, controlUnit, purchaseUnit = controlUnit, category = 'otros') => addProduct(state, { name, controlUnit, purchaseUnit, category, origin: 'catalogo' }).id;
+  const platano = add('Plátano maduro', 'unidad', 'unidad', 'viveres');
+  const huevo = add('Huevo', 'unidad', 'unidad', 'lacteos');
+  const arroz = add('Arroz', 'taza', 'lb', 'granos');
+  const carne = add('Carne', 'lb', 'lb', 'carnes');
+  const salami = add('Salami', 'rueda', 'paquete', 'embutidos');
+  const jamon = add('Jamón', 'rebanada', 'paquete', 'embutidos');
+  const atun = add('Atún', 'lata', 'lata', 'mar');
+  const pan = add('Pan', 'rebanada', 'paquete', 'panes');
   setEquivalence(state, salami, 'paquete', 16);
   setEquivalence(state, jamon, 'paquete', 12);
   setEquivalence(state, pan, 'paquete', 12);
@@ -51,13 +51,16 @@ export function createDemoState() {
   state.manualItems.push({ id: `otro-${++state.seq}`, name: 'Detergente · ejemplo', quantity: '', done: false });
   // Una canasta de ejemplo para ver la otra forma de comprar: sin planificar el
   // menú, a partir de lo que la casa consume en un mes corriente.
-  setBasket(state, [
-    { productId: arroz, quantity: 90, unit: 'taza' },
-    { productId: huevo, quantity: 60, unit: 'unidad' },
+  setBaseBasket(state, [
+    { productId: arroz, quantity: 90, unit: 'taza', priority: 'obligatorio' },
+    { productId: huevo, quantity: 60, unit: 'unidad', priority: 'obligatorio' },
     { productId: carne, quantity: 8, unit: 'lb' },
-    { productId: platano, quantity: 40, unit: 'unidad' },
+    { productId: platano, quantity: 40, unit: 'unidad', priority: 'obligatorio' },
     { productId: salami, quantity: 4, unit: 'paquete' },
-    { productId: atun, quantity: 8, unit: 'lata' }
+    { productId: atun, quantity: 8, unit: 'lata', priority: 'ocasional' }
   ]);
+  // El mes corriente se abre copiando la base: es lo que ve cualquiera que entre
+  // hoy, y deja claro de una que el hábito y el mes son dos cosas distintas.
+  openMonthBasket(state, today.slice(0, 7));
   return state;
 }

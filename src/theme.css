@@ -185,3 +185,24 @@ input.text:focus, select.text:focus, textarea.text:focus { border-color: var(--c
   .mobile-nav button { color: #65574d; }
   .mobile-nav button.active { background: var(--clay-light); color: var(--clay-dark); }
 }
+
+/* La fila de la canasta ganó la columna de «cada cuánto falta». En escritorio
+   caben las cinco; en el móvil el nombre se lleva su línea y la prioridad baja
+   a la siguiente, porque cinco columnas en 360 px no se pueden ni tocar. */
+.basket-row { grid-template-columns: minmax(120px, 2.1fr) minmax(70px, .75fr) minmax(90px, 1fr) minmax(110px, 1.1fr) 32px; }
+
+/* Un alimento archivado sigue en la lista —su historial es cierto— pero no debe
+   competir con los activos por la atención. */
+.list-row.archived { opacity: .62; }
+.list-row.archived .list-row-title { text-decoration: line-through; text-decoration-color: #b7a698; }
+
+/* La primera pantalla de una casa vacía: una sola puerta, no tres tarjetas que
+   solo dicen que falta trabajo. */
+.start-hero { align-items: center; }
+.start-hero p { max-width: 54ch; }
+
+@media (max-width: 700px) {
+  .basket-row { grid-template-columns: minmax(0, 1fr) 100px 34px; }
+  .basket-row .basket-name { grid-column: 1 / -1; }
+  .basket-row .basket-priority { grid-column: 1 / -1; }
+}

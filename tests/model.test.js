@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { addDays, addProduct, product, setSlice, setBasket, setBasketLine, addPurchase, balances, convert, correctReview, createEmptyState, createReview, exportState, importState, inventoryNow, linkPlan, makeRecipePlan, repeatWeek, saveReview, setAbsence, setEquivalence, shoppingList, todayISO, updatePlan, upsertPerson, upsertRecipe, weekStart } from '../src/model.js';
+import { addDays, addProduct, product, setSlice, setBaseBasket, setBaseBasketLine, addPurchase, balances, convert, correctReview, createEmptyState, createReview, exportState, importState, inventoryNow, linkPlan, makeRecipePlan, repeatWeek, saveReview, setAbsence, setEquivalence, shoppingList, todayISO, updatePlan, upsertPerson, upsertRecipe, weekStart } from '../src/model.js';
 import { loadState, saveState, STORAGE_KEY } from '../src/storage.js';
 
 function setup() {
@@ -11,10 +11,15 @@ function setup() {
   return { state, platano, recipeId };
 }
 
-test('ocho plátanos menos seis deja dos; el próximo menú de siete sugiere cinco', () => {
+test('de ocho plátanos quedan dos: consumió seis y el próximo menú de siete sugiere cinco', () => {
   const { state, platano, recipeId } = setup();
+  // El modo normal pregunta lo que se puede mirar en la nevera —cuánto queda—
+  // y deduce el consumo. Es la misma cuenta al revés, pero sin obligar a nadie
+  // a restar de memoria.
   const review = createReview(state);
-  saveReview(state, review.id, { [platano]: 6 }, true);
+  assert.equal(review.mode, 'restante');
+  saveReview(state, review.id, { [platano]: 2 }, true);
+  assert.equal(review.consumed[platano], 6, 'de ocho quedan dos: se consumieron seis');
   assert.equal(inventoryNow(state)[platano], 2);
   const tomorrow = addDays(todayISO(), 1);
   makeRecipePlan(state, recipeId, tomorrow, 'desayuno');
@@ -44,13 +49,13 @@ test('la compra sugerida no cambia las existencias y la confirmada sí', () => {
 
 test('reconfirmar no duplica, corregir recalcula, la siguiente revisión parte del saldo nuevo', () => {
   const { state, platano } = setup();
-  const first = createReview(state);
+  const first = createReview(state, todayISO(), 'consumido');
   saveReview(state, first.id, { [platano]: 6 }, true);
   assert.throws(() => saveReview(state, first.id, { [platano]: 6 }, true));
   assert.equal(inventoryNow(state)[platano], 2);
   correctReview(state, first.id, { [platano]: 5 });
   assert.equal(inventoryNow(state)[platano], 3);
-  const next = createReview(state, addDays(todayISO(), 1));
+  const next = createReview(state, addDays(todayISO(), 1), 'consumido');
   assert.equal(balances(state, { date: next.date, seq: next.seq }).values[platano], 3);
   saveReview(state, next.id, { [platano]: 1 }, true);
   assert.equal(balances(state).values[platano], 2);
@@ -58,7 +63,7 @@ test('reconfirmar no duplica, corregir recalcula, la siguiente revisión parte d
 
 test('vacío significa pendiente; cero explícito completa', () => {
   const { state, platano } = setup();
-  const review = createReview(state);
+  const review = createReview(state, todayISO(), 'consumido');
   saveReview(state, review.id, { [platano]: '' }, false);
   assert.equal(review.status, 'draft');
   assert.equal(review.consumed[platano], undefined);
@@ -169,77 +174,79 @@ test('un respaldo anterior al grosor sigue siendo válido', () => {
   assert.equal(inventoryNow(restored)[salami], 4, 'las existencias se leen igual sin el campo nuevo');
 });
 
-test('la canasta se escribe por mes y se pide por la parte del período que toca', () => {
+test('la canasta base se escribe por mes y se pide por la parte del período que toca', () => {
   const state = createEmptyState();
   const arroz = addProduct(state, { name: 'Arroz', controlUnit: 'lb', purchaseUnit: 'lb', opening: 4 }).id;
-  setBasket(state, [{ productId: arroz, quantity: 30, unit: 'lb' }]);
+  setBaseBasket(state, [{ productId: arroz, quantity: 30, unit: 'lb' }]);
   // Septiembre tiene 30 días: una quincena de 15 pide la mitad de la canasta.
-  const quincena = shoppingList(state, '2026-09-01', '2026-09-15', 'basket');
+  const quincena = shoppingList(state, '2026-09-01', '2026-09-15', 'base');
   const linea = quincena.lines.find(line => line.productId === arroz);
   assert.equal(linea.need, 15);
   assert.equal(linea.available, 4);
   assert.equal(linea.shortfall, 11);
   assert.deepEqual(quincena.missing, [], 'comprando por canasta no se reprochan las comidas sin planificar');
-  assert.equal(shoppingList(state, '2026-09-01', '2026-09-30', 'basket').lines[0].need, 30, 'el mes entero pide la canasta completa');
-  // Las dos bases son excluyentes: el menú por defecto no suma la canasta.
+  assert.equal(shoppingList(state, '2026-09-01', '2026-09-30', 'base').lines[0].need, 30, 'el mes entero pide la canasta completa');
+  // Las tres bases son excluyentes: el menú por defecto no suma la canasta.
   assert.equal(shoppingList(state, '2026-09-01', '2026-09-15').lines.length, 0);
   assert.equal(inventoryNow(state)[arroz], 4, 'escribir la canasta no mueve existencias');
-  assert.throws(() => setBasket(state, [{ productId: 'producto-inventado', quantity: 1, unit: 'lb' }]), /alimento/);
-  assert.throws(() => setBasket(state, [{ productId: arroz, quantity: 0, unit: 'lb' }]), /mayor que cero/);
-  assert.equal(state.basket.length, 1, 'una canasta rechazada deja la anterior intacta');
-});
-
-test('un respaldo anterior a la canasta se rellena en vez de rechazarse', () => {
-  const state = createEmptyState();
-  addProduct(state, { name: 'Arroz', controlUnit: 'lb', purchaseUnit: 'lb', opening: 2 });
-  const viejo = JSON.parse(exportState(state));
-  delete viejo.basket;
-  assert.deepEqual(importState(JSON.stringify(viejo)).basket, []);
-  // Lo que existía desde la primera versión sigue siendo obligatorio.
-  const roto = JSON.parse(exportState(state));
-  delete roto.purchases;
-  assert.throws(() => importState(JSON.stringify(roto)), /no es un respaldo válido/);
+  assert.throws(() => setBaseBasket(state, [{ productId: 'producto-inventado', quantity: 1, unit: 'lb' }]), /alimento/);
+  assert.equal(state.baseBasket.lines.length, 1, 'una canasta rechazada deja la anterior intacta');
 });
 
 test('la canasta crea los alimentos que no existen, sin registrarlos aparte', () => {
   const state = createEmptyState();
   const arroz = addProduct(state, { name: 'Arroz', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
-  setBasket(state, [
+  setBaseBasket(state, [
     { name: '  arroz ', quantity: 30, unit: 'lb' },
     { name: 'Huevo', quantity: 60, unit: 'unidad' },
-    { name: 'huevo', quantity: 12, unit: 'unidad' }
+    { name: 'huevos', quantity: 12, unit: 'unidad' }
   ]);
+  const lineas = state.baseBasket.lines;
   assert.equal(state.products.length, 2, 'solo se crea el huevo, y una sola vez');
-  assert.equal(state.basket[0].productId, arroz, 'un nombre que ya existe no duplica el alimento');
-  assert.equal(state.basket[1].productId, state.basket[2].productId, 'escrito distinto sigue siendo el mismo');
-  const huevo = product(state, state.basket[1].productId);
+  assert.equal(lineas[0].productId, arroz, 'un nombre que ya existe no duplica el alimento');
+  assert.equal(lineas[1].productId, lineas[2].productId, 'singular y plural son el mismo alimento');
+  const huevo = product(state, lineas[1].productId);
   assert.equal(huevo.name, 'Huevo');
   assert.equal(huevo.controlUnit, 'unidad', 'toma la unidad de su propia línea');
+  assert.equal(huevo.origin, 'canasta', 'queda escrito de dónde salió');
   assert.equal(inventoryNow(state)[huevo.id], 0, 'nace sin existencias: la canasta dice qué se consume, no qué hay');
   // Una línea mal escrita no puede dejar media canasta registrada.
-  assert.throws(() => setBasket(state, [{ name: 'Sal', quantity: 2, unit: 'lb' }, { name: 'Aceite', quantity: 0, unit: 'unidad' }]), /mayor que cero/);
+  assert.throws(() => setBaseBasket(state, [{ name: 'Sal', quantity: 2, unit: 'lb' }, { name: 'Aceite', quantity: 2, unit: 'inventada' }]), /unidad/);
   assert.equal(state.products.length, 2, 'no se creó nada a medias');
-  assert.equal(state.basket.length, 3, 'la canasta anterior queda intacta');
+  assert.equal(state.baseBasket.lines.length, 3, 'la canasta anterior queda intacta');
 });
 
 test('la canasta y la ficha del producto escriben la misma línea', () => {
   const state = createEmptyState();
   const arroz = addProduct(state, { name: 'Arroz', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
-  setBasketLine(state, arroz, 30, 'lb');
-  assert.equal(state.basket.length, 1);
-  const id = state.basket[0].id;
+  setBaseBasketLine(state, arroz, 30, 'lb');
+  assert.equal(state.baseBasket.lines.length, 1);
+  const id = state.baseBasket.lines[0].id;
   // Volver a escribirlo corrige la línea que ya existe, no añade otra.
-  setBasketLine(state, arroz, 25, 'lb');
-  assert.equal(state.basket.length, 1);
-  assert.equal(state.basket[0].quantity, 25);
-  assert.equal(state.basket[0].id, id, 'conserva su identidad al corregirla');
+  setBaseBasketLine(state, arroz, 25, 'lb');
+  assert.equal(state.baseBasket.lines.length, 1);
+  assert.equal(state.baseBasket.lines[0].quantity, 25);
+  assert.equal(state.baseBasket.lines[0].id, id, 'conserva su identidad al corregirla');
   // Y lo escrito en la ficha es lo que lee la compra por canasta.
-  assert.equal(shoppingList(state, '2026-09-01', '2026-09-30', 'basket').lines[0].need, 25);
+  assert.equal(shoppingList(state, '2026-09-01', '2026-09-30', 'base').lines[0].need, 25);
   // Vacío o cero la quita: un consumo de cero no significa nada.
-  setBasketLine(state, arroz, '', 'lb');
-  assert.equal(state.basket.length, 0);
-  setBasketLine(state, arroz, 10, 'lb');
-  setBasketLine(state, arroz, 0, 'lb');
-  assert.equal(state.basket.length, 0);
-  assert.throws(() => setBasketLine(state, 'producto-inventado', 5, 'lb'), /producto/);
+  setBaseBasketLine(state, arroz, '', 'lb');
+  assert.equal(state.baseBasket.lines.length, 0);
+  setBaseBasketLine(state, arroz, 10, 'lb');
+  setBaseBasketLine(state, arroz, 0, 'lb');
+  assert.equal(state.baseBasket.lines.length, 0);
+  assert.throws(() => setBaseBasketLine(state, 'producto-inventado', 5, 'lb'), /producto/);
+});
+
+test('una cantidad que todavía no se sabe se guarda pendiente en vez de perder el alimento', () => {
+  const state = createEmptyState();
+  setBaseBasket(state, [
+    { name: 'Arroz', quantity: 30, unit: 'lb' },
+    { name: 'Detergente', quantity: '', unit: 'paquete' }
+  ]);
+  assert.equal(state.baseBasket.lines.length, 2, 'el alimento sin cantidad se conserva');
+  assert.equal(state.baseBasket.lines[1].quantity, null);
+  const lista = shoppingList(state, '2026-09-01', '2026-09-30', 'base');
+  assert.equal(lista.lines.length, 1, 'una línea sin cantidad no se puede calcular…');
+  assert.ok(lista.pending.some(item => item.reason === 'cantidad'), '…pero se avisa de que está pendiente');
 });

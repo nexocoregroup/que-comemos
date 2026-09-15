@@ -6,3 +6,9 @@ Thumbs.db
 
 # Caché local de Android Studio: no es contenido del proyecto.
 .idea/caches/
+
+# Claves. `.env.example` pide copiarlo a `.env` y poner ahí la clave del
+# proveedor de IA: sin esta línea, un `git add .` la publicaría en el repositorio.
+.env
+.env.*
+!.env.example

@@ -1,24 +1,24 @@
-import { SLICEABLE, SLICE_STYLES, SLOTS, UNITS, addDays, addProduct, addPurchase, basketShare, convert, copyPlan, correctReview, correctStock, createEmptyState, createReview, dateRange, deletePlan, deleteRecipe, dependents, exportState, generateMonth, incompatibleItems, inventoryNow, isAbsent, lastStockReview, linkPlan, makeRecipePlan, monthBounds, movePlan, nextId, planFor, product, quantity, repeatWeek, reservedQuantity, reviewAvailability, saveReview, setAbsence, setBasket, setBasketLine, setEquivalence, setSlice, setStatusPlan, shoppingList, sliceStyle, syncReviewProducts, todayISO, updatePlan, upsertPerson, upsertRecipe, weekStart, importState } from './model.js';
-import { hasSavedState, loadState, saveState } from './storage.js';
+import { BASES, SLICEABLE, SLICE_STYLES, SLOTS, UNITS, addDays, addProduct, addPurchase, archiveProduct, baseLines, basisLabel, basketLines, convert, copyPlan, correctReview, correctStock, createEmptyState, createReview, dateRange, deletePlan, deleteRecipe, dependents, exportState, findSimilarProducts, generateMonth, incompatibleItems, inventoryNow, isAbsent, lastStockReview, linkPlan, makeRecipePlan, mergeProducts, monthBasket, monthBounds, monthDiff, movePlan, nextId, openMonthBasket, planFor, product, productByName, promoteToBase, quantity, removeMonthBasketLine, repeatWeek, reservedQuantity, restoreProduct, reviewAvailability, saveReview, setAbsence, setBaseBasket, setBaseBasketLine, setEquivalence, setMonthBasket, setMonthBasketLine, setSlice, setStatusPlan, shoppingList, sliceStyle, syncReviewProducts, todayISO, updatePlan, updateProduct, upsertPerson, upsertRecipe, weekStart, importState } from './model.js';
+import { hasSavedState, loadStateDetailed, saveState } from './storage.js';
 import { BRAND_MARK } from './brand.js';
 import { TOUR_STEPS, WELCOME } from './onboarding.js';
+import { CATEGORIES } from './catalog-seed.js';
+import { SETUP_ACTIONS, SETUP_FORMS, emptySetup, renderSetup } from './setup.js';
+import { CHAT_ACTIONS, CHAT_FORMS, emptyChat, renderChat } from './chat-ui.js';
+import { BULK_ACTIONS, BULK_FORMS, emptyBulk, renderBulk } from './bulk-entry.js';
+import { describeConfig, isConfigured, readConfig, writeConfig } from './providers.js';
+import { button, cap, empty, esc, fmt, measure, modal, monthName, niceDate, notice, options, productDatalist, shiftMonth, unitText } from './ui-kit.js';
 
 const firstRun = !hasSavedState();
-let state, loadError = '';
-try { state = loadState(); } catch (error) { state = createEmptyState(); loadError = error.message; }
+let state, loadError = '', migratedFrom = 0;
+try { const cargado = loadStateDetailed(); state = cargado.state; if (cargado.migrated) migratedFrom = cargado.from; }
+catch (error) { state = createEmptyState(); loadError = error.message; }
 const today = todayISO();
 const SIDEBAR_KEY = 'que-comemos-sidebar-collapsed';
 const sidebarInitiallyCollapsed = (() => { try { return localStorage.getItem(SIDEBAR_KEY) === '1'; } catch { return false; } })();
-const ui = { page: 'hoy', menuDate: today, menuMode: 'week', shopMonth: today.slice(0, 7), shopKind: Number(today.slice(8)) <= 15 ? 'first' : 'second', customStart: today, customEnd: addDays(today, 14), shopBasis: 'menu', modal: null, reviewId: null, correctingReview: false, generationResult: null, sidebarCollapsed: sidebarInitiallyCollapsed, drawerOpen: false, welcome: firstRun, tour: null, justStarted: false };
-const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
-const fmt = value => new Intl.NumberFormat('es-DO', { maximumFractionDigits: 3 }).format(Number(value || 0));
-const cap = value => value.charAt(0).toUpperCase() + value.slice(1);
-const niceDate = (date, options = { weekday: 'long', day: 'numeric', month: 'long' }) => new Intl.DateTimeFormat('es-DO', options).format(new Date(`${date}T12:00:00`));
-const monthName = month => cap(new Intl.DateTimeFormat('es-DO', { month: 'long', year: 'numeric' }).format(new Date(`${month}-01T12:00:00`)));
+const ui = { page: 'hoy', menuDate: today, menuMode: 'week', shopMonth: today.slice(0, 7), shopKind: Number(today.slice(8)) <= 15 ? 'first' : 'second', customStart: today, customEnd: addDays(today, 14), shopBasis: 'mensual', shopMonthBasket: today.slice(0, 7), modal: null, setup: null, chat: null, bulk: null, productFilter: '', showArchived: false, reviewId: null, correctingReview: false, generationResult: null, sidebarCollapsed: sidebarInitiallyCollapsed, drawerOpen: false, welcome: firstRun, tour: null, justStarted: false };
 const personName = id => state.people.find(person => person.id === id)?.name || 'Persona eliminada';
 const productName = id => product(state, id)?.name || 'Producto eliminado';
-const unitText = (unit, amount) => amount > 0 && amount <= 1 ? unit : ({ unidad: 'unidades', taza: 'tazas', lata: 'latas', paquete: 'paquetes', rueda: 'ruedas', rebanada: 'rebanadas' }[unit] || unit);
-const measure = (amount, unit) => `${fmt(amount)} ${esc(unitText(unit, amount))}`;
 // «14 ruedas» no dice nada si no se sabe cómo las cortan en esta casa.
 const cutText = (item, amount) => {
   const style = sliceStyle(item?.slice);
@@ -29,9 +29,6 @@ const cutText = (item, amount) => {
 const stockText = (amount, item) => `${measure(amount, item?.controlUnit || '')}${esc(cutText(item, amount))}`;
 const itemText = item => `${measure(item.quantity, item.unit)} · ${esc(productName(item.productId))}`;
 const planTitle = plan => plan.kind === 'recipe' || plan.kind === 'linked' ? plan.title : ({ outside: 'Fuera de casa', order: 'Pedir comida', unplanned: 'Sin planificar' }[plan.kind] || 'Sin planificar');
-const button = (label, action, cls = 'btn-secondary', attrs = '') => `<button type="button" class="btn ${cls}" data-action="${action}" ${attrs}>${label}</button>`;
-const notice = (title, detail, tone = '') => `<div class="notice ${tone}"><span>✦</span><div><strong>${title}</strong>${detail ? `<span>${detail}</span>` : ''}</div></div>`;
-const empty = (emoji, title, text, action = '') => `<div class="empty"><span class="emoji">${emoji}</span><h3>${title}</h3><p>${text}</p>${action}</div>`;
 const nav = [ ['hoy','☀️','Hoy'], ['menu','▦','Menú'], ['compras','🧺','Compras'], ['revision','✓','Revisión'] ];
 const secondary = [ ['catalogo','📖','Preparaciones'], ['personas','👨‍👩‍👧‍👦','Personas'], ['productos','⚙️','Productos y datos'] ];
 // El botón + repite en las pantallas del día a día lo que se puede escribir
@@ -40,13 +37,21 @@ const secondary = [ ['catalogo','📖','Preparaciones'], ['personas','👨‍�
 // ve únicamente en Revisión, y un período de fechas mal puesto se explica en
 // Compras. Las demás dejan al usuario donde estaba.
 const QUICK_PAGES = ['hoy', 'menu', 'compras', 'revision'];
-const QUICK_ACTIONS = [
-  ['open-product', '', '🥬', 'Producto', 'Un alimento y cuánto tienes ahora'],
+// Arriba, las cuatro formas de meter muchas cosas de una vez o de no tener que
+// decidir nada. Ocho formularios de golpe era demasiada decisión para quien
+// todavía no sabe cuál le toca: lo de siempre sigue estando, pero debajo.
+const QUICK_MAIN = [
+  ['open-chat', '', '💬', 'Hablar con la asistente', 'Dile lo que pasó y ella lo anota'],
+  ['open-bulk', '', '🗣️', 'Dictar o escribir varios', '«30 plátanos, 10 libras de arroz…»'],
+  ['open-invoice', '', '📷', 'Escanear una factura', 'De una compra que ya hiciste'],
+  ['open-product', '', '✍️', 'Añadir un alimento a mano', 'Uno solo, con su ficha completa']
+];
+const QUICK_MORE = [
+  ['open-basket', 'compras', '🗒️', 'Canasta del mes', 'Lo que la casa consume en un mes'],
+  ['open-purchase', 'compras', '🧺', 'Compra', 'Lo que compraste, con sus cantidades'],
+  ['open-new-review', 'revision', '✓', 'Revisión', 'Cuánto queda de cada cosa'],
   ['open-recipe', '', '📖', 'Preparación', 'Una comida que se repite en casa'],
   ['open-person', '', '👥', 'Persona', 'Quién come, qué evita y cuánto'],
-  ['open-purchase', 'compras', '🧺', 'Compra', 'Lo que compraste, con sus cantidades'],
-  ['open-basket', 'compras', '🗒️', 'Canasta del mes', 'Lo que la casa consume en un mes'],
-  ['open-new-review', 'revision', '✓', 'Revisión', 'Cuánto se consumió desde la última'],
   ['open-correction', '', '⚖️', 'Corregir existencias', 'Se dañó algo o el conteo no cuadra'],
   ['open-absence', '', '🚪', 'Ausencia', 'Alguien no come en casa ese día']
 ];
@@ -57,7 +62,26 @@ function toast(message, error = false) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => el.className = '', 4200);
 }
 function commit(message) { saveState(state); render(); if (message) toast(message); }
-function pageTitle() { return ({ hoy: 'Hoy en casa', menu: 'Menú', compras: 'Compras', revision: 'Revisión de consumo', catalogo: 'Preparaciones', personas: 'Personas de la casa', productos: 'Productos y datos' })[ui.page]; }
+// Lo que un módulo de pantalla necesita para trabajar sin conocer app.js por
+// dentro. Se construye en cada llamada porque `state` se reasigna al importar un
+// respaldo o al borrar los datos, y una referencia guardada apuntaría al viejo.
+function ctx() {
+  return {
+    state, ui, commit, toast, render, closeModal, openModal,
+    startTour: () => goTour(0),
+    servicios: { chat: isConfigured('chat'), vision: isConfigured('vision'), transcribe: isConfigured('transcribe') }
+  };
+}
+// El catálogo puede crecer a cientos de alimentos; el filtro evita que haya que
+// recorrerlos todos con el pulgar para encontrar uno.
+function visibleProducts() {
+  const filtro = String(ui.productFilter || '').trim().toLocaleLowerCase('es');
+  return state.products
+    .filter(item => ui.showArchived || !item.archived)
+    .filter(item => !filtro || item.name.toLocaleLowerCase('es').includes(filtro) || (item.aliases || []).some(alias => String(alias).toLocaleLowerCase('es').includes(filtro)))
+    .sort((a, b) => Number(a.archived) - Number(b.archived) || a.name.localeCompare(b.name, 'es'));
+}
+function pageTitle() { return ({ hoy: 'Hoy en casa', menu: 'Menú', compras: 'Compras', revision: 'Revisión de consumo', catalogo: 'Preparaciones', personas: 'Personas de la casa', productos: 'Productos y datos', setup: 'Preparar mi casa' })[ui.page]; }
 function renderWelcome() {
   return `<div class="welcome-screen"><div class="welcome-card">
     <span class="welcome-mark">${BRAND_MARK}</span>
@@ -102,9 +126,10 @@ function render() {
       <div class="side-foot">Datos guardados solo en este navegador y dispositivo. Exporta un respaldo periódicamente.</div>
     </aside><button type="button" class="drawer-scrim" data-action="close-sidebar" aria-label="Cerrar menú lateral"></button><main class="main"><div class="mobile-brand"><button type="button" class="menu-toggle" data-action="toggle-sidebar" aria-label="${ui.drawerOpen ? 'Ocultar menú' : 'Abrir menú'}" aria-controls="app-sidebar" aria-expanded="${ui.drawerOpen}">☰</button><span class="brand-mark">${BRAND_MARK}</span><span>¿Qué comemos?</span></div>
       <header class="topline"><div class="topline-heading"><button type="button" class="menu-toggle desktop-menu-toggle" data-action="toggle-sidebar" aria-label="${ui.sidebarCollapsed ? 'Abrir menú' : 'Ocultar menú'}" aria-controls="app-sidebar" aria-expanded="${!ui.sidebarCollapsed}">☰</button><div><p class="eyebrow">Organización de comidas</p><h1>${pageTitle()}</h1></div></div><div class="top-actions">${ui.page !== 'productos' ? button('⚙️ Ajustes', 'navigate', 'btn-secondary btn-small', 'data-page="productos"') : ''}</div></header>
+      ${migratedFrom ? notice(`Tus datos se actualizaron al formato nuevo (versión ${migratedFrom} → 2).`, 'La canasta que tenías es ahora tu <strong>canasta base</strong>, y el mes corriente se abrió con una copia. Nada se perdió, y lo anterior quedó guardado aparte por si acaso.') : ''}
       ${loadError ? notice('No se pudieron leer los datos guardados.', `${esc(loadError)} Importa un respaldo o borra los datos del navegador desde Productos y datos.`, 'error') : ''}
       ${state.demo ? `<div class="demo-banner"><span>✦</span><div><strong>Estás viendo datos de demostración</strong>Las cantidades son solo ejemplos para probar el flujo; no son recomendaciones de alimentación.</div>${button('Borrar ejemplos', 'clear-demo', 'btn-secondary btn-small')}</div>` : ''}
-      ${({ hoy: renderToday, menu: renderMenu, compras: renderShopping, revision: renderReviews, catalogo: renderCatalog, personas: renderPeople, productos: renderProducts })[ui.page]()}
+      ${({ hoy: renderToday, menu: renderMenu, compras: renderShopping, revision: renderReviews, catalogo: renderCatalog, personas: renderPeople, productos: renderProducts, setup: () => renderSetup(ctx()) })[ui.page]()}
     </main>${QUICK_PAGES.includes(ui.page) && !ui.modal ? `<button type="button" class="fab" data-action="open-quick" aria-label="Añadir algo"><span aria-hidden="true">+</span></button>` : ''}<nav class="mobile-nav" aria-label="Navegación principal">${nav.map(([id, icon, label]) => `<button type="button" class="${ui.page === id ? 'active' : ''}" data-action="navigate" data-page="${id}"><span>${icon}</span>${label}</button>`).join('')}</nav></div>`;
   document.querySelector('#modal-root').innerHTML = ui.modal ? renderModal() : ui.tour === null ? '' : tourCard();
 }
@@ -130,6 +155,13 @@ function mealCard(slot, date, editable = true) {
   return `<article class="card meal-card"><div class="slot">${cap(slot)}</div><div class="meal-body">${plan ? `<div class="meal-title">${esc(planTitle(plan))}</div>${['recipe','linked'].includes(plan.kind) ? `<div class="meal-people">${plan.participants.length ? `Para ${plan.participants.map(id => esc(personName(id))).join(', ')}` : 'Sin participantes indicados'}</div>${servings(plan)}${plan.note ? `<p class="small"><strong>Nota:</strong> ${esc(plan.note)}</p>` : ''}${incompatibleItems(state, plan.items, plan.participants).length ? `<p class="pill red">Revisar restricciones</p>` : ''}` : `<p class="muted small">${plan.kind === 'unplanned' ? 'Esta comida necesita una decisión.' : 'No se incluyen alimentos en la compra.'}</p>`}` : `<div class="meal-title">Aún sin plan</div><p class="muted">Elige una preparación o marca esta comida.</p>`}</div>${editable ? button(plan ? 'Ver o cambiar' : 'Planificar', 'open-meal', 'btn-secondary btn-small', `data-date="${date}" data-slot="${slot}"`) : ''}</article>`;
 }
 function renderToday() {
+  // Tres tarjetas vacías como primera experiencia no dicen qué hacer: dicen que
+  // falta trabajo. Mientras no haya nada registrado, una sola puerta.
+  if (!state.products.length && !baseLines(state).length) {
+    return `<section class="hero start-hero"><div><div class="eyebrow">${esc(niceDate(today))}</div><h2>Vamos a preparar tu casa</h2><p>Cinco minutos, una sola vez. Marcas lo que se come en tu casa y la app calcula la compra. El menú día por día es opcional: puedes no usarlo nunca.</p></div>${button('Preparar mi casa', 'setup-open', 'btn-secondary')}</section>
+      <div class="section-head"><div><h2>O si prefieres ir directo</h2><p>Las mismas cosas, sin pasos.</p></div></div>
+      <div class="inline">${button('🗣️ Dictar o escribir mi compra', 'open-bulk', 'btn-secondary')}${button('🗒️ Escribir la canasta', 'open-basket', 'btn-secondary', 'data-goto="compras"')}${button('Ver el ejemplo y el recorrido', 'welcome-demo', 'btn-quiet')}`;
+  }
   const count = SLOTS.filter(slot => planFor(state, today, slot) && planFor(state, today, slot).kind !== 'unplanned').length;
   return `<section class="hero"><div><div class="eyebrow">${esc(niceDate(today))}</div><h2>${count === 3 ? 'Todo listo para hoy' : 'Vamos a organizar el día'}</h2><p>${count} de 3 comidas decididas</p></div>${button('Abrir menú', 'navigate', 'btn-secondary', 'data-page="menu"')}</section>
     <div class="section-head"><div><h2>Qué preparar</h2><p>Cantidades y acompañamientos de cada comida.</p></div></div>
@@ -138,6 +170,9 @@ function renderToday() {
     <div class="grid grid-3">${SLOTS.map(slot => { const plan = planFor(state, addDays(today, 1), slot); return `<div class="card soft"><div class="between"><span class="pill warm">${cap(slot)}</span><span class="small muted">${niceDate(addDays(today, 1), { day: 'numeric', month: 'short' })}</span></div><h3 style="margin-top:12px">${esc(plan ? planTitle(plan) : 'Sin planificar')}</h3>${plan?.kind === 'linked' ? '<p class="small muted">Usa una parte reservada de hoy.</p>' : ''}</div>`; }).join('')}</div>`;
 }
 function renderMenu() {
+  // Un mes vacío son noventa casillas por llenar, y eso se lee como una tarea
+  // enorme. Sin nada planificado se enseña una semana, que sí se puede acabar.
+  if (!state.plans.length && ui.menuMode === 'month') ui.menuMode = 'week';
   const start = ui.menuMode === 'week' ? weekStart(ui.menuDate) : monthBounds(ui.menuDate.slice(0, 7)).start;
   const end = ui.menuMode === 'week' ? addDays(start, 6) : monthBounds(ui.menuDate.slice(0, 7)).end;
   const label = ui.menuMode === 'week' ? `${niceDate(start, { day: 'numeric', month: 'short' })} – ${niceDate(end, { day: 'numeric', month: 'short', year: 'numeric' })}` : monthName(ui.menuDate.slice(0, 7));
@@ -153,7 +188,7 @@ function renderMenu() {
     <div class="card calendar-card">${calendar}</div>
     <div class="section-head"><div><h2>Organizar más rápido</h2><p>La propuesta solo usa tus preparaciones y respeta las restricciones registradas.</p></div></div>
     <div class="inline">${button('✦ Proponer este mes', 'generate-month', 'btn-primary')}${button('Repetir esta semana en el mes', 'repeat-week', 'btn-secondary')}${button('Registrar ausencia', 'open-absence', 'btn-secondary')}</div>
-    ${state.recipes.length ? '' : `<div style="margin-top:18px">${empty('📖','Primero crea preparaciones','Luego podrás asignarlas y generar un menú.', button('Abrir preparaciones', 'navigate', 'btn-primary', 'data-page="catalogo"'))}</div>`}`;
+    ${state.plans.length || state.recipes.length ? '' : `<div style="margin-top:18px">${empty('▦','El menú es opcional','Si compras por canasta no hace falta planificar nada. Y si quieres usarlo, lo más fácil es empezar por una semana: guardas dos o tres comidas habituales y se copian al resto del mes.', `${button('Crear mi primera semana', 'open-recipe', 'btn-primary')}${button('Comprar sin menú', 'navigate', 'btn-secondary', 'data-page="compras"')}`)}</div>`}`;
 }
 function menuCell(date, slot) {
   const plan = planFor(state, date, slot);
@@ -167,33 +202,68 @@ function shopPeriod() {
 }
 function renderShopping() {
   const period = shopPeriod();
-  const basket = ui.shopBasis === 'basket';
-  let list, periodError = ''; try { list = shoppingList(state, period.start, period.end, ui.shopBasis); } catch (error) { periodError = error.message; list = { lines: [], missing: [], pending: [], lastReview: null, future: false }; }
+  const basket = ui.shopBasis !== 'menu';
+  let list, periodError = ''; try { list = shoppingList(state, period.start, period.end, ui.shopBasis); } catch (error) { periodError = error.message; list = { lines: [], missing: [], pending: [], months: [], lastReview: null, future: false }; }
   const suggested = list.lines.filter(line => line.shortfall > 0);
   const incomplete = list.missing.length || list.pending.length;
-  return `<div class="card"><div class="section-head shop-head" style="margin:0 0 16px"><div><h2>${basket ? 'Compra según la canasta' : 'Compra según el menú'}</h2><p>${basket ? 'Lo que la casa consume en un mes, ajustado a este período, menos lo que hay hoy.' : 'Necesario en el período menos lo que hay hoy.'}</p></div><div class="segmented"><button type="button" data-action="shop-basis" data-basis="menu" class="${basket ? '' : 'active'}">Menú</button><button type="button" data-action="shop-basis" data-basis="basket" class="${basket ? 'active' : ''}">Canasta</button></div></div>
+  return `<div class="card"><div class="section-head shop-head" style="margin:0 0 16px"><div><h2>Compra según ${esc(basisLabel(ui.shopBasis))}</h2><p>${basket ? 'Lo que la casa consume en un mes, ajustado a los días de este período, menos lo que hay hoy.' : 'Necesario en el período menos lo que hay hoy.'}</p></div><div class="segmented">${BASES.map(id => `<button type="button" data-action="shop-basis" data-basis="${id}" class="${ui.shopBasis === id ? 'active' : ''}">${({ menu: 'Menú', base: 'Canasta base', mensual: 'Este mes' })[id]}</button>`).join('')}</div></div>
     <div class="shopping-period"><label class="field"><span>Período</span><select id="shop-kind"><option value="first" ${ui.shopKind === 'first' ? 'selected' : ''}>Primera quincena</option><option value="second" ${ui.shopKind === 'second' ? 'selected' : ''}>Segunda quincena</option><option value="custom" ${ui.shopKind === 'custom' ? 'selected' : ''}>Fechas personalizadas</option></select></label>
     ${ui.shopKind === 'custom' ? `<label class="field"><span>Desde</span><input id="shop-start" type="date" value="${esc(ui.customStart)}"></label><label class="field"><span>Hasta</span><input id="shop-end" type="date" value="${esc(ui.customEnd)}"></label>` : `<label class="field"><span>Mes</span><input id="shop-month" type="month" value="${esc(ui.shopMonth)}"></label>`}
     ${button('Preparar compra', 'open-purchase', 'btn-primary')}</div></div>
     ${periodError ? notice('Revisa las fechas de compra.', esc(periodError), 'error') : ''}
-    ${ui.justStarted && state.basket.length ? `<div class="notice"><span>✦</span><div><strong>Esta es tu primera lista.</strong>Sale de la canasta que acabas de escribir, menos lo que ya tienes en casa. Los alimentos quedaron registrados solos; en Productos y datos puedes afinarlos cuando haga falta. La app tiene más cosas —menú, preparaciones, personas— pero ninguna es obligatoria para comprar.<div class="inline" style="margin-top:11px">${button('Ver el recorrido', 'open-tour', 'btn-secondary btn-small')}${button('Ahora no', 'dismiss-start', 'btn-quiet btn-small')}</div></div></div>` : ''}
-    ${basket && !periodError && state.basket.length ? notice(`La canasta es mensual y este período cubre ${list.days} de los ${list.monthDays} días de ${esc(monthName(list.month))}.`, `Por eso se pide el ${Math.round(list.share * 100)}% de cada cantidad escrita, no la del mes completo.`) : ''}
+    ${ui.justStarted && baseLines(state).length ? `<div class="notice"><span>✦</span><div><strong>Esta es tu primera lista.</strong>Sale de la canasta que acabas de escribir, menos lo que ya tienes en casa. Los alimentos quedaron registrados solos; en Productos y datos puedes afinarlos cuando haga falta. La app tiene más cosas —menú, preparaciones, personas— pero ninguna es obligatoria para comprar.<div class="inline" style="margin-top:11px">${button('Ver el recorrido', 'open-tour', 'btn-secondary btn-small')}${button('Ahora no', 'dismiss-start', 'btn-quiet btn-small')}</div></div></div>` : ''}
+    ${basket && !periodError && list.months?.length ? notice(
+      list.months.length === 1
+        ? `La canasta es mensual y este período cubre ${list.months[0].days} de los ${list.months[0].monthDays} días de ${esc(monthName(list.months[0].month))}.`
+        : `Este período cruza ${list.months.length} meses.`,
+      list.months.map(tramo => `${tramo.days} día(s) de ${esc(monthName(tramo.month))} → ${Math.round(tramo.share * 100)}% de esa canasta`).join('<br>')) : ''}
     <div class="section-head"><div><h2>Lista sugerida</h2><p>Existencias según compras y revisiones confirmadas.</p></div><span class="pill">${suggested.length} productos por comprar</span></div>
     ${list.lastReview ? notice('Última revisión de existencias: ' + niceDate(list.lastReview, { day: 'numeric', month: 'long', year: 'numeric' }) + '.', '') : notice('Todavía no hay una revisión confirmada.', 'La lista usa las existencias actuales. Haz una revisión para comprobar qué queda.', 'warn')}
     ${list.future ? notice('Compra para un período futuro.', 'Este cálculo usa las existencias de hoy. Actualízalas antes de comprar; el menú previsto no se descuenta como consumo real.', 'warn') : ''}
-    ${suggested.length ? `<div class="card table-wrap"><table class="data-table"><thead><tr><th>Producto</th><th class="num">Necesario</th><th class="num">Disponible</th><th class="num">Por comprar</th></tr></thead><tbody>${suggested.map(line => `<tr><td><strong>${esc(productName(line.productId))}</strong>${line.purchaseQuantity === null ? '<div class="small pending">Falta equivalencia de compra</div>' : ''}</td><td class="num">${measure(line.need, product(state, line.productId).controlUnit)}</td><td class="num">${fmt(line.available)}</td><td class="num strong">${line.purchaseQuantity === null ? '—' : measure(line.purchaseQuantity, line.purchaseUnit)}</td></tr>`).join('')}</tbody></table></div>` : basket && !state.basket.length ? empty('🧺','La canasta está vacía','Escribe una vez lo que tu casa consume en un mes corriente. Después solo cambias lo que varía.', button('Escribir la canasta', 'open-basket', 'btn-primary')) : empty('🧺','Nada que comprar por ahora', basket ? 'Con lo que hay en casa alcanza para este período, o el período seleccionado no cubre días suficientes.' : 'Planifica comidas o revisa el período seleccionado para calcular cantidades.')}
+    ${suggested.length ? `<div class="card table-wrap"><table class="data-table"><thead><tr><th>Producto</th><th class="num">Necesario</th><th class="num">Disponible</th><th class="num">Por comprar</th></tr></thead><tbody>${suggested.map(line => `<tr><td><strong>${esc(productName(line.productId))}</strong>${line.purchaseQuantity === null ? '<div class="small pending">Falta equivalencia de compra</div>' : ''}</td><td class="num">${measure(line.need, product(state, line.productId).controlUnit)}</td><td class="num">${fmt(line.available)}</td><td class="num strong">${line.purchaseQuantity === null ? '—' : measure(line.purchaseQuantity, line.purchaseUnit)}</td></tr>`).join('')}</tbody></table></div>` : basket && !basketLines(state, ui.shopMonthBasket).length ? empty('🧺','La canasta está vacía','Escribe una vez lo que tu casa consume en un mes corriente. Después solo cambias lo que varía.', `${button('Prepararla en 5 minutos', 'setup-open', 'btn-primary')}${button('Escribirla a mano', 'open-basket', 'btn-secondary')}`) : empty('🧺','Nada que comprar por ahora', basket ? 'Con lo que hay en casa alcanza para este período, o el período seleccionado no cubre días suficientes.' : 'Planifica comidas o revisa el período seleccionado para calcular cantidades.')}
     ${incomplete ? `<div class="section-head"><h2>Antes de comprar</h2></div><div class="grid grid-2">${list.pending.length ? `<div class="notice warn"><span>↔</span><div><strong>${list.pending.length} equivalencia(s) pendiente(s)</strong>${[...new Set(list.pending.map(item => `${productName(item.productId)}: ${item.unit} → ${product(state, item.productId)?.controlUnit || '?'}`))].slice(0, 5).map(esc).join('<br>')}<br>${button('Configurar', 'navigate', 'btn-secondary btn-small', 'data-page="productos"')}</div></div>` : ''}${list.missing.length ? `<div class="notice warn"><span>◌</span><div><strong>${list.missing.length} comida(s) sin planificar</strong>La compra podría quedar incompleta. ${list.missing.slice(0, 5).map(item => `${cap(item.slot)} ${niceDate(item.date, { day: 'numeric', month: 'short' })}`).join(', ')}${list.missing.length > 5 ? '…' : ''}</div></div>` : ''}</div>` : ''}
-    <div class="section-head"><div><h2>Canasta del mes</h2><p>Lo que la casa consume en un mes corriente. Se escribe una vez y se reutiliza cada mes; solo cambias lo que varía.</p></div>${state.basket.length ? button('Editar canasta', 'open-basket', 'btn-secondary') : ''}</div>
-    ${state.basket.length
-      ? basket
-        ? `<div class="card table-wrap"><table class="data-table"><thead><tr><th>Producto</th><th class="num">Al mes</th><th class="num">En este período</th></tr></thead><tbody>${state.basket.map(line => `<tr><td><strong>${esc(productName(line.productId))}</strong></td><td class="num">${measure(line.quantity, line.unit)}</td><td class="num strong">${periodError ? '—' : measure(Math.round(line.quantity * list.share * 1000) / 1000, line.unit)}</td></tr>`).join('')}</tbody></table></div>`
-        : `<div class="card"><div class="between"><div><div class="list-row-title">${state.basket.length} producto(s) escritos</div><div class="list-row-sub">Ahora mismo la lista se calcula con el menú. Cambia arriba a <strong>Canasta</strong> para comprar con estas cantidades sin planificar día por día.</div></div>${button('Ver y editar', 'open-basket', 'btn-secondary btn-small')}</div></div>`
-      : empty('🗒️','Todavía no hay canasta','Si cada mes compras prácticamente lo mismo, escríbelo una vez aquí y la lista sale sin tener que planificar el menú día por día.', button('Escribir la canasta', 'open-basket', 'btn-primary'))}
+    ${basketSection()}
     <div class="section-head"><div><h2>Otros productos que faltan</h2><p>Sal, aceite, detergente y lo que prefieras anotar sin seguimiento.</p></div></div>
     <form data-form="manual-item" class="inline"><input class="text" name="name" placeholder="Producto" required style="max-width:250px"><input class="text" name="quantity" placeholder="Cantidad (opcional)" style="max-width:185px"> <button class="btn btn-secondary" type="submit">Agregar</button></form>
     <div class="card" style="margin-top:15px">${state.manualItems.length ? state.manualItems.map(item => `<div class="list-row"><label class="inline"><input type="checkbox" data-action="toggle-manual" data-id="${item.id}" ${item.done ? 'checked' : ''}><span style="${item.done ? 'text-decoration:line-through;color:#6b5b51' : ''}">${esc(item.name)} ${item.quantity ? `<span class="muted">· ${esc(item.quantity)}</span>` : ''}</span></label>${button('Quitar', 'delete-manual', 'btn-quiet btn-small', `data-id="${item.id}"`)}</div>`).join('') : '<p class="muted">Anota aquí productos que no forman parte del menú.</p>'}</div>
     <div class="section-head"><div><h2>Compras confirmadas</h2><p>Solo estas compras aumentan las existencias.</p></div></div>${state.purchases.length ? `<div class="card">${[...state.purchases].reverse().map(purchase => `<div class="list-row"><div><div class="list-row-title">${niceDate(purchase.date, { day: 'numeric', month: 'long', year: 'numeric' })}</div><div class="list-row-sub">${purchase.lines.map(line => `${measure(line.quantity, line.unit)} de ${esc(productName(line.productId))}`).join(' · ')}</div></div><span class="pill">Confirmada</span></div>`).join('')}</div>` : empty('🧾','Aún no hay compras confirmadas','Prepara una compra sugerida y confirma las cantidades reales.')}`;
 }
+// La canasta base es el hábito de la casa; la del mes es lo que pasa este mes.
+// Enseñarlas juntas, con las diferencias marcadas, es lo que evita la pregunta
+// de «¿y esto dónde lo escribo?»: se ve que son la misma lista en dos tiempos.
+function basketSection() {
+  const mes = ui.shopMonthBasket;
+  const base = baseLines(state);
+  const abierta = monthBasket(state, mes);
+  const diff = abierta ? monthDiff(state, mes) : null;
+  const cambios = diff ? diff.added.length + diff.removed.length + diff.changed.length : 0;
+  const lineas = abierta ? abierta.lines : base;
+  const marca = line => {
+    if (!diff) return '';
+    if (diff.added.some(row => row.productId === line.productId)) return '<span class="pill warm">solo este mes</span>';
+    const cambiada = diff.changed.find(row => row.line.productId === line.productId);
+    if (cambiada) return `<span class="pill warm">este mes ${measure(cambiada.line.quantity, cambiada.line.unit)}, normalmente ${measure(cambiada.base.quantity, cambiada.base.unit)}</span>`;
+    return '';
+  };
+  if (!base.length && !abierta) {
+    return `<div class="section-head"><div><h2>Tu canasta</h2><p>Lo que la casa consume en un mes corriente.</p></div></div>
+      ${empty('🗒️', 'Todavía no hay canasta', 'Se escribe una vez y se reutiliza cada mes; después solo cambias lo que varía. Lo más rápido es marcar de una lista o dictarla de corrido.', `${button('Prepararla en 5 minutos', 'setup-open', 'btn-primary')}${button('🗣️ Dictarla o escribirla', 'open-bulk', 'btn-secondary')}${button('Escribirla a mano', 'open-basket', 'btn-quiet')}`)}`;
+  }
+  return `<div class="section-head"><div><h2>Tu canasta</h2><p>La <strong>base</strong> es lo que tu casa consume en un mes corriente, y se escribe una vez. Cada mes nace de ella y puede apartarse sin cambiarla.</p></div>
+    <div class="inline">${button('Editar la base', 'open-basket', 'btn-secondary btn-small', 'data-scope="base"')}${button(`Editar ${monthName(mes)}`, 'open-basket', 'btn-secondary btn-small', `data-scope="mes" data-month="${mes}"`)}</div></div>
+    <div class="toolbar"><div class="inline">${button('‹', 'basket-month', 'btn-secondary btn-small', 'data-delta="-1"')}<div class="strong" style="min-width:170px;text-align:center">${esc(monthName(mes))}</div>${button('›', 'basket-month', 'btn-secondary btn-small', 'data-delta="1"')}</div>
+      ${abierta ? `<span class="pill ${cambios ? 'warm' : 'gray'}">${cambios ? `${cambios} cambio(s) respecto a la base` : 'igual que la base'}</span>` : '<span class="pill gray">sin abrir · usa la base</span>'}</div>
+    ${abierta ? '' : notice(`${esc(monthName(mes))} todavía no tiene canasta propia.`, `Se calcula con la base. Ábrela solo si este mes va a ser distinto: lo que cambies ahí no tocará los demás meses.` + `<div class="inline" style="margin-top:10px">${button('Abrir ' + monthName(mes), 'open-month-basket', 'btn-secondary btn-small', `data-month="${mes}"`)}</div>`)}
+    ${cambios ? `<div class="notice warn"><span>↔</span><div><strong>Este mes se aparta de la costumbre en ${cambios} cosa(s).</strong>Si alguno de esos cambios vino para quedarse, pásalo a la canasta base y valdrá para los meses siguientes.<div class="inline" style="margin-top:10px">${button('Ver y pasar a la base', 'open-promote', 'btn-secondary btn-small', `data-month="${mes}"`)}</div></div></div>` : ''}
+    ${lineas.length ? `<div class="card table-wrap"><table class="data-table"><thead><tr><th>Alimento</th><th class="num">Al mes</th><th class="num">En este período</th></tr></thead><tbody>${lineas.map(line => `<tr><td><strong>${esc(productName(line.productId))}</strong> ${marca(line)}</td><td class="num">${line.quantity === null ? '<span class="pill gray">pendiente</span>' : measure(line.quantity, line.unit)}</td><td class="num strong">${line.quantity === null ? '—' : measure(Math.round(line.quantity * periodShare() * 1000) / 1000, line.unit)}</td></tr>`).join('')}</tbody></table></div>`
+      : `<div class="card"><p class="muted">Esta canasta está vacía.</p></div>`}
+    ${diff?.removed.length ? `<p class="small muted" style="margin-top:9px">Quitado solo en ${esc(monthName(mes))}: ${diff.removed.map(line => esc(productName(line.productId))).join(', ')}. Sigue en la canasta base.</p>` : ''}`;
+}
+// La proporción del período sobre el mes, para la columna «en este período».
+function periodShare() {
+  try { const period = shopPeriod(); const list = shoppingList(state, period.start, period.end, ui.shopBasis); return list.share ?? 1; } catch { return 1; }
+}
+
 function renderReviews() {
   const stock = inventoryNow(state);
   const latest = lastStockReview(state);
@@ -205,13 +275,25 @@ function renderReviews() {
     ${selected ? `<div class="section-head"><div><h2>${selected.status === 'confirmed' ? 'Revisión confirmada' : 'Revisión pendiente'}</h2><p>${niceDate(selected.date, { day: 'numeric', month: 'long', year: 'numeric' })}</p></div>${selected.status === 'confirmed' ? button(ui.correctingReview ? 'Cancelar corrección' : 'Corregir revisión', 'toggle-correct-review', 'btn-secondary btn-small') : ''}</div>${reviewTable(selected)}` : `<div class="section-head"><h2>Revisión semanal</h2></div>${empty('✓','Todavía no hay revisiones','Abre una revisión y registra cuánto se consumió de cada producto. Un campo vacío queda pendiente.', button('Empezar revisión', 'open-new-review', 'btn-primary'))}`}
     <div class="section-head"><h2>Historial</h2></div>${state.reviews.length || state.corrections.length ? `<div class="card">${[...state.reviews.map(item => ({ ...item, event: 'review' })), ...state.corrections.map(item => ({ ...item, event: 'correction' }))].sort((a,b) => b.date.localeCompare(a.date) || b.seq - a.seq).map(item => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${item.event === 'review' ? 'Revisión' : 'Corrección de existencias'} · ${niceDate(item.date, { day: 'numeric', month: 'short', year: 'numeric' })}</div><div class="list-row-sub">${item.event === 'review' ? `${item.productIds.filter(id => item.consumed[id] !== undefined).length}/${item.productIds.length} productos revisados` : `${esc(productName(item.productId))}: ${item.delta >= 0 ? '+' : ''}${measure(item.delta, product(state, item.productId)?.controlUnit || '')}${item.reason ? ` · ${esc(item.reason)}` : ''}`}</div></div>${item.event === 'review' ? button(item.status === 'confirmed' ? 'Ver' : 'Continuar', 'select-review', 'btn-secondary btn-small', `data-id="${item.id}"`) : '<span class="pill gray">Ajuste</span>'}</div>`).join('')}</div>` : ''}`;
 }
+// Preguntar «¿cuánto queda?» en vez de «¿cuánto se consumió?» es la diferencia
+// entre abrir la nevera y mirar, o restar de memoria. La app hace la resta. Quien
+// prefiera el método de antes lo tiene en el interruptor de arriba.
 function reviewTable(review) {
   const available = reviewAvailability(state, review);
   const editing = review.status === 'draft' || ui.correctingReview;
-  return `<form data-form="review" data-id="${review.id}" class="card"><div class="table-wrap"><table class="data-table"><thead><tr><th>Producto</th><th class="num">Antes</th><th class="num">Consumida</th><th class="num">Restante</th></tr></thead><tbody>${review.productIds.map(id => {
-    const amount = review.consumed[id]; const remain = amount === undefined ? null : Math.max(0, (available[id] || 0) - amount);
-    return `<tr data-review-product="${id}" data-available="${available[id] || 0}"><td><strong>${esc(productName(id))}</strong><div class="small muted">${esc(product(state, id)?.controlUnit || '')}${esc(cutText(product(state, id), 1))}</div></td><td class="num">${fmt(available[id] || 0)}</td><td class="num">${editing ? `<input class="text" type="number" name="consume-${id}" aria-label="Cantidad consumida de ${esc(productName(id))}" min="0" max="${available[id] || 0}" step="any" inputmode="decimal" placeholder="Pendiente" value="${amount === undefined ? '' : amount}">` : fmt(amount)}</td><td class="num remaining ${remain === null ? 'pending' : 'good'}">${remain === null ? 'Pendiente' : fmt(remain)}</td></tr>`;
-  }).join('')}</tbody></table></div>${review.productIds.length ? '' : '<p class="muted">No hay productos con existencias antes de esta revisión.</p>'}<div class="modal-actions">${editing ? review.status === 'draft' ? `<button type="submit" name="intent" value="save" class="btn btn-secondary">Guardar pendiente</button><button type="submit" name="intent" value="confirm" class="btn btn-primary">Confirmar revisión</button>` : `<button type="submit" name="intent" value="correct" class="btn btn-primary">Guardar corrección</button>` : `<span class="pill">Confirmada · el consumo ya se descontó</span>`}</div></form>`;
+  const queda = (review.mode || 'restante') === 'restante';
+  return `${editing && review.status === 'draft' ? `<div class="toolbar"><p class="small muted" style="margin:0">${queda ? 'Abre la nevera y escribe lo que ves. La app calcula lo consumido.' : 'Escribe lo que se consumió desde la última revisión.'}</p>
+    <div class="segmented"><button type="button" data-action="review-mode" data-mode="restante" data-id="${review.id}" class="${queda ? 'active' : ''}">¿Cuánto queda?</button><button type="button" data-action="review-mode" data-mode="consumido" data-id="${review.id}" class="${queda ? '' : 'active'}">Lo consumido</button></div></div>` : ''}
+    <form data-form="review" data-id="${review.id}" class="card"><div class="table-wrap"><table class="data-table"><thead><tr><th>Producto</th><th class="num">Había</th><th class="num">${queda ? 'Queda ahora' : 'Consumida'}</th><th class="num">${queda ? 'Se consumió' : 'Restante'}</th></tr></thead><tbody>${review.productIds.map(id => {
+    const had = available[id] || 0;
+    const used = review.consumed[id];
+    const left = review.remaining?.[id];
+    const escrito = queda ? left : used;
+    const derivado = used === undefined ? null : queda ? used : Math.max(0, had - used);
+    return `<tr data-review-product="${id}" data-available="${had}" data-mode="${queda ? 'restante' : 'consumido'}"><td><strong>${esc(productName(id))}</strong><div class="small muted">${esc(product(state, id)?.controlUnit || '')}${esc(cutText(product(state, id), 1))}</div></td><td class="num">${fmt(had)}</td><td class="num">${editing ? `<input class="text" type="number" name="consume-${id}" aria-label="${queda ? `Cantidad que queda de ${esc(productName(id))}` : `Cantidad consumida de ${esc(productName(id))}`}" min="0" ${queda ? '' : `max="${had}"`} step="any" inputmode="decimal" placeholder="Pendiente" value="${escrito === undefined || escrito === null ? '' : escrito}">` : fmt(escrito)}</td><td class="num remaining ${derivado === null ? 'pending' : 'good'}">${derivado === null ? 'Pendiente' : fmt(derivado)}</td></tr>`;
+  }).join('')}</tbody></table></div>${review.productIds.length ? '' : '<p class="muted">No hay productos con existencias antes de esta revisión.</p>'}
+    ${editing ? `<p class="small muted" style="margin:12px 0 0">Un campo vacío queda pendiente. Escribe <strong>0</strong> si ${queda ? 'no queda nada' : 'no se consumió nada'}.</p>` : ''}
+    <div class="modal-actions">${editing ? review.status === 'draft' ? `<button type="submit" name="intent" value="save" class="btn btn-secondary">Guardar pendiente</button><button type="submit" name="intent" value="confirm" class="btn btn-primary">Confirmar revisión</button>` : `<button type="submit" name="intent" value="correct" class="btn btn-primary">Guardar corrección</button>` : `<span class="pill">Confirmada · el consumo ya se descontó</span>`}</div></form>`;
 }
 function renderCatalog() {
   return `<div class="section-head" style="margin-top:0"><div><h2>Comidas que se repiten en casa</h2><p>Se copian al menú; luego puedes ajustar cada fecha por separado.</p></div>${button('+ Nueva preparación', 'open-recipe', 'btn-primary')}</div>
@@ -219,20 +301,25 @@ function renderCatalog() {
 }
 function renderPeople() {
   return `<div class="section-head" style="margin-top:0"><div><h2>Quiénes comen en casa</h2><p>Lo que se guarda aquí queda para siempre: las cantidades habituales se traen a una preparación con un toque.</p></div><div class="inline">${button('Registrar ausencia', 'open-absence', 'btn-secondary')}${button('+ Añadir persona', 'open-person', 'btn-primary')}</div></div>
-    ${state.people.length ? `<div class="grid grid-2">${state.people.map(person => `<article class="card"><div class="between"><h2>${esc(person.name)}</h2>${button('Editar', 'open-person', 'btn-secondary btn-small', `data-id="${person.id}"`)}</div><p class="small"><strong>Evitar:</strong> ${person.restrictions.length ? person.restrictions.map(id => esc(productName(id))).join(', ') : 'Sin restricciones registradas'}</p><p class="small"><strong>Cantidades habituales:</strong> ${person.habitual.length ? person.habitual.map(item => `${fmt(item.quantity)} ${esc(item.unit)} de ${esc(productName(item.productId))}`).join(' · ') : 'Sin referencias todavía'}</p></article>`).join('')}</div>` : empty('👨‍👩‍👧‍👦','Agrega a las personas de casa','Después podrás indicar variantes y ausencias por comida.', button('Añadir persona', 'open-person', 'btn-primary'))}
+    ${state.people.length ? `<div class="grid grid-2">${state.people.map(person => `<article class="card"><div class="between"><h2>${esc(person.name)}</h2>${button('Editar', 'open-person', 'btn-secondary btn-small', `data-id="${person.id}"`)}</div><p class="small"><strong>Evitar:</strong> ${person.restrictions.length || person.pendingRestrictions?.length ? [...person.restrictions.map(id => esc(productName(id))), ...(person.pendingRestrictions || []).map(text => `${esc(text)} <span class="muted">(por enlazar)</span>`)].join(', ') : 'Sin restricciones registradas'}</p><p class="small"><strong>Cantidades habituales:</strong> ${person.habitual.length ? person.habitual.map(item => `${fmt(item.quantity)} ${esc(item.unit)} de ${esc(productName(item.productId))}`).join(' · ') : 'Sin referencias todavía'}</p></article>`).join('')}</div>` : empty('👨‍👩‍👧‍👦','Agrega a las personas de casa','Después podrás indicar variantes y ausencias por comida.', button('Añadir persona', 'open-person', 'btn-primary'))}
     <div class="section-head"><h2>Ausencias registradas</h2></div>${state.absences.length ? `<div class="card">${state.absences.sort((a,b) => a.date.localeCompare(b.date)).map(item => `<div class="list-row"><div>${esc(personName(item.personId))} · ${cap(item.slot)} · ${niceDate(item.date, { day: 'numeric', month: 'long' })}</div>${button('Quitar', 'remove-absence', 'btn-quiet btn-small', `data-date="${item.date}" data-slot="${item.slot}" data-id="${item.personId}"`)}</div>`).join('')}</div>` : '<p class="muted">No hay ausencias indicadas.</p>'}`;
 }
 function renderProducts() {
-  return `<div class="card soft" style="margin-bottom:20px"><h2>Organización de la casa</h2><p class="muted small">Edita las comidas habituales y las personas que participan. El recorrido explica cada pantalla paso a paso.</p><div class="inline">${button('Preparaciones', 'navigate', 'btn-secondary', 'data-page="catalogo"')}${button('Personas', 'navigate', 'btn-secondary', 'data-page="personas"')}${button('Cómo funciona', 'open-tour', 'btn-secondary')}</div></div>
+  return `<div class="card soft" style="margin-bottom:20px"><h2>Organización de la casa</h2><p class="muted small">Edita las comidas habituales y las personas que participan. El recorrido explica cada pantalla paso a paso.</p><div class="inline">${button('Preparar mi casa', 'setup-open', 'btn-secondary')}${button('Preparaciones', 'navigate', 'btn-secondary', 'data-page="catalogo"')}${button('Personas', 'navigate', 'btn-secondary', 'data-page="personas"')}${button('Cómo funciona', 'open-tour', 'btn-secondary')}</div></div>
     <div class="section-head" style="margin-top:0"><div><h2>Los alimentos de la casa</h2><p>La ficha completa de cada uno: cómo se cuenta, cuánto se consume al mes, cuánto hay y cómo se compra. La <strong>canasta del mes</strong> es esta misma lista vista de otra forma, con solo la columna del mes, para llenar muchos de golpe.</p></div>${button('+ Añadir alimento', 'open-product', 'btn-primary')}</div>
-    ${state.products.length ? `<div class="card">${state.products.map(item => {
-      const mes = state.basket.find(line => line.productId === item.id);
+    ${state.products.length ? `<div class="toolbar"><label class="field" style="flex:1;max-width:330px"><span class="sr-only">Buscar un alimento</span><input type="search" id="product-filter" value="${esc(ui.productFilter)}" placeholder="Buscar entre ${state.products.length} alimentos…" aria-label="Buscar un alimento"></label>
+      ${state.products.some(item => item.archived) ? button(ui.showArchived ? 'Ocultar archivados' : `Ver ${state.products.filter(item => item.archived).length} archivados`, 'toggle-archived', 'btn-quiet btn-small') : ''}</div>
+      <div class="card">${visibleProducts().map(item => {
+      const mes = baseLines(state).find(line => line.productId === item.id);
       const equivalencias = Object.entries(item.equivalences || {});
-      return `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${esc(item.name)} ${mes ? `<span class="pill">${measure(mes.quantity, mes.unit)} al mes</span>` : '<span class="pill gray">sin consumo del mes</span>'}</div><div class="list-row-sub">Se cuenta en ${esc(item.controlUnit)}${esc(cutText(item, 1))} · Se compra en ${esc(item.purchaseUnit)}${equivalencias.length ? ` · ${equivalencias.map(([unit, factor]) => `1 ${esc(unit)} = ${stockText(factor, item)}`).join(' · ')}` : ''}</div></div><div class="inline">${button('Otra medida', 'open-equivalence', 'btn-quiet btn-small', `data-id="${item.id}"`)}${button('Editar', 'open-product', 'btn-secondary btn-small', `data-id="${item.id}"`)}</div></div>`;
-    }).join('')}</div>` : empty('🥬','Todavía no hay alimentos','Lo más rápido es escribir la canasta del mes: los alimentos se registran solos desde ahí.', `${button('Escribir la canasta', 'open-basket', 'btn-primary', 'data-goto="compras"')}${button('Añadir uno a mano', 'open-product', 'btn-secondary')}`)}
-    <div class="section-head"><h2>Tus datos</h2></div><div class="grid grid-2"><div class="card"><h2>Respaldo</h2><p class="muted">Los datos viven solo en este navegador y dispositivo. Exporta un archivo para conservarlos o importarlos aquí más tarde.</p><div class="inline">${button('Exportar respaldo', 'export', 'btn-primary')}${button('Importar respaldo', 'open-import', 'btn-secondary')}</div></div><div class="card"><h2>Comenzar con datos reales</h2><p class="muted">Borra las demostraciones y empieza desde cero. Esta acción elimina todos los datos locales de la app; exporta un respaldo antes si quieres conservarlos.</p>${button('Borrar todos los datos', 'clear-demo', 'btn-danger')}</div></div>`;
+      const categoria = CATEGORIES.find(cat => cat.id === item.category);
+      return `<div class="list-row ${item.archived ? 'archived' : ''}"><div class="list-row-main"><div class="list-row-title">${esc(item.name)} ${item.archived ? '<span class="pill gray">archivado</span>' : mes ? `<span class="pill">${mes.quantity === null ? 'cantidad pendiente' : `${measure(mes.quantity, mes.unit)} al mes`}</span>` : '<span class="pill gray">sin consumo del mes</span>'}</div><div class="list-row-sub">${categoria ? `${categoria.emoji} ${esc(categoria.label)} · ` : ''}Se cuenta en ${esc(item.controlUnit)}${esc(cutText(item, 1))} · Se compra en ${esc(item.purchaseUnit)}${equivalencias.length ? ` · ${equivalencias.map(([unit, factor]) => `1 ${esc(unit)} = ${stockText(factor, item)}`).join(' · ')}` : ''}</div></div><div class="inline">${item.archived
+        ? button('Reactivar', 'restore-product', 'btn-secondary btn-small', `data-id="${item.id}"`)
+        : `${button('Otra medida', 'open-equivalence', 'btn-quiet btn-small', `data-id="${item.id}"`)}${button('Unir', 'open-merge', 'btn-quiet btn-small', `data-id="${item.id}"`)}${button('Archivar', 'archive-product', 'btn-quiet btn-small', `data-id="${item.id}"`)}${button('Editar', 'open-product', 'btn-secondary btn-small', `data-id="${item.id}"`)}`}</div></div>`;
+    }).join('') || '<p class="muted">Nada coincide con esa búsqueda.</p>'}</div>` : empty('🥬','Todavía no hay alimentos','Lo más rápido es marcarlos de una lista o dictarlos de corrido: se registran solos.', `${button('Prepararlo en 5 minutos', 'setup-open', 'btn-primary')}${button('🗣️ Dictar varios', 'open-bulk', 'btn-secondary')}${button('Añadir uno a mano', 'open-product', 'btn-quiet')}`)}
+    <div class="section-head"><h2>Tus datos</h2></div><div class="grid grid-2"><div class="card"><h2>Respaldo</h2><p class="muted">Los datos viven solo en este navegador y dispositivo. Exporta un archivo para conservarlos o importarlos aquí más tarde.</p><div class="inline">${button('Exportar respaldo', 'export', 'btn-primary')}${button('Importar respaldo', 'open-import', 'btn-secondary')}</div></div><div class="card"><h2>Voz e inteligencia</h2><p class="muted">Transcribir notas de voz, leer facturas de una foto y entender frases libres. Es <strong>opcional</strong>: sin configurar nada, la app funciona entera y sin conexión.</p><p class="small muted">${esc(describeConfig())}</p>${button('Configurar servicios', 'open-ajustes-ia', 'btn-secondary')}</div>
+    <div class="card"><h2>Comenzar con datos reales</h2><p class="muted">Borra las demostraciones y empieza desde cero. Esta acción elimina todos los datos locales de la app; exporta un respaldo antes si quieres conservarlos.</p>${button('Borrar todos los datos', 'clear-demo', 'btn-danger')}</div></div>`;
 }
-function options(values, selected, placeholder = '') { return `${placeholder ? `<option value="">${placeholder}</option>` : ''}${values.map(([value,label]) => `<option value="${esc(value)}" ${String(value) === String(selected) ? 'selected' : ''}>${esc(label)}</option>`).join('')}`; }
 const unitOptions = selected => options(UNITS.map(unit => [unit, unit]), selected);
 const productOptions = selected => options(state.products.map(item => [item.id, item.name]), selected, 'Seleccionar producto');
 const personOptions = selected => options([['','Para todos'], ...state.people.map(item => [item.id, item.name])], selected || '');
@@ -252,8 +339,9 @@ function basketRow(line = {}) {
   const item = product(state, line.productId);
   return `<div class="item-row basket-row" data-item-row><input type="hidden" name="itemId" value="${esc(line.id || '')}">
     <label class="field basket-name"><span>Alimento</span><input name="name" list="lista-de-productos" autocomplete="off" required value="${esc(item?.name || '')}" placeholder="Ej. Arroz"></label>
-    <label class="field"><span>Al mes</span><input name="quantity" type="number" min="0" step="any" inputmode="decimal" value="${line.quantity ?? ''}" placeholder="0"></label>
+    <label class="field"><span>Al mes</span><input name="quantity" type="number" min="0" step="any" inputmode="decimal" value="${line.quantity ?? ''}" placeholder="Pendiente"></label>
     <label class="field"><span>Unidad</span><select name="unit">${unitOptions(line.unit || item?.controlUnit || 'unidad')}</select></label>
+    <label class="field basket-priority"><span>Falta…</span><select name="priority" aria-label="Con qué frecuencia falta este alimento">${options([['obligatorio', 'Nunca falta'], ['frecuente', 'Casi siempre'], ['ocasional', 'De vez en cuando']], line.priority || 'frecuente')}</select></label>
     <button type="button" class="btn btn-quiet remove-item" data-action="remove-item" aria-label="Quitar alimento">✕</button></div>`;
 }
 function collectBasket(form) {
@@ -261,16 +349,20 @@ function collectBasket(form) {
     id: row.querySelector('[name="itemId"]')?.value || undefined,
     name: row.querySelector('[name="name"]')?.value || '',
     quantity: row.querySelector('[name="quantity"]')?.value,
-    unit: row.querySelector('[name="unit"]')?.value
-  })).filter(line => line.name.trim() && line.quantity !== '');
+    unit: row.querySelector('[name="unit"]')?.value,
+    priority: row.querySelector('[name="priority"]')?.value
+  })).filter(line => line.name.trim());
 }
-function modal(title, subtitle, body, wide = false) { return `<div class="modal-overlay" data-overlay><div class="modal ${wide ? 'modal-wide' : ''}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="modal-head"><div><h2>${esc(title)}</h2>${subtitle ? `<p>${esc(subtitle)}</p>` : ''}</div><button type="button" class="icon-btn" data-action="close-modal" aria-label="Cerrar">×</button></div>${body}</div></div>`; }
 function checkPeople(name, selected, date = null, slot = null) {
   return `<div class="checks">${state.people.map(person => `<label class="check-chip"><input type="checkbox" name="${name}" value="${person.id}" ${selected.includes(person.id) ? 'checked' : ''} ${date && isAbsent(state, date, slot, person.id) ? 'disabled' : ''}>${esc(person.name)}${date && isAbsent(state, date, slot, person.id) ? ' · fuera' : ''}</label>`).join('') || '<span class="muted small">Agrega personas en la sección Personas.</span>'}</div>`;
 }
 function renderModal() {
   const m = ui.modal;
-  if (m.type === 'quick') return modal('Anotar algo', 'Lo mismo que puedes escribir desde Ajustes, sin salir de aquí.', `<div class="quick-grid">${QUICK_ACTIONS.map(([action, goto, icon, title, detail]) => `<button type="button" class="quick-item" data-action="${action}" ${goto ? `data-goto="${goto}"` : ''}><span class="quick-icon" aria-hidden="true">${icon}</span><span class="quick-text"><strong>${esc(title)}</strong><span>${esc(detail)}</span></span></button>`).join('')}</div>`);
+  if (m.type === 'quick') {
+    const fila = ([action, goto, icon, title, detail]) => `<button type="button" class="quick-item" data-action="${action}" ${goto ? `data-goto="${goto}"` : ''}><span class="quick-icon" aria-hidden="true">${icon}</span><span class="quick-text"><strong>${esc(title)}</strong><span>${esc(detail)}</span></span></button>`;
+    return modal('Anotar algo', 'Lo más rápido arriba; lo de siempre, en «Más opciones».', `<div class="quick-grid">${QUICK_MAIN.map(fila).join('')}</div>
+      <details class="more" style="margin-top:15px"><summary>Más opciones</summary><div class="quick-grid" style="margin-top:12px">${QUICK_MORE.map(fila).join('')}</div></details>`);
+  }
   if (m.type === 'meal') {
     const plan = planFor(state, m.date, m.slot);
     const context = `${cap(m.slot)} · ${niceDate(m.date, { weekday: 'long', day: 'numeric', month: 'long' })}`;
@@ -289,16 +381,21 @@ function renderModal() {
   }
   if (m.type === 'person') {
     const person = state.people.find(item => item.id === m.id);
-    return modal(person ? 'Editar persona' : 'Añadir persona', 'Las restricciones evitan asignaciones automáticas incompatibles.', `<form data-form="person" data-id="${person?.id || ''}"><label class="field"><span>Nombre</span><input name="name" required value="${esc(person?.name || '')}" placeholder="Nombre de la persona"></label><div class="field" style="margin-top:16px"><span>Alimentos incompatibles</span><div class="checks">${state.products.map(item => `<label class="check-chip"><input type="checkbox" name="restrictions" value="${item.id}" ${person?.restrictions.includes(item.id) ? 'checked' : ''}>${esc(item.name)}</label>`).join('') || '<span class="muted small">Agrega productos primero para configurar restricciones.</span>'}</div></div><div class="section-head"><div><h3>Cantidades habituales</h3><p class="small muted" style="margin:0">Cuánto come normalmente esta persona. Queda guardado y no hay que volver a escribirlo: al crear una preparación se suman con un toque las de todos los que comen.</p></div></div><div data-item-list="habitual">${(person?.habitual || []).map(item => itemRow(item)).join('')}</div>${button('+ Añadir cantidad', 'add-item', 'btn-secondary btn-small', 'data-type="habitual"')}<div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar persona</button></div></form>`, true);
+    return modal(person ? 'Editar persona' : 'Añadir persona', 'Las restricciones evitan asignaciones automáticas incompatibles.', `<form data-form="person" data-id="${person?.id || ''}"><label class="field"><span>Nombre</span><input name="name" required value="${esc(person?.name || '')}" placeholder="Nombre de la persona"></label><div class="field" style="margin-top:16px"><span>Alimentos que no puede comer</span>
+      ${state.products.length ? `<div class="checks">${visibleProducts().filter(item => !item.archived).map(item => `<label class="check-chip"><input type="checkbox" name="restrictions" value="${item.id}" ${person?.restrictions.includes(item.id) ? 'checked' : ''}>${esc(item.name)}</label>`).join('')}</div>` : ''}
+      <input name="pendingRestrictions" class="text" style="margin-top:9px" value="${esc((person?.pendingRestrictions || []).join(', '))}" placeholder="O escríbelos: maní, mariscos…" autocomplete="off" aria-label="Alimentos que no puede comer, escritos">
+      <small>Puedes escribirlos aunque todavía no existan en tu lista de alimentos: se enlazan solos en cuanto aparezcan. Nadie debería tener que crear un producto antes de poder registrar a su familia.</small></div><div class="section-head"><div><h3>Cantidades habituales</h3><p class="small muted" style="margin:0">Cuánto come normalmente esta persona. Queda guardado y no hay que volver a escribirlo: al crear una preparación se suman con un toque las de todos los que comen.</p></div></div><div data-item-list="habitual">${(person?.habitual || []).map(item => itemRow(item)).join('')}</div>${button('+ Añadir cantidad', 'add-item', 'btn-secondary btn-small', 'data-type="habitual"')}<div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar persona</button></div></form>`, true);
   }
   if (m.type === 'product') {
     const item = product(state, m.id);
     const stock = item ? inventoryNow(state)[item.id] || 0 : 0;
     const otherUnit = item && item.purchaseUnit !== item.controlUnit;
     const controlUnit = item?.controlUnit || 'unidad';
-    const monthly = item && state.basket.find(line => line.productId === item.id);
+    const monthly = item && baseLines(state).find(line => line.productId === item.id);
     return modal(item ? 'Editar producto' : 'Añadir producto', item ? '' : 'Anota cómo cuentas este alimento y cuánto tienes ahora mismo.', `<form data-form="product" data-id="${item?.id || ''}" class="stack">
-      <label class="field"><span>Nombre</span><input name="name" required value="${esc(item?.name || '')}" placeholder="Ej. Plátano maduro"></label>
+      <label class="field"><span>Nombre</span><input name="name" data-dedup required value="${esc(item?.name || '')}" placeholder="Ej. Plátano maduro" autocomplete="off"></label>
+      <div data-dedup-warning>${item ? '' : ''}</div>
+      <label class="field"><span>Categoría</span><select name="category">${options(CATEGORIES.map(cat => [cat.id, `${cat.emoji} ${cat.label}`]), item?.category || 'otros')}</select><small>Solo sirve para ordenar y buscar; no cambia ningún cálculo.</small></label>
       <div class="form-grid">
         <label class="field"><span>¿En qué unidad lo cuentas?</span><select name="controlUnit" ${item ? 'disabled' : ''}>${unitOptions(controlUnit)}</select><small>${item ? 'No se cambia cuando ya hay movimientos.' : 'Así verás sus existencias en la casa.'}</small></label>
         ${item
@@ -325,19 +422,61 @@ function renderModal() {
       <div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar producto</button></div></form>`);
   }
   if (m.type === 'basket') {
-    return modal('Canasta del mes', 'Lo que tu casa consume en un mes corriente. Se escribe una vez y se reutiliza; después solo cambias lo que varía.', `<div class="hint">Escribe el alimento y cuánto se consume en un <strong>mes completo</strong>. <strong>No hace falta registrarlo antes:</strong> lo que no exista se crea al guardar, con la unidad que pongas aquí. Al comprar por quincena la app pide la mitad, y por fechas sueltas la parte que toque. Esto no cambia las existencias: solo calcula qué falta.</div>
-      <datalist id="lista-de-productos">${state.products.map(item => `<option value="${esc(item.name)}"></option>`).join('')}</datalist>
-      <form data-form="basket">
-        <div class="section-head"><h3>Lo que se consume al mes</h3></div>
-        <div data-item-list="basket">${(state.basket.length ? state.basket : [{}]).map(line => basketRow(line)).join('')}</div>
+    const scope = m.scope === 'mes' ? 'mes' : 'base';
+    const mesEditado = m.month || ui.shopMonthBasket;
+    const lineasActuales = scope === 'mes' ? basketLines(state, mesEditado) : baseLines(state);
+    return modal(scope === 'mes' ? `Canasta de ${monthName(mesEditado)}` : 'Canasta base',
+      scope === 'mes' ? 'Lo que pasa este mes en concreto. Lo que cambies aquí no toca los demás meses ni la costumbre de la casa.' : 'Lo que tu casa consume en un mes corriente. Se escribe una vez; cada mes nace de aquí.',
+      `<div class="hint">Escribe el alimento y cuánto se consume en un <strong>mes completo</strong>. <strong>No hace falta registrarlo antes:</strong> lo que no exista se crea al guardar, con la unidad que pongas aquí. Si no sabes la cantidad, déjala vacía: el alimento se guarda igual. Esto no cambia las existencias.</div>
+      ${productDatalist(state.products)}
+      <form data-form="basket" data-scope="${scope}" data-month="${esc(mesEditado)}">
+        <div class="section-head"><h3>Lo que se consume al mes</h3><div class="inline">${button('🗣️ Dictar varios de una vez', 'open-bulk', 'btn-quiet btn-small', `data-destino="${scope === 'mes' ? 'mes' : 'base'}" data-month="${esc(mesEditado)}"`)}</div></div>
+        <div data-item-list="basket">${(lineasActuales.length ? lineasActuales : [{}]).map(line => basketRow(line)).join('')}</div>
         <div class="inline">${button('+ Añadir alimento', 'add-item', 'btn-secondary btn-small', 'data-type="basket"')}</div>
         <details class="more" style="margin-top:17px">
           <summary>Llenarla con lo que compré un mes</summary>
           <p class="small muted">Suma las compras confirmadas de ese mes y reemplaza lo escrito arriba. Suele ser la forma rápida de empezar: lo que compraste el mes pasado ya es, casi siempre, tu canasta.</p>
           <div class="inline"><label class="field" style="max-width:190px"><span>Mes</span><input type="month" id="basket-seed-month" value="${esc(shiftMonth(today.slice(0, 7), -1))}"></label>${button('Traer ese mes', 'seed-basket', 'btn-secondary')}</div>
         </details>
-        <div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar canasta</button></div>
+        <div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar ${scope === 'mes' ? monthName(mesEditado) : 'la canasta base'}</button></div>
       </form>`, true);
+  }
+  if (m.type === 'chat') return modal('Asistente', 'Dile lo que pasó en casa y ella lo anota. Antes de tocar nada te lo enseña.', renderChat({ ...ctx(), chat: ui.chat }), true);
+  if (m.type === 'bulk') return modal('Escribir varios productos', 'Escríbelo o díctalo de corrido. La app lo separa y tú revisas antes de guardar.', renderBulk({ ...ctx(), bulk: ui.bulk }), true);
+  if (m.type === 'promote') {
+    const diff = monthDiff(state, m.month);
+    const filas = [
+      ...diff.added.map(line => ({ id: line.productId, texto: `${productName(line.productId)}: añadirlo con ${measure(line.quantity ?? 0, line.unit)} al mes` })),
+      ...diff.changed.map(row => ({ id: row.line.productId, texto: `${productName(row.line.productId)}: pasar de ${measure(row.base.quantity, row.base.unit)} a ${measure(row.line.quantity, row.line.unit)}` })),
+      ...diff.removed.map(line => ({ id: line.productId, texto: `${productName(line.productId)}: quitarlo de la canasta base` }))
+    ];
+    return modal('Pasar cambios a la canasta base', monthName(m.month), `<div class="hint">Marca solo lo que <strong>vino para quedarse</strong>. Lo que dejes sin marcar sigue valiendo para ${esc(monthName(m.month))} y para ningún otro mes. Esto sí cambia los meses que abras a partir de ahora.</div>
+      <form data-form="promote" data-month="${esc(m.month)}"><div class="checks" style="flex-direction:column;align-items:stretch;margin-top:14px">${filas.map(fila => `<label class="check-chip"><input type="checkbox" name="productos" value="${fila.id}">${esc(fila.texto)}</label>`).join('') || '<p class="muted">Este mes no se aparta de la base en nada.</p>'}</div>
+      ${filas.length ? '<div class="modal-actions"><button type="submit" class="btn btn-primary">Pasar lo marcado a la base</button></div>' : ''}</form>`, true);
+  }
+  if (m.type === 'merge') {
+    const item = product(state, m.id);
+    const parecidos = findSimilarProducts(state, item?.name || '', { limit: 6, threshold: 0.45, exclude: m.id });
+    const compatibles = state.products.filter(other => other.id !== m.id && other.controlUnit === item?.controlUnit);
+    return modal('Unir con otro alimento', item?.name || '', `<div class="notice warn"><span>⚠</span><div><strong>Esto no se puede deshacer.</strong>Se suman las existencias y se junta todo el historial —compras, revisiones, preparaciones— bajo un solo alimento. El otro deja de existir.</div></div>
+      ${parecidos.length ? `<p class="small"><strong>Se parecen a este:</strong> ${parecidos.map(row => esc(row.product.name)).join(', ')}.</p>` : ''}
+      <form data-form="merge" data-id="${m.id}" class="stack">
+        <label class="field"><span>¿Con cuál se une?</span><select name="otro" required>${options(compatibles.map(other => [other.id, other.name]), parecidos[0]?.product.id, 'Selecciona un alimento')}</select>
+        <small>Solo salen los que se cuentan en <strong>${esc(item?.controlUnit || '')}</strong>: sumar libras con unidades daría un número sin significado.</small></label>
+        <label class="field"><span>¿Cuál nombre se queda?</span><select name="conservar">${options([[m.id, `«${item?.name}» (este)`], ['otro', 'El del otro alimento']], m.id)}</select></label>
+        <div class="modal-actions"><button type="submit" class="btn btn-danger">Unir los dos</button></div></form>`);
+  }
+  if (m.type === 'ajustes-ia') {
+    const cfg = readConfig();
+    return modal('Servicios de voz e inteligencia', 'Opcionales. La app entera funciona sin ellos.', `<div class="hint">Las claves <strong>nunca</strong> viven dentro de la aplicación: irían dentro del APK y cualquiera podría sacarlas. Lo que se configura aquí es la dirección de <em>tu propio</em> servidor, que es quien guarda la clave. En <code>docs/backend.md</code> está cómo montarlo.</div>
+      <form data-form="ajustes-ia" class="stack">
+        <label class="field"><span>Dirección de tu servidor</span><input name="baseUrl" type="url" value="${esc(cfg.baseUrl)}" placeholder="https://mi-servidor.workers.dev" autocomplete="off"><small>Déjalo vacío para no usar ningún servicio.</small></label>
+        <label class="field"><span>Token compartido (opcional)</span><input name="token" type="text" value="${esc(cfg.token)}" placeholder="Solo si tu servidor lo pide" autocomplete="off"></label>
+        <div class="field"><span>Qué quieres permitir</span><div class="checks">
+          ${[['chat', 'Entender frases libres'], ['transcribe', 'Transcribir notas de voz'], ['vision', 'Leer facturas de una foto']].map(([id, label]) => `<label class="check-chip"><input type="checkbox" name="enabled" value="${id}" ${cfg.enabled?.[id] ? 'checked' : ''}>${esc(label)}</label>`).join('')}
+        </div><small>Lo que marques sale de este dispositivo hacia tu servidor cuando lo uses. La app te lo avisa y te pide permiso antes de cada envío.</small></div>
+        <p class="small muted">${esc(describeConfig(cfg))}</p>
+        <div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar</button></div></form>`);
   }
   if (m.type === 'equivalence') {
     const item = product(state, m.id);
@@ -352,8 +491,11 @@ function renderModal() {
     return modal(m.type === 'move' ? 'Mover comida' : 'Copiar comida', planTitle(plan), `<form data-form="move-copy" data-id="${plan.id}" data-operation="${m.type}" class="stack"><div class="form-grid"><label class="field"><span>Fecha destino</span><input type="date" name="date" value="${m.type === 'copy' ? addDays(plan.date, 1) : plan.date}" required></label><label class="field"><span>Comida</span><select name="slot">${options(SLOTS.map(slot => [slot, cap(slot)]), plan.slot)}</select></label></div><div class="modal-actions"><button type="submit" class="btn btn-primary">${m.type === 'move' ? 'Mover' : 'Copiar'}</button></div></form>`);
   }
   if (m.type === 'purchase') {
-    const period = shopPeriod(); const list = shoppingList(state, period.start, period.end);
-    return modal('Confirmar compra real', `${niceDate(period.start, { day: 'numeric', month: 'short' })} – ${niceDate(period.end, { day: 'numeric', month: 'short' })}`, `<div class="hint">Cambia las cantidades según lo que realmente compraste. Solo al confirmar aumentarán las existencias.</div>${list.pending.length ? notice('Hay equivalencias pendientes.', 'Puedes confirmar los productos que sí tienen unidad válida y completar los otros después.', 'warn') : ''}<form data-form="purchase" class="stack"><label class="field"><span>Fecha de compra</span><input name="date" type="date" value="${today}" required></label><div class="section-head"><h3>Productos comprados</h3></div><div data-item-list="purchase">${list.lines.filter(line => line.shortfall > 0 && line.purchaseQuantity !== null).map(line => itemRow({ productId: line.productId, quantity: line.purchaseQuantity, unit: line.purchaseUnit }, 'purchase')).join('')}</div>${button('+ Añadir otro producto', 'add-item', 'btn-secondary btn-small', 'data-type="purchase"')}<div class="modal-actions"><button type="submit" class="btn btn-primary">Confirmar compra</button></div></form>`, true);
+    // Aquí estaba el fallo: este cálculo no pasaba la base elegida, así que
+    // quien preparaba la compra desde «Canasta» recibía la lista del menú —casi
+    // siempre vacía— sin ninguna señal de que le habían cambiado la pregunta.
+    const period = shopPeriod(); const list = shoppingList(state, period.start, period.end, ui.shopBasis);
+    return modal('Confirmar compra real', `${niceDate(period.start, { day: 'numeric', month: 'short' })} – ${niceDate(period.end, { day: 'numeric', month: 'short' })} · calculada con ${basisLabel(ui.shopBasis)}`, `<div class="hint">Esta lista salió de <strong>${esc(basisLabel(ui.shopBasis))}</strong>. Cambia las cantidades según lo que realmente compraste: solo al confirmar aumentarán las existencias.</div>${list.pending.length ? notice('Hay equivalencias pendientes.', 'Puedes confirmar los productos que sí tienen unidad válida y completar los otros después.', 'warn') : ''}<form data-form="purchase" class="stack"><label class="field"><span>Fecha de compra</span><input name="date" type="date" value="${today}" required></label><div class="section-head"><h3>Productos comprados</h3></div><div data-item-list="purchase">${list.lines.filter(line => line.shortfall > 0 && line.purchaseQuantity !== null).map(line => itemRow({ productId: line.productId, quantity: line.purchaseQuantity, unit: line.purchaseUnit }, 'purchase')).join('')}</div>${button('+ Añadir otro producto', 'add-item', 'btn-secondary btn-small', 'data-type="purchase"')}<div class="modal-actions"><button type="submit" class="btn btn-primary">Confirmar compra</button></div></form>`, true);
   }
   if (m.type === 'new-review') return modal('Abrir revisión', 'Se cargarán automáticamente los productos disponibles.', `<form data-form="new-review" class="stack"><label class="field"><span>Fecha de revisión</span><input name="date" type="date" value="${today}" required></label><div class="modal-actions"><button type="submit" class="btn btn-primary">Abrir revisión</button></div></form>`);
   if (m.type === 'correction') return modal('Corregir existencias', 'Para pérdidas, alimentos dañados o diferencias de conteo.', `<form data-form="correction" class="stack"><label class="field"><span>Producto</span><select name="productId" required>${productOptions(state.products[0]?.id)}</select></label><label class="field"><span>Cantidad real que queda (en unidad de control)</span><input name="actual" type="number" min="0" step="any" inputmode="decimal" value="${inventoryNow(state)[state.products[0]?.id] || 0}" required></label><label class="field"><span>Motivo (opcional)</span><input name="reason" placeholder="Ej. se dañaron 2 unidades"></label><div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar corrección</button></div></form>`);
@@ -369,7 +511,6 @@ function formValues(form) { return new FormData(form); }
 function selected(form, name) { return [...form.querySelectorAll(`[name="${name}"]:checked`)].map(input => input.value); }
 function closeModal() { ui.modal = null; render(); }
 function openModal(type, extras = {}) { ui.modal = { type, ...extras }; render(); }
-function shiftMonth(month, delta) { const d = new Date(`${month}-01T12:00:00`); d.setMonth(d.getMonth() + delta); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
 function sidebarOnMobile() { return window.matchMedia('(max-width: 700px)').matches; }
 function closeSidebar() {
   if (sidebarOnMobile()) ui.drawerOpen = false;
@@ -397,14 +538,21 @@ document.addEventListener('click', event => {
   // donde se verá el resultado de lo que se está por escribir.
   if (el.dataset.goto) ui.page = el.dataset.goto;
   try {
+    // Las pantallas que viven en su propio archivo traen sus propias acciones.
+    if (SETUP_ACTIONS[action]) { SETUP_ACTIONS[action](el, ctx()); return; }
+    if (CHAT_ACTIONS[action]) { CHAT_ACTIONS[action](el, { ...ctx(), chat: ui.chat }); return; }
+    if (BULK_ACTIONS[action]) { BULK_ACTIONS[action](el, { ...ctx(), bulk: ui.bulk }); return; }
     if (action === 'navigate') { ui.page = el.dataset.page; ui.modal = null; ui.drawerOpen = false; render(); }
     else if (action === 'open-quick') openModal('quick');
+    else if (action === 'open-chat') { ui.chat = ui.chat || emptyChat(); openModal('chat'); }
+    else if (action === 'open-bulk') { ui.bulk = emptyBulk(el.dataset.destino || 'base'); ui.bulk.mes = el.dataset.month || ui.shopMonthBasket; openModal('bulk'); }
+    else if (action === 'open-invoice') openModal('invoice');
     else if (action === 'welcome-demo') { ui.welcome = false; ui.page = TOUR_STEPS[0].page; ui.tour = 0; commit('Datos de demostración cargados.'); }
     // Empezar de cero lleva directo a la canasta, no al recorrido: escribir lo
     // que la casa consume en un mes es lo único que hay que hacer para que la
     // app sirva, y de ahí salen los productos y la primera lista de compra. El
     // recorrido se ofrece después, cuando ya hay algo que enseñar.
-    else if (action === 'welcome-empty') { state = createEmptyState(); ui.welcome = false; ui.tour = null; ui.page = 'compras'; ui.shopBasis = 'basket'; ui.justStarted = true; ui.modal = { type: 'basket' }; commit('Empieza por lo que tu casa consume en un mes.'); }
+    else if (action === 'welcome-empty') { state = createEmptyState(); ui.welcome = false; ui.tour = null; ui.modal = null; ui.setup = emptySetup(); ui.page = 'setup'; commit(''); }
     else if (action === 'dismiss-start') { ui.justStarted = false; render(); }
     else if (action === 'open-tour') { ui.justStarted = false; goTour(0); }
     else if (action === 'tour-prev') goTour(Math.max(0, ui.tour - 1));
@@ -422,7 +570,16 @@ document.addEventListener('click', event => {
     else if (action === 'open-move') openModal('move', { id: el.dataset.id });
     else if (action === 'open-copy') openModal('copy', { id: el.dataset.id });
     else if (action === 'open-purchase') openModal('purchase');
-    else if (action === 'open-basket') openModal('basket');
+    else if (action === 'open-basket') openModal('basket', { scope: el.dataset.scope || 'base', month: el.dataset.month || ui.shopMonthBasket });
+    else if (action === 'basket-month') { ui.shopMonthBasket = shiftMonth(ui.shopMonthBasket, Number(el.dataset.delta)); render(); }
+    else if (action === 'open-month-basket') { openMonthBasket(state, el.dataset.month); commit(`${monthName(el.dataset.month)} abierto con una copia de tu canasta base.`); }
+    else if (action === 'open-promote') openModal('promote', { month: el.dataset.month });
+    else if (action === 'open-merge') openModal('merge', { id: el.dataset.id });
+    else if (action === 'open-ajustes-ia') openModal('ajustes-ia');
+    else if (action === 'archive-product') { archiveProduct(state, el.dataset.id); commit('Alimento archivado. Su historial se conserva.'); }
+    else if (action === 'restore-product') { restoreProduct(state, el.dataset.id); commit('Alimento disponible otra vez.'); }
+    else if (action === 'toggle-archived') { ui.showArchived = !ui.showArchived; render(); }
+    else if (action === 'review-mode') { const review = state.reviews.find(item => item.id === el.dataset.id); if (review && review.status === 'draft') { review.mode = el.dataset.mode; commit(''); } }
     else if (action === 'shop-basis') { ui.shopBasis = el.dataset.basis; render(); }
     // Lo que compraste un mes es casi siempre lo que tu casa consume en un mes.
     else if (action === 'seed-basket') {
@@ -489,6 +646,7 @@ document.addEventListener('keydown', event => {
 document.addEventListener('change', event => {
   const el = event.target;
   if (el.id === 'shop-kind') { ui.shopKind = el.value; render(); }
+  if (el.id === 'setup-buscar') { ui.setup.busqueda = el.value; render(); document.querySelector('#setup-buscar')?.focus(); }
   if (el.id === 'shop-month') { ui.shopMonth = el.value; render(); }
   if (el.id === 'shop-start') { ui.customStart = el.value; render(); }
   if (el.id === 'shop-end') { ui.customEnd = el.value; render(); }
@@ -500,14 +658,36 @@ document.addEventListener('change', event => {
   // el formulario para no perder lo ya escrito.
   if (el.name === 'controlUnit' && el.closest('[data-form="product"]')) { const field = el.form.querySelector('[data-cut-field]'); if (field) field.hidden = !SLICEABLE.includes(el.value); }
 });
+// El filtro del catálogo se aplica al teclear y devuelve el foco al campo: sin
+// eso, cada letra lo perdería y habría que volver a tocarlo.
+let filterTimer;
 document.addEventListener('input', event => {
+  if (event.target.id === 'product-filter') {
+    ui.productFilter = event.target.value;
+    clearTimeout(filterTimer);
+    filterTimer = setTimeout(() => { const pos = event.target.selectionStart; render(); const campo = document.querySelector('#product-filter'); if (campo) { campo.focus(); campo.setSelectionRange(pos, pos); } }, 160);
+    return;
+  }
+  // Un mismo alimento registrado dos veces parte su inventario en dos, y eso se
+  // descubre semanas después, cuando las cuentas no cuadran. Avisar mientras se
+  // escribe es mucho más barato que unirlos luego.
+  if (event.target.matches('[data-dedup]')) {
+    const caja = event.target.form?.querySelector('[data-dedup-warning]');
+    if (!caja) return;
+    const parecidos = findSimilarProducts(state, event.target.value, { limit: 2, exclude: event.target.form.dataset.id || null });
+    caja.innerHTML = parecidos.length
+      ? `<div class="notice warn"><span>?</span><div><strong>Encontramos un producto parecido: «${esc(parecidos[0].product.name)}».</strong>¿Quieres usar ese o crear uno diferente? Si es el mismo, cierra esto y edítalo desde la lista.</div></div>`
+      : '';
+    return;
+  }
   const input = event.target;
   if (!input.name?.startsWith('consume-')) return;
   const row = input.closest('[data-review-product]'); const cell = row?.querySelector('.remaining'); if (!cell) return;
   if (input.value === '') { cell.textContent = 'Pendiente'; cell.className = 'num remaining pending'; return; }
-  const remaining = Number(row.dataset.available) - Number(input.value);
-  cell.textContent = remaining < 0 ? 'Revisar cantidad' : fmt(remaining);
-  cell.className = `num remaining ${remaining < 0 ? 'pending' : 'good'}`;
+  const derived = Number(row.dataset.available) - Number(input.value);
+  const excede = derived < 0;
+  cell.textContent = excede ? (row.dataset.mode === 'restante' ? 'Queda más de lo contado' : 'Revisar cantidad') : fmt(derived);
+  cell.className = `num remaining ${excede ? 'pending' : 'good'}`;
 });
 document.addEventListener('keydown', event => { if (event.key === 'Escape' && ui.modal) closeModal(); else if (event.key === 'Escape' && ui.drawerOpen) closeSidebar(); });
 window.addEventListener('resize', () => { if (ui.drawerOpen && !sidebarOnMobile()) { ui.drawerOpen = false; render(); } });
@@ -516,42 +696,69 @@ document.addEventListener('submit', async event => {
   event.preventDefault();
   const data = formValues(form), kind = form.dataset.form;
   try {
+    if (SETUP_FORMS[kind]) { SETUP_FORMS[kind](form, data, ctx()); return; }
+    if (CHAT_FORMS[kind]) { await CHAT_FORMS[kind](form, data, { ...ctx(), chat: ui.chat }); return; }
+    if (BULK_FORMS[kind]) { await BULK_FORMS[kind](form, data, { ...ctx(), bulk: ui.bulk }); return; }
     if (kind === 'recipe') { upsertRecipe(state, { id: form.dataset.id, name: data.get('name'), uses: selected(form,'uses'), covers: selected(form,'covers'), servings: data.get('servings'), items: collectItems(form), note: data.get('note') }); ui.modal = null; commit('Preparación guardada.'); }
-    else if (kind === 'person') { upsertPerson(state, { id: form.dataset.id, name: data.get('name'), restrictions: selected(form,'restrictions'), habitual: collectItems(form) }); ui.modal = null; commit('Persona guardada.'); }
+    else if (kind === 'person') {
+      const escritas = String(data.get('pendingRestrictions') || '').split(/[,;]/).map(text => text.trim()).filter(Boolean);
+      const person = upsertPerson(state, { id: form.dataset.id, name: data.get('name'), restrictions: selected(form, 'restrictions'), pendingRestrictions: escritas, habitual: collectItems(form) });
+      ui.modal = null;
+      commit(person.pendingRestrictions.length ? `Persona guardada. ${person.pendingRestrictions.length} alimento(s) quedan por enlazar cuando los registres.` : 'Persona guardada.');
+    }
     else if (kind === 'product') {
       const existing = product(state, form.dataset.id);
       // Una unidad de compra vacía significa «la misma con la que lo cuento».
       const controlUnit = existing ? existing.controlUnit : data.get('controlUnit');
       const purchaseUnit = data.get('purchaseUnit') || controlUnit;
       const factor = String(data.get('factor') || '').trim();
-      const item = existing || addProduct(state, { name: data.get('name'), controlUnit, purchaseUnit, opening: data.get('opening'), slice: data.get('slice') });
-      if (existing) {
-        existing.name = String(data.get('name')).trim();
-        if (!existing.name) throw new Error('Escribe el nombre.');
-        existing.purchaseUnit = purchaseUnit;
-        setSlice(state, existing.id, data.get('slice'));
-      }
+      const item = existing || addProduct(state, { name: data.get('name'), controlUnit, purchaseUnit, category: data.get('category'), opening: data.get('opening'), slice: data.get('slice'), origin: 'manual' });
+      if (existing) updateProduct(state, existing.id, { name: data.get('name'), purchaseUnit, category: data.get('category'), slice: data.get('slice') });
       // La equivalencia se guarda aquí mismo para no mandar a otra pantalla.
       // Sin ella la app no convierte: Compras avisa de que la lista está incompleta.
       if (purchaseUnit !== controlUnit && factor) setEquivalence(state, item.id, purchaseUnit, factor);
       // Y el consumo del mes, que es la línea de este alimento en la canasta.
-      setBasketLine(state, item.id, data.get('monthly'), data.get('monthlyUnit'));
+      setBaseBasketLine(state, item.id, data.get('monthly'), data.get('monthlyUnit'));
       ui.modal = null;
       commit('Producto guardado.');
+    }
+    else if (kind === 'promote') {
+      const ids = selected(form, 'productos');
+      if (!ids.length) throw new Error('Marca al menos un cambio.');
+      const aplicados = promoteToBase(state, form.dataset.month, ids);
+      ui.modal = null;
+      commit(`${aplicados} cambio(s) pasaron a la canasta base.`);
+    }
+    else if (kind === 'merge') {
+      const otro = data.get('otro');
+      const conservar = data.get('conservar') === 'otro' ? otro : form.dataset.id;
+      const eliminar = conservar === otro ? form.dataset.id : otro;
+      const nombres = [product(state, conservar)?.name, product(state, eliminar)?.name];
+      if (!window.confirm(`Se unirá «${nombres[1]}» dentro de «${nombres[0]}». Sus existencias se suman y «${nombres[1]}» deja de existir. Esto no se puede deshacer. ¿Continuar?`)) return;
+      mergeProducts(state, conservar, eliminar);
+      ui.modal = null;
+      commit(`«${nombres[1]}» se unió a «${nombres[0]}».`);
+    }
+    else if (kind === 'ajustes-ia') {
+      writeConfig({ baseUrl: data.get('baseUrl'), token: data.get('token'), enabled: Object.fromEntries(['chat', 'transcribe', 'vision'].map(id => [id, selected(form, 'enabled').includes(id)])) });
+      ui.modal = null;
+      commit('Ajustes guardados en este dispositivo.');
     }
     else if (kind === 'equivalence') { setEquivalence(state, form.dataset.id, data.get('unit'), data.get('factor')); ui.modal = null; commit('Equivalencia guardada.'); }
     else if (kind === 'basket') {
       const antes = state.products.length;
-      const lines = setBasket(state, collectBasket(form));
+      const scope = form.dataset.scope === 'mes' ? 'mes' : 'base';
+      const mesEditado = form.dataset.month || ui.shopMonthBasket;
+      const lines = scope === 'mes' ? setMonthBasket(state, mesEditado, collectBasket(form)) : setBaseBasket(state, collectBasket(form));
       const creados = state.products.length - antes;
       ui.modal = null;
-      commit(lines.length ? `Canasta guardada con ${lines.length} alimento(s).${creados ? ` ${creados} se registraron solos.` : ''}` : 'Canasta vacía.');
+      commit(lines.length ? `${scope === 'mes' ? monthName(mesEditado) : 'Canasta base'} guardada con ${lines.length} alimento(s).${creados ? ` ${creados} se registraron solos.` : ''}` : 'Canasta vacía.');
     }
     else if (kind === 'assign') { makeRecipePlan(state, data.get('recipeId'), data.get('date'), data.get('slot'), selected(form,'participants')); ui.modal = null; commit('Preparación asignada.'); }
     else if (kind === 'plan') { const plan = state.plans.find(item => item.id === form.dataset.id); updatePlan(state, plan.id, { title: data.get('title'), note: data.get('note'), participants: selected(form,'participants'), items: collectItems(form).map(item => ({ ...item, id: item.id || nextId(state,'alimento'), quantity: quantity(item.quantity) })) }); ui.modal = null; commit('Comida actualizada.'); }
     else if (kind === 'link') { const source = state.plans.find(item => item.id === form.dataset.id); const allocation = Object.fromEntries(source.items.map(item => [item.id, data.get(`reserve-${item.id}`)])); linkPlan(state, source.id, data.get('date'), data.get('slot'), allocation, collectItems(form), selected(form,'participants')); ui.modal = null; commit('Comida vinculada. La parte reservada no duplica la compra.'); }
     else if (kind === 'move-copy') { if (form.dataset.operation === 'move') movePlan(state, form.dataset.id, data.get('date'), data.get('slot')); else copyPlan(state, form.dataset.id, data.get('date'), data.get('slot')); ui.modal = null; commit(form.dataset.operation === 'move' ? 'Comida movida.' : 'Comida copiada.'); }
-    else if (kind === 'purchase') { const lines = collectItems(form); addPurchase(state, { date: data.get('date'), period: shopPeriod(), lines }); ui.modal = null; commit('Compra confirmada. Las existencias aumentaron.'); }
+    else if (kind === 'purchase') { const lines = collectItems(form); addPurchase(state, { date: data.get('date'), period: shopPeriod(), basis: ui.shopBasis, lines }); ui.modal = null; commit(`Compra confirmada con ${basisLabel(ui.shopBasis)}. Las existencias aumentaron.`); }
     else if (kind === 'new-review') { const date = data.get('date'); const existing = state.reviews.find(item => item.date === date && item.status === 'draft'); const review = existing || createReview(state, date); ui.reviewId = review.id; ui.correctingReview = false; ui.modal = null; commit(existing ? 'Revisión pendiente abierta.' : 'Revisión abierta con los productos disponibles.'); }
     else if (kind === 'review') { const review = state.reviews.find(item => item.id === form.dataset.id); const inputs = Object.fromEntries(review.productIds.map(id => [id, data.get(`consume-${id}`)])); const intent = event.submitter?.value || 'save'; if (intent === 'correct') { correctReview(state, review.id, inputs); ui.correctingReview = false; commit('Revisión corregida. Saldos recalculados.'); } else { saveReview(state, review.id, inputs, intent === 'confirm'); commit(intent === 'confirm' ? 'Revisión confirmada. El consumo se descontó una vez.' : 'Revisión guardada como pendiente.'); } }
     else if (kind === 'correction') { correctStock(state, data.get('productId'), data.get('actual'), data.get('reason')); ui.modal = null; commit('Existencias corregidas.'); }

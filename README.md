@@ -1,60 +1,217 @@
 # ¿Qué comemos?
 
-Aplicación web local para planificar desayuno, almuerzo y cena, calcular compras según el menú y registrar el consumo real de la casa. La interfaz y los datos de demostración están en español. Las cantidades del ejemplo son datos de prueba, no recomendaciones nutricionales.
+Aplicación local para organizar las comidas de una casa y calcular la compra. Los datos viven en el dispositivo; no hay cuentas ni servidor. La interfaz y los datos de demostración están en español dominicano. Las cantidades del ejemplo son datos de prueba, no recomendaciones nutricionales.
+
+**La regla que gobierna el diseño:** una información se escribe **una sola vez** y la app la reutiliza donde haga falta. Marcar «Arroz» en el catálogo inicial lo registra en el catálogo, lo pone en la canasta base y lo pone en la canasta del mes. Tres sitios, un toque.
 
 ## Ejecutar
 
 Necesitas Node.js 20.11 o posterior. No hay dependencias que instalar.
 
 ```powershell
-cd "C:\Users\Jose Manuel Diaz\Documents\Proyectos NexoCore\Claude\que-comemos"
 npm start
 ```
 
-Abre [http://localhost:4173](http://localhost:4173) en ese mismo equipo. Para usar otro puerto en PowerShell:
+Abre [http://localhost:4173](http://localhost:4173). Para usar otro puerto en PowerShell:
 
 ```powershell
 $env:PORT=4174
 npm start
 ```
 
-En computadora, el botón ☰ junto al título retrae o muestra el menú lateral. En celular, el menú está oculto por defecto: toca ☰ arriba a la izquierda para abrirlo y ‹ para cerrarlo. Las cuatro secciones principales siguen disponibles abajo. Para comprobar el diseño desde una computadora, abre las herramientas de desarrollo del navegador, activa el modo dispositivo (`Ctrl+Shift+M`) y elige un ancho cercano a 390 px.
+Las pruebas:
+
+```powershell
+npm test
+```
+
+En computadora, el botón ☰ junto al título retrae o muestra el menú lateral. En celular el menú está oculto: ☰ arriba a la izquierda lo abre y ‹ lo cierra. Las cuatro secciones principales siguen abajo.
+
+## Preparar mi casa
+
+La primera apertura ofrece dos caminos. **Ver el ejemplo** carga datos de demostración con su aviso y abre el recorrido. **Empezar desde cero** abre **Preparar mi casa**, un proceso de cinco pasos que se puede abandonar y retomar en cualquier momento; también está siempre en *Ajustes → Preparar mi casa*.
+
+1. **La casa.** Cuántos adultos y cuántos niños. Los nombres y lo que cada quien evita son opcionales y no detienen nada. Una restricción se puede escribir por nombre aunque ese alimento todavía no exista: queda pendiente y se enlaza sola en cuanto aparezca.
+2. **Por dónde empezar.** Cuatro vías, todas disponibles: elegir de una lista *(recomendada)*, dictar o escribir la compra, fotografiar facturas, o empezar a mano.
+3. **Los alimentos.** Un catálogo de **166 productos dominicanos** en catorce categorías, con buscador. Nada se marca solo: el catálogo no llena la despensa, solo ahorra escribir los nombres. **Marcar los más habituales** selecciona de golpe los de una categoría.
+4. **Las cantidades.** Todos los alimentos elegidos en **una sola pantalla editable**, no un formulario por alimento. La cantidad se puede dejar vacía: el alimento se guarda igual y queda pendiente.
+5. **El resultado.** La canasta escrita y la compra de la primera quincena, sin haber creado una sola persona, preparación ni comida del menú.
+
+El recorrido guiado de doce pasos sigue disponible en *Ajustes → Cómo funciona*.
+
+## Las dos canastas
+
+Esta es la distinción central de la aplicación.
+
+**La canasta base** es el hábito: lo que la casa consume en un mes corriente. Se escribe una vez y se reutiliza. Cada línea lleva su cantidad, su unidad y con qué frecuencia falta (nunca falta / casi siempre / de vez en cuando).
+
+**La canasta de cada mes** es lo que pasa ese mes en concreto. Nace como **copia** de la base al abrirla, y a partir de ahí las dos viven separadas:
+
+- Quitar el atún de septiembre **no** lo quita del hábito ni de octubre.
+- Agregar algo extraordinario en septiembre **no** aparece en octubre.
+- Cambiar la base **no** reescribe los meses ya abiertos: un mes cerrado se queda como quedó.
+- Pasar un cambio del mes a la base es siempre **explícito y por alimento**, desde *Ver y pasar a la base*. Es lo que separa «este mes compré más pollo» de «en esta casa ahora se come más pollo».
+
+Cada mes guarda su lista completa, no las diferencias. Las diferencias se calculan comparando; guardarlas ataría el pasado a una base que todavía puede cambiar.
+
+En pantalla, las líneas que se apartan de la base se marcan: *«este mes 99 lb, normalmente 12 lb»*.
+
+## Cuatro formas de meter datos
+
+El botón **+** flotante está en Hoy, Menú, Compras y Revisión. Arriba, las cuatro formas de meter muchas cosas de una vez; lo de siempre —un formulario por concepto— queda en **Más opciones**.
+
+### Dictar o escribir varios productos
+
+Acepta un párrafo de corrido y lo separa en filas revisables:
+
+> Compramos 30 plátanos maduros, 10 libras de arroz, 4 paquetes de salami, 30 huevos, 6 latas de atún y detergente.
+
+→ seis filas, con *detergente* conservado y marcado **pendiente de cantidad** en vez de descartado.
+
+El intérprete es **100 % determinista y funciona sin conexión**: entiende números en dígitos y en palabras, fracciones (*media docena* → 6), los sinónimos dominicanos de cada unidad (*funda*, *lonja*, *rodaja*), convierte kilos y onzas a libras avisando de que convirtió, y distingue cuándo una « y » separa dos productos de cuándo forma parte del nombre (*arroz y habichuelas* no se parte). Lo que no entiende lo deja **pendiente**; nunca inventa una cantidad.
+
+Antes de guardar siempre hay una pantalla de revisión: nombre, cantidad, unidad, categoría y qué hacer con cada fila (incluir, crear nuevo, unir con uno existente, ignorar). Si algo se parece a un producto que ya existe, la fila lo dice y propone unirlos.
+
+En Android, la forma fiable de dictar es **el micrófono del teclado**, que funciona en cualquier campo de texto. El botón de micrófono propio aparece solo si el navegador expone reconocimiento de voz.
+
+### El asistente
+
+Conversación por texto, en las cuatro pantallas principales. Entiende sin conexión un conjunto definido de frases: *«agrega 12 libras de arroz a la canasta»*, *«registra que compré ocho plátanos»*, *«de los ocho plátanos quedan dos»*, *«cuánto queda de arroz»*, *«qué falta para la compra»*, *«Sofía no puede comer maní»*, *«Sofía no cena en casa mañana»*, *«qué se cocina mañana»*, *«este mes no compres atún»*. Para frases libres hace falta un servicio configurado (ver más abajo).
+
+Arquitectura, que es donde está lo importante:
+
+- **Lista blanca.** Solo existen las acciones de la tabla de `src/assistant.js`. No hay forma de pedir «ejecuta esto» ni de escribir en el almacenamiento.
+- **No se confía en ningún identificador que venga de fuera.** Un alimento se resuelve por nombre o alias contra el catálogo real. Si el nombre encaja con dos, **no se adivina**: se devuelve una pregunta con las opciones.
+- **Todo pasa por las mismas funciones que usan los formularios**, dentro de una transacción. Si una acción de un grupo falla, no queda nada a medias: ni siquiera las que habían salido bien.
+- **Idempotencia.** Cada mensaje lleva su identificador; mandar dos veces «compré ocho plátanos» deja ocho, no dieciséis.
+- **Confirmación previa** para todo lo que toca el inventario, borra o reescribe: se enseña en español, con nombres y cantidades reales. *«Registrar una compra de 8 unidades de Plátano maduro. Esto aumentará tus existencias.»* Nunca el JSON.
+- **Deshacer** en todo lo reversible, y un registro de actividad en español.
+
+Al asistente en la nube se le manda **solo** los nombres de alimentos, personas y preparaciones, y el mes actual. Nunca existencias, compras ni revisiones.
+
+### Fotos de facturas
+
+Se fotografían facturas de meses anteriores para **aprender la canasta**, no para tocar el inventario. El sistema busca lo que se repite entre facturas, dice en cuántas apareció cada alimento y propone una cantidad mensual usando la **mediana** —no la media, porque una compra grande puntual no debe inflar el hábito—. Toda cantidad exige confirmación.
+
+Una factura antigua **nunca** modifica las existencias de hoy. Si es reciente, la app pregunta expresamente si se usa solo para aprender o también se registra como compra. Por defecto: solo aprender.
+
+Las líneas se revisan siempre antes de guardar, con el texto tal como salió impreso a la vista (`PLAT MAD 6 UND`) para poder comprobar la lectura. Una lectura de confianza baja se resalta y nunca arranca marcada para incluir.
+
+**La extracción por OCR necesita un servicio configurado.** Sin él, la pantalla lo dice con todas sus letras y ofrece escribir o dictar las líneas.
+
+### A mano
+
+Todos los formularios de siempre siguen intactos, en **Más opciones** y en sus pantallas.
+
+## La revisión: ¿cuánto queda?
+
+El modo normal pregunta **cuánto queda**, que es lo que se puede mirar abriendo la nevera, y la app calcula el consumo. *Había 8 → quedan 2 → se consumió 6.* El interruptor de arriba cambia a **lo consumido** para quien prefiera el método anterior.
+
+Un campo vacío es «todavía no lo he mirado», no «no queda nada»: queda **pendiente**. El 0 hay que escribirlo. Si dices que queda más de lo que la app tiene contado, no se descuenta nada: se avisa y se ofrece una corrección de existencias.
+
+## Lo que mueve y lo que no mueve el inventario
+
+Ni el menú ni la canasta descuentan nada: los dos son previsiones. El inventario es un libro de movimientos y solo lo mueven:
+
+- la **apertura** (lo que había al crear el alimento, se pregunta una vez),
+- las **compras confirmadas** (+),
+- las **revisiones confirmadas** (−),
+- las **correcciones de conteo** (±).
+
+Una preparación compartida se cuenta el día en que se prepara; la parte reservada no vuelve a contarse al servirla.
+
+## El resto de la aplicación es opcional
+
+Menú, preparaciones y personas están ahí, pero **no hacen falta para comprar**. Con la canasta sola la app ya sirve.
+
+- **Personas**: quién come, qué evita, cuánto come normalmente y ausencias por fecha y comida. Se pueden registrar **aunque no haya un solo alimento creado**.
+- **Preparaciones**: comidas habituales con sus alimentos, personas cubiertas y variantes. *Traer cantidades habituales* suma las de las personas que cubre y llena la lista de una vez.
+- **Menú**: asignar, mover, copiar, repetir una semana o proponer un mes. Con el menú vacío se abre en vista de **semana**, no de mes: noventa casillas vacías se leen como una tarea enorme. En celular la semana es una agenda vertical y el mes reduce cada comida a su inicial. En ninguna de las dos hay que arrastrar de lado.
+- **Compras**: quincena o fechas, con tres bases excluyentes (abajo).
+
+## Las tres bases de la compra
+
+El interruptor de Compras elige **una**, y solo una —sumarlas contaría dos veces el mismo arroz:
+
+| Base | De dónde sale |
+|---|---|
+| **Menú** | Lo que piden las comidas planificadas del período |
+| **Canasta base** | El hábito de la casa, prorrateado por días |
+| **Este mes** | La canasta del mes que toca, prorrateada por días |
+
+La base elegida **se conserva durante todo el flujo**: la lista sugerida, el formulario de confirmación y la compra guardada usan la misma. Cada compra deja escrito con qué base se calculó, y la pantalla de confirmación lo dice.
+
+Un período que cruza dos meses se prorratea **por tramos**: del 28 de septiembre al 12 de octubre son 3 días de septiembre sobre 30 y 12 de octubre sobre 31, cada tramo contra la canasta de su propio mes. La pantalla desglosa el reparto.
+
+## El catálogo de alimentos
+
+Cada alimento tiene nombre, nombre normalizado, alias, categoría, unidad de control, unidad de compra, equivalencias, grosor cuando aplica, estado y de dónde salió (manual, catálogo, factura, asistente, compra, canasta, texto).
+
+**Duplicados.** Al escribir un nombre parecido a uno que ya existe, la app avisa: *«Encontramos un producto parecido: "Plátano maduro". ¿Quieres usarlo o crear uno diferente?»*. «Plátano», «platano», «Plátanos» y «plátanos maduros» se reconocen como el mismo. Un mismo alimento registrado dos veces parte su inventario en dos, y eso se descubre semanas después, cuando las cuentas no cuadran.
+
+**Archivar** esconde el alimento de los selectores sin borrar su historial: las compras y revisiones donde aparece siguen siendo ciertas.
+
+**Unir** dos alimentos suma sus existencias y junta todo su historial. Exige que se cuenten en la **misma unidad** —sumar libras con unidades daría un número sin significado— y no se puede deshacer, así que pide confirmación escrita.
+
+**Unidades y equivalencias.** El salami se cuenta en ruedas y se compra en paquetes: la equivalencia se escribe en la misma ficha. La app **nunca adivina** una conversión; sin la equivalencia avisa de que la lista está incompleta en vez de dar un número equivocado.
+
+**Grosor.** Lo que se cuenta en ruedas o rebanadas lleva el grosor con que se corta en casa: fina (2–3 mm), mediana (4–5 mm), gruesa (6–8 mm). No convierte cantidades: deja escrito qué significa una rueda *aquí*, que es lo que hace comparable el conteo de una semana con el de la siguiente.
+
+## Servicios externos
+
+Tres funciones necesitan un modelo que la app no lleva dentro: **transcribir** audio, **entender** frases libres y **leer** facturas. Todo lo demás —y es casi todo— funciona sin conexión y sin configurar nada.
+
+**Ninguna clave vive dentro de la aplicación.** Irían dentro del APK y cualquiera podría extraerlas. Lo que se configura en *Ajustes → Voz e inteligencia* es la dirección de **tu propio servidor**, que es quien guarda la clave.
+
+- `docs/backend.md` — el contrato exacto de las tres rutas, con el JSON de ida y vuelta, cómo desplegarlo y qué sigue funcionando si no lo despliegas.
+- `backend/ejemplo-worker.js` — un Cloudflare Worker completo contra la API de Anthropic.
+- `.env.example` — las variables, comentadas, sin secretos.
+
+`.env` está en `.gitignore`. La app avisa y pide permiso antes de cada envío, y dice qué sale del dispositivo.
+
+Modelo por defecto documentado: `claude-opus-5`; `claude-haiku-4-5-20251001` para lo barato. La API de Anthropic no recibe audio, así que la transcripción usa un servicio de voz aparte y devuelve 501 si no está configurado, sin romper las otras dos rutas.
+
+## Respaldos y migración
+
+Los datos se guardan en `localStorage` **solo en ese navegador y dispositivo**, sin sincronización. *Ajustes → Exportar respaldo* escribe un JSON; importarlo reemplaza los datos actuales.
+
+El esquema va por la **versión 2**. Un respaldo de la versión 1 se convierte al importarlo y al cargarlo:
+
+- Los productos pasan a la ficha de catálogo. La categoría queda en «otros» y el origen en «manual»: **no se adivinan**, porque adivinar llenaría la app de etiquetas que nadie eligió.
+- La canasta que hubiera se convierte en **canasta base**, y el mes corriente se abre con una copia.
+- Identificadores, referencias, existencias y el contador de secuencia se conservan intactos.
+
+**Se migra primero y se valida después.** Si la conversión dejara algo incoherente, se rechaza y lo guardado **no se toca**. Antes de escribir la versión nueva, la anterior se copia a `que-comemos-antes-de-migrar`: ocupa el doble durante una temporada, y perder la despensa de una casa cuesta más.
+
+Actualizar el APK conserva los datos: es el mismo almacenamiento. **Desinstalar y reinstalar los borra** — exporta un respaldo antes.
 
 ## Abrirla en el celular
 
-El servidor escucha en todas las interfaces, así que otro equipo de la misma red puede abrirla en `http://IP-DE-TU-PC:PUERTO`. La primera vez, Windows pregunta si permite que Node acepte conexiones entrantes; hay que decir que sí para la red privada.
+El servidor escucha en todas las interfaces, así que otro equipo de la red puede abrirla en `http://IP-DE-TU-PC:PUERTO`. Windows pregunta la primera vez si permite conexiones entrantes.
 
-Sobre `http` en una IP de la red local el navegador **no** considera el sitio un contexto seguro: no registra el trabajador de servicio, así que no hay instalación ni modo sin conexión. El celular puede añadir un acceso directo a la pantalla de inicio, pero abre dentro del navegador y necesita la computadora encendida.
-
-Para instalarla de verdad —ícono propio, sin barra del navegador y funcionando sin conexión— hay que servirla por **https**. El manifiesto, el ícono y el trabajador de servicio ya están listos: en cuanto la app viva en un dominio con https, Chrome en Android ofrece **Instalar aplicación**. Para un `.apk` firmado se envuelve esa misma app instalada con Bubblewrap o una Trusted Web Activity.
-
-Cada dispositivo guarda sus propios datos: la computadora y el celular no comparten nada. Para pasar los datos de uno a otro, exporta el respaldo e impórtalo del otro lado.
+Sobre `http` en una IP local el navegador **no** considera el sitio contexto seguro: no registra el trabajador de servicio, así que no hay instalación ni modo sin conexión. Para eso hace falta **https**; el manifiesto, el ícono y el trabajador ya están listos.
 
 ### Publicar en GitHub Pages
 
-Todas las rutas del proyecto son relativas, así que la app funciona igual servida desde la raíz de un dominio o desde una subcarpeta como `usuario.github.io/que-comemos/`. El archivo `.nojekyll` evita que GitHub procese los archivos antes de servirlos.
-
-Crea un repositorio vacío en GitHub, súbelo y activa Pages desde `Settings → Pages`, eligiendo la rama `main` y la carpeta raíz:
+Todas las rutas son relativas, así que funciona igual desde la raíz de un dominio o desde `usuario.github.io/que-comemos/`. El archivo `.nojekyll` evita que GitHub procese los archivos.
 
 ```powershell
 git remote add origin https://github.com/USUARIO/que-comemos.git
 git push -u origin main
 ```
 
-Con el plan gratuito de GitHub, Pages solo funciona en repositorios públicos. El código queda a la vista, pero no los datos de la casa: cada navegador guarda los suyos y nunca salen del dispositivo.
+Luego `Settings → Pages`, rama `main`, carpeta raíz. Con el plan gratuito, Pages solo funciona en repositorios públicos: el código queda a la vista, los datos de la casa no —cada navegador guarda los suyos.
 
 ### Compilar el APK
 
-El proyecto lleva un envoltorio de Capacitor que mete la app dentro de una aplicación de Android. El APK resultante no depende de ningún dominio ni de que haya internet: los archivos viajan adentro.
-
-Hace falta instalar dos cosas que no vienen con Node:
+El APK no depende de ningún dominio ni de internet: los archivos viajan adentro. Hace falta instalar dos cosas que no vienen con Node:
 
 ```powershell
 winget install EclipseAdoptium.Temurin.21.JDK
 winget install Google.AndroidStudio
 ```
 
-Abre Android Studio una vez para que descargue el SDK, y cierra. Después, desde la carpeta del proyecto:
+Abre Android Studio una vez para que descargue el SDK, y ciérralo. Después:
 
 ```powershell
 npm run android
@@ -62,92 +219,69 @@ cd android
 .\gradlew assembleDebug
 ```
 
-El archivo queda en `android/app/build/outputs/apk/debug/app-debug.apk`. Pásalo al celular y ábrelo; Android pedirá permiso para instalar desde esa fuente.
+El archivo queda en `android/app/build/outputs/apk/debug/app-debug.apk`.
 
-`npm run android` hace dos cosas: `build.js` copia el casco web a `www/`, y `cap sync` lo lleva dentro del proyecto de Android. Hay que ejecutarlo después de cada cambio en la app; el APK no se actualiza solo.
+`npm run android` copia el casco web a `www/` y lo lleva al proyecto de Android. **Hay que ejecutarlo después de cada cambio**: el APK no se actualiza solo. Está firmado con la clave de depuración; para Play Store hacen falta una clave propia y `assembleRelease`.
 
-El APK está firmado con la clave de depuración que genera Android. Sirve para instalarlo en casa, pero no para publicarlo en Play Store: eso pide una clave propia y `assembleRelease`.
-
-Dentro del APK la app no registra el trabajador de servicio: los archivos ya están en el dispositivo, y un caché viejo podría seguir mostrando la versión anterior después de actualizar.
+Dentro del APK la app no registra el trabajador de servicio: los archivos ya están en el dispositivo y un caché viejo podría seguir mostrando la versión anterior.
 
 ## Línea gráfica
 
-El isotipo es un anillo abierto por abajo con un signo de pregunta dentro y el punto en la abertura. El original vive en `identidad visual/isotipo.png` y es la única fuente: todo lo demás se genera desde ahí con `npm run brand`, que escribe diecisiete archivos —la marca suelta, los dos íconos de la app instalada y las dos familias de íconos de Android—. No hay ninguna versión redibujada a mano, y no la debe haber: el trazo del signo de pregunta es orgánico y a cualquier reconstrucción con arcos se le nota.
+El isotipo es un anillo abierto por abajo con un signo de pregunta dentro y el punto en la abertura. El original vive en `identidad visual/isotipo.png` y es la única fuente: todo lo demás se genera con `npm run brand`, que escribe diecisiete archivos. **No hay ninguna versión redibujada a mano, y no la debe haber**: el trazo del signo es orgánico y a cualquier reconstrucción con arcos se le nota.
 
-Por eso la marca viaja como imagen y no como SVG. Si algún día aparece el vector original (`.ai`, `.svg`), conviene sustituirlo: escalaría sin límite y podría heredar el color de su contenedor. Mientras tanto, `tools/brand-assets.js` rasteriza cada tamaño desde el original de 1080 px, así que en pantalla no se nota la diferencia.
+Por eso la marca viaja como imagen y no como SVG. Si aparece el vector original conviene sustituirlo. Mientras tanto, `tools/brand-assets.js` rasteriza cada tamaño desde el original de 1080 px.
 
-En la cabecera la marca va suelta, sin recuadro, al lado del nombre —igual que en el logotipo, que también parte «¿Qué / comemos?» en dos líneas—. El fondo crema lleno queda solo para los íconos de la app, donde hace falta para separarla del escritorio.
+En la cabecera la marca va suelta, sin recuadro, al lado del nombre. El fondo crema lleno queda solo para los íconos de la app.
 
-La tipografía es **Montserrat** y viaja dentro del proyecto, en `src/fonts/`. Cargarla desde Google Fonts ataba la app a tener internet, que es justo lo que no queremos dentro del APK; ahora no hay ni una petición a un servidor ajeno. El descriptor `unicode-range` de `src/theme.css` hace que el subconjunto latin-ext solo se descargue si aparece un carácter de ese rango. Montserrat es más ancha que la pila anterior, así que `theme.css` suaviza el interletrado negativo de los títulos y recorta el de las etiquetas en mayúscula.
+La tipografía es **Montserrat** y viaja dentro del proyecto, en `src/fonts/`. Cargarla desde Google Fonts ataba la app a tener internet, que es justo lo que no queremos dentro del APK.
 
-La identidad usa **terracota anaranjada** (`#A04B22`) para navegación y acciones, **crema** (`#FBF7F1`) como fondo, **tinta oscura** (`#342A24`) para el texto y **salvia** (`#5F6947`) solo para estados favorables de existencias o revisión. La intención es evocar una mesa familiar y mantener la lectura tranquila durante la planificación diaria. Los colores de advertencia y error conservan un significado distinto.
+La identidad usa **terracota** (`#A04B22`) para navegación y acciones, **crema** (`#FBF7F1`) de fondo, **tinta oscura** (`#342A24`) para el texto y **salvia** (`#5F6947`) solo para estados favorables. La intención es evocar una mesa familiar y mantener la lectura tranquila.
 
-Esta elección es una hipótesis de diseño, no una afirmación de que un color provoque hambre o funcione igual para todas las familias. Un [experimento con etiquetas alimentarias](https://pubmed.ncbi.nlm.nih.gov/23444895/) encontró que el verde puede sugerir salud; esa no es la función principal de esta app. Un [estudio de asociaciones entre color y emoción](https://doi.org/10.1002/col.22171) vinculó los naranjas y amarillos con emociones relativamente positivas. Otro [experimento](https://doi.org/10.1007/s00426-017-0880-8) mostró que saturación y brillo influyen junto con el matiz, y un [estudio en 30 países](https://www.psychologicalscience.org/journals/psychological-science/0956797620948810/) encontró diferencias culturales. Por eso el acento cálido es moderado y se usa con fondos claros. Para la legibilidad, la pareja terracota/blanco tiene una relación de contraste de 5,96:1, por encima del [mínimo WCAG AA de 4,5:1 para texto normal](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html). Los tonos están centralizados en `src/theme.css` para poder ajustarlos tras probarlos en casa.
+Esta elección es una hipótesis de diseño, no una afirmación de que un color provoque hambre o funcione igual para todas las familias. Un [experimento con etiquetas alimentarias](https://pubmed.ncbi.nlm.nih.gov/23444895/) encontró que el verde puede sugerir salud; esa no es la función de esta app. Un [estudio de asociaciones entre color y emoción](https://doi.org/10.1002/col.22171) vinculó naranjas y amarillos con emociones relativamente positivas. Otro [experimento](https://doi.org/10.1007/s00426-017-0880-8) mostró que saturación y brillo influyen junto con el matiz, y un [estudio en 30 países](https://www.psychologicalscience.org/journals/psychological-science/0956797620948810/) encontró diferencias culturales. Por eso el acento cálido es moderado. La pareja terracota/blanco tiene un contraste de 5,96:1, por encima del [mínimo WCAG AA de 4,5:1](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html).
 
-Para ejecutar las pruebas:
+## Límites de esta versión
 
-```powershell
-npm test
-```
+- **No sincroniza** entre dispositivos. No hay cuentas ni servidor de datos.
+- La propuesta mensual usa reglas de repetición sencillas y solo preparaciones del catálogo; puede dejar comidas sin opción compatible.
+- Las cantidades habituales de Personas no se aplican solas: hay que pedirlas, y lo que traen es la suma de las personas que la preparación cubre, sin ajustar por quién falta ese día.
+- El grosor es una etiqueta, no un factor: cambiarlo no recalcula ninguna equivalencia guardada.
+- La canasta se reparte por días y nada más: no sabe de ausencias, de visitas ni de que en diciembre se come distinto.
+- Las equivalencias no se infieren y las unidades incompatibles no se convierten.
+- La lista para un período futuro usa las existencias de hoy hasta que registres consumo real.
+- Los alimentos creados desde la canasta o desde un texto **nacen con cero existencias**: la primera lista de compra pedirá de más si ya tenías cosas en casa. Se arregla con una corrección de conteo, o registrando la apertura al crear el alimento a mano.
 
-## Cómo empezar
+## Estructura del proyecto
 
-La primera apertura muestra una **pantalla de bienvenida** con dos caminos, y no hacen lo mismo.
+**Dominio (puro, sin DOM ni almacenamiento — por eso las pruebas corren en Node a secas)**
 
-**Ver el ejemplo** carga datos de demostración identificados con un aviso y abre el recorrido: es para mirar cómo funciona.
+- `src/model.js` — reglas de catálogo, canastas, menú, compras, revisiones e inventario por movimientos. `transaction()` da el todo-o-nada que usan el asistente y las uniones.
+- `src/nombres.js` — normalización y parecido de nombres. Vive aparte porque lo necesitan el modelo, la migración (que no puede importar el modelo sin crear un ciclo) y la lectura de facturas.
+- `src/migrate.js` — conversión entre versiones del esquema. No importa el modelo a propósito: una migración tiene que poder leer datos cuyas reglas ya no son las de hoy.
+- `src/text-parse.js` — el intérprete de español dominicano. Determinista, sin red.
+- `src/invoices.js` — emparejamiento contra el catálogo, frecuencias entre meses y propuesta de canasta.
+- `src/assistant.js` — la tabla de acciones permitidas, su validación y su ejecución transaccional.
+- `src/catalog-seed.js` — los 166 productos dominicanos con sus alias, incluidas abreviaturas de factura.
 
-**Empezar desde cero** vacía la app y va directo a escribir la **canasta del mes**, con Compras ya puesto en esa base. No pasa por el recorrido a propósito: escribir lo que la casa consume es lo único que hace falta para que la app sirva, y de ahí salen los productos y la primera lista de compra. Al guardarla aparece un aviso que ofrece el recorrido, ahora que ya hay algo que enseñar; se descarta con **Ahora no** y no vuelve.
+**Interfaz**
 
-Ese recorrido tiene **doce pasos** que lleva la app a cada sección mientras la explica, para que se vea la pantalla real detrás de la tarjeta. Cubre las siete pantallas, el botón **+**, la diferencia entre unidad de control y unidad de compra, el grosor de las ruedas y las dos formas de calcular la compra. Un paso puede pedir `highlight` en `src/onboarding.js`; hoy solo lo usa el del botón **+**, que el resto del recorrido esconde porque comparte esquina con la tarjeta. En ese paso el botón se muestra y es la tarjeta la que se aparta: sube en computadora y se pasa arriba del todo en celular, donde ocupa el ancho completo. Se salta con **Saltar** o con la tecla Escape, y se vuelve a abrir desde **Productos y datos → Cómo funciona**.
+- `src/app.js` — el casco: enruta pantallas, delega acciones y formularios.
+- `src/ui-kit.js` — escapado, formato y los envoltorios de HTML que se repiten. Aquí y no en `app.js` porque los módulos de pantalla también los necesitan, y tener dos versiones de `esc` es la forma más fácil de que a una se le olvide escapar algo.
+- `src/setup.js` — «Preparar mi casa».
+- `src/chat-ui.js` — el asistente y su intérprete local.
+- `src/bulk-entry.js` — escribir o dictar varios productos.
+- `src/invoice-ui.js` — captura y revisión de facturas.
+- `src/invoice-store.js` — las imágenes, en IndexedDB. Borrar la imagen **no** borra los productos aprobados: son datos distintos con vidas distintas.
+- `src/providers.js` — transporte HTTP hacia el backend. No sabe nada del dominio.
+- `src/storage.js` — lectura y escritura locales, con la migración y su respaldo previo.
+- `src/onboarding.js` — texto de la bienvenida y del recorrido. **Se dibuja con `esc()`: no admite etiquetas HTML.**
+- `src/demo.js` — datos de ejemplo.
 
-La bienvenida solo aparece mientras no haya nada guardado en este navegador. Con los datos de demostración puedes probar la preparación de hoy, una porción reservada para mañana, las compras y una revisión de consumo. Para pasar a tus datos, usa **Borrar ejemplos** y confirma. Antes de borrar o cambiar de navegador, usa **Productos y datos → Exportar respaldo**.
+**Estilos.** Se cargan en orden y las reglas posteriores ganan a igual especificidad: `styles.css` → `sidebar.css` → `onboarding.css` → `quick-add.css` → `calendar.css` → `theme.css` → `setup.css` → `chat.css` → `bulk.css` → `invoice.css`. `quick-add.css` documenta el reparto de capas: barra inferior 20, botón **+** 25, modal 30, recorrido 35, aviso 50.
 
-En **Hoy**, **Menú**, **Compras** y **Revisión** hay un botón **+** flotante abajo a la derecha. Abre los mismos formularios que viven en Ajustes —producto, preparación, persona, compra, revisión, corrección de existencias y ausencia— sin obligar a cambiar de sección para anotar algo. No sustituye a nada: las pantallas originales siguen igual.
+**Empaquetado.** `build.js` copia el casco a `www/` — es todo el «build» que hay. `sw.js` guarda ese casco para abrir sin conexión; **si añades un archivo a `src/`, añádelo a su lista y sube la versión del caché**. `capacitor.config.json` y `android/` son el envoltorio nativo.
 
-1. **Productos y datos → Los alimentos de la casa** es la ficha completa de cada alimento: nombre, en qué unidad se cuenta, **cuánto se consume al mes**, cuánto hay en casa, cómo se compra y el grosor si se corta en ruedas. La **canasta del mes** (punto 7) es esa misma lista vista de otra forma, con solo la columna del mes. No son dos registros: escribir el consumo del mes en la ficha o en la canasta escribe la misma línea. Casi nunca hace falta empezar por aquí, porque los alimentos que se escriban en la canasta se registran solos. Esa cantidad es la apertura del saldo y se pregunta una sola vez, al crear el producto: después el inventario solo se mueve con compras, revisiones y correcciones. Si lo compras en otra medida, despliega **Lo compro en otra medida** y anota ahí mismo la equivalencia; por ejemplo, cuántas ruedas de salami trae un paquete.
-2. Lo que se cuenta en **ruedas** o **rebanadas** lleva además el grosor con que se corta en casa: fina (2–3 mm), mediana (4–5 mm) o gruesa (6–8 mm). No convierte cantidades —para eso está la equivalencia— pero deja escrito qué significa una rueda aquí, que es lo que hace comparable el conteo de una semana con el de la siguiente. El campo solo aparece cuando la unidad de control es una de esas dos.
-3. En **Personas**, agrega quiénes comen en casa, restricciones, cantidades habituales y ausencias por fecha y comida. Las cantidades habituales quedan guardadas: al crear una preparación, **Traer cantidades habituales** suma las de todas las personas que cubre y llena la lista de alimentos de una vez.
-4. En **Preparaciones**, guarda comidas habituales con alimentos principales, cantidades, personas cubiertas, variantes y notas.
-5. En **Menú**, asigna comidas, cambia cantidades por fecha, mueve o copia, repite una semana o genera una propuesta mensual. Puedes marcar comidas fuera de casa, pedidos y comidas sin planificar. Para cocinar una vez y servir después, abre una comida y usa **Reservar para otra comida**. En celular el calendario se reordena para el ancho que hay: la semana se lee como una agenda, un día debajo de otro con sus tres comidas a lo ancho, y el mes conserva la retícula reduciendo cada comida a su inicial. En ninguna de las dos hay que arrastrar de lado.
-6. En **Compras**, elige quincena o fechas, revisa la lista sugerida y confirma la compra real con las cantidades adquiridas. La sugerencia no aumenta las existencias. Los productos de **Otros productos que faltan** son una lista manual aparte.
-7. Esa lista puede salir de dos bases distintas, con el interruptor **Menú / Canasta**. **Menú** suma lo que piden las comidas planificadas del período. **Canasta** usa la *canasta del mes*: lo que la casa consume en un mes corriente, escrito una vez y reutilizado. Sirve para comprar sin planificar el menú día por día. Las dos bases **no se suman** —sería contar dos veces el mismo arroz—, se elige una. Como la canasta está escrita por mes y se compra por quincena, la app pide la parte proporcional de días y lo dice en pantalla: quince de treinta días son el 50 %. **Llenarla con lo que compré un mes** suma las compras confirmadas de un mes y las escribe como canasta, que suele ser la forma rápida de empezar.
+**Pruebas.** `tests/` — modelo, canastas, migración, asistente, parser, facturas y proveedores.
 
-   La canasta se escribe **por nombre**, no eligiendo de una lista: quien la llena por primera vez todavía no tiene nada registrado, y obligarlo a crear cada alimento aparte era pedirle el mismo dato dos veces en dos pantallas. Lo que no exista se crea al guardar. Manda el nombre escrito, no el identificador: cambiar el nombre de una línea la apunta a otro alimento en vez de renombrar el que había, porque renombrar afectaría a las preparaciones y al historial de compras. Un nombre que ya existe se reconoce sin distinguir mayúsculas ni espacios de sobra, así que «arroz» y «Arroz » son el mismo.
-8. En **Revisión**, abre una revisión: la tabla carga los productos disponibles automáticamente. Escribe cuánto se consumió, incluso **0** cuando no hubo consumo. Puedes guardar pendiente, confirmar, corregir una revisión confirmada o corregir el conteo de existencias.
+Las únicas dependencias son las de Capacitor, y solo para compilar el APK. `npm start` y `npm test` funcionan sin instalar nada.
 
-Ni el menú ni la canasta **descuentan existencias**: los dos son previsiones de lo que hará falta. Solo las compras confirmadas, revisiones confirmadas y correcciones modifican los saldos. Una preparación compartida se cuenta en la fecha en que se prepara; la parte reservada no vuelve a contarse al servirla. Cuando faltan comidas o equivalencias, Compras muestra avisos de lista incompleta.
-
-## Almacenamiento y límites de esta versión
-
-Los datos se guardan en `localStorage` **solo en ese navegador y dispositivo**. La app funciona en pantallas de celular, pero **no sincroniza** datos entre dispositivos. Exporta un JSON como respaldo e impórtalo desde Productos y datos para recuperarlos. Importar reemplaza los datos locales actuales. No hay cuentas ni servidor de datos.
-
-La propuesta mensual usa reglas de repetición sencillas y solo preparaciones del catálogo. Puede dejar comidas sin opción compatible. Las cantidades habituales de Personas no se aplican solas: hay que pedirlas con **Traer cantidades habituales** al escribir una preparación, y lo que traen es la suma de las personas que esa preparación cubre, sin ajustar por quién falta ese día. El grosor de las ruedas es una etiqueta, no un factor: cambiarlo no recalcula ninguna equivalencia ya guardada. La canasta se reparte por días y nada más: no sabe de ausencias, de visitas ni de que en diciembre se come distinto. Si un mes es atípico, conviene revisar la lista antes de comprar o cambiar de base al menú. Las equivalencias no se infieren y las unidades incompatibles no se convierten. La lista sugerida para un período futuro usa las existencias actuales hasta que registres consumo real mediante una revisión.
-
-## Estructura para continuar el desarrollo
-
-- `src/model.js`: datos y reglas de menú, canasta, equivalencias, compras e inventario por movimientos. La canasta se escribe entera con `setBasket` (la tabla rápida) o línea a línea con `setBasketLine` (la ficha de un alimento); las dos tocan el mismo `state.basket`.
-- `src/demo.js`: datos de ejemplo.
-- `src/storage.js`: lectura y escritura local.
-- `src/app.js`: pantallas e interacciones.
-- `src/styles.css`: diseño adaptable.
-- `src/sidebar.css`: menú lateral plegable y panel móvil.
-- `src/theme.css`: colores, tipografía y acabados de la identidad visual.
-- `src/brand.js`: la etiqueta de imagen del isotipo que se inserta en las cabeceras.
-- `src/isotipo.png`: la marca suelta, con fondo transparente. Cabecera y favicon.
-- `src/onboarding.js`: texto de la bienvenida y de los pasos del recorrido.
-- `src/onboarding.css`: bienvenida y tarjeta del recorrido.
-- `src/quick-add.css`: botón **+** flotante y su hoja de atajos. Documenta el reparto de capas: barra inferior 20, botón 25, modal 30, recorrido 35.
-- `src/calendar.css`: el calendario en pantallas estrechas. Se carga **después** de `styles.css` a propósito: sus reglas tienen la misma especificidad y ganan por orden.
-- `manifest.webmanifest`: nombre, ícono y modo de la app instalada.
-- `sw.js`: trabajador de servicio; guarda el casco para abrir sin conexión.
-- `src/icon-192.png` y `src/icon-512.png`: íconos de la app instalada, con fondo crema. La marca ocupa el 56 % del lado para que el recorte adaptable de Android e iOS no le muerda los bordes.
-- `tools/brand-assets.js`: genera esos archivos y los de Android desde `identidad visual/isotipo.png`. Lleva dentro un lector y un escritor de PNG para no añadir dependencias.
-- `build.js`: copia el casco web a `www/` para empaquetarlo. Es todo el «build» que hay.
-- `capacitor.config.json`: identificador y nombre de la aplicación de Android.
-- `android/`: proyecto nativo generado por Capacitor. Solo están retocados los íconos, que salen de `npm run brand`, y los colores de `values/ic_launcher_background.xml`. Si lo regeneras con `npx cap add android` pierdes los colores; los íconos se recuperan volviendo a ejecutar `npm run brand`.
-
-Las únicas dependencias del proyecto son las de Capacitor, y solo sirven para compilar el APK. La app web no usa ninguna: `npm start` y `npm test` funcionan sin instalar nada.
-- `tests/model.test.js`: pruebas de reglas centrales.
-- `server.js`: servidor estático local sin dependencias.
-
-Para añadir cuentas y sincronización más adelante, sustituye `src/storage.js` por un adaptador de API y conserva las reglas de `src/model.js` con pruebas. El formato actual del respaldo es `version: 1`; una futura migración deberá leer esa versión antes de cambiar la estructura. Mientras tanto, los campos añadidos después de esa versión se declaran en `ADDED_AFTER_V1` dentro de `src/model.js`: al importar un respaldo que no los trae se rellenan con su valor vacío en lugar de rechazar el archivo. Añadir un campo nuevo al estado significa añadirlo también ahí, o los respaldos anteriores dejan de abrir.
+Para añadir cuentas y sincronización, sustituye `src/storage.js` por un adaptador de API y conserva `src/model.js` con sus pruebas. Al cambiar el esquema: sube `SCHEMA_VERSION` en `src/migrate.js` y añade el paso a `STEPS`. Para un campo nuevo dentro de la misma versión basta declararlo en `OPTIONAL_V2`, o los respaldos anteriores dejan de abrir.

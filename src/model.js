@@ -1,3 +1,8 @@
+import { containsWords, normalizeName, similarity } from './nombres.js';
+import { SCHEMA_VERSION, migrate } from './migrate.js';
+
+export { normalizeName, SCHEMA_VERSION };
+
 export const SLOTS = ['desayuno', 'almuerzo', 'cena'];
 export const UNITS = ['unidad', 'lb', 'taza', 'lata', 'paquete', 'rueda', 'rebanada'];
 // Una «rueda» no mide lo mismo en dos casas: quien corta fino saca el doble de
@@ -11,6 +16,13 @@ export const SLICE_STYLES = [
   { id: 'gruesa', label: 'Gruesa', range: '6–8 mm' }
 ];
 export const sliceStyle = id => SLICE_STYLES.find(item => item.id === id) || null;
+// Un alimento de la canasta puede ser de los que nunca faltan, de los que casi
+// siempre están, o de los que aparecen de vez en cuando. Sirve para ordenar la
+// lista y para decidir qué proponer, nunca para calcular cantidades.
+export const PRIORITIES = ['obligatorio', 'frecuente', 'ocasional'];
+// De dónde salió un producto. Se guarda para poder explicarle al usuario por
+// qué existe algo que él no recuerda haber escrito.
+export const ORIGINS = ['manual', 'catalogo', 'factura', 'asistente', 'compra', 'canasta', 'texto'];
 const EPS = 1e-8;
 const round = value => Math.round((value + Number.EPSILON) * 1000) / 1000;
 export const todayISO = () => {
@@ -27,6 +39,7 @@ export const validDate = date => {
   const d = new Date(`${date}T12:00:00`);
   return Number.isFinite(d.getTime()) && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` === date;
 };
+export const validMonth = month => /^\d{4}-(0[1-9]|1[0-2])$/.test(month || '');
 export const monthBounds = month => ({ start: `${month}-01`, end: addDays(`${month}-01`, new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate() - 1) });
 export const weekStart = date => addDays(date, -(new Date(`${date}T12:00:00`).getDay() + 6) % 7);
 export const dateRange = (start, end) => {
@@ -36,18 +49,191 @@ export const dateRange = (start, end) => {
   for (let day = start; day <= end; day = addDays(day, 1)) dates.push(day);
   return dates;
 };
-export const createEmptyState = () => ({ version: 1, seq: 0, demo: false, products: [], people: [], recipes: [], plans: [], absences: [], opening: {}, purchases: [], reviews: [], corrections: [], manualItems: [], basket: [] });
-// Campos que aparecieron después de la primera versión del respaldo. Un archivo
-// exportado antes de que existieran se rellena al importarlo en vez de
-// rechazarse: nadie debería perder los datos de su casa porque la app creció.
-const ADDED_AFTER_V1 = { basket: [] };
+export const createEmptyState = () => ({
+  version: SCHEMA_VERSION, seq: 0, demo: false,
+  products: [], people: [], recipes: [], plans: [], absences: [],
+  opening: {}, purchases: [], reviews: [], corrections: [], manualItems: [],
+  // La canasta base es lo que la casa consume en un mes corriente. Cada mes
+  // tiene además su propia copia, que puede apartarse de la base sin cambiarla:
+  // comprar algo extraordinario en septiembre no debe reescribir el hábito.
+  baseBasket: { lines: [], updatedAt: null, history: [] },
+  monthlyBaskets: {},
+  invoices: [], activity: []
+});
 export function nextId(state, prefix) { state.seq += 1; return `${prefix}-${state.seq}`; }
 export function quantity(value, allowZero = false) {
   const n = Number(value);
   if (!Number.isFinite(n) || n < 0 || (!allowZero && n === 0)) throw new Error('Escribe una cantidad mayor que cero.');
   return round(n);
 }
+// En la canasta la cantidad puede quedar pendiente: alguien sabe que compra
+// arroz todos los meses mucho antes de saber cuántas libras. Perder el alimento
+// por no saber el número sería el peor de los dos males.
+export function optionalQuantity(value) {
+  if (value === '' || value === undefined || value === null) return null;
+  return quantity(value);
+}
+
+// Deshacer a mano un cambio a medias es imposible de hacer bien: hay que
+// recordar qué tocó cada función. Un clon antes y una restauración en sitio
+// después lo resuelven de una vez para todos los casos —y es lo que permite
+// que el asistente ejecute varias acciones sabiendo que, o entran todas, o no
+// entra ninguna.
+export function snapshot(state) { return structuredClone(state); }
+export function restore(state, saved) {
+  for (const key of Object.keys(state)) delete state[key];
+  Object.assign(state, structuredClone(saved));
+  return state;
+}
+export function transaction(state, fn) {
+  const saved = snapshot(state);
+  try {
+    const result = fn(state);
+    if (balances(state).problems.length) throw new Error('El cambio dejaría existencias negativas en alguna fecha.');
+    return result;
+  } catch (error) {
+    restore(state, saved);
+    throw error;
+  }
+}
+
+/* ── Catálogo de alimentos ─────────────────────────────────────────────── */
+
 export function product(state, id) { return state.products.find(item => item.id === id); }
+export function activeProducts(state) { return state.products.filter(item => !item.archived); }
+export function productByName(state, name) {
+  const key = normalizeName(name);
+  return key ? state.products.find(item => item.normalized === key || (item.aliases || []).some(alias => normalizeName(alias) === key)) : undefined;
+}
+// Antes de crear un alimento nuevo conviene enseñar lo que ya se le parece.
+// Devuelve candidatos ordenados, nunca decide: unir dos alimentos mezcla dos
+// inventarios, y eso solo lo puede autorizar quien tiene la casa delante.
+export function findSimilarProducts(state, name, { limit = 3, threshold = 0.72, exclude = null } = {}) {
+  const key = normalizeName(name);
+  if (!key) return [];
+  return state.products
+    .filter(item => item.id !== exclude)
+    .map(item => {
+      const alias = (item.aliases || []).reduce((best, value) => Math.max(best, similarity(name, value)), 0);
+      const score = Math.max(similarity(name, item.name), alias);
+      if (score >= 0.995) return { product: item, score: 1, reason: 'igual' };
+      if (score >= threshold) return { product: item, score, reason: 'parecido' };
+      if (containsWords(name, item.name)) return { product: item, score: 0.7, reason: 'contenido' };
+      return null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}
+export function addProduct(state, fields) {
+  const name = String(fields.name || '').trim();
+  if (!name) throw new Error('Escribe el nombre del producto.');
+  if (!UNITS.includes(fields.controlUnit) || !UNITS.includes(fields.purchaseUnit)) throw new Error('Selecciona unidades válidas.');
+  const date = todayISO();
+  const item = {
+    id: nextId(state, 'producto'), name, normalized: normalizeName(name),
+    aliases: [...new Set((fields.aliases || []).map(alias => String(alias).trim()).filter(Boolean))],
+    // La categoría se guarda tal cual la mande quien llama. El modelo no tiene
+    // una lista cerrada a propósito: quien la enseña es la interfaz, y una
+    // categoría inventada aquí sería una etiqueta que el usuario nunca eligió.
+    category: String(fields.category || 'otros'),
+    controlUnit: fields.controlUnit, purchaseUnit: fields.purchaseUnit,
+    equivalences: {}, slice: null, archived: false,
+    origin: ORIGINS.includes(fields.origin) ? fields.origin : 'manual',
+    createdAt: date, updatedAt: date
+  };
+  state.products.push(item);
+  setSlice(state, item.id, fields.slice);
+  if (fields.purchaseUnit !== fields.controlUnit && fields.factor) setEquivalence(state, item.id, fields.purchaseUnit, fields.factor);
+  // Lo que ya hay en casa al registrar el producto. Es la apertura del saldo:
+  // se fija una sola vez, aquí, porque después el inventario solo se mueve con
+  // compras, revisiones y correcciones.
+  state.opening[item.id] = fields.opening === '' || fields.opening === undefined || fields.opening === null ? 0 : quantity(fields.opening, true);
+  return item;
+}
+export function updateProduct(state, id, fields) {
+  const item = product(state, id);
+  if (!item) throw new Error('Selecciona un producto.');
+  if ('name' in fields) {
+    const name = String(fields.name || '').trim();
+    if (!name) throw new Error('Escribe el nombre del producto.');
+    item.name = name;
+    item.normalized = normalizeName(name);
+  }
+  if ('purchaseUnit' in fields) {
+    if (!UNITS.includes(fields.purchaseUnit)) throw new Error('Selecciona una unidad de compra válida.');
+    item.purchaseUnit = fields.purchaseUnit;
+  }
+  if ('category' in fields) item.category = String(fields.category || 'otros');
+  if ('aliases' in fields) item.aliases = [...new Set((fields.aliases || []).map(alias => String(alias).trim()).filter(Boolean))];
+  if ('slice' in fields) setSlice(state, id, fields.slice);
+  item.updatedAt = todayISO();
+  return item;
+}
+// Archivar esconde el alimento de los selectores sin borrar su historial: las
+// compras y revisiones donde aparece siguen siendo ciertas, y el saldo que
+// tuviera sigue contando. Borrarlo falsearía el pasado.
+export function archiveProduct(state, id) {
+  const item = product(state, id);
+  if (!item) throw new Error('Selecciona un producto.');
+  item.archived = true;
+  item.updatedAt = todayISO();
+  return item;
+}
+export function restoreProduct(state, id) {
+  const item = product(state, id);
+  if (!item) throw new Error('Selecciona un producto.');
+  item.archived = false;
+  item.updatedAt = todayISO();
+  return item;
+}
+// Unir dos alimentos es irreversible y mezcla dos inventarios, así que exige
+// que se cuenten en la misma unidad: sumar libras con unidades daría un número
+// sin significado, y quedaría escrito en el saldo como si fuera cierto.
+export function mergeProducts(state, keepId, dropId) {
+  return transaction(state, () => {
+    const keep = product(state, keepId), drop = product(state, dropId);
+    if (!keep || !drop || keepId === dropId) throw new Error('Selecciona dos alimentos distintos.');
+    if (keep.controlUnit !== drop.controlUnit) throw new Error(`No se pueden unir: «${keep.name}» se cuenta en ${keep.controlUnit} y «${drop.name}» en ${drop.controlUnit}.`);
+    const swap = id => (id === dropId ? keepId : id);
+    state.opening[keepId] = round(Number(state.opening[keepId] || 0) + Number(state.opening[dropId] || 0));
+    delete state.opening[dropId];
+    for (const purchase of state.purchases) for (const line of purchase.lines) line.productId = swap(line.productId);
+    for (const correction of state.corrections) correction.productId = swap(correction.productId);
+    for (const review of state.reviews) {
+      review.productIds = [...new Set(review.productIds.map(swap))];
+      if (review.consumed[dropId] !== undefined) {
+        review.consumed[keepId] = round((review.consumed[keepId] || 0) + review.consumed[dropId]);
+        delete review.consumed[dropId];
+      }
+      if (review.remaining?.[dropId] !== undefined) delete review.remaining[dropId];
+    }
+    for (const recipe of state.recipes) for (const line of recipe.items) line.productId = swap(line.productId);
+    for (const plan of state.plans) for (const line of plan.items) line.productId = swap(line.productId);
+    for (const person of state.people) {
+      person.restrictions = [...new Set(person.restrictions.map(swap))];
+      person.habitual = person.habitual.map(row => ({ ...row, productId: swap(row.productId) }));
+    }
+    for (const basket of [state.baseBasket, ...Object.values(state.monthlyBaskets)]) {
+      basket.lines = mergeBasketLines(basket.lines.map(line => ({ ...line, productId: swap(line.productId) })));
+    }
+    keep.aliases = [...new Set([...keep.aliases, drop.name, ...drop.aliases])];
+    keep.updatedAt = todayISO();
+    state.products = state.products.filter(item => item.id !== dropId);
+    return keep;
+  });
+}
+// Dos líneas del mismo alimento tras una unión: se suman si comparten unidad y,
+// si no, se queda la primera. Convertir aquí sería adivinar una equivalencia.
+function mergeBasketLines(lines) {
+  const out = [];
+  for (const line of lines) {
+    const twin = out.find(row => row.productId === line.productId && row.unit === line.unit);
+    if (!twin) { out.push(line); continue; }
+    twin.quantity = twin.quantity === null || line.quantity === null ? twin.quantity ?? line.quantity : round(twin.quantity + line.quantity);
+  }
+  return out;
+}
 export function convert(state, productId, amount, unit) {
   const item = product(state, productId);
   if (!item) throw new Error('El producto ya no existe.');
@@ -55,19 +241,6 @@ export function convert(state, productId, amount, unit) {
   const factor = item.equivalences?.[unit];
   if (!Number.isFinite(factor) || factor <= 0) return null;
   return round(Number(amount) * factor);
-}
-export function addProduct(state, fields) {
-  const name = String(fields.name || '').trim();
-  if (!name) throw new Error('Escribe el nombre del producto.');
-  if (!UNITS.includes(fields.controlUnit) || !UNITS.includes(fields.purchaseUnit)) throw new Error('Selecciona unidades válidas.');
-  const item = { id: nextId(state, 'producto'), name, controlUnit: fields.controlUnit, purchaseUnit: fields.purchaseUnit, equivalences: {}, slice: null };
-  state.products.push(item);
-  setSlice(state, item.id, fields.slice);
-  // Lo que ya hay en casa al registrar el producto. Es la apertura del saldo:
-  // se fija una sola vez, aquí, porque después el inventario solo se mueve con
-  // compras, revisiones y correcciones.
-  state.opening[item.id] = fields.opening === '' || fields.opening === undefined || fields.opening === null ? 0 : quantity(fields.opening, true);
-  return item;
 }
 // El grosor solo tiene sentido en lo que se corta en ruedas o rebanadas. En
 // cualquier otra unidad se guarda en null en vez de rechazarse: el formulario
@@ -82,76 +255,217 @@ export function setEquivalence(state, productId, unit, factor) {
   const item = product(state, productId);
   if (!item || !UNITS.includes(unit) || unit === item.controlUnit) throw new Error('Selecciona un producto y una unidad distinta de su unidad de control.');
   item.equivalences[unit] = quantity(factor);
+  item.updatedAt = todayISO();
 }
-// La canasta es lo que la casa consume en un mes corriente, escrito una vez y
-// reutilizado. Vive aparte del menú a propósito: sirve para comprar sin haber
-// planificado día por día. Como el menú, tampoco mueve existencias —eso sigue
-// siendo cosa de compras, revisiones y correcciones—, solo calcula qué falta.
-const nameKey = value => String(value || '').trim().toLocaleLowerCase('es');
-export function productByName(state, name) {
-  const key = nameKey(name);
-  return key ? state.products.find(item => nameKey(item.name) === key) : undefined;
+
+/* ── Canasta base y canasta de cada mes ────────────────────────────────── */
+
+// La canasta base es el hábito: lo que la casa consume en un mes corriente,
+// escrito una vez. La canasta de un mes es lo que pasó de verdad ese mes, y
+// nace como copia de la base. Son dos cosas distintas a propósito: quitar el
+// atún en septiembre no debe borrarlo del hábito, y agregar algo extraordinario
+// tampoco debe aparecer en octubre.
+//
+// Cada mes guarda su lista completa, no las diferencias. Las diferencias se
+// calculan comparando; guardarlas sería atar el pasado a una base que todavía
+// puede cambiar, y un mes cerrado tiene que quedarse como quedó.
+
+export function baseLines(state) { return state.baseBasket.lines; }
+export function monthBasket(state, month) {
+  if (!validMonth(month)) throw new Error('Elige un mes válido.');
+  return state.monthlyBaskets[month] || null;
 }
-// La canasta se escribe de corrido, por nombre. Un alimento que todavía no
-// existe se crea al guardarla, con la unidad de esa misma línea: obligar a
-// registrar antes cada producto era pedir el mismo dato dos veces en dos
-// pantallas. Manda el nombre escrito, no el identificador: cambiar el nombre de
-// una línea la apunta a otro alimento, no renombra el que había —renombrar
-// afectaría a las preparaciones y al historial de compras.
-export function setBasket(state, lines) {
+// Lo que se usa para calcular: la canasta del mes si existe, y si no la base.
+// Que un mes no se haya abierto no significa que la casa no coma ese mes.
+export function basketLines(state, month = null) {
+  if (!month) return baseLines(state);
+  return monthBasket(state, month)?.lines || baseLines(state);
+}
+function normalizeBasketLines(state, lines, { origin = 'canasta' } = {}) {
   const rows = (lines || []).map(line => {
     const name = String(line.name || '').trim();
     const existing = name ? productByName(state, name) : product(state, line.productId);
     if (!existing && !name) throw new Error('Escribe el nombre del alimento.');
     if (!UNITS.includes(line.unit)) throw new Error('Elige la unidad de cada alimento.');
-    return { id: line.id, existing, name, quantity: quantity(line.quantity), unit: line.unit };
+    return {
+      id: line.id, existing, name,
+      quantity: optionalQuantity(line.quantity),
+      unit: line.unit,
+      priority: PRIORITIES.includes(line.priority) ? line.priority : 'frecuente'
+    };
   });
-  // Los productos que faltan se crean solo después de validarlo todo: si una
+  // Los alimentos que faltan se crean solo después de validarlo todo: si una
   // línea estuviera mal, media canasta habría quedado registrada a medias.
   const nuevos = new Map();
-  state.basket = rows.map(row => {
-    const key = nameKey(row.name);
-    const item = row.existing || nuevos.get(key) || addProduct(state, { name: row.name, controlUnit: row.unit, purchaseUnit: row.unit });
+  return rows.map(row => {
+    const key = normalizeName(row.name);
+    const item = row.existing || nuevos.get(key) || addProduct(state, { name: row.name, controlUnit: row.unit, purchaseUnit: row.unit, origin });
     if (!row.existing && key) nuevos.set(key, item);
-    return { id: row.id || nextId(state, 'canasta'), productId: item.id, quantity: row.quantity, unit: row.unit };
+    return { id: row.id || nextId(state, 'canasta'), productId: item.id, quantity: row.quantity, unit: row.unit, priority: row.priority };
   });
-  return state.basket;
 }
-// El consumo del mes de un solo alimento, para poder escribirlo desde su
-// propia ficha. La canasta y la ficha del producto son la misma lista vista de
-// dos formas: la canasta es la tabla rápida para llenar muchos de golpe, la
-// ficha tiene todo lo de uno. Vacío o cero borra la línea en vez de guardar un
-// consumo de cero, que no significa nada.
-export function setBasketLine(state, productId, amount, unit) {
+export function setBaseBasket(state, lines, options = {}) {
+  const next = normalizeBasketLines(state, lines, options);
+  const date = todayISO();
+  if (state.baseBasket.lines.length) {
+    state.baseBasket.history = [...(state.baseBasket.history || []), { date, count: state.baseBasket.lines.length }].slice(-24);
+  }
+  state.baseBasket.lines = next;
+  state.baseBasket.updatedAt = date;
+  return next;
+}
+// El consumo mensual de un solo alimento, para poder escribirlo desde su propia
+// ficha. La canasta y la ficha del producto son la misma lista vista de dos
+// formas. Vacío o cero borra la línea en vez de guardar un consumo de cero, que
+// no significa nada.
+export function setBaseBasketLine(state, productId, amount, unit, priority) {
   if (!product(state, productId)) throw new Error('Selecciona un producto.');
-  const index = state.basket.findIndex(line => line.productId === productId);
+  const lines = state.baseBasket.lines;
+  const index = lines.findIndex(line => line.productId === productId);
   if (amount === '' || amount === undefined || amount === null || Number(amount) === 0) {
-    if (index >= 0) state.basket.splice(index, 1);
+    if (index >= 0) lines.splice(index, 1);
+    state.baseBasket.updatedAt = todayISO();
     return null;
   }
   if (!UNITS.includes(unit)) throw new Error('Elige la unidad del consumo del mes.');
-  const line = { id: index >= 0 ? state.basket[index].id : nextId(state, 'canasta'), productId, quantity: quantity(amount), unit };
-  if (index >= 0) state.basket[index] = line; else state.basket.push(line);
+  const line = {
+    id: index >= 0 ? lines[index].id : nextId(state, 'canasta'),
+    productId, quantity: quantity(amount), unit,
+    priority: PRIORITIES.includes(priority) ? priority : lines[index]?.priority || 'frecuente'
+  };
+  if (index >= 0) lines[index] = line; else lines.push(line);
+  state.baseBasket.updatedAt = todayISO();
   return line;
 }
-// Se escribe por mes y se compra por quincena o por fechas sueltas, así que a
-// un período le toca su proporción de días sobre el mes en que empieza: una
-// quincena de septiembre pide la mitad de la canasta.
-export function basketShare(start, end) {
-  const days = dateRange(start, end).length;
-  const month = start.slice(0, 7);
-  const bounds = monthBounds(month);
-  const monthDays = dateRange(bounds.start, bounds.end).length;
-  return { days, monthDays, month, share: days / monthDays };
+// Abrir un mes lo copia de la base. Es el único momento en que la base entra en
+// un mes: a partir de aquí las dos viven separadas.
+export function openMonthBasket(state, month) {
+  if (!validMonth(month)) throw new Error('Elige un mes válido.');
+  if (state.monthlyBaskets[month]) return state.monthlyBaskets[month];
+  const date = todayISO();
+  state.monthlyBaskets[month] = {
+    month,
+    lines: structuredClone(state.baseBasket.lines).map(line => ({ ...line, id: nextId(state, 'canasta') })),
+    createdAt: date, updatedAt: date, basedOn: state.baseBasket.updatedAt
+  };
+  return state.monthlyBaskets[month];
 }
+export function setMonthBasket(state, month, lines, options = {}) {
+  const basket = openMonthBasket(state, month);
+  basket.lines = normalizeBasketLines(state, lines, options);
+  basket.updatedAt = todayISO();
+  return basket.lines;
+}
+export function setMonthBasketLine(state, month, productId, amount, unit, priority) {
+  if (!product(state, productId)) throw new Error('Selecciona un producto.');
+  const basket = openMonthBasket(state, month);
+  const index = basket.lines.findIndex(line => line.productId === productId);
+  if (amount === '' || amount === undefined || amount === null || Number(amount) === 0) {
+    if (index >= 0) basket.lines.splice(index, 1);
+    basket.updatedAt = todayISO();
+    return null;
+  }
+  if (!UNITS.includes(unit)) throw new Error('Elige la unidad del consumo del mes.');
+  const line = {
+    id: index >= 0 ? basket.lines[index].id : nextId(state, 'canasta'),
+    productId, quantity: quantity(amount), unit,
+    priority: PRIORITIES.includes(priority) ? priority : basket.lines[index]?.priority || 'frecuente'
+  };
+  if (index >= 0) basket.lines[index] = line; else basket.lines.push(line);
+  basket.updatedAt = todayISO();
+  return line;
+}
+export function removeMonthBasketLine(state, month, productId) {
+  const basket = openMonthBasket(state, month);
+  const before = basket.lines.length;
+  basket.lines = basket.lines.filter(line => line.productId !== productId);
+  basket.updatedAt = todayISO();
+  return before !== basket.lines.length;
+}
+// En qué se aparta este mes de la costumbre. Es lo que permite enseñar «esto lo
+// cambiaste solo para septiembre» y preguntar si debe pasar también a la base.
+export function monthDiff(state, month) {
+  const basket = monthBasket(state, month);
+  if (!basket) return { added: [], removed: [], changed: [], same: [], open: false };
+  const base = new Map(baseLines(state).map(line => [line.productId, line]));
+  const added = [], changed = [], same = [];
+  for (const line of basket.lines) {
+    const origin = base.get(line.productId);
+    if (!origin) { added.push(line); continue; }
+    if (origin.quantity !== line.quantity || origin.unit !== line.unit) changed.push({ line, base: origin });
+    else same.push(line);
+  }
+  const ids = new Set(basket.lines.map(line => line.productId));
+  const removed = baseLines(state).filter(line => !ids.has(line.productId));
+  return { added, removed, changed, same, open: true };
+}
+// Pasar un cambio del mes a la base es siempre explícito y por alimento: es lo
+// que separa «este mes compré más pollo» de «en esta casa ahora se come más
+// pollo». Confundirlos reescribiría el hábito sin que nadie lo pidiera.
+export function promoteToBase(state, month, productIds) {
+  const basket = monthBasket(state, month);
+  if (!basket) throw new Error('Ese mes todavía no tiene canasta.');
+  const wanted = new Set(productIds || []);
+  if (!wanted.size) throw new Error('Selecciona qué alimentos pasan a la canasta base.');
+  let applied = 0;
+  for (const id of wanted) {
+    const line = basket.lines.find(row => row.productId === id);
+    if (line) { setBaseBasketLine(state, id, line.quantity, line.unit, line.priority); applied++; continue; }
+    // Lo que se quitó del mes y se manda a la base es una baja del hábito.
+    if (baseLines(state).some(row => row.productId === id)) { setBaseBasketLine(state, id, ''); applied++; }
+  }
+  return applied;
+}
+// Se escribe por mes y se compra por quincena o por fechas sueltas. Un período
+// que cruza dos meses no se puede prorratear con la duración de uno solo: del
+// 28 de septiembre al 12 de octubre son 3 días de septiembre y 12 de octubre,
+// cada uno sobre su propio mes y contra su propia canasta.
+export function periodMonths(start, end) {
+  const counts = new Map();
+  for (const date of dateRange(start, end)) {
+    const month = date.slice(0, 7);
+    counts.set(month, (counts.get(month) || 0) + 1);
+  }
+  return [...counts].map(([month, days]) => {
+    const bounds = monthBounds(month);
+    const monthDays = dateRange(bounds.start, bounds.end).length;
+    return { month, days, monthDays, share: days / monthDays };
+  });
+}
+export function basketShare(start, end) {
+  const months = periodMonths(start, end);
+  const days = months.reduce((sum, item) => sum + item.days, 0);
+  const monthDays = months.reduce((sum, item) => sum + item.monthDays, 0);
+  return { days, monthDays, month: months[0].month, months, share: months.length === 1 ? months[0].share : days / monthDays };
+}
+
+/* ── Personas, preparaciones y menú ────────────────────────────────────── */
+
 export function upsertPerson(state, fields) {
   const name = String(fields.name || '').trim();
   if (!name) throw new Error('Escribe el nombre de la persona.');
   let person = state.people.find(item => item.id === fields.id);
   if (!person) { person = { id: nextId(state, 'persona') }; state.people.push(person); }
   person.name = name;
+  person.kind = ['adulto', 'nino'].includes(fields.kind) ? fields.kind : person.kind || 'adulto';
   person.restrictions = [...new Set(fields.restrictions || [])].filter(id => product(state, id));
+  // Una restricción escrita por nombre cuando el alimento todavía no existe no
+  // se pierde: se guarda como texto y se enlaza en cuanto el alimento aparezca.
+  // Bloquear a quien registra su casa por un producto que aún no creó sería
+  // justo el orden invertido que hace que nadie termine de configurar nada.
+  person.pendingRestrictions = [...new Set((fields.pendingRestrictions || []).map(value => String(value).trim()).filter(Boolean))];
   person.habitual = (fields.habitual || []).map(item => ({ productId: item.productId, quantity: quantity(item.quantity), unit: item.unit }));
+  linkPendingRestrictions(state, person);
+  return person;
+}
+export function linkPendingRestrictions(state, person) {
+  const left = [];
+  for (const text of person.pendingRestrictions || []) {
+    const match = productByName(state, text);
+    if (match) { if (!person.restrictions.includes(match.id)) person.restrictions.push(match.id); }
+    else left.push(text);
+  }
+  person.pendingRestrictions = left;
   return person;
 }
 export function setAbsence(state, date, slot, personId, absent) {
@@ -186,6 +500,15 @@ export function upsertRecipe(state, fields) {
   if (!recipe) { recipe = { id: nextId(state, 'preparacion') }; state.recipes.push(recipe); }
   Object.assign(recipe, { name, uses, items, covers: (fields.covers || []).filter(id => state.people.some(person => person.id === id)), servings: fields.servings === '' || fields.servings === undefined || fields.servings === null ? null : quantity(fields.servings), note: String(fields.note || '').trim() });
   return recipe;
+}
+export function duplicateRecipe(state, id) {
+  const source = state.recipes.find(item => item.id === id);
+  if (!source) throw new Error('Preparación no encontrada.');
+  const copy = structuredClone(source);
+  copy.id = nextId(state, 'preparacion');
+  copy.name = `${source.name} (copia)`;
+  state.recipes.push(copy);
+  return copy;
 }
 export function deleteRecipe(state, id) {
   state.recipes = state.recipes.filter(item => item.id !== id);
@@ -346,6 +669,9 @@ export function generateMonth(state, month) {
   }
   return { count, unavailable };
 }
+
+/* ── Inventario: compras, revisiones y correcciones ────────────────────── */
+
 function eventList(state) {
   return [
     ...state.purchases.map(item => ({ kind: 'purchase', item })),
@@ -375,12 +701,15 @@ export function addPurchase(state, fields) {
     return { productId: line.productId, quantity: amount, unit: line.unit, controlQuantity };
   });
   if (!lines.length) throw new Error('Agrega al menos un producto a la compra.');
-  const purchase = { id: nextId(state, 'compra'), seq: state.seq, date: fields.date || todayISO(), period: fields.period || null, lines };
+  // Queda escrito con qué base se calculó. Sin eso, una compra que salió de la
+  // canasta y otra que salió del menú son indistinguibles al mirarlas después,
+  // y no se puede explicar por qué se pidió esa cantidad.
+  const purchase = { id: nextId(state, 'compra'), seq: state.seq, date: fields.date || todayISO(), period: fields.period || null, basis: fields.basis || null, lines };
   state.purchases.push(purchase);
   return purchase;
 }
-export function createReview(state, date = todayISO()) {
-  const review = { id: nextId(state, 'revision'), seq: state.seq, date, status: 'draft', productIds: [], consumed: {} };
+export function createReview(state, date = todayISO(), mode = 'restante') {
+  const review = { id: nextId(state, 'revision'), seq: state.seq, date, status: 'draft', mode: mode === 'consumido' ? 'consumido' : 'restante', productIds: [], consumed: {}, remaining: {} };
   state.reviews.push(review);
   syncReviewProducts(state, review);
   return review;
@@ -390,22 +719,42 @@ export function syncReviewProducts(state, review) {
   const available = reviewAvailability(state, review);
   review.productIds = [...new Set([...review.productIds, ...Object.keys(available).filter(id => available[id] > EPS)])];
 }
-export function saveReview(state, reviewId, inputs, confirm = false) {
+// Preguntar «¿cuánto queda?» en vez de «¿cuánto se consumió?» es la diferencia
+// entre mirar la nevera y hacer una resta de memoria. Lo que se guarda sigue
+// siendo el consumo —es lo que mueve el saldo—, pero se deduce de lo que quedó.
+export function remainingToConsumed(available, remaining) {
+  const left = quantity(remaining, true);
+  if (left > available + EPS) return { consumed: null, excess: round(left - available) };
+  return { consumed: round(Math.max(0, available - left)), excess: 0 };
+}
+export function saveReview(state, reviewId, inputs, confirm = false, mode = null) {
   const review = state.reviews.find(item => item.id === reviewId);
   if (!review || review.status === 'confirmed') throw new Error('Para cambiar una revisión confirmada, usa Corregir revisión.');
   syncReviewProducts(state, review);
+  if (mode) review.mode = mode === 'consumido' ? 'consumido' : 'restante';
   const available = reviewAvailability(state, review);
-  const consumed = {};
+  const consumed = {}, remaining = {};
   for (const id of review.productIds) {
     const input = inputs[id];
+    // Un campo vacío es «todavía no lo he mirado», no «no queda nada». Son dos
+    // cosas distintas y confundirlas descontaría existencias que sí están.
     if (input === '' || input === null || input === undefined) continue;
-    const amount = quantity(input, true);
-    if (amount > (available[id] || 0) + EPS) throw new Error(`El consumo de ${product(state, id)?.name || 'un producto'} supera las existencias. Usa Corregir existencias si hace falta.`);
-    consumed[id] = amount;
+    if (review.mode === 'restante') {
+      const { consumed: used, excess } = remainingToConsumed(available[id] || 0, input);
+      if (excess > 0) throw new Error(`Dices que quedan más ${product(state, id)?.name || 'unidades'} de las que la app tiene contadas (sobran ${excess}). Usa «Corregir existencias» para registrar la diferencia.`);
+      remaining[id] = quantity(input, true);
+      consumed[id] = used;
+    } else {
+      const amount = quantity(input, true);
+      if (amount > (available[id] || 0) + EPS) throw new Error(`El consumo de ${product(state, id)?.name || 'un producto'} supera las existencias. Usa Corregir existencias si hace falta.`);
+      consumed[id] = amount;
+      remaining[id] = round(Math.max(0, (available[id] || 0) - amount));
+    }
   }
-  if (confirm && review.productIds.some(id => consumed[id] === undefined)) throw new Error('Hay productos pendientes de revisar. Escribe 0 si no se consumieron.');
-  const previous = { status: review.status, consumed: review.consumed };
+  if (confirm && review.productIds.some(id => consumed[id] === undefined)) throw new Error('Hay productos pendientes de revisar. Escribe 0 si no queda nada.');
+  const previous = { status: review.status, consumed: review.consumed, remaining: review.remaining };
   review.consumed = consumed;
+  review.remaining = remaining;
   if (confirm) review.status = 'confirmed';
   if (balances(state).problems.length) { Object.assign(review, previous); throw new Error('Esta revisión dejaría un saldo negativo en una fecha posterior. Corrige las existencias primero.'); }
   return review;
@@ -414,16 +763,25 @@ export function correctReview(state, reviewId, inputs) {
   const review = state.reviews.find(item => item.id === reviewId);
   if (!review || review.status !== 'confirmed') throw new Error('Revisión confirmada no encontrada.');
   const available = reviewAvailability(state, review);
-  const consumed = {};
+  const consumed = {}, remaining = {};
   for (const id of review.productIds) {
     if (inputs[id] === '' || inputs[id] === undefined || inputs[id] === null) throw new Error('Completa todos los productos de la revisión.');
-    const amount = quantity(inputs[id], true);
-    if (amount > (available[id] || 0) + EPS) throw new Error(`El consumo de ${product(state, id)?.name || 'un producto'} supera lo disponible antes de esa revisión.`);
-    consumed[id] = amount;
+    if (review.mode === 'restante') {
+      const { consumed: used, excess } = remainingToConsumed(available[id] || 0, inputs[id]);
+      if (excess > 0) throw new Error(`Quedan más ${product(state, id)?.name || 'unidades'} de las que había disponibles antes de esa revisión.`);
+      consumed[id] = used;
+      remaining[id] = quantity(inputs[id], true);
+    } else {
+      const amount = quantity(inputs[id], true);
+      if (amount > (available[id] || 0) + EPS) throw new Error(`El consumo de ${product(state, id)?.name || 'un producto'} supera lo disponible antes de esa revisión.`);
+      consumed[id] = amount;
+      remaining[id] = round(Math.max(0, (available[id] || 0) - amount));
+    }
   }
-  const previous = review.consumed;
+  const previous = { consumed: review.consumed, remaining: review.remaining };
   review.consumed = consumed;
-  if (balances(state).problems.length) { review.consumed = previous; throw new Error('La corrección dejaría un saldo negativo en una revisión posterior.'); }
+  review.remaining = remaining;
+  if (balances(state).problems.length) { Object.assign(review, previous); throw new Error('La corrección dejaría un saldo negativo en una revisión posterior.'); }
   return review;
 }
 export function correctStock(state, productId, actual, reason) {
@@ -438,24 +796,41 @@ export function correctStock(state, productId, actual, reason) {
 export function lastStockReview(state) {
   return [...state.reviews.filter(item => item.status === 'confirmed'), ...state.corrections].sort((a, b) => b.date.localeCompare(a.date) || b.seq - a.seq)[0]?.date || null;
 }
-// Dos bases posibles para calcular qué falta, y son excluyentes: el menú del
-// período o la canasta del mes. Sumarlas contaría dos veces el mismo arroz.
+
+/* ── Lista de compra ───────────────────────────────────────────────────── */
+
+// Tres bases posibles, y son excluyentes: el menú del período, la canasta base,
+// o la canasta de cada mes que toca el período. Sumarlas contaría dos veces el
+// mismo arroz.
+export const BASES = ['menu', 'base', 'mensual'];
+const normalizeBasis = basis => (basis === 'basket' ? 'mensual' : BASES.includes(basis) ? basis : 'menu');
 export function shoppingList(state, start, end, basis = 'menu') {
   if (!validDate(start) || !validDate(end) || start > end) throw new Error('Selecciona un período válido.');
+  const resolved = normalizeBasis(basis);
   const need = {}, pending = [];
-  if (basis === 'basket') {
-    const { share } = basketShare(start, end);
-    for (const line of state.basket || []) {
-      const converted = convert(state, line.productId, line.quantity * share, line.unit);
-      if (converted === null) { pending.push({ productId: line.productId, unit: line.unit, date: null }); continue; }
-      need[line.productId] = round((need[line.productId] || 0) + converted);
+  let months = [];
+  if (resolved === 'menu') {
+    for (const plan of state.plans) {
+      if (plan.date < start || plan.date > end || !['recipe', 'linked'].includes(plan.kind)) continue;
+      for (const item of plan.items) {
+        const converted = convert(state, item.productId, item.quantity, item.unit);
+        if (converted === null) { pending.push({ productId: item.productId, unit: item.unit, date: plan.date, reason: 'equivalencia' }); continue; }
+        need[item.productId] = round((need[item.productId] || 0) + converted);
+      }
     }
-  } else for (const plan of state.plans) {
-    if (plan.date < start || plan.date > end || !['recipe', 'linked'].includes(plan.kind)) continue;
-    for (const item of plan.items) {
-      const converted = convert(state, item.productId, item.quantity, item.unit);
-      if (converted === null) { pending.push({ productId: item.productId, unit: item.unit, date: plan.date }); continue; }
-      need[item.productId] = round((need[item.productId] || 0) + converted);
+  } else {
+    months = periodMonths(start, end);
+    for (const segment of months) {
+      // Cada tramo se cobra contra la canasta de SU mes, prorrateado por los
+      // días de ese mes. Usar la duración del mes inicial para todo el período
+      // daba un número que no significaba nada cuando la compra cruzaba de mes.
+      const lines = resolved === 'base' ? baseLines(state) : basketLines(state, segment.month);
+      for (const line of lines) {
+        if (line.quantity === null) { pending.push({ productId: line.productId, unit: line.unit, date: null, reason: 'cantidad' }); continue; }
+        const converted = convert(state, line.productId, line.quantity * segment.share, line.unit);
+        if (converted === null) { pending.push({ productId: line.productId, unit: line.unit, date: null, reason: 'equivalencia' }); continue; }
+        need[line.productId] = round((need[line.productId] || 0) + converted);
+      }
     }
   }
   const stock = inventoryNow(state);
@@ -467,7 +842,7 @@ export function shoppingList(state, start, end, basis = 'menu') {
     if (purchaseUnit !== item.controlUnit) {
       const factor = item.equivalences?.[purchaseUnit];
       if (!Number.isFinite(factor) || factor <= 0) {
-        if (shortfall > 0) pending.push({ productId: id, unit: purchaseUnit, date: null });
+        if (shortfall > 0) pending.push({ productId: id, unit: purchaseUnit, date: null, reason: 'equivalencia' });
         purchaseQuantity = null; acquiredControl = null;
       } else {
         purchaseQuantity = purchaseUnit === 'paquete' ? Math.ceil((shortfall - EPS) / factor) : round(shortfall / factor);
@@ -478,17 +853,34 @@ export function shoppingList(state, start, end, basis = 'menu') {
   }).sort((a, b) => product(state, a.productId).name.localeCompare(product(state, b.productId).name));
   // Comprando por canasta el menú no hace falta, así que avisar de comidas sin
   // planificar sería un reproche por algo que no se pidió.
-  const missing = basis === 'basket' ? [] : dateRange(start, end).flatMap(date => SLOTS.filter(slot => !planFor(state, date, slot) || planFor(state, date, slot).kind === 'unplanned').map(slot => ({ date, slot })));
-  return { start, end, basis, lines, missing, pending, lastReview: lastStockReview(state), future: start > todayISO(), ...(basis === 'basket' ? basketShare(start, end) : {}) };
+  const missing = resolved !== 'menu' ? [] : dateRange(start, end).flatMap(date => SLOTS.filter(slot => !planFor(state, date, slot) || planFor(state, date, slot).kind === 'unplanned').map(slot => ({ date, slot })));
+  const share = resolved === 'menu' ? {} : basketShare(start, end);
+  return { start, end, basis: resolved, lines, missing, pending, months, lastReview: lastStockReview(state), future: start > todayISO(), ...share };
 }
+export const basisLabel = basis => ({ menu: 'el menú', base: 'la canasta base', mensual: 'la canasta del mes' })[normalizeBasis(basis)];
+
+/* ── Respaldo ──────────────────────────────────────────────────────────── */
+
 export function exportState(state) { return JSON.stringify(state, null, 2); }
 export function importState(json) {
-  const data = JSON.parse(json);
+  const parsed = JSON.parse(json);
+  // Migrar primero y validar después: así un respaldo viejo entra completo, y
+  // si la conversión dejara algo incoherente se rechaza aquí, antes de tocar
+  // nada de lo que el usuario ya tenía guardado.
+  const result = migrate(parsed);
+  if (!result.ok) throw new Error(result.error);
+  const data = result.state;
   const empty = createEmptyState();
-  if (data && typeof data === 'object') for (const [key, value] of Object.entries(ADDED_AFTER_V1)) if (!(key in data)) data[key] = structuredClone(value);
-  if (!data || data.version !== 1 || !Number.isInteger(data.seq) || Object.keys(empty).some(key => !(key in data))) throw new Error('Este archivo no es un respaldo válido de ¿Qué comemos?.');
-  for (const key of ['products', 'people', 'recipes', 'plans', 'absences', 'purchases', 'reviews', 'corrections', 'manualItems', 'basket']) if (!Array.isArray(data[key])) throw new Error('El respaldo tiene datos incompletos.');
+  if (!Number.isInteger(data.seq) || Object.keys(empty).some(key => !(key in data))) throw new Error('Este archivo no es un respaldo válido de ¿Qué comemos?.');
+  for (const key of ['products', 'people', 'recipes', 'plans', 'absences', 'purchases', 'reviews', 'corrections', 'manualItems', 'invoices', 'activity']) {
+    if (!Array.isArray(data[key])) throw new Error('El respaldo tiene datos incompletos.');
+  }
   if (typeof data.opening !== 'object' || data.opening === null) throw new Error('El respaldo no tiene existencias válidas.');
+  if (!data.baseBasket || !Array.isArray(data.baseBasket.lines)) throw new Error('El respaldo no tiene una canasta base válida.');
+  if (typeof data.monthlyBaskets !== 'object' || data.monthlyBaskets === null) throw new Error('El respaldo no tiene canastas mensuales válidas.');
+  for (const [month, basket] of Object.entries(data.monthlyBaskets)) {
+    if (!validMonth(month) || !Array.isArray(basket?.lines)) throw new Error(`La canasta de ${month} está dañada.`);
+  }
   if (balances(data).problems.length) throw new Error('El respaldo contiene existencias negativas.');
   return data;
 }

@@ -1,0 +1,83 @@
+/* «Preparar mi casa». Móvil primero: en el teléfono es donde alguien se sienta
+   de verdad a registrar su despensa, y donde una tabla de cuatro columnas se
+   vuelve una pelea con el desplazamiento lateral. */
+
+.setup { max-width: 860px; margin: 0 auto; }
+.setup-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
+.setup-head h2 { margin: 2px 0 0; letter-spacing: -.03em; }
+
+/* La barra de pasos dice dónde estás y cuánto falta, que es lo que evita el
+   abandono a mitad. Bajo 560 px se quedan los puntos y desaparecen las palabras:
+   cinco etiquetas no caben sin partirse. */
+.setup-steps { display: flex; gap: 4px; margin-bottom: 8px; }
+.setup-step { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; font-size: .74rem; color: var(--ink-muted); }
+.setup-step.now { color: var(--clay-dark); font-weight: 800; }
+.setup-dot { display: grid; place-items: center; width: 22px; height: 22px; flex-shrink: 0; border-radius: 50%; background: #ece1d5; color: #6b5b51; font-size: .72rem; font-weight: 800; }
+.setup-step.now .setup-dot { background: var(--clay); color: #fff; }
+.setup-step.done .setup-dot { background: var(--sage); color: #fff; }
+.setup-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.setup-progress { margin-bottom: 20px; }
+.setup-body { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 20px; box-shadow: 0 5px 20px #3d2d1d0c; }
+.setup-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+
+.setup-name-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 32px; }
+
+/* Las cuatro vías de empezar. Tarjetas grandes y pulsables: es una decisión, no
+   un formulario, y en el teléfono se toca con el pulgar. */
+.setup-ways { display: grid; gap: 10px; margin-top: 16px; }
+.setup-way { display: flex; gap: 13px; align-items: flex-start; text-align: left; width: 100%; padding: 15px; min-height: 44px; border: 1.5px solid var(--line); border-radius: 15px; background: var(--surface); cursor: pointer; font: inherit; color: inherit; }
+.setup-way:hover { border-color: var(--clay-line); background: #fffaf4; }
+.setup-way.chosen { border-color: var(--clay); background: var(--clay-light); box-shadow: 0 0 0 3px #a04b2222; }
+.setup-way:focus-visible { outline: 3px solid var(--clay); outline-offset: 2px; }
+.setup-way.blocked { opacity: .72; }
+.setup-way-icon { font-size: 1.5rem; line-height: 1; flex-shrink: 0; }
+.setup-way-text { display: grid; gap: 4px; min-width: 0; }
+.setup-way-text strong { font-size: .95rem; }
+.setup-way-text > span { font-size: .82rem; color: var(--ink-muted); line-height: 1.45; }
+
+/* Categorías del catálogo: una tira que se desplaza sola en horizontal. Es el
+   único sitio donde el desplazamiento lateral es correcto —son pestañas, no
+   contenido— y aun así se puede recorrer con el teclado. */
+.setup-search { margin: 16px 0 12px; }
+.setup-cats { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 12px; scrollbar-width: thin; }
+.setup-cat { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; padding: 8px 13px; min-height: 40px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: #594d45; font: inherit; font-size: .81rem; cursor: pointer; white-space: nowrap; }
+.setup-cat.active { background: var(--clay); border-color: var(--clay); color: #fff; font-weight: 700; }
+.setup-cat:focus-visible { outline: 3px solid var(--clay); outline-offset: 2px; }
+.setup-cat-count:not(:empty) { display: grid; place-items: center; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 999px; background: var(--sage); color: #fff; font-size: .68rem; font-weight: 800; }
+.setup-cat.active .setup-cat-count:not(:empty) { background: #fff; color: var(--clay-dark); }
+.setup-bulk { margin-bottom: 12px; }
+
+.setup-chips { display: flex; flex-wrap: wrap; gap: 8px; max-height: 46vh; overflow-y: auto; padding: 2px; }
+.setup-chip { min-height: 44px; }
+.setup-chip span { display: grid; gap: 1px; line-height: 1.2; }
+.setup-chip .tiny { font-size: .66rem; }
+.setup-chip.on { background: var(--clay-light); border-color: var(--clay); }
+
+.setup-amounts { display: grid; gap: 9px; margin-top: 16px; }
+.setup-amount-row { grid-template-columns: minmax(0, 2.2fr) minmax(70px, .8fr) minmax(95px, 1fr) 32px; }
+
+.setup-done { text-align: center; padding: 8px 0 20px; }
+.setup-done-mark { display: grid; place-items: center; width: 54px; height: 54px; margin: 0 auto 14px; border-radius: 50%; background: var(--sage); color: #fff; font-size: 1.6rem; font-weight: 900; }
+.setup-done h3 { margin: 0 0 7px; font-size: 1.25rem; letter-spacing: -.03em; }
+
+/* Solo para lectores de pantalla: las etiquetas de las filas apretadas, donde
+   enseñar el texto rompería la cuadrícula pero quitarlo dejaría campos mudos. */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+@media (max-width: 700px) {
+  .setup-body { padding: 15px; border-radius: 15px; }
+  .setup-label { display: none; }
+  .setup-steps { gap: 7px; justify-content: flex-start; }
+  .setup-step { flex: 0 0 auto; }
+  /* El nombre se lleva su propia línea; debajo, cantidad, unidad y quitar. */
+  .setup-amount-row { grid-template-columns: minmax(0, 1fr) 100px 34px; }
+  .setup-amount-row .setup-amount-name { grid-column: 1 / -1; }
+  .setup-name-row { grid-template-columns: minmax(0, 1fr) 34px; }
+  .setup-name-row .field:first-child { grid-column: 1 / -1; }
+  .setup-chips { max-height: none; }
+  .setup-actions .btn { flex: 1 1 auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setup-progress span { transition: none; }
+}
