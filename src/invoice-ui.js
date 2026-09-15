@@ -269,7 +269,19 @@ async function girar(foto) {
   pincel.translate(imagen.naturalHeight, 0);
   pincel.rotate(Math.PI / 2);
   pincel.drawImage(imagen, 0, 0);
-  const dataUrl = lienzo.toDataURL('image/jpeg', CALIDAD_JPEG);
+  let dataUrl;
+  try {
+    dataUrl = lienzo.toDataURL('image/jpeg', CALIDAD_JPEG);
+  } catch (error) {
+    // Una foto de la cámara del teléfono llega por `capacitor://`. Si el WebView
+    // considerara ese origen ajeno, dibujarla ensucia el lienzo y leerlo de
+    // vuelta lanza un error de seguridad que no dice nada útil. Pasa antes de
+    // tocar `foto`, así que la imagen no se pierde: solo no se gira.
+    if (error?.name === 'SecurityError') {
+      throw new Error('Esta foto no se puede girar dentro de la app. Vuelve a tomarla en la orientación correcta, o léela así: el lector suele apañárselas con la factura torcida.');
+    }
+    throw error;
+  }
   return { ...foto, ruta: null, dataUrl, ancho: lienzo.width, alto: lienzo.height, tamano: pesoDe(dataUrl) };
 }
 
