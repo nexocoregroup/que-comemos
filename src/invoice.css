@@ -33,11 +33,16 @@
 .invoice-paso.hecho .invoice-punto { background: var(--sage); color: #fff; }
 .invoice-paso-nombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* Dos campos de archivo: el de la cámara y el de la galería. En Android un solo
-   campo con `capture` esconde la galería, y sin `capture` hay que buscar la
-   cámara dentro del selector. */
+/* Dos formas de traer una foto, la misma rejilla para las dos. En el navegador
+   son dos campos de archivo y no uno porque en Android un solo campo con
+   `capture` esconde la galería, y sin `capture` hay que buscar la cámara dentro
+   del selector. En la aplicación instalada son dos botones que abren la cámara
+   nativa, que además devuelve la ruta del archivo: eso es lo que el lector de
+   textos necesita, y un `<input type="file">` no la da. */
 .invoice-camara { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .invoice-camara input[type="file"] { min-height: 44px; padding: 10px; line-height: 1.4; }
+/* Altos, porque se pulsan con el pulgar y con el papel en la otra mano. */
+.invoice-camara-botones .btn { min-height: 56px; width: 100%; font-size: 1rem; }
 .invoice-consejos { margin: 8px 0 0; padding-left: 19px; display: grid; gap: 6px; line-height: 1.45; }
 .invoice-acciones-fotos { flex-wrap: wrap; }
 
@@ -115,6 +120,18 @@
 
 .invoice-head { margin: 0; align-items: flex-start; flex-wrap: wrap; }
 .invoice-head p { margin: 5px 0 0; font-variant-numeric: tabular-nums; }
+/* La garantía de que la foto no salió del teléfono. Pequeña y en gris a
+   propósito: es una garantía, no una medalla, y esta pantalla es para revisar
+   líneas, no para felicitarse. */
+.invoice-sello { margin-top: 8px; border-radius: 10px; line-height: 1.35; }
+
+/* Lo que el lector dejó fuera. Plegado: no es lo que hay que revisar, pero
+   tiene que poder abrirse, porque si ahí dentro hay comida nadie más va a
+   verla. */
+.invoice-descartadas { border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); padding: 12px 14px; }
+.invoice-descartadas summary { cursor: pointer; font-size: .86rem; font-weight: 780; color: var(--ink-muted); min-height: 24px; }
+.invoice-descartadas p { margin: 8px 0 0; }
+.invoice-sobras { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
 .invoice-caption { caption-side: top; text-align: left; padding: 0 0 12px; color: var(--ink-muted); font-size: .82rem; line-height: 1.4; }
 .invoice-wrap { overflow-x: auto; }
 .invoice-table { width: 100%; }

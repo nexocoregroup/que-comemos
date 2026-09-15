@@ -266,7 +266,10 @@ function separarMedidaPegada(texto) {
 //   −0.10 si parseLine tuvo que deducir algo (unidad implícita, kilos a libras).
 //   −0.35 si el nombre trae basura de OCR: símbolos raros, o dígitos metidos
 //         entre letras («HUEV0S») que no son una medida reconocible.
-//   −0.30 si al nombre le quedan menos de cuatro letras útiles.
+//   −0.30 si al nombre le quedan menos de cuatro letras útiles. Cuatro y no
+//         tres porque es el mismo corte que usa invoices.js para fiarse de un
+//         parecido: «SAL» empieza igual que «SALAMI» y una abreviatura así se
+//         confirma a mano, no se aprueba sola.
 //
 // Así una línea limpia con medida impresa llega a 0.90 y se aprueba de un
 // vistazo; «2 X SALAMI INDUV 1LB» se queda en 0.55 y pasa por confirmación

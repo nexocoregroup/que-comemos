@@ -58,6 +58,9 @@ const CALIDAD_JPEG = 0.82;
 const ESPERA_VISION = 60000;
 // Cuántos parecidos se ofrecen arriba del todo en el desplegable de la fila.
 const MAX_PARECIDOS = 4;
+// Cuántas líneas descartadas se listan. Una lectura mala puede dejar cientos, y
+// una lista de cientos ya no se revisa: se cierra.
+const MAX_DESCARTADAS = 40;
 // Propio, para no chocar con los `datalist` que dibujan app.js y bulk-entry.js:
 // dos elementos con el mismo id en la página se pisan.
 const LISTA = 'invoice-alimentos';
@@ -135,7 +138,7 @@ const camara = () => capacidad('camara');
 /* ── El estado de la pantalla ──────────────────────────────────────────── */
 
 export function emptyInvoice() {
-  return { paso: 'capturar', facturas: [], actual: null, error: '', avisos: [] };
+  return { paso: 'capturar', facturas: [], actual: null, error: '', errorTitulo: '', avisos: [] };
 }
 
 // El permiso de envío vive en el módulo y no en `ui.invoice` a propósito: es
@@ -306,6 +309,13 @@ async function blobDeFoto(foto) {
 // hay nada que copiar. Sin ruta —una foto del navegador, o una girada—, el
 // JPEG, que `leerFoto` escribe en la caché del propio teléfono y borra después.
 const fuenteDeLectura = foto => (foto.ruta ? foto.ruta : blobDeFoto(foto));
+
+// Lo que se le da al servidor, cuando es el servidor quien lee. La foto del
+// navegador ya viene en base64 dentro de su `data:`; la de la cámara hay que
+// leerla del archivo primero.
+const base64DeFoto = async foto => (String(foto.dataUrl || '').startsWith('data:')
+  ? base64De(foto.dataUrl)
+  : base64De(await aDataUrl(await blobDeFoto(foto))));
 
 function aBlob(dataUrl) {
   const binario = atob(base64De(dataUrl));
@@ -493,25 +503,26 @@ function barraPasos(paso) {
 
 const avisosHTML = invoice => (invoice.avisos || []).map(aviso => notice('De las fotos', esc(aviso), 'warn')).join('');
 
-// El bloque que no se puede saltar cuando no hay servicio: dice que no se leyó
-// nada y ofrece las dos salidas de verdad. Se enseña en la pantalla de capturar
-// y en la de lectura, porque quien no tiene servicio merece saberlo antes de
-// ponerse a fotografiar, no después.
-function bloqueSinServicio(factura) {
+// Cuando ni el teléfono ni un servidor pueden leer, que es el caso del
+// navegador. No es un requisito que falte cumplir: es hasta dónde llega una
+// pestaña, y se dice con las mismas palabras con que lo dice el aparato. Se
+// enseña en la pantalla de capturar y en la de lectura, porque esto se merece
+// saber antes de ponerse a fotografiar, no después.
+function bloqueSinLector(factura) {
   const guardadas = factura?.imagenes.some(foto => foto.guardada);
   return `<div class="card soft stack invoice-honesto">
-    <h3>Todavía no se ha leído nada de esta factura</h3>
-    <p>La lectura automática necesita un servicio configurado, y en este dispositivo no lo hay. Nadie ha mirado estas fotos: la app <strong>no ha sacado ni una línea</strong> de ellas, y no va a inventarse ninguna.</p>
-    <p class="small muted">Se configura en Ajustes, con un backend propio. Está explicado paso a paso en <code>docs/backend.md</code>. Sin él, todo lo demás de la app —canasta, menú, compras, existencias— funciona igual y sin conexión.</p>
+    <h3>Estas fotos hay que leerlas a mano</h3>
+    <p>${esc(lector().detalle)} Nadie ha mirado estas fotos: la app <strong>no ha sacado ni una línea</strong> de ellas, y no va a inventarse ninguna.</p>
+    <p class="small muted">En la aplicación instalada la factura se lee dentro del propio teléfono, sin conexión y sin que la foto salga de casa. Aquí, en el navegador, esa pieza no existe. Todo lo demás —canasta, menú, compras, existencias— funciona igual.</p>
     <div class="invoice-salidas">
       <div class="invoice-salida">
         <strong>Escríbelo o díctalo</strong>
-        <p class="small">Un párrafo de corrido con lo que dice la factura —«30 plátanos, 10 libras de arroz, 6 latas de atún»— y lo revisas en una tabla igual que esta. Es lo mismo que haría el servicio, solo que leyéndolo tú.</p>
+        <p class="small">Un párrafo de corrido con lo que dice la factura —«30 plátanos, 10 libras de arroz, 6 latas de atún»— y lo revisas en una tabla igual que esta. Es lo mismo que haría el lector, solo que leyéndolo tú.</p>
         ${button('🗣️ Escribir o dictar las líneas', 'open-bulk', 'btn-primary')}
       </div>
       <div class="invoice-salida">
         <strong>Guarda las fotos para después</strong>
-        <p class="small">Las fotos se quedan en este dispositivo, en su propio almacén. Cuando configures el servicio, vuelves aquí, las recuperas y se leen entonces.</p>
+        <p class="small">Las fotos se quedan en este dispositivo, en su propio almacén. Si ahora no tienes tiempo de escribir las líneas, vuelves cuando puedas y siguen aquí.</p>
         ${disponible()
           ? (guardadas
             ? `<p class="small invoice-ok">Guardadas en este dispositivo. Recupéralas desde el paso de las fotos.</p>`
@@ -519,6 +530,7 @@ function bloqueSinServicio(factura) {
           : `<p class="small">Este navegador no deja guardarlas (suele pasar en una ventana privada). Si cierras esta pantalla, las fotos se pierden: escribe las líneas ahora.</p>`}
       </div>
     </div>
+    <p class="tiny muted">Quien tenga un servidor propio montado puede activarle la lectura de facturas en Ajustes; es otra forma de llegar a lo mismo, no un paso que haya que dar.</p>
   </div>`;
 }
 
@@ -534,6 +546,7 @@ export function renderInvoice(ctx) {
 /* ── Paso 1: las fotos ─────────────────────────────────────────────────── */
 
 function pasoCapturar(ctx, invoice) {
+  const telefono = lector().ok;
   const servicio = Boolean(ctx.servicios?.vision);
   const factura = facturaActual(invoice) || invoice.facturas[invoice.facturas.length - 1] || null;
   const total = invoice.facturas.reduce((suma, item) => suma + item.imagenes.length, 0);
@@ -544,40 +557,62 @@ function pasoCapturar(ctx, invoice) {
       <p class="muted">Una factura larga son tres fotos, y puedes traer varias facturas de varios meses: cuantos más meses, mejor sale la canasta. Nada se guarda hasta que revises línea por línea.</p>
       ${avisosHTML(invoice)}
       ${!disponible() ? notice('Aquí las fotos no se pueden guardar', 'Este navegador no deja usar el almacén de fotos (suele pasar en una ventana privada). Puedes fotografiar y revisar igual, pero si cierras esta pantalla las fotos se pierden y habrá que escribir las líneas a mano.', 'warn') : ''}
-      <div class="invoice-camara">
-        <label class="field">
-          <span>Tomar una foto con la cámara</span>
-          <input type="file" name="camara" accept="image/*" capture="environment" multiple data-invoice-archivos>
-        </label>
-        <label class="field">
-          <span>O elegir fotos de la galería</span>
-          <input type="file" name="galeria" accept="image/*" multiple data-invoice-archivos>
-        </label>
-      </div>
-      <p class="tiny muted">Son dos campos y no uno porque en Android el primero abre la cámara directamente y el segundo la galería; con uno solo, el teléfono decide y casi siempre esconde la otra mitad.</p>
+      ${captadorHTML()}
       <div class="hint">
         <strong>Para que la foto sirva:</strong>
         <ul class="invoice-consejos tiny">${CONSEJOS.map(consejo => `<li>${esc(consejo)}</li>`).join('')}</ul>
       </div>
       <div class="modal-actions invoice-acciones-fotos">
-        <button type="submit" class="btn btn-secondary">Añadir las fotos elegidas</button>
+        ${camara().ok ? '' : '<button type="submit" class="btn btn-secondary">Añadir las fotos elegidas</button>'}
         ${disponible() ? button('Recuperar fotos guardadas', 'invoice-recuperar-fotos', 'btn-quiet') : ''}
       </div>
       ${procesando ? `<p class="invoice-progreso" role="status" aria-live="polite"><span class="invoice-puntos" aria-hidden="true"><i></i><i></i><i></i></span> Preparando las fotos: se reducen a ${LADO_MAXIMO} px antes de nada.</p>` : ''}
     </div>
     ${invoice.facturas.map(item => grupoHTML(item, item.id === factura?.id)).join('')}
     ${total ? '' : `<div class="card soft"><p class="muted">Todavía no has añadido ninguna foto. Toma la primera arriba.</p></div>`}
-    ${servicio ? '' : bloqueSinServicio(factura)}
+    ${telefono || servicio ? '' : bloqueSinLector(factura)}
     <div class="card stack">
       <div class="modal-actions">
         ${invoice.facturas.length ? button('Empezar otra factura', 'invoice-otra-factura', 'btn-quiet') : ''}
-        ${button(servicio ? 'Leer esta factura' : 'Continuar sin lectura automática', 'invoice-continuar', 'btn-primary')}
+        ${button(telefono || servicio ? 'Leer esta factura' : 'Continuar sin lectura automática', 'invoice-continuar', 'btn-primary')}
       </div>
-      <p class="tiny muted">${servicio
-        ? 'Antes de enviar nada se te dirá exactamente qué sale del teléfono y hacia dónde, y tendrás que autorizarlo.'
-        : 'Sin servicio configurado no hay lectura automática: lo que sigue te explica las dos salidas que sí funcionan.'}</p>
+      <p class="tiny muted">${textoDelCamino(telefono, servicio)}</p>
     </div>
   </form>`;
+}
+
+// Los dos botones de la cámara del teléfono, o los dos campos de archivo del
+// navegador. En el teléfono no se usa `<input type="file">` aunque exista: ese
+// devuelve un Blob sin ruta, y la ruta es justo lo que el lector de textos
+// necesita para trabajar sin copiar la foto a ningún sitio.
+function captadorHTML() {
+  if (camara().ok) {
+    return `<div class="invoice-camara invoice-camara-botones">
+      ${button('📷 Tomar una foto', 'invoice-camara', 'btn-primary')}
+      ${button('🖼️ Elegir de la galería', 'invoice-galeria', 'btn-secondary')}
+    </div>
+    <p class="tiny muted">Cada foto entra en cuanto la aceptas, sin un segundo toque. Si te arrepientes a mitad de camino, no pasa nada: se vuelve aquí y ya está.</p>`;
+  }
+  return `<div class="invoice-camara">
+    <label class="field">
+      <span>Tomar una foto con la cámara</span>
+      <input type="file" name="camara" accept="image/*" capture="environment" multiple data-invoice-archivos>
+    </label>
+    <label class="field">
+      <span>O elegir fotos de la galería</span>
+      <input type="file" name="galeria" accept="image/*" multiple data-invoice-archivos>
+    </label>
+  </div>
+  <p class="tiny muted">Son dos campos y no uno porque en Android el primero abre la cámara directamente y el segundo la galería; con uno solo, el teléfono decide y casi siempre esconde la otra mitad.</p>`;
+}
+
+// Lo que va a pasar cuando se pulse el botón. Se dice antes, no después: quien
+// lee en el teléfono merece saber que no sale nada, y quien va a mandar la foto
+// a su servidor merece saber que va a tener que autorizarlo.
+function textoDelCamino(telefono, servicio) {
+  if (telefono) return 'La lectura ocurre aquí dentro, con el lector de textos del propio teléfono. No hace falta conexión y la foto no sale del aparato.';
+  if (servicio) return 'Antes de enviar nada se te dirá exactamente qué sale del teléfono y hacia dónde, y tendrás que autorizarlo.';
+  return 'Aquí las fotos no se leen solas: lo que sigue te explica las dos salidas que sí funcionan.';
 }
 
 function grupoHTML(factura, actual) {
@@ -609,10 +644,14 @@ function grupoHTML(factura, actual) {
 function fotoHTML(factura, foto, indice) {
   const nombre = `Foto ${indice + 1} de ${factura.establecimiento ? `la factura de ${factura.establecimiento}` : 'esta factura'}`;
   const datos = `data-factura="${esc(factura.id)}" data-foto="${esc(foto.id)}"`;
+  // De la foto de la cámara no se sabe cuánto pesa mientras siga siendo un
+  // archivo del teléfono, y ahí se queda. Se callan los datos que no se tienen
+  // en vez de escribir «0×0 · 1 kB», que sería mentira con aire de precisión.
+  const detalle = [foto.ancho && foto.alto ? `${foto.ancho}×${foto.alto}` : '', foto.tamano ? pesoLegible(foto.tamano) : '', foto.ruta ? 'en el teléfono' : ''].filter(Boolean);
   return `<li class="invoice-foto">
     <img src="${esc(foto.dataUrl)}" alt="${esc(nombre)}" loading="lazy">
     <div class="invoice-foto-pie">
-      <span class="tiny muted">${foto.ancho}×${foto.alto} · ${pesoLegible(foto.tamano || 0)}</span>
+      <span class="tiny muted">${esc(detalle.join(' · '))}</span>
       <div class="inline">
         ${button('↻ Girar', 'invoice-girar', 'btn-secondary btn-small', `${datos} aria-label="Girar ${esc(nombre)} un cuarto de vuelta"`)}
         ${button('Quitar', 'invoice-quitar-foto', 'btn-quiet btn-small', `${datos} aria-label="Quitar ${esc(nombre)}"`)}
@@ -624,15 +663,25 @@ function fotoHTML(factura, foto, indice) {
 /* ── Paso 2: leer, que es donde hay que ser honesto ────────────────────── */
 
 function pasoLeyendo(ctx, invoice, factura) {
+  const telefono = lector();
   const servicio = Boolean(ctx.servicios?.vision);
   const enviando = enviandoDe(factura);
   const peso = factura.imagenes.reduce((suma, foto) => suma + (foto.tamano || 0), 0);
   const volver = button('Volver a las fotos', 'invoice-volver-capturar', 'btn-quiet');
-  if (!servicio) {
+  // El progreso va primero: mientras algo está en marcha, lo único que importa
+  // enseñar es por dónde va.
+  if (leyendoDe(factura)) {
     return `<div class="stack invoice">
       ${barraPasos('leyendo')}
-      ${bloqueSinServicio(factura)}
-      <div class="card"><div class="modal-actions">${volver}${button('Cerrar', 'invoice-terminar', 'btn-secondary')}</div></div>
+      <div class="card stack">
+        <h2>Leyendo la factura</h2>
+        <div class="invoice-progreso" role="status" aria-live="polite">
+          <span class="invoice-puntos" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span>Leyendo la foto ${leyendo.hecha + 1} de ${leyendo.total}. Ocurre dentro de este teléfono: no se envía nada a ninguna parte.</span>
+        </div>
+        <p class="small muted">Nada se guarda todavía: cuando termine verás una tabla con una fila por línea y podrás corregirla entera.</p>
+        <div class="modal-actions">${button('Cancelar la lectura', 'invoice-cancelar-lectura', 'btn-secondary')}</div>
+      </div>
     </div>`;
   }
   if (enviando) {
@@ -649,18 +698,41 @@ function pasoLeyendo(ctx, invoice, factura) {
       </div>
     </div>`;
   }
+  // Una lectura que no salió no puede llevarse por delante ni las fotos ni la
+  // fecha escrita a mano: las dos siguen en `factura`, y desde aquí se puede
+  // reintentar o escribir las líneas sin volver a fotografiar nada.
   if (invoice.error) {
     return `<div class="stack invoice">
       ${barraPasos('leyendo')}
       <div class="card stack">
         <h2>No se pudo leer</h2>
-        ${notice('El servicio no devolvió la lectura', esc(invoice.error), 'error')}
-        <p><strong>No se perdió nada:</strong> las ${fotos(factura.imagenes.length)} siguen aquí, con su fecha y su establecimiento tal como los escribiste. Puedes intentarlo otra vez o escribir las líneas a mano.</p>
+        ${notice(esc(invoice.errorTitulo || 'La lectura no salió'), esc(invoice.error), 'error')}
+        <p><strong>No se perdió nada:</strong> ${factura.imagenes.length === 1 ? 'la foto sigue' : `las ${factura.imagenes.length} fotos siguen`} aquí, con su fecha y su establecimiento tal como los escribiste. Puedes intentarlo otra vez o escribir las líneas a mano.</p>
         <div class="modal-actions">
           ${button('Intentarlo otra vez', 'invoice-reintentar', 'btn-primary')}
           ${button('🗣️ Escribirlo a mano', 'open-bulk', 'btn-secondary')}
           ${volver}
         </div>
+      </div>
+    </div>`;
+  }
+  if (!telefono.ok && !servicio) {
+    return `<div class="stack invoice">
+      ${barraPasos('leyendo')}
+      ${bloqueSinLector(factura)}
+      <div class="card"><div class="modal-actions">${volver}${button('Cerrar', 'invoice-terminar', 'btn-secondary')}</div></div>
+    </div>`;
+  }
+  // La lectura del teléfono arranca sola al entrar en este paso, así que esta
+  // tarjeta casi nunca se ve. Existe para el caso en que se vuelva aquí con la
+  // lectura ya terminada o cancelada: sin ella la pantalla se quedaría muda.
+  if (telefono.ok) {
+    return `<div class="stack invoice">
+      ${barraPasos('leyendo')}
+      <div class="card stack">
+        <h2>Listo para leer</h2>
+        <p>Se van a leer ${factura.imagenes.length} ${fotos(factura.imagenes.length)} con el lector de textos de este teléfono. ${esc(telefono.detalle)}</p>
+        <div class="modal-actions">${button('Leer ahora', 'invoice-reintentar', 'btn-primary')}${volver}</div>
       </div>
     </div>`;
   }
@@ -696,6 +768,7 @@ function pasoRevisar(ctx, invoice, factura) {
         <div>
           <h2>Revisa antes de guardar</h2>
           <p data-invoice-cuenta>${esc(textoCuenta(filas))}</p>
+          ${selloDeLectura(factura)}
         </div>
         <div class="inline">
           ${button('Volver a las fotos', 'invoice-volver-capturar', 'btn-quiet')}
@@ -706,6 +779,7 @@ function pasoRevisar(ctx, invoice, factura) {
       ${avisosHTML(invoice)}
       ${notice('La columna de la izquierda es la prueba', 'Es el texto tal como salió impreso en el papel. Compáralo con el nombre de al lado: es lo único que permite saber si la máquina leyó bien.')}
       ${filas.length ? tablaHTML(ctx, filas) : '<p class="muted">Esta lectura no trajo ninguna línea. Añade una a mano o vuelve a las fotos.</p>'}
+      ${descartadasHTML(factura.revision)}
       <div class="invoice-ficha">
         <label class="field">
           <span>Fecha de la compra</span>
@@ -725,6 +799,29 @@ function pasoRevisar(ctx, invoice, factura) {
       </div>
     </div>
   </form>`;
+}
+
+// Una etiqueta pequeña, no un cartel. Que la foto no haya salido del teléfono
+// es una garantía de verdad y hay que poder verla, pero es una garantía, no una
+// noticia: no debe quitarle sitio a lo que hay que revisar.
+const selloDeLectura = factura => (factura.origenLectura === 'telefono'
+  ? '<span class="pill gray invoice-sello">🔒 leída en tu teléfono, no salió de aquí</span>'
+  : '');
+
+// Lo que el lector dejó fuera por su cuenta: el total, la fecha, el número de
+// caja, la propaganda del pie. Se enseñan igual, plegadas, por la misma razón
+// por la que no se descarta ninguna línea de la tabla: una línea que desaparece
+// es una compra que nadie puede corregir porque ya no la ve.
+function descartadasHTML(revision) {
+  const sobras = (revision?.descartadas || []).map(texto).filter(Boolean);
+  if (!sobras.length) return '';
+  const visibles = sobras.slice(0, MAX_DESCARTADAS);
+  return `<details class="invoice-descartadas">
+    <summary>${esc(`Ver las ${sobras.length} ${lineas(sobras.length)} que el lector no tomó por producto`)}</summary>
+    <p class="tiny muted">Suelen ser el total, la fecha o el número de caja. Si entre ellas hay comida, añádela con «Añadir una línea a mano»: aquí está el texto tal como se leyó.</p>
+    <ul class="invoice-sobras">${visibles.map(linea => `<li><code class="invoice-impreso">${esc(linea)}</code></li>`).join('')}</ul>
+    ${sobras.length > visibles.length ? `<p class="tiny muted">${esc(`Y ${sobras.length - visibles.length} más.`)}</p>` : ''}
+  </details>`;
 }
 
 // La pregunta que no se puede saltar. Por defecto, solo aprender: una factura
@@ -990,6 +1087,108 @@ const intentarAsync = async (ctx, fn) => {
   try { await fn(); } catch (error) { ctx.toast?.(error.message, true); }
 };
 
+// El fallo de una lectura lleva dos frases: de qué se está hablando y qué se
+// puede hacer. Van juntas y por una sola puerta para que ninguna vía de lectura
+// se olvide de decir la primera.
+function fallarLectura(invoice, titulo, detalle) {
+  invoice.errorTitulo = titulo;
+  invoice.error = detalle;
+}
+
+// Un respiro de verdad —una vuelta entera del reloj, no un microtask— para que
+// el navegador llegue a pintar el número de la foto antes de que el motor
+// nativo se lleve el hilo. Sin esto las tres fotos pasan con la pantalla
+// congelada en «1 de 3».
+const respirar = () => new Promise(listo => setTimeout(listo, 0));
+
+// El puente entre cualquier lectura y la pantalla de revisión. Las dos vías
+// entregan la misma forma, así que lo que se decide con ella se decide en un
+// solo sitio. Y lo primero que se decide es que sin líneas no se pasa: una
+// tabla vacía con un botón de guardar debajo es una invitación a guardar nada.
+function aplicarLectura(ctx, factura, datos, origen) {
+  const invoice = invoiceDe(ctx);
+  const revision = revisarFactura(datos, ctx.state.products);
+  if (!revision.lineas.length) {
+    fallarLectura(invoice, 'Se leyó la foto, pero no salió ninguna línea',
+      texto(datos.aviso) || 'Suele pasar con fotos movidas o a contraluz: repite la foto más cerca y con más luz, o escribe las líneas a mano.');
+    return false;
+  }
+  factura.extraccion = datos;
+  // El simulador se marca a sí mismo. Enseñarlo como una lectura de verdad
+  // sería meterle a alguien en el inventario dos líneas inventadas.
+  factura.simulada = datos.simulated === true;
+  factura.origenLectura = origen;
+  factura.revision = {
+    ...revision,
+    descartadas: Array.isArray(datos.descartadas) ? datos.descartadas : [],
+    lineas: revision.lineas.map(linea => construirFila(ctx.state, linea))
+  };
+  factura.fecha = factura.fecha || revision.fecha || '';
+  factura.establecimiento = factura.establecimiento || revision.establecimiento || '';
+  // Un aviso con líneas detrás no es un fallo, es una reserva: se enseña encima
+  // de la tabla y la revisión sigue.
+  if (texto(datos.aviso)) invoice.avisos = [...(invoice.avisos || []), texto(datos.aviso)];
+  invoice.paso = 'revisar';
+  return true;
+}
+
+/* ── Leer con el propio teléfono ───────────────────────────────────────── */
+
+// El camino normal. Ninguna foto sale del aparato: el lector de textos va
+// dentro, así que no hay nada que autorizar ni nada que esperar de la red.
+//
+// Con varias fotos de una misma factura se leen todas y el texto se junta en el
+// orden en que se tomaron, porque una factura partida en tres trozos sigue
+// siendo una lista de arriba abajo y desordenarla rompería las líneas que
+// quedaron cortadas entre una foto y otra.
+async function leerConElTelefono(ctx, factura) {
+  const invoice = invoiceDe(ctx);
+  invoice.error = '';
+  const total = factura.imagenes.length;
+  const tarea = { facturaId: factura.id, hecha: 0, total, cancelado: false };
+  leyendo = tarea;
+  const partes = [];
+  const fallos = [];
+  try {
+    for (let indice = 0; indice < total; indice++) {
+      if (tarea.cancelado) return;
+      tarea.hecha = indice;
+      ctx.render?.();
+      await respirar();
+      const salida = await leerFoto(await fuenteDeLectura(factura.imagenes[indice]));
+      if (salida.ok) partes.push(salida.texto);
+      else fallos.push(`la foto ${indice + 1} (${salida.error})`);
+    }
+  } finally {
+    if (leyendo === tarea) leyendo = null;
+    // La copia que el lector necesitó hacer se va en cuanto deja de hacer falta,
+    // salga bien o salga mal. La foto de verdad la guarda la app aparte, y solo
+    // si el usuario lo pide.
+    await borrarTemporales();
+  }
+  if (tarea.cancelado) return;
+
+  const crudo = partes.join('\n').trim();
+  if (!crudo) {
+    fallarLectura(invoice, 'No se leyó ni una letra',
+      `${fallos.length ? `No se pudo leer ${fallos.join(', ')}. ` : ''}Suele ser la luz o el pulso: acerca el papel, estíralo y evita el reflejo. También puedes escribir las líneas a mano.`);
+    ctx.render?.();
+    return;
+  }
+  if (fallos.length) invoice.avisos = [...(invoice.avisos || []), `De ${total} ${fotos(total)} no se pudo leer ${fallos.join(', ')}. Comprueba que no falten líneas en la tabla.`];
+
+  try {
+    aplicarLectura(ctx, factura, leerTicket(crudo), 'telefono');
+  } catch {
+    // Se leyó, pero el texto no se pudo convertir en líneas. Las fotos siguen
+    // en pie, que es lo que permite reintentar sin volver a fotografiar.
+    fallarLectura(invoice, 'El texto se leyó, pero no se pudo ordenar en líneas', 'Inténtalo otra vez, o escribe las líneas a mano.');
+  }
+  ctx.render?.();
+}
+
+/* ── Leer con un servidor propio ───────────────────────────────────────── */
+
 // El envío de verdad. callProvider promete no lanzar por red, pero el try está
 // igual: si algo se rompiera aquí, las fotos y lo escrito tienen que seguir en
 // pie para poder reintentar.
@@ -1000,59 +1199,70 @@ async function enviar(ctx, factura) {
   ctx.render?.();
   let respuesta;
   try {
-    respuesta = await callProvider('vision', {
-      imagenes: factura.imagenes.map(foto => base64De(foto.dataUrl)),
-      pista: 'factura'
-    }, { signal: envio.control.signal, timeoutMs: ESPERA_VISION });
+    const imagenes = [];
+    for (const foto of factura.imagenes) imagenes.push(await base64DeFoto(foto));
+    respuesta = await callProvider('vision', { imagenes, pista: 'factura' }, { signal: envio.control.signal, timeoutMs: ESPERA_VISION });
   } catch {
     respuesta = { ok: false, error: 'No se pudo hablar con el servicio. Las fotos siguen aquí.' };
   }
   envio = null;
   if (!respuesta.ok) {
-    invoice.error = respuesta.error || 'No se pudo leer la factura.';
+    fallarLectura(invoice, 'El servicio no devolvió la lectura', respuesta.error || 'No se pudo leer la factura.');
     ctx.render?.();
     return;
   }
   try {
-    const datos = respuesta.data || {};
-    factura.extraccion = datos;
-    // El simulador se marca a sí mismo. Enseñarlo como una lectura de verdad
-    // sería meterle a alguien en el inventario dos líneas inventadas.
-    factura.simulada = datos.simulated === true;
-    const revision = revisarFactura(datos, ctx.state.products);
-    if (!revision.lineas.length) {
-      invoice.error = 'El servicio contestó, pero sin ninguna línea. Suele pasar con fotos movidas o a contraluz: repite la foto, o escribe las líneas a mano.';
-      ctx.render?.();
-      return;
-    }
-    factura.revision = { ...revision, lineas: revision.lineas.map(linea => construirFila(ctx.state, linea)) };
-    factura.fecha = factura.fecha || revision.fecha || '';
-    factura.establecimiento = factura.establecimiento || revision.establecimiento || '';
-    invoice.paso = 'revisar';
+    aplicarLectura(ctx, factura, respuesta.data || {}, 'servidor');
   } catch {
-    // La respuesta llegó pero no se pudo convertir en tabla. Las fotos siguen
-    // en pie, que es lo que permite reintentar sin volver a fotografiar.
-    invoice.error = 'El servicio respondió algo que no se entiende. Inténtalo otra vez o escribe las líneas a mano.';
+    fallarLectura(invoice, 'El servicio respondió algo que no se entiende', 'Inténtalo otra vez o escribe las líneas a mano.');
   }
   ctx.render?.();
 }
 
-// `enviar` es asíncrona y nadie la espera: se lanza y la pantalla se redibuja
-// sola cuando termina. Un fallo suyo no puede quedarse en una promesa colgada
-// sin que el usuario se entere.
+// Las dos lecturas son asíncronas y nadie las espera: se lanzan y la pantalla se
+// redibuja sola cuando terminan. Un fallo suyo no puede quedarse en una promesa
+// colgada sin que el usuario se entere.
 const lanzar = (ctx, factura) => { enviar(ctx, factura).catch(error => ctx.toast?.(error.message, true)); };
+const lanzarTelefono = (ctx, factura) => { leerConElTelefono(ctx, factura).catch(error => ctx.toast?.(error.message, true)); };
 
+// El orden de preferencia, escrito una sola vez. Primero el propio aparato, que
+// no pide permiso porque no manda nada a ninguna parte; después el servidor,
+// solo si alguien lo montó a propósito; y si no hay ninguno se entra igual en el
+// paso de lectura, que es donde se dice con todas las letras que esas fotos hay
+// que leerlas a mano.
 function empezarLectura(ctx, factura) {
   const invoice = invoiceDe(ctx);
   invoice.paso = 'leyendo';
   invoice.error = '';
-  // Sin servicio se entra igual en el paso de lectura: es ahí donde se dice,
-  // con todas las letras, que no se leyó nada y cuáles son las dos salidas.
+  invoice.avisos = [];
+  if (lector().ok) { lanzarTelefono(ctx, factura); return; }
   if (!ctx.servicios?.vision || !permisoDeEnvio) { ctx.render?.(); return; }
   lanzar(ctx, factura);
 }
 
+// Una foto con la cámara del propio teléfono. Se sincroniza antes de abrirla
+// porque la cámara tapa la pantalla y, al volver, todo se redibuja: la fecha y
+// el establecimiento a medio escribir tienen que estar ya guardados.
+const tomarDelTelefono = (el, ctx, opciones) => intentarAsync(ctx, async () => {
+  const invoice = sincronizar(el, ctx);
+  const resultado = await tomarFoto(opciones);
+  // Arrepentirse no es fallar. Quien cierra la cámara vuelve a la pantalla tal
+  // como estaba, sin un solo aviso rojo por haber cambiado de idea.
+  if (!resultado.ok) {
+    if (!resultado.cancelado) ctx.toast?.(resultado.error, true);
+    return;
+  }
+  const factura = facturaActual(invoice) || nuevaFactura(invoice);
+  factura.imagenes.push(await fotoDelTelefono(resultado));
+  invoice.actual = factura.id;
+  invoice.avisos = [];
+  ctx.render?.();
+});
+
 export const INVOICE_ACTIONS = {
+  'invoice-camara': (el, ctx) => tomarDelTelefono(el, ctx, {}),
+  'invoice-galeria': (el, ctx) => tomarDelTelefono(el, ctx, { desdeGaleria: true }),
+
   'invoice-otra-factura': (el, ctx) => intentar(ctx, () => {
     const invoice = sincronizar(el, ctx);
     Object.assign(invoice, { paso: 'capturar', error: '', avisos: [] });
@@ -1124,6 +1334,12 @@ export const INVOICE_ACTIONS = {
   'invoice-cancelar-lectura': (el, ctx) => intentar(ctx, () => {
     envio?.control.abort();
     envio = null;
+    // El motor nativo no sabe soltar una foto a medias, así que la lectura se
+    // corta entre una y la siguiente: la que esté en marcha termina y su texto
+    // se tira. Cortar de verdad significaría matar el proceso, y eso se lleva
+    // por delante la app entera.
+    if (leyendo) leyendo.cancelado = true;
+    leyendo = null;
     const invoice = invoiceDe(ctx);
     invoice.paso = 'capturar';
     ctx.render?.();
@@ -1133,7 +1349,12 @@ export const INVOICE_ACTIONS = {
   'invoice-reintentar': (el, ctx) => intentar(ctx, () => {
     const invoice = invoiceDe(ctx);
     const factura = facturaActual(invoice);
-    if (factura) lanzar(ctx, factura);
+    if (!factura) return;
+    invoice.error = '';
+    // El mismo orden de siempre. Reintentar con el servidor no vuelve a pedir
+    // permiso porque ya se dio en esta sesión y las fotos son las mismas.
+    if (lector().ok) lanzarTelefono(ctx, factura);
+    else lanzar(ctx, factura);
   }),
 
   'invoice-volver-capturar': (el, ctx) => intentar(ctx, () => {
@@ -1152,7 +1373,7 @@ export const INVOICE_ACTIONS = {
     let guardadas = 0;
     for (const foto of factura.imagenes) {
       if (foto.guardada) continue;
-      foto.guardada = await guardarImagen(aBlob(foto.dataUrl), {
+      foto.guardada = await guardarImagen(await blobDeFoto(foto), {
         facturaId: factura.id, nombre: foto.nombre, fecha: factura.fecha, establecimiento: factura.establecimiento
       });
       guardadas++;
@@ -1244,6 +1465,11 @@ export const INVOICE_FORMS = {
     const invoice = invoiceDe(ctx);
     leerFichas(invoice, form);
     const entradas = [...form.querySelectorAll('[data-invoice-archivos]')];
+    // En el teléfono las fotos entran por la cámara nativa y aquí no hay ningún
+    // campo de archivo. Este envío es entonces el Enter que alguien dio al
+    // escribir el establecimiento: se guarda la ficha y no se dice nada, porque
+    // reñirle por «elige una foto» sería contestarle a algo que no preguntó.
+    if (!entradas.length) { ctx.render?.(); return; }
     const archivos = entradas.flatMap(input => [...(input.files || [])]);
     // Se vacían antes de trabajar: si no, elegir la misma foto dos veces no
     // dispara el cambio y parece que la app se quedó colgada.
