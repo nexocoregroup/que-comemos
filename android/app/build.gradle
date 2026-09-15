@@ -17,6 +17,27 @@ android {
         }
     }
     buildTypes {
+        debug {
+            // Solo la arquitectura de los teléfonos de verdad.
+            //
+            // Los motores nativos —el lector de texto pesa unos 10 MB él solo—
+            // se empaquetan una vez por arquitectura, y sin filtrar iban cuatro:
+            // 39 de los 52 MB del APK eran eso. `x86` y `x86_64` solo sirven
+            // para emuladores, y `armeabi-v7a` para teléfonos de hace más de una
+            // década. Quitando las tres, el APK de depuración baja a unos 23 MB
+            // y compila más rápido.
+            //
+            // Esto vale solo para depuración, que es el archivo que se pasa a
+            // mano al teléfono. La versión de Play Store se sube como AAB y allí
+            // Google hace este mismo reparto solo, generando un paquete por
+            // dispositivo: no hay que tocar nada para eso.
+            //
+            // Si algún día hace falta probar en un emulador x86, se comenta este
+            // bloque y se vuelve a compilar.
+            ndk {
+                abiFilters 'arm64-v8a'
+            }
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
