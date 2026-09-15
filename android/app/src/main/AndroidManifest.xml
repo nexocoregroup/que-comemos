@@ -33,9 +33,45 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- Baja el modelo de lectura de texto en cuanto se instala la app, en
+             vez de la primera vez que alguien fotografía una factura. Sin esto,
+             ese primer intento se queda esperando una descarga sin explicación.
+             El modelo pesa unos pocos megas y luego funciona sin conexión. -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="ocr" />
     </application>
 
-    <!-- Permissions -->
+    <!-- Permisos -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Dictar. El reconocimiento corre dentro del aparato cuando el teléfono
+         lo soporta, pero el micrófono sigue necesitando permiso del usuario. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Fotografiar facturas. La lectura también ocurre dentro del aparato: la
+         imagen no sale del teléfono ni se sube a ningún sitio. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Elegir una factura ya fotografiada. En Android 13 y posteriores manda
+         READ_MEDIA_IMAGES; el permiso viejo se limita a las versiones
+         anteriores para no pedir de más en los teléfonos nuevos. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <!-- Android 11 y posteriores esconden qué apps hay instaladas. Sin esto, el
+         teléfono no encuentra su propio motor de reconocimiento de voz y el
+         dictado falla sin decir por qué. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+    </queries>
 </manifest>

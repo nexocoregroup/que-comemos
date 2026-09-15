@@ -72,7 +72,7 @@ El intérprete es **100 % determinista y funciona sin conexión**: entiende núm
 
 Antes de guardar siempre hay una pantalla de revisión: nombre, cantidad, unidad, categoría y qué hacer con cada fila (incluir, crear nuevo, unir con uno existente, ignorar). Si algo se parece a un producto que ya existe, la fila lo dice y propone unirlos.
 
-En Android, la forma fiable de dictar es **el micrófono del teclado**, que funciona en cualquier campo de texto. El botón de micrófono propio aparece solo si el navegador expone reconocimiento de voz.
+Hay un botón de micrófono: en la app instalada usa el reconocimiento de Android, **dentro del aparato y sin conexión**; en el navegador usa el del navegador, que sí pasa por sus servidores y la app lo avisa. Lo dictado se **añade** a lo que ya hubiera escrito, para poder dictar en varias tandas, y **no se ejecuta solo**: queda en el campo para leerlo y corregirlo antes de enviar.
 
 ### El asistente
 
@@ -97,9 +97,9 @@ Una factura antigua **nunca** modifica las existencias de hoy. Si es reciente, l
 
 Las líneas se revisan siempre antes de guardar, con el texto tal como salió impreso a la vista (`PLAT MAD 6 UND`) para poder comprobar la lectura. Una lectura de confianza baja se resalta y nunca arranca marcada para incluir.
 
-**La extracción por OCR necesita un servicio configurado.** Sin él, la pantalla lo dice con todas sus letras y ofrece escribir o dictar las líneas.
+**La lectura la hace el teléfono**, con ML Kit dentro del aparato: sin servidor, sin clave y sin que la foto salga de ahí. El texto crudo que devuelve lo interpreta `src/receipt-parse.js`, que conoce cómo son los tiques dominicanos —precios al final, `2 X SALAMI`, `ARROZ SELECTO 5LB`, el ITBIS y el total que no son productos—.
 
-Sin ese servicio, además, **el paso de hábitos se queda vacío**: la comparación entre meses se alimenta de facturas aprobadas, y a la revisión solo se llega desde una extracción. La salida manual llena el catálogo y la canasta, pero no deja registro de factura, así que no cuenta repeticiones. Lo que sí funciona sin nada: fotografiar, girar, reducir, guardar las fotos en el dispositivo, recuperarlas en otra sesión y borrarlas.
+**En el navegador esto no existe**: es de la aplicación instalada. Ahí la pantalla lo dice y ofrece escribir o dictar las líneas.
 
 ### A mano
 
@@ -159,19 +159,32 @@ Cada alimento tiene nombre, nombre normalizado, alias, categoría, unidad de con
 
 **Grosor.** Lo que se cuenta en ruedas o rebanadas lleva el grosor con que se corta en casa: fina (2–3 mm), mediana (4–5 mm), gruesa (6–8 mm). No convierte cantidades: deja escrito qué significa una rueda *aquí*, que es lo que hace comparable el conteo de una semana con el de la siguiente.
 
-## Servicios externos
+## Voz y cámara: lo hace el teléfono
 
-Tres funciones necesitan un modelo que la app no lleva dentro: **transcribir** audio, **entender** frases libres y **leer** facturas. Todo lo demás —y es casi todo— funciona sin conexión y sin configurar nada.
+Dictar y leer facturas **no necesitan servidor, ni cuenta, ni clave, ni conexión, ni cuestan dinero**. Los motores viajan dentro del APK y corren en el aparato.
 
-**Ninguna clave vive dentro de la aplicación.** Irían dentro del APK y cualquiera podría extraerlas. Lo que se configura en *Ajustes → Voz e inteligencia* es la dirección de **tu propio servidor**, que es quien guarda la clave.
+| Función | Cómo | Qué necesita |
+|---|---|---|
+| **Dictar** en vez de escribir | Reconocimiento de voz nativo de Android | Permiso de micrófono |
+| **Leer una factura** de una foto | ML Kit Text Recognition de Google, en el aparato | Permiso de cámara |
 
-- `docs/backend.md` — el contrato exacto de las tres rutas, con el JSON de ida y vuelta, cómo desplegarlo y qué sigue funcionando si no lo despliegas.
+Ni la voz ni las fotos salen del teléfono. No hay nada que configurar: *Ajustes → Voz y cámara* no pide datos, **dice qué puede tu aparato en concreto**, que es la única respuesta útil cuando algo no funciona.
+
+La primera versión de esto mandaba las dos cosas a un servidor que el usuario tenía que montar. Era un error de diseño: esta app es para una casa corriente, y una casa corriente no despliega un servidor. Pedirlo convertía dos funciones útiles en dos funciones que nadie iba a usar.
+
+**En el navegador** el dictado usa el reconocimiento del propio navegador —que sí pasa por sus servidores, y la app lo avisa— y la lectura de facturas no existe: es de la aplicación instalada. En los dos casos queda escribir a mano, que funciona siempre.
+
+### Lo único que sí necesitaría un servidor
+
+**Entender frases libres.** La app reconoce sin conexión un buen puñado de frases por su forma —agregar a la canasta, registrar una compra, cuánto queda, quién no come, qué se cocina— y las va listando en la sección del asistente. Para lenguaje *totalmente* libre haría falta un modelo grande, que no cabe dentro de la aplicación.
+
+Eso es opcional y está plegado en *Ajustes → Conectar un servicio propio*. Y si algún día se conecta, **lo natural es un solo servidor para todos los usuarios, no uno por familia**:
+
+- `docs/backend.md` — el contrato exacto de las tres rutas, con el JSON de ida y vuelta.
 - `backend/ejemplo-worker.js` — un Cloudflare Worker completo contra la API de Anthropic.
 - `.env.example` — las variables, comentadas, sin secretos.
 
-`.env` está en `.gitignore`. La app avisa y pide permiso antes de cada envío, y dice qué sale del dispositivo.
-
-Modelo por defecto documentado: `claude-opus-5`; `claude-haiku-4-5-20251001` para lo barato. La API de Anthropic no recibe audio, así que la transcripción usa un servicio de voz aparte y devuelve 501 si no está configurado, sin romper las otras dos rutas.
+**Ninguna clave vive dentro de la aplicación.** Irían dentro del APK y cualquiera podría extraerlas. `.env` está en `.gitignore`.
 
 ## Respaldos y migración
 
@@ -213,15 +226,18 @@ winget install EclipseAdoptium.Temurin.21.JDK
 winget install Google.AndroidStudio
 ```
 
-Abre Android Studio una vez para que descargue el SDK, y ciérralo. Después:
+Abre Android Studio una vez para que descargue el SDK, y ciérralo. Después, **la primera vez**, instala los complementos nativos —voz, cámara, sistema de archivos y lectura de texto—, que son los que meten esos motores dentro del APK:
 
 ```powershell
+npm install
 npm run android
 cd android
 .\gradlew assembleDebug
 ```
 
 El archivo queda en `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+La primera compilación con los complementos tarda bastante más: Gradle baja ML Kit y las bibliotecas de cámara y voz. Las siguientes van rápido. Si el APK crece unos cuantos megas, es eso.
 
 `npm run android` copia el casco web a `www/` y lo lleva al proyecto de Android. **Hay que ejecutarlo después de cada cambio**: el APK no se actualiza solo. Está firmado con la clave de depuración; para Play Store hacen falta una clave propia y `assembleRelease`.
 
@@ -250,7 +266,9 @@ Esta elección es una hipótesis de diseño, no una afirmación de que un color 
 - La canasta se reparte por días y nada más: no sabe de ausencias, de visitas ni de que en diciembre se come distinto.
 - Las equivalencias no se infieren y las unidades incompatibles no se convierten.
 - La lista para un período futuro usa las existencias de hoy hasta que registres consumo real.
-- Sin servicio de lectura de facturas no hay análisis de hábitos entre meses: hace falta una extracción aprobada para que un mes cuente.
+- El análisis de hábitos entre meses necesita facturas leídas y aprobadas: escribir las líneas a mano llena el catálogo y la canasta, pero no cuenta como un mes.
+- La lectura de facturas y el dictado sin conexión son de la **aplicación instalada**; en el navegador no están.
+- El reconocimiento de voz dentro del aparato depende del teléfono. Donde no exista, Android cae a su ruta de siempre, que sí usa conexión.
 - Los alimentos creados desde la canasta o desde un texto **nacen con cero existencias**: la primera lista de compra pedirá de más si ya tenías cosas en casa. Se arregla con una corrección de conteo, o registrando la apertura al crear el alimento a mano.
 
 ## Estructura del proyecto
@@ -274,7 +292,9 @@ Esta elección es una hipótesis de diseño, no una afirmación de que un color 
 - `src/bulk-entry.js` — escribir o dictar varios productos.
 - `src/invoice-ui.js` — captura y revisión de facturas.
 - `src/invoice-store.js` — las imágenes, en IndexedDB. Borrar la imagen **no** borra los productos aprobados: son datos distintos con vidas distintas.
-- `src/providers.js` — transporte HTTP hacia el backend. No sabe nada del dominio.
+- `src/device.js` — el puente con lo que el teléfono sabe hacer solo: voz, cámara y lectura de texto. No importa ni un paquete de npm: Capacitor deja los complementos en `window.Capacitor.Plugins` y se leen de ahí, que además es la comprobación de disponibilidad más honesta que hay.
+- `src/receipt-parse.js` — convierte el texto crudo de una factura en líneas de producto. Determinista, corre en Node y por eso se puede probar sin teléfono.
+- `src/providers.js` — transporte HTTP hacia el backend opcional. No sabe nada del dominio.
 - `src/storage.js` — lectura y escritura locales, con la migración y su respaldo previo.
 - `src/onboarding.js` — texto de la bienvenida y del recorrido. **Se dibuja con `esc()`: no admite etiquetas HTML.**
 - `src/demo.js` — datos de ejemplo.
@@ -285,6 +305,10 @@ Esta elección es una hipótesis de diseño, no una afirmación de que un color 
 
 **Pruebas.** `tests/` — modelo, canastas, migración, asistente, parser, facturas y proveedores.
 
-Las únicas dependencias son las de Capacitor, y solo para compilar el APK. `npm start` y `npm test` funcionan sin instalar nada.
+Las dependencias son las de Capacitor y cuatro complementos nativos —voz, cámara, sistema de archivos y lectura de texto—, y **solo hacen falta para compilar el APK**: meten código nativo dentro de la aplicación. La app web no importa ninguno, así que `npm start` y `npm test` siguen funcionando sin instalar nada.
+
+```powershell
+npm install    # solo antes de compilar el APK por primera vez
+```
 
 Para añadir cuentas y sincronización, sustituye `src/storage.js` por un adaptador de API y conserva `src/model.js` con sus pruebas. Al cambiar el esquema: sube `SCHEMA_VERSION` en `src/migrate.js` y añade el paso a `STEPS`. Para un campo nuevo dentro de la misma versión basta declararlo en `OPTIONAL_V2`, o los respaldos anteriores dejan de abrir.

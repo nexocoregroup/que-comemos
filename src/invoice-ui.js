@@ -4,11 +4,14 @@
 //
 // Cinco reglas gobiernan el archivo entero:
 //
-//   1. Nada se lee solo. Sin servicio configurado no se finge una lectura: se
-//      dice con todas las letras que no se leyó nada y se ofrecen dos salidas
-//      reales —escribirlo a mano o guardar las fotos para después—. Un dato
-//      inventado metido en el inventario de alguien es peor que no tener la
-//      función.
+//   1. La lectura la hace el aparato que tiene la foto delante. El teléfono trae
+//      dentro el lector de textos de Google, así que en la aplicación instalada
+//      la factura se lee sin conexión, sin clave y sin que la foto salga de
+//      casa: ese es el camino normal y no pide permiso de envío porque no hay
+//      envío. Un servidor propio es el segundo camino, solo para quien lo montó
+//      a propósito; escribir a mano es el tercero y nunca falla. Lo que no se
+//      hace jamás es fingir una lectura: un dato inventado metido en el
+//      inventario de alguien es peor que no tener la función.
 //   2. Nada se guarda sin pasar por la tabla. El texto impreso se enseña
 //      siempre, tal como salió del papel: es lo único que permite comprobar si
 //      la máquina leyó bien. Lo dudoso se resalta y nunca arranca aprobado.
@@ -27,8 +30,10 @@
 // avanzaría de paso.
 
 import { CATEGORIES } from './catalog-seed.js';
+import { borrarTemporales, capacidad, leerFoto, tomarFoto } from './device.js';
 import { DECISIONES, UNITS, frecuencias, proponerCanasta, revisarFactura, sugerencias } from './invoices.js';
 import { borrarFactura, borrarImagen, disponible, guardarImagen, leerImagen, listarImagenes } from './invoice-store.js';
+import { leerTicket } from './receipt-parse.js';
 import {
   addProduct, addPurchase, baseLines, convert, nextId, normalizeName, product,
   productByName, setBaseBasket, todayISO, transaction, updateProduct, validDate
@@ -42,6 +47,10 @@ import { button, esc, notice, options, productDatalist, productField } from './u
 // tamaño completo: el texto de un tique se lee de sobra con el lado mayor en
 // 1600 px, y mandar los cuatro megas solo cuesta datos del usuario, tiempo de
 // espera y, con varias fotos, un 413 del servicio.
+//
+// Solo se aplica a lo que entra por el `<input type="file">` del navegador. La
+// cámara del teléfono ya devuelve la foto reducida a esa misma medida —lo hace
+// `tomarFoto`—, y volver a reencodarla aquí solo perdería letra.
 const LADO_MAXIMO = 1600;
 const CALIDAD_JPEG = 0.82;
 // Leer una factura con varias fotos tarda mucho más que contestar un mensaje;
@@ -116,6 +125,13 @@ const porcentaje = valor => `${Math.round(Number(valor || 0) * 100)} %`;
 const pesoLegible = bytes => (bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} kB`);
 const NIVELES = { alta: 'lectura clara', media: 'lectura regular', baja: 'lectura dudosa' };
 
+// Se preguntan en cada dibujo y no una vez al importar: el módulo se carga antes
+// de que Capacitor termine de colgar sus complementos de `window`, y una
+// respuesta cacheada de ese instante diría «aquí no se puede leer» para toda la
+// vida de la app.
+const lector = () => capacidad('leer-foto');
+const camara = () => capacidad('camara');
+
 /* ── El estado de la pantalla ──────────────────────────────────────────── */
 
 export function emptyInvoice() {
@@ -130,6 +146,10 @@ let permisoDeEnvio = false;
 // y solo puede haber uno. Guarda con qué factura se corresponde para que la
 // barra de progreso no aparezca sobre otra.
 let envio = null;
+// Lo mismo para la lectura dentro del aparato, que va foto a foto. Lleva la
+// cuenta porque con tres fotos el silencio dura varios segundos y sin un número
+// que avance la pantalla parece colgada.
+let leyendo = null;
 // Mientras se reducen las fotos la pantalla tiene que decirlo: en un teléfono
 // viejo, tres fotos tardan.
 let procesando = false;
@@ -157,6 +177,7 @@ function nuevoId(prefijo) {
 const facturaPorId = (invoice, id) => invoice.facturas.find(factura => factura.id === id) || null;
 const facturaActual = invoice => facturaPorId(invoice, invoice.actual);
 const enviandoDe = factura => Boolean(envio && factura && envio.facturaId === factura.id);
+const leyendoDe = factura => Boolean(leyendo && factura && leyendo.facturaId === factura.id);
 
 function nuevaFactura(invoice) {
   const factura = {
@@ -167,6 +188,10 @@ function nuevaFactura(invoice) {
     extraccion: null,
     revision: null,
     simulada: false,
+    // De dónde salió la lectura. Se guarda porque «se leyó aquí dentro» es una
+    // garantía que el usuario tiene derecho a ver en la pantalla de revisión, y
+    // al llegar allí ya no hay forma de deducirla.
+    origenLectura: null,
     guardadas: false,
     guardada: false,
     destino: 'aprender'
@@ -227,8 +252,12 @@ async function reducir(archivo) {
 }
 
 // Un cuarto de vuelta a la derecha, reencodando: la foto girada es la que se
-// manda, así que lo que ve el usuario en la miniatura es exactamente lo que va
-// a leer el servicio.
+// lee, así que lo que ve el usuario en la miniatura es exactamente lo que va a
+// leer el lector.
+//
+// La ruta se pierde al girar, y tiene que perderse: apuntaría al archivo de la
+// cámara, que sigue derecho. Sin ella, la lectura toma el JPEG girado que está
+// aquí en memoria, que es el que el usuario aprobó con la vista.
 async function girar(foto) {
   if (!hayLienzo()) throw new Error('Este navegador no puede girar las fotos.');
   const imagen = await cargarImagen(foto.dataUrl);
@@ -238,8 +267,45 @@ async function girar(foto) {
   pincel.rotate(Math.PI / 2);
   pincel.drawImage(imagen, 0, 0);
   const dataUrl = lienzo.toDataURL('image/jpeg', CALIDAD_JPEG);
-  return { ...foto, dataUrl, ancho: lienzo.width, alto: lienzo.height, tamano: pesoDe(dataUrl) };
+  return { ...foto, ruta: null, dataUrl, ancho: lienzo.width, alto: lienzo.height, tamano: pesoDe(dataUrl) };
 }
+
+// Lo que la cámara del teléfono deja en casa: un archivo suyo y una dirección
+// con la que enseñarlo. La ruta se guarda porque es justo lo que pide el lector
+// de textos; el `dataUrl` aquí no es un `data:` sino esa dirección, y por eso
+// todo lo que convierte fotos pasa por `blobDeFoto` en vez de por `atob`.
+async function fotoDelTelefono(tomada) {
+  const foto = {
+    id: nuevoId('foto'), ruta: tomada.ruta, dataUrl: tomada.vista || tomada.ruta,
+    ancho: 0, alto: 0, tamano: 0, nombre: 'foto del teléfono', guardada: null
+  };
+  // Medir es un lujo, no un requisito: si el WebView no deja abrir esa
+  // dirección como imagen, la foto entra igual y la pantalla calla el tamaño en
+  // vez de inventárselo.
+  try {
+    if (hayLienzo()) {
+      const imagen = await cargarImagen(foto.dataUrl);
+      foto.ancho = imagen.naturalWidth;
+      foto.alto = imagen.naturalHeight;
+    }
+  } catch { /* sin medidas, pero con foto */ }
+  return foto;
+}
+
+// Una foto puede venir de tres sitios y solo una de las tres formas es un
+// `data:`. Esta es la única que las convierte todas, y por eso la usan tanto
+// guardar en el dispositivo como leer lo que no tiene ruta.
+async function blobDeFoto(foto) {
+  const origen = String(foto.dataUrl || '');
+  if (origen.startsWith('data:')) return aBlob(origen);
+  const respuesta = await fetch(origen);
+  return respuesta.blob();
+}
+
+// Lo que se le da al lector. Con ruta, la ruta: el archivo ya está escrito y no
+// hay nada que copiar. Sin ruta —una foto del navegador, o una girada—, el
+// JPEG, que `leerFoto` escribe en la caché del propio teléfono y borra después.
+const fuenteDeLectura = foto => (foto.ruta ? foto.ruta : blobDeFoto(foto));
 
 function aBlob(dataUrl) {
   const binario = atob(base64De(dataUrl));

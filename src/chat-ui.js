@@ -20,6 +20,7 @@
 // CHAT_ACTIONS y los envíos de CHAT_FORMS, y guarda el estado en `ui.chat`.
 
 import { ACTION_NAMES, isQuery, runActions, toolSchemas, undoTo } from './assistant.js';
+import { capacidad, dictar, pararDictado } from './device.js';
 import { AVISO_ENVIO, callProvider, isConfigured } from './providers.js';
 import { SLOTS, addDays, monthBounds, todayISO, weekStart } from './model.js';
 import { parseLine, parseProductText, parseQuantity } from './text-parse.js';
@@ -28,7 +29,7 @@ import { button, cap, esc, fmt, niceDate, notice, unitText } from './ui-kit.js';
 /* ── Estado del panel ──────────────────────────────────────────────────── */
 
 export function emptyChat() {
-  return { mensajes: [], pendiente: null, deshacer: null, escuchando: false, enviando: false, error: '' };
+  return { mensajes: [], pendiente: null, deshacer: null, escuchando: false, enviando: false, error: '', errorTitulo: '', pista: '' };
 }
 
 // `pendiente` es siempre lo mismo —algo que espera una decisión de la persona—
@@ -40,7 +41,15 @@ export function emptyChat() {
 // primera vez de cada sesión», así que tiene que morir al recargar la app y no
 // viajar dentro del estado del panel.
 let permisoDeEnvio = false;
-let escucha = null;
+// Lo mismo, pero para el aviso del dictado: cuando quien escucha es el motor del
+// navegador, la voz sale hacia sus servidores y eso hay que decirlo. Se dice una
+// vez por sesión —repetirlo en cada frase sería ruido— y con el motor del
+// teléfono no se dice nunca, porque ahí no sale nada del aparato.
+let avisadoDeVozAjena = false;
+// Cada dictado lleva su número. Si empieza otro, el anterior deja de escribir en
+// el campo aunque su promesa se resuelva tarde: dos dictados pisándose dejarían
+// un texto que nadie dijo.
+let dictadoActual = 0;
 let contador = 0;
 
 // crypto.randomUUID no existe en contextos sin https ni en WebViews viejos. El

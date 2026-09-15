@@ -8,6 +8,7 @@ import { CHAT_ACTIONS, CHAT_FORMS, emptyChat, renderChat } from './chat-ui.js';
 import { BULK_ACTIONS, BULK_FORMS, emptyBulk, renderBulk } from './bulk-entry.js';
 import { INVOICE_ACTIONS, INVOICE_FORMS, emptyInvoice, renderInvoice } from './invoice-ui.js';
 import { describeConfig, isConfigured, readConfig, writeConfig } from './providers.js';
+import { capacidad, diagnostico } from './device.js';
 import { button, cap, empty, esc, fmt, measure, modal, monthName, niceDate, notice, options, productDatalist, shiftMonth, unitText } from './ui-kit.js';
 
 const firstRun = !hasSavedState();
@@ -70,7 +71,15 @@ function ctx() {
   return {
     state, ui, commit, toast, render, closeModal, openModal,
     startTour: () => goTour(0),
-    servicios: { chat: isConfigured('chat'), vision: isConfigured('vision'), transcribe: isConfigured('transcribe') }
+    // Primero lo que puede el aparato, y solo después el servidor. Antes esto
+    // miraba únicamente a un servicio configurado, y por eso media app se
+    // presentaba como no disponible a quien tenía el teléfono capaz al lado.
+    servicios: {
+      vision: capacidad('leer-foto').ok || isConfigured('vision'),
+      transcribe: capacidad('dictar').ok || isConfigured('transcribe'),
+      chat: isConfigured('chat'),
+      enElAparato: { foto: capacidad('leer-foto').ok, voz: capacidad('dictar').ok }
+    }
   };
 }
 // El catálogo puede crecer a cientos de alimentos; el filtro evita que haya que
@@ -318,7 +327,7 @@ function renderProducts() {
         ? button('Reactivar', 'restore-product', 'btn-secondary btn-small', `data-id="${item.id}"`)
         : `${button('Otra medida', 'open-equivalence', 'btn-quiet btn-small', `data-id="${item.id}"`)}${button('Unir', 'open-merge', 'btn-quiet btn-small', `data-id="${item.id}"`)}${button('Archivar', 'archive-product', 'btn-quiet btn-small', `data-id="${item.id}"`)}${button('Editar', 'open-product', 'btn-secondary btn-small', `data-id="${item.id}"`)}`}</div></div>`;
     }).join('') || '<p class="muted">Nada coincide con esa búsqueda.</p>'}</div>` : empty('🥬','Todavía no hay alimentos','Lo más rápido es marcarlos de una lista o dictarlos de corrido: se registran solos.', `${button('Prepararlo en 5 minutos', 'setup-open', 'btn-primary')}${button('🗣️ Dictar varios', 'open-bulk', 'btn-secondary')}${button('Añadir uno a mano', 'open-product', 'btn-quiet')}`)}
-    <div class="section-head"><h2>Tus datos</h2></div><div class="grid grid-2"><div class="card"><h2>Respaldo</h2><p class="muted">Los datos viven solo en este navegador y dispositivo. Exporta un archivo para conservarlos o importarlos aquí más tarde.</p><div class="inline">${button('Exportar respaldo', 'export', 'btn-primary')}${button('Importar respaldo', 'open-import', 'btn-secondary')}</div></div><div class="card"><h2>Voz e inteligencia</h2><p class="muted">Transcribir notas de voz, leer facturas de una foto y entender frases libres. Es <strong>opcional</strong>: sin configurar nada, la app funciona entera y sin conexión.</p><p class="small muted">${esc(describeConfig())}</p>${button('Configurar servicios', 'open-ajustes-ia', 'btn-secondary')}</div>
+    <div class="section-head"><h2>Tus datos</h2></div><div class="grid grid-2"><div class="card"><h2>Respaldo</h2><p class="muted">Los datos viven solo en este navegador y dispositivo. Exporta un archivo para conservarlos o importarlos aquí más tarde.</p><div class="inline">${button('Exportar respaldo', 'export', 'btn-primary')}${button('Importar respaldo', 'open-import', 'btn-secondary')}</div></div><div class="card"><h2>Voz y cámara</h2><p class="muted">Dictar en vez de escribir, y leer una factura de una foto. Lo hace el propio teléfono: <strong>sin cuentas, sin claves y sin conexión</strong>. Nada que configurar.</p><p class="small muted">${esc(capacidad('dictar').ok ? 'Dictado disponible.' : 'Dictado no disponible en este aparato.')} ${esc(capacidad('leer-foto').ok ? 'Lectura de facturas disponible.' : 'La lectura de facturas es de la app instalada de Android.')}</p>${button('Ver qué puede mi teléfono', 'open-ajustes-ia', 'btn-secondary')}</div>
     <div class="card"><h2>Comenzar con datos reales</h2><p class="muted">Borra las demostraciones y empieza desde cero. Esta acción elimina todos los datos locales de la app; exporta un respaldo antes si quieres conservarlos.</p>${button('Borrar todos los datos', 'clear-demo', 'btn-danger')}</div></div>`;
 }
 const unitOptions = selected => options(UNITS.map(unit => [unit, unit]), selected);
@@ -470,15 +479,49 @@ function renderModal() {
   }
   if (m.type === 'ajustes-ia') {
     const cfg = readConfig();
-    return modal('Servicios de voz e inteligencia', 'Opcionales. La app entera funciona sin ellos.', `<div class="hint">Las claves <strong>nunca</strong> viven dentro de la aplicación: irían dentro del APK y cualquiera podría sacarlas. Lo que se configura aquí es la dirección de <em>tu propio</em> servidor, que es quien guarda la clave. En <code>docs/backend.md</code> está cómo montarlo.</div>
-      <form data-form="ajustes-ia" class="stack">
-        <label class="field"><span>Dirección de tu servidor</span><input name="baseUrl" type="url" value="${esc(cfg.baseUrl)}" placeholder="https://mi-servidor.workers.dev" autocomplete="off"><small>Déjalo vacío para no usar ningún servicio.</small></label>
-        <label class="field"><span>Token compartido (opcional)</span><input name="token" type="text" value="${esc(cfg.token)}" placeholder="Solo si tu servidor lo pide" autocomplete="off"></label>
-        <div class="field"><span>Qué quieres permitir</span><div class="checks">
-          ${[['chat', 'Entender frases libres'], ['transcribe', 'Transcribir notas de voz'], ['vision', 'Leer facturas de una foto']].map(([id, label]) => `<label class="check-chip"><input type="checkbox" name="enabled" value="${id}" ${cfg.enabled?.[id] ? 'checked' : ''}>${esc(label)}</label>`).join('')}
-        </div><small>Lo que marques sale de este dispositivo hacia tu servidor cuando lo uses. La app te lo avisa y te pide permiso antes de cada envío.</small></div>
-        <p class="small muted">${esc(describeConfig(cfg))}</p>
-        <div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar</button></div></form>`);
+    const d = diagnostico();
+    // Lo primero que se ve es lo que este aparato puede hacer ahora mismo, no
+    // una lista de requisitos. Decir «funciona en Android» no le sirve a quien
+    // tiene el teléfono en la mano y quiere saber si le funciona a él.
+    const fila = (titulo, estado, detalle) => `<div class="cap-row ${estado.ok ? 'si' : 'no'}">
+      <span class="cap-mark" aria-hidden="true">${estado.ok ? '✓' : '—'}</span>
+      <div><strong>${esc(titulo)}</strong><span>${esc(estado.ok ? estado.detalle : detalle)}</span></div>
+      <span class="pill ${estado.ok ? '' : 'gray'}">${estado.ok ? (estado.origen === 'telefono' ? 'En tu teléfono' : 'En el navegador') : 'No disponible'}</span>
+    </div>`;
+    return modal('Voz y cámara', 'Lo que tu teléfono puede hacer solo, sin configurar nada.', `
+      <div class="cap-list">
+        ${fila('Dictar en vez de escribir', d.dictar, d.dictar.detalle)}
+        ${fila('Leer una factura de una foto', d.leerFoto, d.leerFoto.detalle)}
+      </div>
+      ${d.plataforma === 'Navegador'
+        ? notice('Estás en el navegador.', 'La lectura de facturas y el dictado sin conexión son de la <strong>aplicación instalada</strong> de Android. Aquí puedes hacer todo lo demás, y escribir a mano lo que allí se dicta.')
+        : notice('No hay nada que configurar.', 'Estas dos funciones viajan dentro de la aplicación. No hacen falta cuentas, ni claves, ni conexión, y <strong>ni tu voz ni tus fotos salen del teléfono</strong>.')}
+
+      <div class="section-head" style="margin-top:22px"><div><h3>Entender frases libres</h3><p>Escribir «mañana pon arroz con pollo y dile a Sofía que no cena» de corrido.</p></div></div>
+      <p class="small">La app entiende sin conexión un buen puñado de frases —agregar a la canasta, registrar una compra, cuánto queda, quién no come— y las va reconociendo por su forma, no adivinando. Para lenguaje <em>totalmente</em> libre haría falta un modelo grande, que no cabe dentro de la aplicación.</p>
+
+      <details class="more" style="margin-top:16px" ${cfg.baseUrl ? 'open' : ''}>
+        <summary>Conectar un servicio propio (opcional, para quien sepa)</summary>
+        <p class="small muted">Solo hace falta para el lenguaje libre. <strong>Nada de lo de arriba lo necesita.</strong> Las claves nunca viven dentro de la aplicación —irían dentro del APK y cualquiera podría sacarlas—: esto es la dirección de un servidor propio, explicado en <code>docs/backend.md</code>.</p>
+        <form data-form="ajustes-ia" class="stack">
+          <label class="field"><span>Dirección del servidor</span><input name="baseUrl" type="url" value="${esc(cfg.baseUrl)}" placeholder="https://mi-servidor.workers.dev" autocomplete="off"><small>Vacío = no se usa ninguno.</small></label>
+          <label class="field"><span>Token compartido (opcional)</span><input name="token" type="text" value="${esc(cfg.token)}" placeholder="Solo si tu servidor lo pide" autocomplete="off"></label>
+          <div class="field"><span>Qué permitir</span><div class="checks">
+            ${[['chat', 'Entender frases libres'], ['transcribe', 'Transcribir voz (si tu teléfono no puede)'], ['vision', 'Leer facturas (si tu teléfono no puede)']].map(([id, label]) => `<label class="check-chip"><input type="checkbox" name="enabled" value="${id}" ${cfg.enabled?.[id] ? 'checked' : ''}>${esc(label)}</label>`).join('')}
+          </div><small>Lo que marques sale de este dispositivo hacia tu servidor cuando lo uses, y la app te lo avisa antes de cada envío.</small></div>
+          <p class="small muted">${esc(describeConfig(cfg))}</p>
+          <div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar</button></div>
+        </form>
+      </details>
+
+      <details class="more" style="margin-top:12px">
+        <summary>Detalle técnico de este aparato</summary>
+        <p class="small muted">Para poder explicar un «no me funciona» sin tener el teléfono delante.</p>
+        <table class="data-table"><tbody>
+          <tr><td>Dónde corre</td><td class="num">${esc(d.plataforma)}</td></tr>
+          ${Object.entries(d.complementos).map(([nombre, hay]) => `<tr><td>${esc(nombre)}</td><td class="num ${hay ? 'good' : 'pending'}">${hay ? 'presente' : 'ausente'}</td></tr>`).join('')}
+        </tbody></table>
+      </details>`, true);
   }
   if (m.type === 'equivalence') {
     const item = product(state, m.id);
