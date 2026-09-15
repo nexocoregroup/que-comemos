@@ -550,7 +550,12 @@ export function upsertRecipe(state, fields) {
     if (!product(state, item.productId) || !UNITS.includes(item.unit)) throw new Error('Selecciona un alimento y su unidad.');
     return { productId: item.productId, quantity: quantity(item.quantity), unit: item.unit, personId: item.personId || null };
   });
-  if (!items.length) throw new Error('Agrega al menos un alimento principal.');
+  // Una preparación se guarda con el nombre y poco más. Exigir un alimento
+  // convertía «mangú con salami» en un formulario de inventario antes de dejar
+  // apuntar la idea, y en una casa las cantidades se afinan después —o nunca—.
+  // Sin alimentos, la preparación sirve igual para llenar el calendario; lo
+  // único que no hace es aportar nada a la compra calculada desde el menú, y la
+  // compra ya avisa de eso por su cuenta.
   let recipe = state.recipes.find(item => item.id === fields.id);
   if (!recipe) { recipe = { id: nextId(state, 'preparacion') }; state.recipes.push(recipe); }
   Object.assign(recipe, { name, uses, items, covers: (fields.covers || []).filter(id => state.people.some(person => person.id === id)), servings: fields.servings === '' || fields.servings === undefined || fields.servings === null ? null : quantity(fields.servings), note: String(fields.note || '').trim() });
