@@ -19,7 +19,7 @@
 // avanzaría de paso.
 
 import { CATEGORIES, SEED_PRODUCTS } from './catalog-seed.js';
-import { cancelarDictado, capacidad, dictar, pararDictado } from './device.js';
+import { avisoDeVoz, cancelarDictado, capacidad, comprobarDictado, dictar, pararDictado } from './device.js';
 import {
   UNITS, addProduct, addPurchase, effectiveBasket, findSimilarProducts, habitualLines,
   normalizeName, product, productByName, setHabitualBasket, setMonthChange,
@@ -148,7 +148,6 @@ const juntar = (...trozos) => trozos.map(trozo => String(trozo ?? '').trim()).fi
 
 // Se dice entero: «pasa por sus servidores» es exactamente lo que pasa, y quien
 // lo lee tiene que poder decidir si prefiere escribirlo a mano.
-const AVISO_VOZ_AJENA = 'Aquí el dictado lo hace el navegador, así que tu voz sí sale hacia sus servidores. En la aplicación de Android la escucha el propio teléfono y no sale del aparato.';
 
 // La decisión de cada fila viaja en un solo `select`, así que el valor lleva
 // dentro con qué producto se une: `unir:producto-3`. Un control en vez de dos
@@ -585,10 +584,14 @@ export const BULK_ACTIONS = {
       guardarLoEscrito(el, ctx);
       const motor = capacidad('dictar');
       if (!motor.ok) { bulk.escuchando = false; bulk.errorVoz = motor.detalle; ctx.render(); return; }
-      // El motor del navegador manda la voz a sus servidores, y eso se dice
-      // antes de abrir el micrófono. El del teléfono no sale del aparato, así
-      // que ahí no hay nada que avisar.
-      if (motor.origen === 'navegador' && !avisadoDeVozAjena) { avisadoDeVozAjena = true; bulk.avisoVoz = AVISO_VOZ_AJENA; }
+// El aviso de que la voz sale del aparato lo decide device.js, que es el
+      // único que sabe si este teléfono entiende sin conexión. Antes aquí se
+      // miraba solo si el motor era el del navegador, y en un Android sin el
+      // paquete de español descargado no se avisaba nada: la voz se iba a los
+      // servidores de Google en silencio.
+      await comprobarDictado({ idioma: 'es-DO' });
+      const aviso = avisoDeVoz();
+      if (aviso && !avisadoDeVozAjena) { avisadoDeVozAjena = true; bulk.avisoVoz = aviso; }
       // Lo que ya estuviera escrito es el punto de partida, no algo que se pisa.
       const base = bulk.texto || '';
       const sesion = ++dictadoActual;

@@ -16,12 +16,13 @@ import {
 } from './model.js';
 import { WEEKDAY_LABELS, WEEKDAYS } from './routines.js';
 import { button, cap, empty, esc, fmt, measure, monthName, niceDate, options, shiftMonth, unitText } from './ui-kit.js';
-import { cancelarDictado, capacidad, dictar, pararDictado } from './device.js';
+import { avisoDeVoz, cancelarDictado, capacidad, comprobarDictado, dictar, pararDictado } from './device.js';
 // El intérprete de frases vive en el asistente, y entiende «quedan dos plátanos,
 // diez huevos y media libra de queso» desde hace tiempo. Escribir aquí un
 // segundo intérprete sería tener dos gramáticas que se van separando con los
 // meses; se reutiliza esa, que además ya está probada.
 import { interpretar } from './chat-ui.js';
+import { LEGAL } from './legal.js';
 
 const hoy = todayISO();
 
@@ -40,14 +41,17 @@ export const ENTRADAS_MAS = [
   ['avanzado', '🔧', 'Funciones avanzadas', 'Medidas, correcciones y uniones']
 ];
 
-export const PAGINAS_MAS = ENTRADAS_MAS.map(([id]) => id);
+// «legal» no sale en el índice —se llega desde Ajustes— pero es una página de
+// Más como las otras: necesita el mismo enrutado y el mismo botón de volver.
+export const PAGINAS_MAS = [...ENTRADAS_MAS.map(([id]) => id), 'legal'];
 
 export const TITULOS_MAS = Object.fromEntries(ENTRADAS_MAS.map(([id, , titulo]) => [id, titulo]));
 
 export function emptyMas() {
   return {
     canastaVista: 'habitual', canastaMes: hoy.slice(0, 7), filtroAlimento: '', verArchivados: false,
-    revisionFiltro: '', revisionSoloFaltan: false, revisionEscuchando: false, revisionAviso: ''
+    revisionFiltro: '', revisionSoloFaltan: false, revisionEscuchando: false, revisionAviso: '',
+    documento: 'privacidad'
   };
 }
 
@@ -65,7 +69,8 @@ export function renderMas(ctx) {
     historial: renderHistorial,
     respaldo: renderRespaldo,
     ajustes: renderAjustes,
-    avanzado: renderAvanzado
+    avanzado: renderAvanzado,
+    legal: renderLegal
   };
   return (vistas[pagina] || renderInicio)(ctx);
 }
@@ -517,7 +522,8 @@ function renderAjustes(ctx) {
     </div>
     <div class="card">
       <h3>Dictar en vez de escribir</h3>
-      <p class="muted small">Lo hace el propio teléfono. No hay que configurar nada, no hay cuentas ni claves, y tu voz no sale del aparato.</p>
+      <p class="muted small">Lo hace el propio teléfono. No hay que configurar nada, no hay cuentas ni claves.</p>
+      ${avisoDeVoz() ? `<p class="small revision-aviso">${esc(avisoDeVoz())}</p>` : '<p class="small muted">✓ En este teléfono la voz no sale del aparato.</p>'}
       <p class="small ${dictado.ok ? '' : 'muted'}">${dictado.ok ? '✓ Disponible en este aparato.' : '· No disponible en este aparato. Puedes escribir a mano en cualquier campo, o usar el micrófono del teclado de Android.'}</p>
       <p class="small muted">${esc(dictado.detalle)}</p>
       ${button('Detalle técnico de este aparato', 'open-diagnostico', 'btn-quiet btn-small')}
@@ -526,7 +532,39 @@ function renderAjustes(ctx) {
       <h3>Cómo funciona la app</h3>
       <p class="muted small">Un recorrido corto por las cuatro pantallas y por la idea de fondo: escribir una vez lo habitual y revisar solo lo diferente.</p>
       <div class="inline">${button('Ver el recorrido', 'open-tour', 'btn-secondary btn-small')}${button('Organizar mi casa otra vez', 'setup-open', 'btn-quiet btn-small')}</div>
+    </div>
+    <div class="card">
+      <h3>Privacidad y condiciones</h3>
+      <p class="muted small">Qué se guarda, dónde, y qué no sale de aquí. Está dentro de la app a propósito: se puede leer sin conexión y sin abrir el navegador.</p>
+      ${button('Leerlo', 'navigate', 'btn-secondary btn-small', 'data-page="legal"')}
     </div>`;
+}
+
+/* ── Privacidad y condiciones ──────────────────────────────────────────── */
+
+// El mismo texto que se publica en la web, viajando dentro de la app.
+//
+// Google Play exige una dirección pública con el aviso de privacidad, y eso ya
+// está en `legal/`. Pero una política que solo se lee con conexión no la lee
+// nadie en el momento en que importa, que es cuando alguien se pregunta si esto
+// manda sus cosas a algún sitio. Por eso está también aquí.
+//
+// `src/legal.js` guarda texto plano, sin etiquetas: se pinta con `esc()` y una
+// etiqueta que se colara saldría escrita en pantalla en vez de ejecutarse.
+const DOCUMENTOS = [['privacidad', 'Privacidad'], ['terminos', 'Condiciones'], ['eliminar', 'Borrar mis datos']];
+
+function renderLegal(ctx) {
+  const { ui } = ctx;
+  const cual = DOCUMENTOS.some(([id]) => id === ui.mas.documento) ? ui.mas.documento : 'privacidad';
+  const doc = LEGAL[cual];
+  return `${volver('Privacidad y condiciones')}
+    <div class="segmented segmented-ancho">${DOCUMENTOS.map(([id, etiqueta]) =>
+      `<button type="button" data-action="legal-ver" data-doc="${id}" class="${cual === id ? 'active' : ''}">${esc(etiqueta)}</button>`).join('')}</div>
+    <article class="card documento">
+      <h2>${esc(doc.titulo)}</h2>
+      <p class="small muted">Última actualización: ${esc(niceDate(LEGAL.actualizado, { day: 'numeric', month: 'long', year: 'numeric' }))}</p>
+      ${doc.secciones.map(seccion => `<h3>${esc(seccion.titulo)}</h3>${seccion.parrafos.map(parrafo => `<p>${esc(parrafo)}</p>`).join('')}`).join('')}
+    </article>`;
 }
 
 /* ── Funciones avanzadas ───────────────────────────────────────────────── */
@@ -653,12 +691,19 @@ export const MAS_ACTIONS = {
     }
     aplicarDictado(ctx, oido.texto);
   },
+  'legal-ver': (el, ctx) => { ctx.ui.mas.documento = el.dataset.doc; ctx.render(); },
   'canasta-vista': (el, ctx) => { ctx.ui.mas.canastaVista = el.dataset.vista; ctx.render(); },
   'canasta-mes': (el, ctx) => { ctx.ui.mas.canastaMes = shiftMonth(ctx.ui.mas.canastaMes, Number(el.dataset.delta)); ctx.render(); },
   'alimentos-archivados': (el, ctx) => { ctx.ui.mas.verArchivados = !ctx.ui.mas.verArchivados; ctx.render(); },
   'canasta-nuevo-cambio': (el, ctx) => ctx.openModal('cambio-mes', { month: el.dataset.month || ctx.ui.mas.canastaMes }),
   'open-avanzado-producto': (el, ctx) => ctx.openModal('avanzado-producto', { id: el.dataset.id }),
-  'open-diagnostico': (el, ctx) => ctx.openModal('diagnostico'),
+  'open-diagnostico': (el, ctx) => {
+    ctx.openModal('diagnostico');
+    // Preguntarle al teléfono si entiende la voz por sí solo. Es asíncrono y no
+    // pide permisos, así que se lanza y se vuelve a pintar cuando conteste: es
+    // la diferencia entre decir «no se sabe» y decir la verdad.
+    comprobarDictado().then(() => { if (ctx.ui.modal?.type === 'diagnostico') ctx.render(); }).catch(() => {});
+  },
   'archive-product': (el, ctx) => { archiveProduct(ctx.state, el.dataset.id); ctx.closeModal(); ctx.commit('Alimento archivado. Su historial se conserva.'); },
   'restore-product': (el, ctx) => { restoreProduct(ctx.state, el.dataset.id); ctx.commit('Alimento disponible otra vez.'); }
 };

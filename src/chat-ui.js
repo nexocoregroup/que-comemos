@@ -20,7 +20,7 @@
 // CHAT_ACTIONS y los envíos de CHAT_FORMS, y guarda el estado en `ui.chat`.
 
 import { ACTION_NAMES, isQuery, runActions, toolSchemas, undoTo } from './assistant.js';
-import { cancelarDictado, capacidad, dictar, pararDictado } from './device.js';
+import { avisoDeVoz, cancelarDictado, capacidad, comprobarDictado, dictar, pararDictado } from './device.js';
 import { AVISO_ENVIO, callProvider, isConfigured } from './providers.js';
 import { SLOTS, addDays, monthBounds, todayISO, weekStart } from './model.js';
 import { parseLine, parseProductText, parseQuantity } from './text-parse.js';
@@ -895,7 +895,6 @@ export function renderChat(ctx) {
 // El aviso del motor del navegador. Se dice entero: «pasa por sus servidores»
 // es exactamente lo que pasa, y quien lo lee tiene que poder decidir si prefiere
 // escribir. En la aplicación de Android no aparece nunca.
-const AVISO_VOZ_AJENA = 'Aviso: aquí el dictado lo hace el navegador, así que tu voz sí sale hacia sus servidores. En la aplicación de Android la escucha el propio teléfono y no sale del aparato.';
 
 export const CHAT_ACTIONS = {
   // Cerrar el panel cierra también el micrófono: dejarlo abierto detrás de una
@@ -984,7 +983,12 @@ export const CHAT_ACTIONS = {
     guardarBorrador(ctx);
     const motor = capacidad('dictar');
     if (!motor.ok) { avisarDeVoz(chat, 'No se puede dictar aquí', motor.detalle); ctx.render(); return; }
-    if (motor.origen === 'navegador' && !avisadoDeVozAjena) { avisadoDeVozAjena = true; decir(chat, 'app', AVISO_VOZ_AJENA); }
+    // device.js es el único que sabe si este teléfono entiende la voz sin
+    // conexión; mirar solo el motor dejaba sin aviso a los Android que mandan
+    // el audio a Google por no tener el idioma descargado.
+    await comprobarDictado({ idioma: 'es-DO' });
+    const aviso = avisoDeVoz();
+    if (aviso && !avisadoDeVozAjena) { avisadoDeVozAjena = true; decir(chat, 'app', 'Aviso: ' + aviso); }
     // Lo que ya estuviera escrito es el punto de partida, no algo que se pisa.
     const base = chat.borrador || '';
     const sesion = ++dictadoActual;

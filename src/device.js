@@ -209,6 +209,32 @@ export async function comprobarDictado({ idioma = 'es-DO' } = {}) {
 // Para la pantalla de diagnóstico: qué soporta este teléfono en concreto, que es
 // la única respuesta que sirve de verdad. Decir «funciona en Android» no ayuda a
 // quien lo tiene en la mano y no le funciona.
+// ¿Va a salir la voz de este aparato? Una sola respuesta para toda la app.
+//
+// Había tres sitios prometiendo «tu voz no sale del teléfono» sin condición, y
+// en un teléfono sin el paquete de español descargado eso era falso: Android
+// manda el audio a sus servidores igual. Tres textos fijos no pueden decir la
+// verdad de un aparato que todavía no se ha comprobado; esta función sí.
+//
+// Devuelve el aviso que hay que enseñar ANTES de abrir el micrófono, o `null`
+// cuando no hay nada que avisar. Conviene llamar antes a `comprobarDictado()`:
+// mientras nadie haya preguntado, `local` vale `null` y aquí se dice justamente
+// eso, que no se sabe.
+export function avisoDeVoz() {
+  const motor = capacidad('dictar');
+  if (!motor.ok) return null;
+  if (motor.origen === 'navegador') {
+    return 'Aquí el dictado lo hace el navegador, así que tu voz sale hacia sus servidores para convertirse en texto. Si prefieres que no salga, escríbelo.';
+  }
+  if (motor.local === false) {
+    return 'Este teléfono no trae el reconocimiento de voz dentro, así que Android manda el audio a sus servidores para entenderlo. Lo hace el sistema, no esta app, pero pasa igual. Si prefieres que no salga, escríbelo.';
+  }
+  if (motor.local === null) {
+    return 'Todavía no se ha comprobado si este teléfono entiende la voz por sí solo. Si no puede, Android mandará el audio a sus servidores para convertirlo en texto.';
+  }
+  return null;
+}
+
 export function diagnostico() {
   return {
     plataforma: nativo() ? `Aplicación instalada (${puente()?.getPlatform?.() || 'android'})` : 'Navegador',

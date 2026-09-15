@@ -82,6 +82,64 @@ test('ningún texto del usuario llega a la pantalla sin escapar', () => {
   assert.ok(pantallas.some(([, html]) => html.includes('&lt;img')), 'el texto debería verse escapado en alguna parte');
 });
 
+// «Borrar todos mis datos» tiene que borrar todos los datos.
+//
+// Durante un tiempo no lo hizo: reemplazaba el estado y guardaba encima, pero
+// `que-comemos-antes-de-migrar` —que puede tener una copia íntegra de todo lo
+// anterior— y la clave con la dirección y el token del servidor opcional se
+// quedaban en el aparato. Alguien que pide borrar sus datos no espera que quede
+// una copia completa esperando. Y es justo el botón al que apunta la página de
+// eliminación de datos que Google Play exige.
+test('borrar los datos no deja ninguna copia detrás', async () => {
+  const { clearAll, STORAGE_KEY, BACKUP_KEY } = await import('../src/storage.js');
+  const almacen = new Map([
+    [STORAGE_KEY, '{"version":3}'],
+    [BACKUP_KEY, '{"version":2,"products":[{"name":"copia entera de lo anterior"}]}'],
+    ['que-comemos-proveedores-v1', '{"baseUrl":"https://…","token":"secreto"}'],
+    ['que-comemos-sidebar-collapsed', '1'],
+    ['app-de-otro', 'esto no es nuestro']
+  ]);
+  const falso = { getItem: k => (almacen.has(k) ? almacen.get(k) : null), removeItem: k => almacen.delete(k) };
+
+  clearAll(falso);
+
+  assert.equal(almacen.get(STORAGE_KEY), undefined, 'quedaron los datos');
+  assert.equal(almacen.get(BACKUP_KEY), undefined, 'quedó la copia previa a la migración, con todo dentro');
+  assert.equal(almacen.get('que-comemos-proveedores-v1'), undefined, 'quedó la dirección del servidor y su token');
+  assert.equal(almacen.get('app-de-otro'), 'esto no es nuestro', 'se borró algo que no era de esta app');
+});
+
+// Prometer «tu voz no sale del teléfono» sin comprobarlo era falso en cualquier
+// aparato sin el paquete de español descargado: esos mandan el audio a Google.
+// La promesa tiene que salir de lo que se sabe del aparato, no de un texto fijo.
+test('la promesa sobre la voz depende de lo que se sabe del aparato', async () => {
+  const guardado = globalThis.Capacitor;
+  const { avisoDeVoz } = await import('../src/device.js');
+  try {
+    // Sin Capacitor y sin reconocimiento del navegador no hay dictado ni aviso.
+    delete globalThis.Capacitor;
+    assert.equal(avisoDeVoz(), null, 'sin dictado no hay nada que avisar');
+  } finally {
+    if (guardado === undefined) delete globalThis.Capacitor; else globalThis.Capacitor = guardado;
+  }
+
+  // Y ninguna pantalla puede llevar la promesa escrita a fuego.
+  const PROMESAS = ['tu voz no sale del teléfono', 'no sale del aparato'];
+  const culpables = [];
+  for (const archivo of readdirSync(SRC).filter(nombre => nombre.endsWith('.js'))) {
+    // `device.js` sí puede afirmarlo: es el único que ha preguntado primero.
+    // `legal.js` explica los dos casos enteros, que es lo contrario de prometer.
+    if (archivo === 'device.js' || archivo === 'legal.js') continue;
+    const codigo = readFileSync(resolve(SRC, archivo), 'utf8').replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+    for (const promesa of PROMESAS) {
+      // Vale dentro de una condición sobre `avisoDeVoz()`; lo que no vale es
+      // soltarla sin más.
+      if (codigo.includes(promesa) && !codigo.includes('avisoDeVoz()')) culpables.push(`${archivo}: «${promesa}»`);
+    }
+  }
+  assert.deepEqual(culpables, [], 'pantallas que prometen sobre la voz sin haberlo comprobado');
+});
+
 const SRC = resolve(import.meta.dirname, '..', 'src');
 const modulos = () => readdirSync(SRC).filter(nombre => nombre.endsWith('.js'));
 const sinComentarios = archivo => readFileSync(resolve(SRC, archivo), 'utf8')

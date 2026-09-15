@@ -469,3 +469,19 @@
    Con el respaldo automático de Android apagado, esta es la única red que hay,
    así que el dato deja de ser gris y pasa a pedir atención. */
 .mas-pista.alerta { color: var(--clay); font-weight: 700; }
+
+/* ── Un documento largo, para leer ──────────────────────────────────────── */
+
+/* La privacidad y las condiciones son de las pocas cosas de la app que se leen
+   seguido en vez de mirarse de un vistazo. Línea más suelta, medida más corta y
+   los títulos con aire suficiente para poder saltar de uno a otro con el dedo. */
+.documento { line-height: 1.65; }
+.documento h2 { margin: 0 0 4px; font-size: 1.3rem; }
+.documento h3 {
+  margin: 26px 0 8px;
+  font-size: 1rem;
+  color: var(--clay-dark);
+  letter-spacing: -.01em;
+}
+.documento p { margin: 0 0 12px; max-width: 64ch; }
+.documento > p:first-of-type { color: var(--ink-muted); }

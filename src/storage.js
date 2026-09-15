@@ -37,3 +37,28 @@ export function loadState(storage = globalThis.localStorage) {
 export function saveState(state, storage = globalThis.localStorage) {
   storage?.setItem(STORAGE_KEY, JSON.stringify(state));
 }
+
+// Borrar de verdad, que no es lo mismo que empezar de cero.
+//
+// «Borrar todos mis datos» reemplazaba el estado y guardaba encima, y con eso
+// parecía que no quedaba nada. Pero `que-comemos-antes-de-migrar` puede guardar
+// una copia íntegra de todo lo anterior —se escribe sola al cambiar de versión
+// del esquema— y seguía ahí después de borrar. Alguien que pide borrar sus
+// datos no espera que quede una copia completa esperando en el mismo aparato.
+//
+// La dirección del servidor opcional y su token viven en otra clave, y son lo
+// más sensible que la app llega a guardar. También se van.
+//
+// Se enumeran una por una en vez de barrer todo lo que empiece por
+// `que-comemos-`: así, el día que alguien añada una clave nueva y se olvide de
+// esta lista, el fallo es que sobrevive un dato —visible, arreglable— y no que
+// se borre algo de otra aplicación que casualmente se llamaba parecido.
+export function clearAll(storage = globalThis.localStorage) {
+  const claves = [STORAGE_KEY, BACKUP_KEY, 'que-comemos-proveedores-v1', 'que-comemos-sidebar-collapsed'];
+  const borradas = [];
+  for (const clave of claves) {
+    if (storage?.getItem(clave) === null || storage?.getItem(clave) === undefined) continue;
+    try { storage.removeItem(clave); borradas.push(clave); } catch { /* Sin almacenamiento no hay nada que borrar. */ }
+  }
+  return borradas;
+}

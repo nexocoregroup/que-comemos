@@ -17,7 +17,7 @@ import {
   setSlice, setStatusPlan, shoppingList, sliceStyle, todayISO, updatePlan, updateProduct,
   upsertPerson, upsertRecipe
 } from './model.js';
-import { hasSavedState, loadStateDetailed, saveState } from './storage.js';
+import { clearAll, hasSavedState, loadStateDetailed, saveState } from './storage.js';
 import { BRAND_MARK } from './brand.js';
 import { TOUR_STEPS, WELCOME } from './onboarding.js';
 import { CATEGORIES } from './catalog-seed.js';
@@ -27,7 +27,7 @@ import { BULK_ACTIONS, BULK_FORMS, emptyBulk, renderBulk } from './bulk-entry.js
 import { MES_ACTIONS, MES_FORMS, abrirMesSiHaceFalta, emptyMes, modalRutina, renderMes } from './page-mes.js';
 import { COMPRA_ACTIONS, COMPRA_FORMS, emptyCompra, periodoDeCompra, renderCompra } from './page-compra.js';
 import { MAS_ACTIONS, PAGINAS_MAS, TITULOS_MAS, emptyMas, renderMas } from './page-mas.js';
-import { cancelarDictado, capacidad, diagnostico } from './device.js';
+import { avisoDeVoz, cancelarDictado, capacidad, diagnostico } from './device.js';
 import { describeConfig, readConfig, writeConfig } from './providers.js';
 import { button, cap, empty, esc, fmt, measure, modal, monthName, niceDate, notice, options, productDatalist, unitText } from './ui-kit.js';
 
@@ -109,7 +109,7 @@ function ctx() {
   };
 }
 
-const TITULOS = { hoy: 'Hoy en casa', mes: 'Plan mensual', compra: 'La compra', mas: 'Más', setup: 'Organizar mi casa', ...TITULOS_MAS };
+const TITULOS = { hoy: 'Hoy en casa', mes: 'Plan mensual', compra: 'La compra', mas: 'Más', setup: 'Organizar mi casa', legal: 'Privacidad y condiciones', ...TITULOS_MAS };
 function pageTitle() { return TITULOS[ui.page] || '¿Qué comemos?'; }
 
 /* ── Bienvenida y recorrido ────────────────────────────────────────────── */
@@ -632,7 +632,9 @@ function modalDiagnostico() {
         <span class="pill ${d.dictar.ok ? '' : 'gray'}">${d.dictar.ok ? (d.dictar.origen === 'telefono' ? 'En tu teléfono' : 'En el navegador') : 'No disponible'}</span>
       </div>
     </div>
-    ${notice('No hay nada que configurar.', 'El dictado viaja dentro de la aplicación: no hace falta cuenta, ni clave, y <strong>tu voz no sale del teléfono</strong>.')}
+    ${avisoDeVoz()
+      ? notice('Dónde se convierte tu voz en texto.', esc(avisoDeVoz()), 'warn')
+      : notice('No hay nada que configurar.', 'El dictado viaja dentro de la aplicación: no hace falta cuenta, ni clave, y en este teléfono <strong>tu voz no sale del aparato</strong>.')}
     <details class="more" style="margin-top:16px">
       <summary>Detalle técnico</summary>
       <p class="small muted">Para poder explicar un «no me funciona» sin tener el teléfono delante.</p>
@@ -840,6 +842,10 @@ document.addEventListener('click', event => {
     else if (action === 'remove-item') el.closest('[data-item-row]')?.remove();
     else if (action === 'clear-demo') {
       if (!window.confirm('¿Borrar todos los datos de esta app en este aparato? No se puede deshacer sin una copia guardada.')) return;
+      // Borrar de verdad: además del estado, la copia que la app guarda sola al
+      // cambiar de versión del esquema, y la dirección del servidor opcional
+      // con su token. Reemplazar el estado y guardar encima dejaba las dos.
+      clearAll();
       state = createEmptyState(); loadError = ''; ui.modal = null; ui.reviewId = null;
       ui.mes = emptyMes(mesActual); ui.compra = emptyCompra(mesActual); ui.mas = emptyMas();
       ui.page = 'hoy';
