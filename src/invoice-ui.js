@@ -85,10 +85,14 @@ const GUARDABLES = new Set(DECISIONES.filter(decision => DECIDIR[decision].guard
 // Las seis etiquetas que puede llevar una fila. El texto es lo que manda: el
 // color solo lo acompaña, porque un estado que solo se ve por el color no
 // existe para quien no distingue esos dos tonos.
+//
+// Las notas dicen qué hacer, no lo que invoices.js ya dijo en su aviso: las dos
+// van juntas bajo el nombre, y repetir la misma frase dos veces es la forma más
+// rápida de que no se lea ninguna.
 const ESTADOS = {
-  dudosa: { texto: 'lectura dudosa', pill: 'red', nota: 'La lectura de esta línea no es clara. Compárala con la foto antes de aprobarla: si no se entiende, déjala fuera.' },
+  dudosa: { texto: 'lectura dudosa', pill: 'red', nota: 'Si no se entiende, déjala fuera: una línea aprobada a medias ensucia la canasta durante meses.' },
   'sin-cantidad': { texto: 'falta la cantidad', pill: 'warm', nota: 'Sin cantidad el alimento se aprende igual, pero esa compra no cuenta para calcular cuánto se consume al mes.' },
-  nueva: { texto: 'alimento nuevo', pill: '', nota: 'No está en tu catálogo: se registrará con existencias en cero.' },
+  nueva: { texto: 'alimento nuevo', pill: '', nota: 'Se registrará con las existencias en cero: la factura dice lo que compraste entonces, no lo que queda hoy.' },
   unir: { texto: 'se une con uno que ya tienes', pill: 'gray', nota: '' },
   lista: { texto: 'lista', pill: 'gray', nota: '' },
   fuera: { texto: 'no se guarda', pill: 'gray', nota: 'Esta línea no se guardará.' }

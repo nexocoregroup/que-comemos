@@ -99,6 +99,8 @@ Las líneas se revisan siempre antes de guardar, con el texto tal como salió im
 
 **La extracción por OCR necesita un servicio configurado.** Sin él, la pantalla lo dice con todas sus letras y ofrece escribir o dictar las líneas.
 
+Sin ese servicio, además, **el paso de hábitos se queda vacío**: la comparación entre meses se alimenta de facturas aprobadas, y a la revisión solo se llega desde una extracción. La salida manual llena el catálogo y la canasta, pero no deja registro de factura, así que no cuenta repeticiones. Lo que sí funciona sin nada: fotografiar, girar, reducir, guardar las fotos en el dispositivo, recuperarlas en otra sesión y borrarlas.
+
 ### A mano
 
 Todos los formularios de siempre siguen intactos, en **Más opciones** y en sus pantallas.
@@ -248,6 +250,7 @@ Esta elección es una hipótesis de diseño, no una afirmación de que un color 
 - La canasta se reparte por días y nada más: no sabe de ausencias, de visitas ni de que en diciembre se come distinto.
 - Las equivalencias no se infieren y las unidades incompatibles no se convierten.
 - La lista para un período futuro usa las existencias de hoy hasta que registres consumo real.
+- Sin servicio de lectura de facturas no hay análisis de hábitos entre meses: hace falta una extracción aprobada para que un mes cuente.
 - Los alimentos creados desde la canasta o desde un texto **nacen con cero existencias**: la primera lista de compra pedirá de más si ya tenías cosas en casa. Se arregla con una corrección de conteo, o registrando la apertura al crear el alimento a mano.
 
 ## Estructura del proyecto
