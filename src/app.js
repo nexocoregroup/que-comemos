@@ -6,6 +6,7 @@ import { CATEGORIES } from './catalog-seed.js';
 import { SETUP_ACTIONS, SETUP_FORMS, emptySetup, renderSetup } from './setup.js';
 import { CHAT_ACTIONS, CHAT_FORMS, emptyChat, renderChat } from './chat-ui.js';
 import { BULK_ACTIONS, BULK_FORMS, emptyBulk, renderBulk } from './bulk-entry.js';
+import { INVOICE_ACTIONS, INVOICE_FORMS, emptyInvoice, renderInvoice } from './invoice-ui.js';
 import { describeConfig, isConfigured, readConfig, writeConfig } from './providers.js';
 import { button, cap, empty, esc, fmt, measure, modal, monthName, niceDate, notice, options, productDatalist, shiftMonth, unitText } from './ui-kit.js';
 
@@ -16,7 +17,7 @@ catch (error) { state = createEmptyState(); loadError = error.message; }
 const today = todayISO();
 const SIDEBAR_KEY = 'que-comemos-sidebar-collapsed';
 const sidebarInitiallyCollapsed = (() => { try { return localStorage.getItem(SIDEBAR_KEY) === '1'; } catch { return false; } })();
-const ui = { page: 'hoy', menuDate: today, menuMode: 'week', shopMonth: today.slice(0, 7), shopKind: Number(today.slice(8)) <= 15 ? 'first' : 'second', customStart: today, customEnd: addDays(today, 14), shopBasis: 'mensual', shopMonthBasket: today.slice(0, 7), modal: null, setup: null, chat: null, bulk: null, productFilter: '', showArchived: false, reviewId: null, correctingReview: false, generationResult: null, sidebarCollapsed: sidebarInitiallyCollapsed, drawerOpen: false, welcome: firstRun, tour: null, justStarted: false };
+const ui = { page: 'hoy', menuDate: today, menuMode: 'week', shopMonth: today.slice(0, 7), shopKind: Number(today.slice(8)) <= 15 ? 'first' : 'second', customStart: today, customEnd: addDays(today, 14), shopBasis: 'mensual', shopMonthBasket: today.slice(0, 7), modal: null, setup: null, chat: null, bulk: null, invoice: null, productFilter: '', showArchived: false, reviewId: null, correctingReview: false, generationResult: null, sidebarCollapsed: sidebarInitiallyCollapsed, drawerOpen: false, welcome: firstRun, tour: null, justStarted: false };
 const personName = id => state.people.find(person => person.id === id)?.name || 'Persona eliminada';
 const productName = id => product(state, id)?.name || 'Producto eliminado';
 // «14 ruedas» no dice nada si no se sabe cómo las cortan en esta casa.
@@ -443,6 +444,7 @@ function renderModal() {
   }
   if (m.type === 'chat') return modal('Asistente', 'Dile lo que pasó en casa y ella lo anota. Antes de tocar nada te lo enseña.', renderChat({ ...ctx(), chat: ui.chat }), true);
   if (m.type === 'bulk') return modal('Escribir varios productos', 'Escríbelo o díctalo de corrido. La app lo separa y tú revisas antes de guardar.', renderBulk({ ...ctx(), bulk: ui.bulk }), true);
+  if (m.type === 'invoice') return modal('Leer una factura', 'Para aprender lo que compras, no para tocar tus existencias.', renderInvoice({ ...ctx(), invoice: ui.invoice }), true);
   if (m.type === 'promote') {
     const diff = monthDiff(state, m.month);
     const filas = [
@@ -542,11 +544,12 @@ document.addEventListener('click', event => {
     if (SETUP_ACTIONS[action]) { SETUP_ACTIONS[action](el, ctx()); return; }
     if (CHAT_ACTIONS[action]) { CHAT_ACTIONS[action](el, { ...ctx(), chat: ui.chat }); return; }
     if (BULK_ACTIONS[action]) { BULK_ACTIONS[action](el, { ...ctx(), bulk: ui.bulk }); return; }
+    if (INVOICE_ACTIONS[action]) { INVOICE_ACTIONS[action](el, { ...ctx(), invoice: ui.invoice }); return; }
     if (action === 'navigate') { ui.page = el.dataset.page; ui.modal = null; ui.drawerOpen = false; render(); }
     else if (action === 'open-quick') openModal('quick');
     else if (action === 'open-chat') { ui.chat = ui.chat || emptyChat(); openModal('chat'); }
     else if (action === 'open-bulk') { ui.bulk = emptyBulk(el.dataset.destino || 'base'); ui.bulk.mes = el.dataset.month || ui.shopMonthBasket; openModal('bulk'); }
-    else if (action === 'open-invoice') openModal('invoice');
+    else if (action === 'open-invoice') { ui.invoice = ui.invoice || emptyInvoice(); openModal('invoice'); }
     else if (action === 'welcome-demo') { ui.welcome = false; ui.page = TOUR_STEPS[0].page; ui.tour = 0; commit('Datos de demostración cargados.'); }
     // Empezar de cero lleva directo a la canasta, no al recorrido: escribir lo
     // que la casa consume en un mes es lo único que hay que hacer para que la
@@ -699,6 +702,7 @@ document.addEventListener('submit', async event => {
     if (SETUP_FORMS[kind]) { SETUP_FORMS[kind](form, data, ctx()); return; }
     if (CHAT_FORMS[kind]) { await CHAT_FORMS[kind](form, data, { ...ctx(), chat: ui.chat }); return; }
     if (BULK_FORMS[kind]) { await BULK_FORMS[kind](form, data, { ...ctx(), bulk: ui.bulk }); return; }
+    if (INVOICE_FORMS[kind]) { await INVOICE_FORMS[kind](form, data, { ...ctx(), invoice: ui.invoice }); return; }
     if (kind === 'recipe') { upsertRecipe(state, { id: form.dataset.id, name: data.get('name'), uses: selected(form,'uses'), covers: selected(form,'covers'), servings: data.get('servings'), items: collectItems(form), note: data.get('note') }); ui.modal = null; commit('Preparación guardada.'); }
     else if (kind === 'person') {
       const escritas = String(data.get('pendingRestrictions') || '').split(/[,;]/).map(text => text.trim()).filter(Boolean);

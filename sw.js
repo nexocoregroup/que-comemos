@@ -13,8 +13,8 @@ const SHELL = [
   './src/app.js', './src/model.js', './src/storage.js', './src/demo.js',
   './src/brand.js', './src/onboarding.js', './src/nombres.js', './src/migrate.js', './src/ui-kit.js',
   './src/catalog-seed.js', './src/setup.js', './src/assistant.js', './src/providers.js',
-  './src/text-parse.js', './src/invoices.js', './src/invoice-store.js', './src/chat-ui.js', './src/bulk-entry.js',
-  './src/styles.css', './src/sidebar.css', './src/onboarding.css', './src/quick-add.css', './src/calendar.css', './src/theme.css', './src/setup.css', './src/chat.css', './src/bulk.css',
+  './src/text-parse.js', './src/invoices.js', './src/invoice-store.js', './src/chat-ui.js', './src/bulk-entry.js', './src/invoice-ui.js',
+  './src/styles.css', './src/sidebar.css', './src/onboarding.css', './src/quick-add.css', './src/calendar.css', './src/theme.css', './src/setup.css', './src/chat.css', './src/bulk.css', './src/invoice.css',
   './src/isotipo.png', './src/icon-192.png', './src/icon-512.png',
   './src/fonts/montserrat-latin.woff2', './src/fonts/montserrat-latin-ext.woff2'
 ];

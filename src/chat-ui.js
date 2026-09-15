@@ -425,7 +425,9 @@ function resumenLegible(acciones, resultado) {
 // Qué argumentos acepta cada acción, sacado de la misma tabla que valida. Sirve
 // para contestar una pregunta —«¿cuál de estos arroces?»— poniendo la respuesta
 // en las acciones que de verdad tienen ese campo, sin tocar las demás.
-const CAMPOS = new Map(toolSchemas().map(herramienta => [herramienta.name, Object.keys(herramienta.arguments)]));
+// La forma es la del contrato de docs/backend.md —nombre, descripcion,
+// parametros— porque es la misma lista que se le manda al backend.
+const CAMPOS = new Map(toolSchemas().map(herramienta => [herramienta.nombre, Object.keys(herramienta.parametros.properties)]));
 
 function ejecutar(ctx, acciones, requestId, confirmado = false) {
   const chat = chatDe(ctx);
