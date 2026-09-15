@@ -3,3 +3,6 @@ www/
 *.apk
 .DS_Store
 Thumbs.db
+
+# Caché local de Android Studio: no es contenido del proyecto.
+.idea/caches/

@@ -22,7 +22,8 @@
   display: block;
   width: 88px;
   height: 88px;
-  margin-left: -7px; /* El trazo no llega al borde del lienzo: compensa la sangría óptica. */
+  /* El isotipo viene recortado a su contenido y centrado en un lienzo cuadrado,
+     así que no hace falta corregir ninguna sangría a mano. */
   color: var(--clay);
 }
 .welcome-card h1 {

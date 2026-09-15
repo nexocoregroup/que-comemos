@@ -72,7 +72,11 @@ Dentro del APK la app no registra el trabajador de servicio: los archivos ya est
 
 ## Línea gráfica
 
-El isotipo es un plato abierto con un signo de pregunta dentro y el punto en la boca del plato. Vive en dos formas: `src/logo.svg`, el ícono terracota con el signo en crema que se usa como favicon, y `src/brand.js`, el mismo trazo sin fondo que hereda el color de su contenedor y se inserta en la cabecera de la barra lateral y del móvil. Al cambiar la geometría hay que tocar los dos archivos.
+El isotipo es un anillo abierto por abajo con un signo de pregunta dentro y el punto en la abertura. El original vive en `identidad visual/isotipo.png` y es la única fuente: todo lo demás se genera desde ahí con `npm run brand`, que escribe diecisiete archivos —la marca suelta, los dos íconos de la app instalada y las dos familias de íconos de Android—. No hay ninguna versión redibujada a mano, y no la debe haber: el trazo del signo de pregunta es orgánico y a cualquier reconstrucción con arcos se le nota.
+
+Por eso la marca viaja como imagen y no como SVG. Si algún día aparece el vector original (`.ai`, `.svg`), conviene sustituirlo: escalaría sin límite y podría heredar el color de su contenedor. Mientras tanto, `tools/brand-assets.js` rasteriza cada tamaño desde el original de 1080 px, así que en pantalla no se nota la diferencia.
+
+En la cabecera la marca va suelta, sin recuadro, al lado del nombre —igual que en el logotipo, que también parte «¿Qué / comemos?» en dos líneas—. El fondo crema lleno queda solo para los íconos de la app, donde hace falta para separarla del escritorio.
 
 La tipografía es **Montserrat** y viaja dentro del proyecto, en `src/fonts/`. Cargarla desde Google Fonts ataba la app a tener internet, que es justo lo que no queremos dentro del APK; ahora no hay ni una petición a un servidor ajeno. El descriptor `unicode-range` de `src/theme.css` hace que el subconjunto latin-ext solo se descargue si aparece un carácter de ese rango. Montserrat es más ancha que la pila anterior, así que `theme.css` suaviza el interletrado negativo de los títulos y recorta el de las etiquetas en mayúscula.
 
@@ -120,18 +124,19 @@ La propuesta mensual usa reglas de repetición sencillas y solo preparaciones de
 - `src/styles.css`: diseño adaptable.
 - `src/sidebar.css`: menú lateral plegable y panel móvil.
 - `src/theme.css`: colores, tipografía y acabados de la identidad visual.
-- `src/brand.js`: isotipo en línea para las cabeceras.
-- `src/logo.svg`: isotipo con fondo, usado como favicon.
+- `src/brand.js`: la etiqueta de imagen del isotipo que se inserta en las cabeceras.
+- `src/isotipo.png`: la marca suelta, con fondo transparente. Cabecera y favicon.
 - `src/onboarding.js`: texto de la bienvenida y de los pasos del recorrido.
 - `src/onboarding.css`: bienvenida y tarjeta del recorrido.
 - `src/quick-add.css`: botón **+** flotante y su hoja de atajos. Documenta el reparto de capas: barra inferior 20, botón 25, modal 30, recorrido 35.
 - `src/calendar.css`: el calendario en pantallas estrechas. Se carga **después** de `styles.css` a propósito: sus reglas tienen la misma especificidad y ganan por orden.
 - `manifest.webmanifest`: nombre, ícono y modo de la app instalada.
 - `sw.js`: trabajador de servicio; guarda el casco para abrir sin conexión.
-- `src/icon-192.png`: ícono de la app, rasterizado desde `logo.svg`. Para tamaños mayores el manifiesto usa el propio SVG, que el navegador escala sin perder nitidez.
+- `src/icon-192.png` y `src/icon-512.png`: íconos de la app instalada, con fondo crema. La marca ocupa el 56 % del lado para que el recorte adaptable de Android e iOS no le muerda los bordes.
+- `tools/brand-assets.js`: genera esos archivos y los de Android desde `identidad visual/isotipo.png`. Lleva dentro un lector y un escritor de PNG para no añadir dependencias.
 - `build.js`: copia el casco web a `www/` para empaquetarlo. Es todo el «build» que hay.
 - `capacitor.config.json`: identificador y nombre de la aplicación de Android.
-- `android/`: proyecto nativo generado por Capacitor. Solo está retocado el ícono, que es un vector con las mismas curvas de `logo.svg`, y el color de la pantalla de arranque. Si lo regeneras con `npx cap add android` pierdes esos dos cambios.
+- `android/`: proyecto nativo generado por Capacitor. Solo están retocados los íconos, que salen de `npm run brand`, y los colores de `values/ic_launcher_background.xml`. Si lo regeneras con `npx cap add android` pierdes los colores; los íconos se recuperan volviendo a ejecutar `npm run brand`.
 
 Las únicas dependencias del proyecto son las de Capacitor, y solo sirven para compilar el APK. La app web no usa ninguna: `npm start` y `npm test` funcionan sin instalar nada.
 - `tests/model.test.js`: pruebas de reglas centrales.
