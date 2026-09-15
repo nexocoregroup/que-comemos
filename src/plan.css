@@ -162,6 +162,23 @@
 }
 .dias-semana .chip-check { padding: 0; font-size: .8rem; }
 
+/* Los días sueltos del mes: siete columnas, como un calendario, para que
+   «los viernes» se vean alineados en una misma columna aunque se elijan a mano.
+   Cada ficha lleva el número grande y la inicial del día debajo. */
+.dias-mes {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.dia-suelto {
+  padding: 0;
+  min-height: 46px;
+  border-radius: 11px;
+  line-height: 1.05;
+}
+.dia-suelto span { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.dia-suelto em { font-style: normal; font-size: .62rem; opacity: .72; font-weight: 600; }
+
 .radio-fila { display: flex; flex-wrap: wrap; gap: 8px; }
 .radio-pill {
   display: inline-flex;
@@ -391,6 +408,27 @@
   .canasta-cantidad { grid-area: cantidad; }
   .canasta-unidad { grid-area: unidad; }
   .canasta-fila > button { grid-area: quitar; }
+}
+
+/* ── Revisión: buscar, filtrar y dictar ─────────────────────────────────── */
+
+.revision-herramientas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.revision-buscar { flex: 1 1 200px; min-width: 0; }
+/* La ficha de «solo lo que falta» se enciende como cualquier otra ficha, y el
+   estado se anuncia además con aria-pressed: un botón que solo cambia de color
+   no existe para quien no distingue esos dos tonos. */
+.chip.activa { background: var(--clay); border-color: var(--clay); color: #fff; }
+.revision-aviso {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--sage);
+  line-height: 1.5;
 }
 
 /* ── Revisión: filas, no tabla ──────────────────────────────────────────── */

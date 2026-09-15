@@ -264,12 +264,32 @@ function pieDeHoy() {
   const diaDeHoy = (new Date(`${today}T12:00:00`).getDay() + 6) % 7 + 1;
   const tocaRevisar = diaDeHoy === (state.settings?.reviewWeekday ?? 5);
   return `${tocaRevisar ? notice('Hoy toca revisar lo que queda.', `Un repaso rápido a la nevera deja la compra exacta. <button type="button" class="enlace" data-action="open-new-review">Empezar</button>`) : ''}
+    ${lineaDeCompra()}
     ${hayManana ? `<div class="section-head"><div><h2>Mañana</h2></div>${button('Ver el mes', 'navigate', 'btn-quiet btn-small', 'data-page="mes"')}</div>
       <div class="grid grid-3">${SLOTS.map(slot => {
         const plan = planFor(state, manana, slot);
         return `<div class="card soft"><div class="between"><span class="pill warm">${cap(slot)}</span></div><h3 style="margin-top:10px">${esc(plan ? planTitle(plan) : 'Sin decidir')}</h3>${plan?.kind === 'linked' ? '<p class="small muted">Usa la parte apartada de hoy.</p>' : ''}</div>`;
       }).join('')}</div>` : ''}`;
 }
+
+// Una línea, no una tarjeta: quien abre «Hoy» viene a cocinar, y lo que falta
+// comprar es un dato de fondo. Si no falta nada, no se dice nada: un aviso que
+// aparece siempre deja de leerse.
+function lineaDeCompra() {
+  const periodo = periodoDeCompra(ui.compra);
+  let faltan = 0;
+  try { faltan = shoppingList(state, periodo.start, periodo.end, ui.compra.base).lines.filter(linea => linea.shortfall > 0).length; }
+  catch { return ''; }
+  if (!faltan) return '';
+  return `<p class="hoy-compra small muted">Para ${esc(rotuloDePeriodo())} faltan <strong>${faltan}</strong> ${faltan === 1 ? 'alimento' : 'alimentos'}. <button type="button" class="enlace" data-action="navigate" data-page="compra">Ver la lista</button></p>`;
+}
+
+const rotuloDePeriodo = () => ({
+  mes: 'este mes',
+  primera: 'la primera quincena',
+  segunda: 'la segunda quincena',
+  fechas: 'ese período'
+})[ui.compra.tramo] || 'este mes';
 
 /* ── Piezas de formulario compartidas ──────────────────────────────────── */
 
@@ -314,10 +334,12 @@ function renderModal() {
   if (m.type === 'alcance-comida') {
     const plan = state.plans.find(item => item.id === m.id);
     const rutina = state.mealRoutines?.find(item => item.id === plan?.routineId);
+    const quitando = m.accion === 'quitar';
+    const cuantas = state.plans.filter(item => item.routineId === plan.routineId).length;
     return modal('¿Qué quieres cambiar?', `${cap(plan.slot)} · ${niceDate(plan.date, { weekday: 'long', day: 'numeric', month: 'long' })}`,
-      `<p class="muted small">Esta comida viene de una rutina${rutina ? ` (${esc(describeRutina(rutina))})` : ''}. Dinos hasta dónde llega el cambio.</p>
+      `<p class="muted small">Esta comida viene de una rutina${rutina ? ` —${esc(describeRutina(rutina))}— que está puesta en ${cuantas} día(s)` : ''}. Dinos hasta dónde llega ${quitando ? 'lo que quitas' : 'el cambio'}.</p>
        <div class="opcion-larga" style="margin-top:16px">
-         ${[['sola', 'Solo esta fecha', 'Las demás se quedan igual.'],
+         ${[['sola', 'Solo esta fecha', quitando ? 'Las demás se quedan igual, y la rutina también.' : 'Esta comida deja de seguir la rutina; las demás siguen igual.'],
             ['siguientes', 'Esta y todas las siguientes', 'Las anteriores no se tocan.'],
             ['todas', 'Toda la rutina', 'Incluidas las que ya pasaron este mes.']].map(([valor, titulo, detalle]) =>
            `<button type="button" class="radio-bloque" data-action="alcance-elegido" data-id="${plan.id}" data-alcance="${valor}"><span><strong>${esc(titulo)}</strong>${esc(detalle)}</span></button>`).join('')}
@@ -526,7 +548,8 @@ function modalComida(m) {
       <div class="divider"></div>
       <div class="small strong" style="margin-bottom:9px">O marcar que no se cocina</div>
       <div class="inline">${[['outside', 'Comemos fuera'], ['order', 'Pedimos comida'], ['unplanned', 'Todavía no sabemos']].map(([kind, label]) =>
-        button(label, 'mark-status', 'btn-secondary btn-small', `data-date="${m.date}" data-slot="${m.slot}" data-kind="${kind}"`)).join('')}</div>`);
+        button(label, 'mark-status', 'btn-secondary btn-small', `data-date="${m.date}" data-slot="${m.slot}" data-kind="${kind}"`)).join('')}</div>
+      <p class="small muted" style="margin:12px 0 0">Un día de paseo no se parte en tres: ${button('marcar el día entero fuera', 'mark-day', 'btn-quiet btn-small', `data-date="${m.date}" data-kind="outside"`)}</p>`);
   }
   if (!['recipe', 'linked'].includes(plan.kind)) {
     return modal(planTitle(plan), contexto, `<p class="muted">Esta comida está resuelta: no cuenta como pendiente y no gasta alimentos.</p>
@@ -711,6 +734,9 @@ document.addEventListener('click', event => {
     if (el.dataset.goto) { ui.page = el.dataset.goto; if (ui.page === 'mes') abrirMesSiHaceFalta(ctx(), ui.mes.month); }
 
     if (action === 'navigate') {
+      // Salir de la revisión con el micrófono abierto lo dejaría escuchando
+      // detrás de una pantalla que ya no se ve.
+      if (ui.page === 'revision' && ui.mas.revisionEscuchando) { cancelarDictado(); ui.mas.revisionEscuchando = false; }
       ui.page = el.dataset.page;
       if (el.dataset.month) { ui.mas.canastaMes = el.dataset.month; ui.mas.canastaVista = 'cambios'; }
       if (ui.page === 'mes') abrirMesSiHaceFalta(ctx(), ui.mes.month);
@@ -751,8 +777,8 @@ document.addEventListener('click', event => {
     else if (action === 'open-correction') openModal('correction', { id: el.dataset.id });
     else if (action === 'open-absence') openModal('absence');
     else if (action === 'open-import') openModal('import');
-    else if (action === 'open-alcance') openModal('alcance-comida', { id: el.dataset.id });
-    else if (action === 'alcance-elegido') quitarPorAlcance(el.dataset.id, el.dataset.alcance);
+    else if (action === 'open-alcance') openModal('alcance-comida', { id: el.dataset.id, accion: 'quitar' });
+    else if (action === 'alcance-elegido') aplicarPorAlcance(el.dataset.id, el.dataset.alcance);
     else if (action === 'review-mode') { const review = state.reviews.find(item => item.id === el.dataset.id); if (review && review.status === 'draft') { review.mode = el.dataset.mode; commit(''); } }
     else if (action === 'select-review') { ui.reviewId = el.dataset.id; ui.correctingReview = false; ui.page = 'revision'; render(); }
     else if (action === 'toggle-correct-review') { ui.correctingReview = !ui.correctingReview; render(); }
@@ -768,6 +794,26 @@ document.addEventListener('click', event => {
       toast('Se quitará al guardar.');
     }
     else if (action === 'mark-status') { setStatusPlan(state, el.dataset.date, el.dataset.slot, el.dataset.kind); ui.modal = null; commit('Comida marcada.'); }
+    // «Ese día salimos» es una frase sobre el día, no sobre tres comidas. Lo que
+    // ya tuviera plan se respeta salvo que la persona diga que lo reemplace: un
+    // paseo por la tarde no borra el desayuno que ya estaba decidido.
+    else if (action === 'mark-day') {
+      const fecha = el.dataset.date;
+      const ocupadas = SLOTS.filter(slot => planFor(state, fecha, slot) && planFor(state, fecha, slot).kind !== 'unplanned');
+      const reemplazar = ocupadas.length
+        ? window.confirm(`Ese día ya tiene ${ocupadas.length} comida(s) decidida(s) (${ocupadas.map(cap).join(', ')}).\n\nAceptar: se cambian también.\nCancelar: se quedan y solo marco las que faltan.`)
+        : false;
+      let puestas = 0;
+      for (const slot of SLOTS) {
+        const antes = planFor(state, fecha, slot);
+        if (antes && antes.kind !== 'unplanned' && !reemplazar) continue;
+        if (antes) deletePlanSeguro(antes.id, true);
+        setStatusPlan(state, fecha, slot, el.dataset.kind);
+        puestas++;
+      }
+      ui.modal = null;
+      commit(puestas ? `${puestas} comida(s) de ese día quedaron fuera de casa.` : 'Ese día ya estaba decidido entero.');
+    }
     else if (action === 'replace-status') {
       const hijos = dependents(state, el.dataset.id);
       if (hijos.length && !window.confirm(`De esta comida se aparta una parte para ${hijos.length} comida(s). Cambiarla también las quitará. ¿Continuar?`)) return;
@@ -820,27 +866,54 @@ function deletePlanSeguro(id, cascade = false) {
   state.plans = state.plans.filter(plan => plan.id !== id);
 }
 
-// Cambiar una comida que viene de una rutina obliga a preguntar hasta dónde
-// llega el cambio. Suponerlo sería destruir el trabajo de alguien sin avisar.
-function quitarPorAlcance(planId, alcance) {
+// Tocar una comida que viene de una rutina obliga a preguntar hasta dónde llega
+// el cambio, tanto si se quita como si se edita. Suponerlo destruiría el trabajo
+// de alguien sin avisar: cambiar el desayuno del martes no es lo mismo que
+// cambiar todos los martes del año.
+function aplicarPorAlcance(planId, alcance) {
   const plan = state.plans.find(item => item.id === planId);
   if (!plan) return;
-  if (alcance === 'sola') {
-    deletePlanSeguro(plan.id, true);
+  const quitando = ui.modal?.accion === 'quitar';
+  const desde = alcance === 'siguientes' ? plan.date : '0000-00-00';
+  const afectadas = alcance === 'sola'
+    ? [plan]
+    : state.plans.filter(item => item.routineId === plan.routineId && item.date >= desde);
+
+  if (quitando) {
+    if (alcance !== 'sola' && !window.confirm(`Se van a quitar ${afectadas.length} comida(s). ¿Continuar?`)) return;
+    for (const item of [...afectadas]) deletePlanSeguro(item.id, true);
+    if (alcance === 'todas') {
+      const rutina = (state.mealRoutines || []).find(item => item.id === plan.routineId);
+      if (rutina) rutina.active = false;
+    }
     ui.modal = null;
-    commit('Quitada solo esta fecha. La rutina sigue igual.');
+    commit(alcance === 'sola' ? 'Quitada solo esta fecha. La rutina sigue igual.'
+      : alcance === 'todas' ? 'Rutina quitada junto con sus comidas.'
+      : `${afectadas.length} comida(s) quitadas de aquí en adelante.`);
     return;
   }
-  const desde = alcance === 'siguientes' ? plan.date : '0000-00-00';
-  const afectadas = state.plans.filter(item => item.routineId === plan.routineId && item.date >= desde);
-  if (!window.confirm(`Se van a quitar ${afectadas.length} comida(s). ¿Continuar?`)) return;
-  for (const item of [...afectadas]) deletePlanSeguro(item.id, true);
-  if (alcance === 'todas') {
-    const rutina = (state.mealRoutines || []).find(item => item.id === plan.routineId);
-    if (rutina) rutina.active = false;
+
+  // Editar: los cambios quedaron guardados al abrir esta ventana.
+  const cambios = ui.modal?.cambios;
+  if (!cambios) { ui.modal = null; render(); return; }
+  if (alcance !== 'sola' && !window.confirm(`Se van a cambiar ${afectadas.length} comida(s). ¿Continuar?`)) return;
+  for (const item of afectadas) {
+    updatePlan(state, item.id, {
+      title: cambios.title,
+      note: cambios.note,
+      // Los participantes y los alimentos se copian solo a esta fecha: en otra
+      // puede haber alguien ausente, y forzarlo rompería esa comida.
+      participants: item.id === plan.id ? cambios.participants : item.participants,
+      items: item.id === plan.id ? cambios.items : item.items
+    });
+    // Una fecha que se aparta deja de seguir la rutina; si no, la próxima vez
+    // que se aplique volvería a pisarla.
+    if (alcance === 'sola') item.routineId = null;
   }
   ui.modal = null;
-  commit(alcance === 'todas' ? 'Rutina quitada junto con sus comidas.' : `${afectadas.length} comida(s) quitadas de aquí en adelante.`);
+  commit(alcance === 'sola' ? 'Cambiada solo esta fecha. La rutina sigue igual.'
+    : alcance === 'todas' ? `Cambiadas las ${afectadas.length} comidas de la rutina.`
+    : `${afectadas.length} comida(s) cambiadas de aquí en adelante.`);
 }
 
 function traerCantidadesHabituales(el) {
@@ -897,7 +970,11 @@ document.addEventListener('input', event => {
   // respiro para no repintar por letra, y devuelven el foco y el cursor donde
   // estaban. Antes el del catálogo inicial era un `change`, así que no pasaba
   // nada hasta pulsar Intro o salir del campo.
-  const buscadores = { 'alimento-filtro': valor => { ui.mas.filtroAlimento = valor; }, 'setup-buscar': valor => { ui.setup.busqueda = valor; } };
+  const buscadores = {
+    'alimento-filtro': valor => { ui.mas.filtroAlimento = valor; },
+    'revision-filtro': valor => { ui.mas.revisionFiltro = valor; },
+    'setup-buscar': valor => { ui.setup.busqueda = valor; }
+  };
   const escribir = buscadores[event.target.id];
   if (escribir) {
     const campoId = event.target.id;
@@ -1042,7 +1119,16 @@ document.addEventListener('submit', async event => {
     }
     else if (kind === 'plan') {
       const plan = state.plans.find(item => item.id === form.dataset.id);
-      updatePlan(state, plan.id, { title: data.get('title'), note: data.get('note'), participants: selected(form, 'participants'), items: collectItems(form).map(item => ({ ...item, id: item.id || nextId(state, 'alimento'), quantity: quantity(item.quantity) })) });
+      const cambios = {
+        title: data.get('title'),
+        note: data.get('note'),
+        participants: selected(form, 'participants'),
+        items: collectItems(form).map(item => ({ ...item, id: item.id || nextId(state, 'alimento'), quantity: quantity(item.quantity) }))
+      };
+      // Si esta comida la puso una rutina, no se guarda a ciegas: se pregunta
+      // primero si el cambio es de este día o de toda la costumbre.
+      if (plan.routineId) { ui.modal = { type: 'alcance-comida', id: plan.id, accion: 'editar', cambios }; render(); return; }
+      updatePlan(state, plan.id, cambios);
       ui.modal = null; commit('Guardado.');
     }
     else if (kind === 'link') {

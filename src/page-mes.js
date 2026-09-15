@@ -14,19 +14,21 @@
 // permanentes y deja el calendario montado; lo que el usuario hace entonces no
 // es construir el mes, es revisar en qué se va a diferenciar.
 
-import { SLOTS, dateRange, deletePlan, effectiveBasket, monthBasketSummary, monthBounds, planFor, restore, setStatusPlan, snapshot, todayISO } from './model.js';
+import { SLOTS, dateRange, deletePlan, effectiveBasket, makeRecipePlan, monthBasketSummary, monthBounds, planFor, restore, setStatusPlan, shoppingList, snapshot, todayISO } from './model.js';
 import { WEEKDAY_SHORT, WEEKDAYS, addRoutine, applyRoutine, applyRoutines, copyPatternFromMonth, datesForRule, deleteRoutine, describeRule, monthProgress, openMonth, routinesFor } from './routines.js';
 import { button, cap, empty, esc, measure, modal, monthName, niceDate, notice, options, shiftMonth } from './ui-kit.js';
 
 const hoy = todayISO();
 
-// Los pasos de «Preparar este mes». Seis pantallas cortas, cada una con una
-// sola pregunta, en lugar de una pantalla con seis decisiones a la vez.
+// Los pasos de «Preparar este mes». Siete pantallas cortas, cada una con una
+// sola pregunta, en lugar de una pantalla con siete decisiones a la vez.
 export const PASOS = [
   { id: 'rutinas', titulo: 'Lo que se repite', pregunta: '¿Qué come tu casa normalmente?' },
+  { id: 'comparar', titulo: 'Qué cambia', pregunta: '¿En qué se parece al mes pasado?' },
   { id: 'salidas', titulo: 'Comidas fuera', pregunta: '¿Qué días no van a comer en casa?' },
   { id: 'pendientes', titulo: 'Lo que falta', pregunta: '¿Qué hacemos con los huecos?' },
   { id: 'canasta', titulo: 'La compra del mes', pregunta: '¿Este mes cambia algo de lo que compran?' },
+  { id: 'compra', titulo: 'La lista', pregunta: '¿Qué habría que comprar?' },
   { id: 'listo', titulo: 'Listo', pregunta: '' }
 ];
 
@@ -249,9 +251,11 @@ function renderPaso(ctx) {
   const paso = PASOS[indice];
   const cuerpo = ({
     rutinas: pasoRutinas,
+    comparar: pasoComparar,
     salidas: pasoSalidas,
     pendientes: pasoPendientes,
     canasta: pasoCanasta,
+    compra: pasoCompra,
     listo: pasoListo
   })[paso.id](ctx);
   const ultimo = paso.id === 'listo';
@@ -281,6 +285,75 @@ function pasoRutinas(ctx) {
          <div class="inline" style="margin-top:14px">${button('+ Añadir otra', 'mes-nueva-rutina', 'btn-secondary')}${button('Aplicarlas todas a este mes', 'mes-aplicar-todas', 'btn-secondary')}</div>`
       : empty('🔁', 'Todavía no hay ninguna', 'Una rutina es algo como «mangú con salami, los martes y jueves de desayuno». Con dos o tres, el mes entero queda hecho.', `${button('Crear mi primera rutina', 'mes-nueva-rutina', 'btn-primary')}${button('Usar el patrón del mes pasado', 'mes-copiar-patron', 'btn-secondary')}`)}
     ${avisoDeApertura(ctx)}`;
+}
+
+// Comparar con el mes pasado no es una estadística: es la forma de acordarse de
+// lo que se hizo distinto. «El mes pasado comimos fuera cuatro veces y este
+// llevas una» es una frase que hace pensar; dos gráficos, no.
+function pasoComparar(ctx) {
+  const { state, ui } = ctx;
+  const mes = ui.mes.month;
+  const anterior = shiftMonth(mes, -1);
+  const seOrganizoAntes = Boolean(state.monthPlans?.[anterior]) || state.plans.some(plan => plan.date.slice(0, 7) === anterior);
+  if (!seOrganizoAntes) {
+    return `<p class="plan-paso-texto">${esc(monthName(anterior))} no llegó a organizarse, así que no hay con qué comparar. Sigue adelante.</p>`;
+  }
+  const antes = monthProgress(state, anterior);
+  const ahora = monthProgress(state, mes);
+  const fila = (etiqueta, a, b) => `<tr><td>${esc(etiqueta)}</td><td class="num">${a}</td><td class="num strong">${b}</td></tr>`;
+
+  // Y qué cambia en lo que se compra: los alimentos cuya cantidad no coincide.
+  const mapa = lista => new Map(lista.map(linea => [linea.productId, linea]));
+  const deAntes = mapa(effectiveBasket(state, anterior));
+  const deAhora = mapa(effectiveBasket(state, mes));
+  const distintos = [];
+  for (const [id, linea] of deAhora) {
+    const viejo = deAntes.get(id);
+    if (!viejo) distintos.push(`${nombreProducto(state, id)}: nuevo este mes`);
+    else if (viejo.quantity !== linea.quantity) distintos.push(`${nombreProducto(state, id)}: ${viejo.quantity === null ? 'sin cantidad' : measure(viejo.quantity, viejo.unit)} → ${linea.quantity === null ? 'sin cantidad' : measure(linea.quantity, linea.unit)}`);
+  }
+  for (const [id] of deAntes) if (!deAhora.has(id)) distintos.push(`${nombreProducto(state, id)}: este mes no se compra`);
+
+  return `<p class="plan-paso-texto">Así va ${esc(monthName(mes))} comparado con ${esc(monthName(anterior))}.</p>
+    <div class="card table-wrap"><table class="data-table">
+      <thead><tr><th></th><th class="num">${esc(monthName(anterior).split(' ')[0])}</th><th class="num">${esc(monthName(mes).split(' ')[0])}</th></tr></thead>
+      <tbody>
+        ${fila('Comidas en casa', antes.encasa, ahora.encasa)}
+        ${fila('Fuera de casa', antes.fuera, ahora.fuera)}
+        ${antes.pedido || ahora.pedido ? fila('Pedidas', antes.pedido, ahora.pedido) : ''}
+        ${fila('Sin decidir', antes.pendientes, ahora.pendientes)}
+      </tbody>
+    </table></div>
+    ${distintos.length
+      ? `<div class="section-head"><h3 class="plan-sub">Lo que cambia en la compra</h3></div>
+         <div class="card"><ul class="food-list">${distintos.slice(0, 10).map(texto => `<li>${esc(texto)}</li>`).join('')}</ul>${distintos.length > 10 ? `<p class="small muted">Y ${distintos.length - 10} más.</p>` : ''}</div>`
+      : '<p class="small muted">En la compra, este mes es igual que el pasado.</p>'}
+    ${ahora.pendientes > antes.pendientes && antes.encasa
+      ? `<div class="inline" style="margin-top:14px">${button(`Usar el patrón de ${monthName(anterior)}`, 'mes-copiar-patron', 'btn-secondary')}</div>`
+      : ''}
+    ${avisoDeApertura(ctx)}`;
+}
+
+// La lista sale de lo que ya está decidido, y se enseña aquí para que el mes no
+// se dé por organizado sin haber mirado lo que va a costar.
+function pasoCompra(ctx) {
+  const { state, ui } = ctx;
+  const { start, end } = monthBounds(ui.mes.month);
+  let lista;
+  try { lista = shoppingList(state, start, end, 'casa'); }
+  catch (error) { return `<p class="plan-paso-texto">No se pudo calcular la lista: ${esc(error.message)}</p>`; }
+  const faltan = lista.lines.filter(linea => linea.shortfall > 0);
+  if (!faltan.length) {
+    return `<div class="card plan-ok"><span class="plan-ok-icono">✓</span><div><strong>No falta nada.</strong><span>Con lo que hay en casa alcanza para ${esc(monthName(ui.mes.month))}.</span></div></div>
+      <div class="inline" style="margin-top:14px">${button('Abrir la compra', 'navigate', 'btn-secondary', 'data-page="compra"')}</div>`;
+  }
+  return `<p class="plan-paso-texto">Esto es lo que haría falta comprar para todo ${esc(monthName(ui.mes.month))}, según tu canasta y lo que ya queda en casa. Todavía no hay que hacer nada: es para que lo veas antes de dar el mes por cerrado.</p>
+    <div class="card">${faltan.slice(0, 12).map(linea => {
+      const item = state.products.find(row => row.id === linea.productId);
+      return `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${esc(item?.name || '')}</div></div><div class="compra-cantidad">${linea.purchaseQuantity === null ? '<span class="pill gray">falta una medida</span>' : `<strong>${esc(measure(linea.purchaseQuantity, linea.purchaseUnit))}</strong>`}</div></div>`;
+    }).join('')}</div>
+    ${faltan.length > 12 ? `<p class="small muted">Y ${faltan.length - 12} alimento(s) más.</p>` : ''}
+    <div class="inline" style="margin-top:14px">${button('Abrir la compra', 'navigate', 'btn-secondary', 'data-page="compra"')}</div>`;
 }
 
 // Los domingos son el caso real que pidió el usuario: primer y tercer domingo
@@ -365,6 +438,18 @@ function pasoCanasta(ctx) {
 
 const nombreProducto = (state, id) => state.products.find(item => item.id === id)?.name || 'Alimento eliminado';
 
+// Los días del mes como fichas, con la inicial del día de la semana debajo: sin
+// ella, elegir «los tres viernes que viene mi mamá» obliga a mirar un calendario
+// aparte y contar.
+function diasDelMes(month) {
+  const { start, end } = monthBounds(month);
+  return dateRange(start, end).map(date => ({
+    date,
+    numero: Number(date.slice(8)),
+    inicial: WEEKDAY_SHORT[(new Date(`${date}T12:00:00`).getDay() + 6) % 7].slice(0, 1)
+  }));
+}
+
 function pasoListo(ctx) {
   const { state, ui } = ctx;
   const month = ui.mes.month;
@@ -412,20 +497,35 @@ export function modalRutina(ctx, extras = {}) {
         <div class="chips">${SLOTS.map(slot => `<label class="chip-check"><input type="checkbox" name="slots" value="${slot}"><span>${cap(slot)}</span></label>`).join('')}</div>
       </fieldset>
 
-      <fieldset class="field-group"><legend>¿Qué días de la semana?</legend>
-        <div class="chips dias-semana">${WEEKDAYS.map((dia, indice) => `<label class="chip-check"><input type="checkbox" name="weekdays" value="${dia}" ${dias.includes(dia) ? 'checked' : ''}><span>${esc(WEEKDAY_SHORT[indice])}</span></label>`).join('')}</div>
-      </fieldset>
-
-      <fieldset class="field-group"><legend>¿Todos, o solo algunos?</legend>
-        <div class="radio-fila">
-          <label class="radio-pill"><input type="radio" name="weeks" value="todas" ${semanas ? '' : 'checked'}><span>Todos</span></label>
-          <label class="radio-pill"><input type="radio" name="weeks" value="1,3" ${String(semanas) === '1,3' ? 'checked' : ''}><span>1.º y 3.º</span></label>
-          <label class="radio-pill"><input type="radio" name="weeks" value="2,4" ${String(semanas) === '2,4' ? 'checked' : ''}><span>2.º y 4.º</span></label>
+      <fieldset class="field-group"><legend>¿Qué días?</legend>
+        <div class="segmented segmented-ancho">
+          <button type="button" data-action="rutina-modo-dias" data-modo="semana" class="active">Días de la semana</button>
+          <button type="button" data-action="rutina-modo-dias" data-modo="sueltos">Días sueltos</button>
         </div>
-        <p class="hint">Por ejemplo: «primer y tercer domingo» son el primer y el tercer domingo que caen en el mes, sean las fechas que sean.</p>
+
+        <div data-dias-semana>
+          <div class="chips dias-semana">${WEEKDAYS.map((dia, indice) => `<label class="chip-check"><input type="checkbox" name="weekdays" value="${dia}" ${dias.includes(dia) ? 'checked' : ''}><span>${esc(WEEKDAY_SHORT[indice])}</span></label>`).join('')}</div>
+          <p class="hint" style="margin-top:12px">¿Todos esos días, o solo algunos?</p>
+          <div class="radio-fila" style="margin-top:8px">
+            <label class="radio-pill"><input type="radio" name="weeks" value="todas" ${semanas ? '' : 'checked'}><span>Todos</span></label>
+            <label class="radio-pill"><input type="radio" name="weeks" value="1,3" ${String(semanas) === '1,3' ? 'checked' : ''}><span>1.º y 3.º</span></label>
+            <label class="radio-pill"><input type="radio" name="weeks" value="2,4" ${String(semanas) === '2,4' ? 'checked' : ''}><span>2.º y 4.º</span></label>
+          </div>
+          <p class="hint">«Primer y tercer domingo» son el primer y el tercer domingo que caen en el mes, sean las fechas que sean.</p>
+          <label class="field" style="margin-top:14px"><span>Hasta el día (opcional)</span>
+            <input type="date" name="hasta" min="${esc(monthBounds(month).start)}" max="${esc(monthBounds(month).end)}">
+            <small>Déjalo vacío para todo el mes. Sirve para «solo hasta que vuelva el niño de las vacaciones».</small>
+          </label>
+        </div>
+
+        <div data-dias-sueltos hidden>
+          <p class="hint" style="margin-bottom:10px">Marca los días de ${esc(monthName(month))} que quieras. Esto no crea una costumbre: pone esas comidas y ya.</p>
+          <div class="chips dias-mes">${diasDelMes(month).map(({ date, numero, inicial }) =>
+            `<label class="chip-check dia-suelto"><input type="checkbox" name="fechas" value="${date}"><span>${numero}<em>${esc(inicial)}</em></span></label>`).join('')}</div>
+        </div>
       </fieldset>
 
-      <fieldset class="field-group"><legend>¿Hasta cuándo?</legend>
+      <fieldset class="field-group" data-alcance-rutina><legend>¿Hasta cuándo?</legend>
         <div class="radio-fila">
           <label class="radio-pill"><input type="radio" name="scope" value="month" checked><span>Solo ${esc(monthName(month))}</span></label>
           <label class="radio-pill"><input type="radio" name="scope" value="permanent"><span>Desde ahora, todos los meses</span></label>
@@ -476,6 +576,18 @@ export const MES_ACTIONS = {
   },
   'mes-ver-mas-pendientes': (el, ctx) => { ctx.ui.mes.verPendientes += 12; ctx.render(); },
   'mes-nueva-rutina': (el, ctx) => ctx.openModal('rutina', { month: ctx.ui.mes.month }),
+  // Cambiar entre «días de la semana» y «días sueltos» sin repintar: repintar
+  // borraría lo que ya se hubiera marcado arriba, que es la mitad del formulario.
+  'rutina-modo-dias': (el, ctx) => {
+    const form = el.closest('form');
+    const sueltos = el.dataset.modo === 'sueltos';
+    form.querySelector('[data-dias-semana]').hidden = sueltos;
+    form.querySelector('[data-dias-sueltos]').hidden = !sueltos;
+    // Unas fechas concretas no pueden valer «todos los meses»: el 4 y el 11 de
+    // octubre no significan nada en noviembre.
+    form.querySelector('[data-alcance-rutina]').hidden = sueltos;
+    for (const boton of el.parentElement.querySelectorAll('button')) boton.classList.toggle('active', boton === el);
+  },
   'mes-salida-rapida': (el, ctx) => ctx.openModal('rutina', { month: ctx.ui.mes.month, atajo: el.dataset.atajo, kind: 'outside' }),
 
   'mes-aplicar-rutina': (el, ctx) => {
@@ -554,6 +666,35 @@ export const MES_ACTIONS = {
   }
 };
 
+// Poner una comida en unas fechas concretas, sin crear ninguna rutina.
+function ponerEnFechas(ctx, { fechas, slots, kind, recipeId, modo, month }) {
+  const { state, ui } = ctx;
+  if (modo === 'reemplazar') {
+    const ocupadas = fechas.flatMap(date => slots.filter(slot => planFor(state, date, slot))).length;
+    if (ocupadas && !window.confirm(`Esto va a reemplazar ${ocupadas} comida(s) que ya estaban puestas. ¿Continuar?`)) return;
+  }
+  const antes = snapshot(state);
+  let puestas = 0, saltadas = 0;
+  for (const date of fechas) for (const slot of slots) {
+    const existente = planFor(state, date, slot);
+    if (existente && modo !== 'reemplazar') { saltadas++; continue; }
+    try {
+      if (existente) deletePlan(state, existente.id, true);
+      if (kind === 'recipe') makeRecipePlan(state, recipeId, date, slot);
+      else setStatusPlan(state, date, slot, kind);
+      puestas++;
+    } catch { saltadas++; }
+  }
+  ui.mes.deshacer = puestas ? antes : null;
+  ui.mes.aviso = {
+    tipo: 'rutina', month,
+    titulo: `${puestas} comida(s) puestas en ${fechas.length} día(s) sueltos.`,
+    detalle: `${saltadas ? `${saltadas} se dejaron como estaban. ` : ''}Esto no se repetirá solo: son días concretos, no una costumbre.`
+  };
+  ctx.closeModal();
+  ctx.commit('');
+}
+
 function guardarDeshacer(ctx, antes, resultado) {
   const tocado = (resultado.creados?.length || 0) + (resultado.reemplazados?.length || 0);
   ctx.ui.mes.deshacer = tocado ? antes : null;
@@ -577,17 +718,30 @@ export const MES_FORMS = {
     const month = form.dataset.month;
     const kind = data.get('kind') || 'recipe';
     const slots = [...form.querySelectorAll('[name="slots"]:checked')].map(input => input.value);
+    const modo = data.get('modo') === 'reemplazar' ? 'reemplazar' : 'vacios';
+    const sueltos = !form.querySelector('[data-dias-sueltos]').hidden;
+
+    if (!slots.length) throw new Error('Marca al menos una comida: desayuno, almuerzo o cena.');
+    if (kind === 'recipe' && !data.get('recipeId')) throw new Error('Elige qué preparación se repite, o marca «fuera de casa».');
+
+    // Días sueltos no es una rutina, y guardarlo como tal sería mentir: «el 4, el
+    // 11 y el 19» no describe ninguna costumbre que repetir el mes que viene.
+    // Se ponen esas comidas y punto.
+    if (sueltos) {
+      const fechas = [...form.querySelectorAll('[name="fechas"]:checked')].map(input => input.value).sort();
+      if (!fechas.length) throw new Error('Marca al menos un día del mes.');
+      return ponerEnFechas(ctx, { fechas, slots, kind, recipeId: data.get('recipeId'), modo, month });
+    }
+
     const weekdays = [...form.querySelectorAll('[name="weekdays"]:checked')].map(input => Number(input.value));
     const semanasCrudas = data.get('weeks');
     const weeks = !semanasCrudas || semanasCrudas === 'todas' ? null : semanasCrudas.split(',').map(Number);
     const scope = data.get('scope') === 'permanent' ? 'permanent' : 'month';
-    const modo = data.get('modo') === 'reemplazar' ? 'reemplazar' : 'vacios';
-
-    if (!slots.length) throw new Error('Marca al menos una comida: desayuno, almuerzo o cena.');
+    const hasta = String(data.get('hasta') || '') || null;
     if (!weekdays.length) throw new Error('Marca al menos un día de la semana.');
-    if (kind === 'recipe' && !data.get('recipeId')) throw new Error('Elige qué preparación se repite, o marca «fuera de casa».');
 
-    const fechas = datesForRule(month, weekdays, weeks);
+    const fechas = datesForRule(month, weekdays, weeks).filter(date => !hasta || date <= hasta);
+    if (!fechas.length) throw new Error('Con esos días y esa fecha final no queda ningún día del mes.');
     if (modo === 'reemplazar') {
       const ocupadas = fechas.flatMap(date => slots.filter(slot => planFor(state, date, slot))).length;
       if (ocupadas && !window.confirm(`Esto va a reemplazar ${ocupadas} comida(s) que ya estaban puestas en ${monthName(month)}. ¿Continuar?`)) return;
@@ -597,16 +751,16 @@ export const MES_FORMS = {
     const rutina = addRoutine(state, {
       kind,
       recipeId: kind === 'recipe' ? data.get('recipeId') : null,
-      slots, weekdays, weeks, scope,
+      slots, weekdays, weeks, scope, until: hasta,
       month: scope === 'month' ? month : null
     });
-    const resultado = applyRoutine(state, rutina.id, month, { modo });
+    const resultado = applyRoutine(state, rutina.id, month, { modo, hasta });
 
     ui.mes.deshacer = antes;
     ui.mes.aviso = {
       tipo: 'rutina', month,
       titulo: `${describeRule(weekdays, weeks)}: ${tituloDeRutina(state, rutina).toLowerCase()}.`,
-      detalle: `${resultado.creados.length} comida(s) puestas en ${monthName(month)}${resultado.saltados.length ? `, ${resultado.saltados.length} día(s) se dejaron como estaban` : ''}. ${scope === 'permanent' ? 'Se repetirá en los meses siguientes.' : `Vale solo para ${monthName(month)}.`}`
+      detalle: `${resultado.creados.length} comida(s) puestas en ${monthName(month)}${resultado.saltados.length ? `, ${resultado.saltados.length} día(s) se dejaron como estaban` : ''}.${hasta ? ` Hasta el ${niceDate(hasta, { day: 'numeric', month: 'long' })}.` : ''} ${scope === 'permanent' ? 'Se repetirá en los meses siguientes.' : `Vale solo para ${monthName(month)}.`}`
     };
     ctx.closeModal();
     ctx.commit('');

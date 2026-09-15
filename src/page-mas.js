@@ -10,13 +10,18 @@
 
 import { CATEGORIES } from './catalog-seed.js';
 import {
-  UNITS, archiveProduct, effectiveBasket, habitualLines, inventoryNow, lastStockReview,
-  monthBasketSummary, monthChanges, product, restoreProduct, reviewAvailability,
-  sliceStyle, syncReviewProducts, todayISO
+  UNITS, archiveProduct, effectiveBasket, findSimilarProducts, habitualLines, inventoryNow,
+  lastStockReview, monthBasketSummary, monthChanges, product, productByName, restoreProduct,
+  reviewAvailability, sliceStyle, syncReviewProducts, todayISO
 } from './model.js';
 import { WEEKDAY_LABELS, WEEKDAYS } from './routines.js';
 import { button, cap, empty, esc, fmt, measure, monthName, niceDate, options, shiftMonth, unitText } from './ui-kit.js';
-import { capacidad } from './device.js';
+import { cancelarDictado, capacidad, dictar, pararDictado } from './device.js';
+// El intérprete de frases vive en el asistente, y entiende «quedan dos plátanos,
+// diez huevos y media libra de queso» desde hace tiempo. Escribir aquí un
+// segundo intérprete sería tener dos gramáticas que se van separando con los
+// meses; se reutiliza esa, que además ya está probada.
+import { interpretar } from './chat-ui.js';
 
 const hoy = todayISO();
 
@@ -31,7 +36,8 @@ export const ENTRADAS_MAS = [
   ['alimentos', '🥬', 'Alimentos de la casa', 'La ficha de cada uno: medidas y existencias'],
   ['historial', '🕘', 'Historial', 'Compras, revisiones y correcciones'],
   ['respaldo', '💾', 'Respaldo', 'Guardar una copia o traerla de vuelta'],
-  ['ajustes', '⚙️', 'Ajustes', 'Día de revisión, micrófono y ayuda']
+  ['ajustes', '⚙️', 'Ajustes', 'Día de revisión, micrófono y ayuda'],
+  ['avanzado', '🔧', 'Funciones avanzadas', 'Medidas, correcciones y uniones']
 ];
 
 export const PAGINAS_MAS = ENTRADAS_MAS.map(([id]) => id);
@@ -39,7 +45,10 @@ export const PAGINAS_MAS = ENTRADAS_MAS.map(([id]) => id);
 export const TITULOS_MAS = Object.fromEntries(ENTRADAS_MAS.map(([id, , titulo]) => [id, titulo]));
 
 export function emptyMas() {
-  return { canastaVista: 'habitual', canastaMes: hoy.slice(0, 7), filtroAlimento: '', verArchivados: false };
+  return {
+    canastaVista: 'habitual', canastaMes: hoy.slice(0, 7), filtroAlimento: '', verArchivados: false,
+    revisionFiltro: '', revisionSoloFaltan: false, revisionEscuchando: false, revisionAviso: ''
+  };
 }
 
 export function renderMas(ctx) {
@@ -55,7 +64,8 @@ export function renderMas(ctx) {
     alimentos: renderAlimentos,
     historial: renderHistorial,
     respaldo: renderRespaldo,
-    ajustes: renderAjustes
+    ajustes: renderAjustes,
+    avanzado: renderAvanzado
   };
   return (vistas[pagina] || renderInicio)(ctx);
 }
@@ -264,13 +274,27 @@ function tablaDeRevision(ctx, revision) {
   if (!revision.productIds.length) {
     return empty('🧺', 'No hay nada que revisar', 'Todavía no hay alimentos con existencias anotadas. Anota una compra primero.', button('Ir a la compra', 'navigate', 'btn-secondary', 'data-page="compra"'));
   }
+  // Revisar treinta alimentos de corrido es donde se abandona la revisión. Por
+  // eso hay tres salidas: buscar el que se tiene en la mano, esconder los que ya
+  // están contestados, y dictar varios de un tirón.
+  const filtro = String(ui.mas.revisionFiltro || '').trim().toLocaleLowerCase('es');
+  const contestado = id => revision.consumed[id] !== undefined;
+  const visibles = revision.productIds.filter(id => {
+    if (ui.mas.revisionSoloFaltan && contestado(id)) return false;
+    if (!filtro) return true;
+    const item = product(state, id);
+    return item?.name.toLocaleLowerCase('es').includes(filtro) || (item?.aliases || []).some(alias => String(alias).toLocaleLowerCase('es').includes(filtro));
+  });
+  const faltan = revision.productIds.filter(id => !contestado(id)).length;
+
   return `<p class="pantalla-intro">${esc(niceDate(revision.date, { weekday: 'long', day: 'numeric', month: 'long' }))} · ${queda ? 'Escribe lo que ves en casa. La resta la hacemos nosotros.' : 'Escribe lo que se consumió desde la última vez.'}</p>
     ${editando && revision.status === 'draft' ? `<div class="segmented segmented-ancho">
       <button type="button" data-action="review-mode" data-mode="restante" data-id="${revision.id}" class="${queda ? 'active' : ''}">¿Cuánto queda?</button>
       <button type="button" data-action="review-mode" data-mode="consumido" data-id="${revision.id}" class="${queda ? '' : 'active'}">Lo consumido</button>
     </div>` : ''}
+    ${editando ? herramientasDeRevision(ctx, revision, faltan, queda) : ''}
     <form data-form="review" data-id="${revision.id}">
-      <div class="card revision-lista">${revision.productIds.map(id => {
+      <div class="card revision-lista">${(visibles.length ? visibles : []).map(id => {
         const item = product(state, id);
         const habia = disponible[id] || 0;
         const usado = revision.consumed[id];
@@ -287,7 +311,8 @@ function tablaDeRevision(ctx, revision) {
             : `<span class="revision-dato">${escrito === undefined || escrito === null ? '—' : fmt(escrito)}</span>`}
           <span class="revision-derivado remaining ${derivado === null ? 'pending' : 'good'}">${derivado === null ? 'pendiente' : `${queda ? 'se consumió' : 'queda'} ${fmt(derivado)}`}</span>
         </div>`;
-      }).join('')}</div>
+      }).join('') || `<p class="muted">Nada coincide con «${esc(ui.mas.revisionFiltro)}».</p>`}</div>
+      ${ocultas(revision, visibles, queda, editando)}
       <p class="small muted">Lo que dejes en blanco queda pendiente y no cambia nada. Escribe <strong>0</strong> si ${queda ? 'no queda nada' : 'no se consumió nada'}.</p>
       <div class="pantalla-acciones">${editando
         ? revision.status === 'draft'
@@ -295,6 +320,41 @@ function tablaDeRevision(ctx, revision) {
           : `<button type="submit" name="intent" value="correct" class="btn btn-primary">Guardar la corrección</button>`
         : `<span class="pill">Terminada</span>${button('Corregir', 'toggle-correct-review', 'btn-quiet btn-small')}`}</div>
     </form>`;
+}
+
+// Filtrar esconde filas, y `saveReview` reconstruye la revisión entera con lo
+// que venga en el formulario: una fila que no esté deja de existir y borraría la
+// respuesta que ya tenía. Por eso lo escondido sigue viajando, en un campo
+// oculto con su valor. Buscar no puede costarle a nadie lo que ya había contado.
+function ocultas(revision, visibles, queda, editando) {
+  if (!editando) return '';
+  const dentro = new Set(visibles);
+  return revision.productIds.filter(id => !dentro.has(id)).map(id => {
+    const valor = queda ? revision.remaining?.[id] : revision.consumed[id];
+    return `<input type="hidden" name="consume-${id}" value="${valor === undefined || valor === null ? '' : valor}">`;
+  }).join('');
+}
+
+// La barra de herramientas de la revisión: buscar, esconder lo ya contestado y
+// dictar varios de corrido.
+function herramientasDeRevision(ctx, revision, faltan, queda) {
+  const { ui } = ctx;
+  const motor = capacidad('dictar');
+  return `<div class="revision-herramientas">
+    <label class="field revision-buscar"><span class="sr-only">Buscar un alimento de esta revisión</span>
+      <input type="search" id="revision-filtro" value="${esc(ui.mas.revisionFiltro)}" placeholder="Buscar un alimento…" aria-label="Buscar un alimento de esta revisión">
+    </label>
+    <div class="inline">
+      <button type="button" class="chip ${ui.mas.revisionSoloFaltan ? 'activa' : ''}" data-action="revision-solo-faltan" aria-pressed="${ui.mas.revisionSoloFaltan}">Solo lo que falta · ${faltan}</button>
+      ${motor.ok
+        ? (ui.mas.revisionEscuchando
+            ? button('■ Parar', 'revision-parar', 'btn-primary btn-small')
+            : button('🎤 Dictar', 'revision-dictar', 'btn-secondary btn-small'))
+        : ''}
+    </div>
+    ${ui.mas.revisionEscuchando ? `<p class="small muted">Escuchando… Di por ejemplo: «${queda ? 'quedan dos plátanos, diez huevos y media libra de queso' : 'se consumieron seis plátanos y cuatro huevos'}».</p>` : ''}
+    ${ui.mas.revisionAviso ? `<p class="small revision-aviso">${esc(ui.mas.revisionAviso)}</p>` : ''}
+  </div>`;
 }
 
 const corte = (item, cantidad) => {
@@ -429,9 +489,130 @@ function renderAjustes(ctx) {
     </div>`;
 }
 
+/* ── Funciones avanzadas ───────────────────────────────────────────────── */
+
+// Estas cuatro cosas existían ya, repartidas por donde se usan: la medida se
+// pide cuando hace falta calcular una compra, la unión cuando se ve el alimento
+// duplicado. Eso sigue igual y es lo correcto —se pregunta en el momento, no el
+// primer día—. Lo que faltaba era una puerta para quien sabe lo que busca y no
+// quiere ir a encontrárselo por casualidad.
+function renderAvanzado(ctx) {
+  const { state } = ctx;
+  const sinMedida = state.products.filter(item => !item.archived && item.purchaseUnit !== item.controlUnit && !Number.isFinite(item.equivalences?.[item.purchaseUnit]));
+  const parecidos = paresParecidos(state);
+  return `${volver('Funciones avanzadas')}
+    <p class="pantalla-intro">Nada de esto hace falta para usar la app. Está aquí por si algo no cuadra y quieres arreglarlo a mano.</p>
+
+    <div class="card">
+      <h3>Medidas de compra</h3>
+      <p class="muted small">Cuando un alimento se cuenta de una forma y se compra de otra —ruedas y paquetes—, hace falta decir cuántas trae cada uno. Sin eso la compra avisa en vez de dar un número inventado.</p>
+      ${sinMedida.length
+        ? `<div class="card soft">${sinMedida.slice(0, 8).map(item => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${esc(item.name)}</div><div class="list-row-sub">Se cuenta en ${esc(unitText(item.controlUnit, 2))} y se compra en ${esc(unitText(item.purchaseUnit, 2))}</div></div>${button('Decirlo', 'open-equivalence', 'btn-secondary btn-small', `data-id="${item.id}"`)}</div>`).join('')}</div>
+           ${sinMedida.length > 8 ? `<p class="small muted">Y ${sinMedida.length - 8} más.</p>` : ''}`
+        : '<p class="small muted">✓ No falta ninguna medida.</p>'}
+    </div>
+
+    <div class="card">
+      <h3>Alimentos que podrían ser el mismo</h3>
+      <p class="muted small">Un alimento anotado dos veces parte su inventario en dos, y eso se descubre semanas después, cuando las cuentas no cuadran. Unirlos suma sus existencias y junta su historial. <strong>No se puede deshacer.</strong></p>
+      ${parecidos.length
+        ? `<div class="card soft">${parecidos.slice(0, 6).map(([uno, otro]) => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${esc(uno.name)} · ${esc(otro.name)}</div><div class="list-row-sub">Los dos se cuentan en ${esc(unitText(uno.controlUnit, 2))}</div></div>${button('Revisar', 'open-merge', 'btn-quiet btn-small', `data-id="${uno.id}"`)}</div>`).join('')}</div>`
+        : '<p class="small muted">✓ No encontré parecidos sospechosos.</p>'}
+    </div>
+
+    <div class="card">
+      <h3>Corregir existencias a mano</h3>
+      <p class="muted small">Para cuando algo se dañó, se perdió, o el conteo no cuadra y no quieres esperar a la próxima revisión. Queda anotado en el historial con su motivo.</p>
+      ${button('Corregir un alimento', 'open-correction', 'btn-secondary')}
+    </div>
+
+    <div class="card">
+      <h3>Servicios externos</h3>
+      <p class="muted small">La app funciona entera sin conexión y sin cuentas. Lo único que un servidor propio añadiría es entender frases totalmente libres en la asistente. <strong>Nadie lo necesita.</strong></p>
+      ${button('Ver el detalle de este aparato', 'open-diagnostico', 'btn-quiet')}
+    </div>`;
+}
+
+// Dos alimentos que se cuentan igual y cuyos nombres se parecen mucho. Solo se
+// proponen; unirlos siempre lo decide una persona.
+function paresParecidos(state) {
+  const vivos = state.products.filter(item => !item.archived);
+  const pares = [], vistos = new Set();
+  for (const item of vivos) {
+    if (vistos.has(item.id)) continue;
+    const parecido = findSimilarProducts(state, item.name, { limit: 1, threshold: 0.78, exclude: item.id })[0];
+    if (!parecido || parecido.product.controlUnit !== item.controlUnit || vistos.has(parecido.product.id)) continue;
+    vistos.add(item.id); vistos.add(parecido.product.id);
+    pares.push([item, parecido.product]);
+  }
+  return pares;
+}
+
 /* ── Acciones ──────────────────────────────────────────────────────────── */
 
+// Dictar «quedan dos plátanos, diez huevos y media libra de queso» y que aparezca
+// en tres casillas.
+//
+// Lo dictado se escribe en el formulario y se guarda **a través del formulario**,
+// no directamente en el estado. Parece un rodeo y no lo es: así lo que la persona
+// ya había tecleado a mano viaja en el mismo envío y no se pierde al repintar.
+// Guardar por un lado y repintar por otro habría borrado media revisión.
+function aplicarDictado(ctx, texto) {
+  const { state, ui } = ctx;
+  const revision = state.reviews.find(item => item.id === ui.reviewId) || [...state.reviews].reverse().find(item => item.status === 'draft');
+  const form = document.querySelector('[data-form="review"]');
+  if (!revision || !form) return;
+  const enLaRevision = new Set(revision.productIds);
+  const disponible = reviewAvailability(state, revision);
+  const queda = (revision.mode || 'restante') === 'restante';
+
+  const puestos = [], fuera = [];
+  for (const { action, arguments: args } of interpretar(texto).acciones || []) {
+    if (action !== 'registrar_restante') continue;
+    const item = productByName(state, args.producto) || findSimilarProducts(state, args.producto, { limit: 1 })[0]?.product;
+    if (!item || !enLaRevision.has(item.id)) { fuera.push(args.producto); continue; }
+    const campo = form.querySelector(`[name="consume-${item.id}"]`);
+    if (!campo) continue;
+    // El intérprete siempre dice cuánto QUEDA. Si la revisión está puesta en
+    // «lo consumido», lo que hay que escribir es la resta, no el mismo número.
+    const valor = queda ? args.queda : Math.max(0, (disponible[item.id] || 0) - Number(args.queda));
+    campo.value = valor;
+    campo.dispatchEvent(new Event('input', { bubbles: true }));
+    puestos.push(item.name);
+  }
+
+  ui.mas.revisionAviso = puestos.length
+    ? `Anotado: ${puestos.join(', ')}.${fuera.length ? ` No encontré en esta revisión: ${fuera.join(', ')}.` : ''}`
+    : `No reconocí ningún alimento de esta revisión en «${texto}». Puedes escribirlo a mano.`;
+
+  if (!puestos.length) { ctx.render(); return; }
+  // Guardar sin confirmar: la revisión sigue abierta y lo dictado queda a salvo.
+  const guardar = form.querySelector('[name="intent"][value="save"]');
+  if (guardar) form.requestSubmit(guardar); else ctx.render();
+}
+
 export const MAS_ACTIONS = {
+  'revision-solo-faltan': (el, ctx) => { ctx.ui.mas.revisionSoloFaltan = !ctx.ui.mas.revisionSoloFaltan; ctx.render(); },
+  'revision-parar': (el, ctx) => { pararDictado(); },
+  'revision-dictar': async (el, ctx) => {
+    const { ui } = ctx;
+    const motor = capacidad('dictar');
+    if (!motor.ok) { ui.mas.revisionAviso = motor.detalle; ctx.render(); return; }
+    ui.mas.revisionEscuchando = true;
+    ui.mas.revisionAviso = '';
+    ctx.render();
+    let oido;
+    try { oido = await dictar({ idioma: 'es-DO' }); }
+    catch { oido = { ok: false, error: 'No se pudo escuchar. Escríbelo a mano.' }; }
+    ui.mas.revisionEscuchando = false;
+    if (!oido.ok) {
+      // Cancelar no es un fallo: es una decisión, y no merece un aviso rojo.
+      ui.mas.revisionAviso = oido.cancelado ? '' : oido.error;
+      ctx.render();
+      return;
+    }
+    aplicarDictado(ctx, oido.texto);
+  },
   'canasta-vista': (el, ctx) => { ctx.ui.mas.canastaVista = el.dataset.vista; ctx.render(); },
   'canasta-mes': (el, ctx) => { ctx.ui.mas.canastaMes = shiftMonth(ctx.ui.mas.canastaMes, Number(el.dataset.delta)); ctx.render(); },
   'alimentos-archivados': (el, ctx) => { ctx.ui.mas.verArchivados = !ctx.ui.mas.verArchivados; ctx.render(); },

@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 // campo que cambió de forma y el `undefined` que se cuela en la pantalla.
 
 import { createDemoState } from '../src/demo.js';
-import { createEmptyState, setHabitualLine, addProduct, setMonthChange, todayISO } from '../src/model.js';
+import { addProduct, createEmptyState, createReview, saveReview, setHabitualLine, setMonthChange, todayISO } from '../src/model.js';
 import { addRoutine } from '../src/routines.js';
 import { PASOS, emptyMes, modalRutina, renderMes } from '../src/page-mes.js';
 import { emptyCompra, renderCompra } from '../src/page-compra.js';
@@ -60,7 +60,7 @@ test('plan mensual se dibuja con datos', () => {
   revisar(renderMes(ctx), 'renderMes (calendario)');
 });
 
-test('los cinco pasos de preparar el mes se dibujan', () => {
+test('los siete pasos de preparar el mes se dibujan', () => {
   const ctx = contexto(createDemoState());
   for (const paso of PASOS) {
     ctx.ui.mes.paso = paso.id;
@@ -163,6 +163,55 @@ test('un extra de un mes se enseña marcado, y no como parte de lo habitual', ()
   const cambios = renderMas(ctx);
   assert.ok(cambios.includes('Cangrejo'), 'el cangrejo debería estar en los cambios del mes');
   revisar(cambios, 'canasta (cambios con un extra)');
+});
+
+/* ── La revisión, que es la pantalla que más se toca ───────────────────── */
+
+test('la revisión ofrece buscar, esconder lo contestado y dictar', () => {
+  const state = createDemoState();
+  const revision = createReview(state, todayISO());
+  const ctx = contexto(state, { page: 'revision' });
+  ctx.ui.reviewId = revision.id;
+
+  const html = renderMas(ctx);
+  revisar(html, 'revisión abierta');
+  assert.ok(html.includes('id="revision-filtro"'), 'falta el buscador');
+  assert.ok(html.includes('revision-solo-faltan'), 'falta el filtro de pendientes');
+  assert.ok(html.includes('¿Cuánto queda?'), 'la pregunta principal debería ser «¿cuánto queda?»');
+});
+
+// El filtro esconde filas del DOM, y `saveReview` reconstruye la revisión con lo
+// que venga en el formulario. Si una fila escondida no viajara, buscar «arroz»
+// borraría las otras veintinueve respuestas. Esta prueba existe por eso.
+test('buscar en la revisión no deja fuera lo ya contestado', () => {
+  const state = createDemoState();
+  const revision = createReview(state, todayISO());
+  assert.ok(revision.productIds.length >= 3, 'el ejemplo debería traer varios alimentos');
+  const ctx = contexto(state, { page: 'revision' });
+  ctx.ui.reviewId = revision.id;
+
+  // Un filtro que no deja pasar nada: todas las filas tienen que seguir viajando.
+  ctx.ui.mas.revisionFiltro = 'zzzzz';
+  const html = renderMas(ctx);
+  for (const id of revision.productIds) {
+    assert.ok(html.includes(`name="consume-${id}"`), `el alimento ${id} desapareció del formulario al filtrar`);
+  }
+  assert.ok(html.includes('type="hidden"'), 'lo escondido debería viajar en campos ocultos');
+});
+
+test('la revisión se puede mirar solo por lo que falta', () => {
+  const state = createDemoState();
+  const revision = createReview(state, todayISO());
+  const [primero] = revision.productIds;
+  saveReview(state, revision.id, { [primero]: 0 });
+
+  const ctx = contexto(state, { page: 'revision' });
+  ctx.ui.reviewId = revision.id;
+  ctx.ui.mas.revisionSoloFaltan = true;
+  const html = renderMas(ctx);
+  // El contestado sale del listado visible pero sigue en el formulario.
+  assert.ok(!html.includes(`data-review-product="${primero}"`), 'el alimento ya contestado debería esconderse');
+  assert.ok(html.includes(`name="consume-${primero}"`), 'y aun así seguir viajando al guardar');
 });
 
 /* ── Que una rutina se lea en palabras ─────────────────────────────────── */
