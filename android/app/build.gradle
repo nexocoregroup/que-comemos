@@ -1,5 +1,25 @@
 apply plugin: 'com.android.application'
 
+// La clave de publicación vive fuera del repositorio.
+//
+// Firmar para Play Store necesita un almacén de claves y su contraseña. Ni el
+// archivo ni la contraseña pueden estar aquí: quien los tenga puede publicar
+// actualizaciones de tu app a tu nombre, y Google **no** permite cambiar esa
+// clave una vez publicada la primera versión. Si se pierde, se pierde la app.
+//
+// Por eso se leen de `android/keystore.properties`, que está en .gitignore.
+// Hay una plantilla al lado: `keystore.properties.example`.
+//
+// Si el archivo no existe, la compilación sigue funcionando y solo deja el
+// paquete sin firmar. Así nadie que clone el proyecto se queda sin poder
+// compilar por no tener una clave que no debería tener.
+def archivoFirma = rootProject.file('keystore.properties')
+def hayFirma = archivoFirma.exists()
+def datosFirma = new Properties()
+if (hayFirma) {
+    archivoFirma.withInputStream { datosFirma.load(it) }
+}
+
 android {
     namespace = "com.nexocore.quecomemos"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,6 +36,20 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+
+    // Va antes de `buildTypes` a propósito: Gradle evalúa este bloque de arriba
+    // abajo, y `release` se refiere a esta configuración por su nombre.
+    signingConfigs {
+        if (hayFirma) {
+            publicacion {
+                storeFile file(datosFirma['storeFile'])
+                storePassword datosFirma['storePassword']
+                keyAlias datosFirma['keyAlias']
+                keyPassword datosFirma['keyPassword']
+            }
+        }
+    }
+
     buildTypes {
         debug {
             // Solo la arquitectura de los teléfonos de verdad.
@@ -39,7 +73,19 @@ android {
             }
         }
         release {
-            minifyEnabled false
+            if (hayFirma) {
+                signingConfig signingConfigs.publicacion
+            }
+            // Quita el código y los recursos que nadie usa. Sin esto el paquete
+            // carga las cinco variantes de idioma del lector de texto y medio
+            // androidx que no se toca nunca.
+            minifyEnabled true
+            shrinkResources true
+            // `proguard-android.txt` y no `-optimize`: la versión optimizada
+            // reordena y alinea código, y esta app está llena de cosas que se
+            // resuelven por reflexión —los complementos de Capacitor, los
+            // modelos de ML Kit—. Un fallo de esos solo aparece en release,
+            // que es donde menos se prueba. El ahorro extra no compensa.
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }

@@ -243,6 +243,39 @@ La primera compilación con los complementos tarda bastante más: Gradle baja ML
 
 Dentro del APK la app no registra el trabajador de servicio: los archivos ya están en el dispositivo y un caché viejo podría seguir mostrando la versión anterior.
 
+### Publicar en Play Store
+
+Play Store no acepta APK desde 2021: pide un **AAB**, y reparte por dispositivo. Cada usuario descarga solo su arquitectura, así que el peso deja de ser un problema — el AAB universal ronda los 27 MB y lo que se descarga es bastante menos.
+
+Tres cosas hacen falta, y dos ya están montadas.
+
+**1. La clave de firma (la tienes que crear tú).** Copia `android/keystore.properties.example` a `android/keystore.properties` y sigue las instrucciones de dentro. En resumen:
+
+```powershell
+cd android
+keytool -genkeypair -v -keystore que-comemos.jks -alias que-comemos -keyalg RSA -keysize 2048 -validity 10000
+```
+
+**Google no deja cambiar esa clave una vez publicada la primera versión.** Si pierdes el `.jks` o su contraseña, no puedes volver a actualizar tu propia app: hay que publicarla de cero con otro identificador, y quien ya la tenía no recibe la actualización. Guarda una copia en un sitio que sobreviva a que se te dañe la computadora.
+
+El `.jks` y el `keystore.properties` están en `.gitignore`. Si el archivo no existe la compilación sigue funcionando, y solo deja el paquete sin firmar: así nadie que clone el proyecto se queda sin poder compilar por no tener una clave que no debería tener.
+
+**2. Minificación: ya activada.** `minifyEnabled` y `shrinkResources` quitan el código y los recursos que nadie usa. `android/app/proguard-rules.pro` conserva a mano lo que se resuelve por reflexión —los complementos de Capacitor, los modelos de ML Kit, el puente con el WebView—: si el minificador los borrara, el fallo no aparecería al compilar sino al abrir la app ya publicada.
+
+Se usa `proguard-android.txt` y no la variante `-optimize` a propósito: optimizar reordena código y esta app está llena de cosas que se buscan por su nombre. El ahorro extra no compensa el riesgo.
+
+**3. Sube la versión en cada publicación.** `versionCode`, en `android/app/build.gradle`, tiene que crecer con cada subida; Play Store rechaza un número repetido.
+
+```powershell
+npm run android
+cd android
+.\gradlew bundleRelease
+```
+
+El `.aab` queda en `android/app/build/outputs/bundle/release/`.
+
+**Antes de publicar, prueba el release en un teléfono de verdad.** Un fallo de minificación solo aparece ahí, nunca al compilar: `.\gradlew assembleRelease` e instala ese APK.
+
 ## Línea gráfica
 
 El isotipo es un anillo abierto por abajo con un signo de pregunta dentro y el punto en la abertura. El original vive en `identidad visual/isotipo.png` y es la única fuente: todo lo demás se genera con `npm run brand`, que escribe diecisiete archivos. **No hay ninguna versión redibujada a mano, y no la debe haber**: el trazo del signo es orgánico y a cualquier reconstrucción con arcos se le nota.

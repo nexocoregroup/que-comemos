@@ -12,3 +12,10 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# La clave de firma de Play Store y sus contraseñas. Quien las tenga puede
+# publicar actualizaciones a tu nombre, y Google no deja cambiarlas una vez
+# publicada la primera versión: si se filtran, no hay forma de revocarlas.
+android/keystore.properties
+*.jks
+*.keystore
