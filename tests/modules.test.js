@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 // Dos veces en el mismo día la aplicación dejó de arrancar por lo mismo: un
 // módulo importaba algo que no existía, o que había cambiado de forma. Ninguna
@@ -124,4 +125,71 @@ test('las hojas de estilo del index están en el casco, y sin repetirse', () => 
   const sw = readFileSync(resolve(import.meta.dirname, '..', 'sw.js'), 'utf8');
   const faltan = hojas.filter(hoja => !sw.includes(`./${hoja}`));
   assert.deepEqual(faltan, [], 'hojas de estilo que no se guardan para el modo sin conexión');
+});
+
+// Leer las importaciones caza los nombres que no existen, pero no caza un
+// paréntesis sin cerrar ni una plantilla mal terminada dentro de una función que
+// nadie llama desde una prueba. Cargar el módulo de verdad sí.
+//
+// `app.js` se queda fuera porque toca `document` al cargarse; todo lo demás
+// tiene que poder importarse en Node pelado, y que no pueda es en sí un fallo:
+// significa que ese módulo hace trabajo al cargarse en vez de al llamarlo.
+test('todos los módulos se cargan de verdad en Node', async () => {
+  const rotos = [];
+  for (const archivo of archivos) {
+    if (archivo === 'app.js') continue;
+    try { await import(pathToFileURL(resolve(SRC, archivo)).href); }
+    catch (error) { rotos.push(`${archivo}: ${error.message.split('\n')[0]}`); }
+  }
+  assert.deepEqual(rotos, [], 'módulos que no se pueden ni cargar');
+});
+
+// El rediseño renombró la mitad del vocabulario del modelo. Un nombre viejo que
+// sobreviva en una pantalla no da error hasta que alguien pulsa ese botón, y
+// entonces la pantalla se cae con «no es una función». Esto lo caza antes.
+test('no queda ningún nombre del modelo viejo', () => {
+  const MUERTOS = [
+    'baseLines', 'basketLines', 'setBaseBasket', 'setBaseBasketLine', 'monthBasket',
+    'openMonthBasket', 'setMonthBasket', 'setMonthBasketLine', 'removeMonthBasketLine',
+    'monthDiff', 'promoteToBase'
+  ];
+  const restos = [];
+  for (const archivo of archivos) {
+    const codigo = sinComentarios(readFileSync(resolve(SRC, archivo), 'utf8'));
+    for (const muerto of MUERTOS) {
+      // Con límite de palabra, para que `monthBasket` no dispare con
+      // `monthBasketSummary`, que sí existe y es el reemplazo.
+      if (new RegExp(`\b${muerto}\b`).test(codigo)) restos.push(`${archivo}: ${muerto}`);
+    }
+  }
+  assert.deepEqual(restos, [], 'nombres del modelo anterior que siguen usándose');
+});
+
+// La lectura de facturas por fotografía se eliminó del producto entero, no se
+// escondió: sin esta prueba, un módulo huérfano o un botón olvidado vuelven a
+// arrastrar el complemento de cámara y los modelos de OCR dentro del APK.
+test('no queda nada de la lectura de facturas', () => {
+  const restos = [];
+  for (const archivo of archivos) {
+    // `migrate.js` es la única excepción legítima, y tiene que serlo: el paso
+    // v1→v2 sigue creando el campo `invoices` porque así era la versión 2, y el
+    // paso v2→v3 es el que lo quita. Borrarlo del primero rompería la cadena
+    // para quien todavía tenga un respaldo de la versión 1.
+    if (archivo === 'migrate.js') continue;
+    const codigo = sinComentarios(readFileSync(resolve(SRC, archivo), 'utf8'));
+    for (const rastro of ['invoice', 'receipt', 'TextRecognition', 'leer-foto', 'tomarFoto', 'leerFoto']) {
+      if (codigo.includes(rastro)) restos.push(`${archivo}: ${rastro}`);
+    }
+  }
+  assert.deepEqual(restos, [], 'restos de la lectura de facturas');
+
+  const paquete = JSON.parse(readFileSync(resolve(import.meta.dirname, '..', 'package.json'), 'utf8'));
+  const dependencias = Object.keys({ ...paquete.dependencies, ...paquete.devDependencies });
+  const sobran = dependencias.filter(nombre => /text-recognition|camera|filesystem/.test(nombre));
+  assert.deepEqual(sobran, [], 'dependencias nativas que ya no usa nadie');
+
+  const manifiesto = readFileSync(resolve(import.meta.dirname, '..', 'android', 'app', 'src', 'main', 'AndroidManifest.xml'), 'utf8');
+  for (const permiso of ['permission.CAMERA', 'READ_MEDIA_IMAGES', 'mlkit']) {
+    assert.ok(!manifiesto.includes(permiso), `el manifiesto de Android todavía pide ${permiso}`);
+  }
 });

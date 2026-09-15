@@ -2,16 +2,15 @@
 
 > **Lee esto antes que nada: es muy probable que no necesites este documento.**
 >
-> Dictar y leer facturas **ya no pasan por aquí**. Los hace el propio teléfono:
-> el reconocimiento de voz de Android y ML Kit Text Recognition viajan dentro
-> del APK y corren en el aparato, sin servidor, sin clave, sin conexión y sin
-> coste. Ver `src/device.js`.
+> Dictar **ya no pasa por aquí**. Lo hace el propio teléfono: el reconocimiento
+> de voz de Android viaja dentro del APK y corre en el aparato, sin servidor,
+> sin clave, sin conexión y sin coste. Ver `src/device.js`.
 >
 > Este documento sirve **para una sola cosa**: entender frases totalmente libres
 > («mañana pon arroz con pollo y dile a Sofía que no cena»). Todo lo demás de la
 > aplicación funciona sin desplegar nada.
 
-La primera versión mandaba las tres cosas a un servidor que el usuario tenía que
+La primera versión mandaba todo esto a un servidor que el usuario tenía que
 montar. Era un error de diseño: esta app es para una casa corriente, y una casa
 corriente no despliega un Cloudflare Worker. Lo que quedó aquí es el resto.
 
@@ -21,7 +20,6 @@ corriente no despliega un Cloudflare Worker. Lo que quedó aquí es el resto.
 |---|---|---|
 | `/chat` | Solo para lenguaje libre | La app reconoce sin conexión un buen puñado de frases por su forma. Un modelo grande amplía eso, pero no cabe en el APK. |
 | `/transcribe` | Casi nunca | El teléfono transcribe solo. Esta ruta es el respaldo para aparatos sin reconocimiento de voz. |
-| `/vision` | Casi nunca | El teléfono lee la foto solo. Esta ruta es el respaldo para el navegador, donde ML Kit no existe. |
 
 **Y si lo despliegas, despliega uno solo para todos tus usuarios.** Pedirle a
 cada familia que monte el suyo es volver al error de partida. La app guarda la
@@ -40,14 +38,13 @@ la saque la gasta a tu nombre hasta que la canceles.
 
 ## El contrato
 
-Tres rutas. Todas son `POST`, todas reciben y devuelven `application/json`, y
-todas van con la cabecera `Authorization: Bearer <token>` si configuraste un
+Dos rutas. Las dos son `POST`, las dos reciben y devuelven `application/json`, y
+las dos van con la cabecera `Authorization: Bearer <token>` si configuraste un
 token compartido.
 
 ```
 POST  {baseUrl}/transcribe
 POST  {baseUrl}/chat
-POST  {baseUrl}/vision
 ```
 
 Si tu backend devuelve exactamente estas formas, la app funciona. Da igual con
@@ -142,63 +139,12 @@ El backend responde:
 Una acción es una **propuesta**, no un hecho consumado: la app tiene que
 enseñarla y esperar que la persona la confirme antes de tocar sus datos.
 
-### `vision` — leer una factura
-
-La app envía:
-
-```json
-{
-  "imagenes": ["/9j/4AAQSkZJRgABAQAAAQABAAD..."],
-  "pista": "factura"
-}
-```
-
-| Campo | Qué es |
-|---|---|
-| `imagenes` | Una o varias fotos en base64, sin prefijo `data:`. El backend saca el formato de los primeros bytes: JPEG, PNG, GIF o WebP. |
-| `pista` | Qué se está mirando. Por ahora siempre `"factura"`. |
-
-El backend responde:
-
-```json
-{
-  "fecha": "2026-09-14",
-  "establecimiento": "Colmado La Esquina",
-  "lineas": [
-    {
-      "textoOriginal": "ARROZ SELECTO 2LB",
-      "nombreSugerido": "Arroz",
-      "cantidad": 2,
-      "unidad": "lb",
-      "confianza": 0.92
-    },
-    {
-      "textoOriginal": "HUEVO BLANCO CART",
-      "nombreSugerido": "Huevo",
-      "cantidad": 12,
-      "unidad": "unidad",
-      "confianza": 0.71
-    }
-  ]
-}
-```
-
-| Campo | Qué es |
-|---|---|
-| `fecha` | `AAAA-MM-DD`, o `null` si no se lee. Nunca la fecha de hoy «por poner algo». |
-| `establecimiento` | El nombre del negocio, o `null`. |
-| `lineas` | Una por producto. **Sin totales, sin ITBIS, sin propina, sin medios de pago.** |
-| `textoOriginal` | Lo que dice la factura, tal cual, abreviaturas incluidas. Es lo que le permite a la persona comprobar si se leyó bien. |
-| `nombreSugerido` | El nombre común del alimento, en singular. |
-| `cantidad` y `unidad` | La unidad tiene que ser una de las siete de la app: `unidad`, `lb`, `taza`, `lata`, `paquete`, `rueda`, `rebanada`. |
-| `confianza` | De 0 a 1, por línea. Una línea borrosa se transcribe con confianza baja; no se omite ni se adivina. |
-
 ### Errores
 
 Cualquier fallo se responde con el código HTTP que corresponda y este cuerpo:
 
 ```json
-{ "error": "La imagen tiene que ser JPEG, PNG, GIF o WebP." }
+{ "error": "El audio tiene que venir en base64." }
 ```
 
 La app **no le enseña ese texto a la persona** —viene de un servidor y podría
@@ -209,7 +155,7 @@ español. Esto es lo que hace con cada código:
 |---|---|
 | `400`, `404`, `405`, `422` | «El servicio no entendió la petición.» No reintenta. |
 | `401`, `403` | «El servicio rechazó la petición (clave no válida).» No reintenta. |
-| `413` | «El envío es demasiado grande. Prueba con una foto más pequeña.» No reintenta. |
+| `413` | «El envío es demasiado grande. Prueba con una grabación más corta.» No reintenta. |
 | `429` | «El servicio está ocupado.» **Reintenta** a los 0,5 s y luego a los 1,5 s. |
 | `500`, `501` | «El servicio falló al procesar la petición.» No reintenta. |
 | `502`, `503`, `504` | «El servicio no está disponible.» **Reintenta.** |
@@ -219,10 +165,6 @@ español. Esto es lo que hace con cada código:
 Por eso importa devolver el código correcto: un `503` cuando tu servicio se está
 reiniciando hace que la app lo vuelva a intentar sola; un `500` no.
 
-> **Ojo con el tiempo:** leer una factura con el modelo grande puede pasar de 30
-> segundos, que es lo que la app espera por defecto. Quien llame a `vision`
-> debería subirlo (`timeoutMs: 60000`) o pedir el modelo económico.
-
 ---
 
 ## Qué NO debe hacer el backend
@@ -230,16 +172,17 @@ reiniciando hace que la app lo vuelva a intentar sola; un `500` no.
 Esto no son recomendaciones. Un backend que haga cualquiera de estas cosas
 convierte una app que guarda todo en el teléfono en una que no.
 
-- **No guardar las imágenes.** Ni en disco, ni en un bucket, ni «temporalmente
-  para depurar». Una factura entra, se convierte en líneas, se olvida.
-- **No registrar el contenido.** Ni el texto de la factura, ni el mensaje de la
-  persona, ni la transcripción, ni el `Authorization`. En el registro solo va
-  qué ruta se llamó, con qué código terminó y cuánto tardó. En Cloudflare los
-  registros se guardan donde el usuario no los ve y no los puede borrar.
+- **No guardar las grabaciones.** Ni en disco, ni en un bucket, ni
+  «temporalmente para depurar». Un audio entra, se convierte en texto, se
+  olvida.
+- **No registrar el contenido.** Ni el mensaje de la persona, ni la
+  transcripción, ni el `Authorization`. En el registro solo va qué ruta se
+  llamó, con qué código terminó y cuánto tardó. En Cloudflare los registros se
+  guardan donde el usuario no los ve y no los puede borrar.
 - **No devolver JavaScript, ni HTML, ni nada que no sea JSON.** Lo que devuelva
   este servicio se procesa dentro de la app de alguien.
 - **No reenviar el cuerpo del error del proveedor.** Muchos devuelven de vuelta
-  parte de lo que se les mandó —la factura incluida—. Se mira el código y se
+  parte de lo que se les mandó —la grabación incluida—. Se mira el código y se
   tira el resto.
 - **No aceptar cualquier origen.** Sin `ORIGEN_PERMITIDO`, cualquier página web
   abierta en el navegador del usuario puede llamar a tu servicio y gastar tu
@@ -310,7 +253,7 @@ node --env-file=.env servidor.js
 añadir dependencias.
 
 Detrás hace falta HTTPS —un proxy con certificado, o un túnel—: sobre `http`
-la grabación y la factura viajan en claro por la red.
+la grabación viaja en claro por la red.
 
 ---
 
@@ -321,7 +264,7 @@ dispositivo:
 
 1. **La dirección del servicio.** Sin barra al final: `https://que-comemos.tuusuario.workers.dev`.
 2. **El token de sesión**, si configuraste `TOKEN_APP`. Es el mismo texto.
-3. **Qué capacidades activar**, una por una. Activar `vision` y dejar `chat`
+3. **Qué capacidades activar**, una por una. Activar `transcribe` y dejar `chat`
    apagado es perfectamente válido.
 
 Aquí nunca se escribe la clave del proveedor de modelo. Si una pantalla te la
@@ -333,7 +276,7 @@ Guardado queda así, bajo la clave `que-comemos-proveedores-v1`:
 {
   "baseUrl": "https://que-comemos.tuusuario.workers.dev",
   "token": "el-token-compartido",
-  "enabled": { "transcribe": true, "chat": false, "vision": true },
+  "enabled": { "transcribe": true, "chat": false },
   "provider": "backend"
 }
 ```
@@ -377,12 +320,11 @@ servicios, y eso no cambia.
 **Queda fuera, y solo esto:**
 
 - Dictar en vez de escribir (`transcribe`).
-- Sacar una foto a la factura en vez de teclearla (`vision`).
 - Pedirle algo en lenguaje libre al asistente (`chat`).
 
 Es decir: lo que se pierde es **rapidez al escribir**, no capacidad. Todo lo que
-esas tres funciones hacen se puede hacer a mano, y de hecho el camino a mano es
-el que manda: las tres proponen, y la persona confirma.
+esas dos funciones hacen se puede hacer a mano, y de hecho el camino a mano es
+el que manda: las dos proponen, y la persona confirma.
 
 ---
 
@@ -394,10 +336,9 @@ el que manda: las tres proponen, y la persona confirma.
 |---|---|---|
 | `transcribe` | La grabación de audio completa. | Nada más: ni productos, ni inventario, ni quién vive en la casa. |
 | `chat` | El mensaje escrito, los nombres de las herramientas y el `contexto` que se arme: nombres de productos, unidades y la fecha. | Compras, precios, revisiones, personas, restricciones, historial. |
-| `vision` | La foto completa de la factura. | Nada más. |
 
-Una foto de factura dice **dónde compras, qué compras, cuánto gastas y cuándo**.
-Es de las cosas más reveladoras que hay en la app. Por eso no sale nunca sola.
+Una grabación hecha en la cocina puede llevar de fondo a cualquiera que estuviera
+allí. Por eso no sale nunca sola.
 
 ### Nada sale sin confirmar
 
@@ -407,9 +348,8 @@ título, explicación de qué sale y hacia dónde, y los dos botones. Quien llam
 una sugerencia de diseño: el resto de la app no sale del dispositivo nunca, así
 que la primera vez que algo sale hay que decirlo con todas las letras.
 
-El botón de cancelar no dice «Cancelar» a secas en dos de los tres casos: dice
-«Escribirlo a mano» y «Escribir la compra a mano», porque ese camino existe
-siempre y está a un toque.
+El botón de cancelar de `transcribe` no dice «Cancelar» a secas: dice
+«Escribirlo a mano», porque ese camino existe siempre y está a un toque.
 
 ### El recorrido completo del dato
 
@@ -421,7 +361,7 @@ teléfono ──HTTPS──> tu backend ──HTTPS──> proveedor de modelo
 
 Tres partes ven el dato: el dispositivo, tu backend y el proveedor que elegiste.
 Lo que ese proveedor hace con lo que recibe es cosa suya y de sus condiciones:
-antes de mandar facturas de tu casa, léelas.
+antes de mandarle nada de tu casa, léelas.
 
 ### Lo demás
 
@@ -430,16 +370,7 @@ antes de mandar facturas de tu casa, léelas.
   cambiar cuando quieras.
 - **Los mensajes de error no llevan datos.** `src/providers.js` no copia nunca
   dentro de un error el cuerpo de la respuesta ni el mensaje de la excepción,
-  porque ahí es justo donde se cuelan el token o el principio de la foto. Hay
-  una prueba que lo comprueba (`tests/providers.test.js`).
+  porque ahí es justo donde se cuelan el token o el principio de la grabación.
+  Hay una prueba que lo comprueba (`tests/providers.test.js`).
 - **Todo se puede apagar.** Cada capacidad tiene su interruptor, y apagarlas
   todas deja la app exactamente como estaba antes de que existiera esto.
-
----
-
-## Pendiente
-
-`sw.js` guarda la lista de archivos que la app precarga para abrir sin conexión,
-y `src/providers.js` todavía no está en ella. Mientras nadie lo importe no
-importa; cuando se conecte a la interfaz hay que añadirlo a `SHELL` y subir el
-número de `CACHE`.

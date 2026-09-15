@@ -1,64 +1,115 @@
-/* «Preparar mi casa». Móvil primero: en el teléfono es donde alguien se sienta
+/* «Organizar mi casa». Móvil primero: en el teléfono es donde alguien se sienta
    de verdad a registrar su despensa, y donde una tabla de cuatro columnas se
-   vuelve una pelea con el desplazamiento lateral. */
+   vuelve una pelea con el desplazamiento lateral.
+
+   Colores y tipografía salen enteros de theme.css. Las fichas que se tocan y
+   los plegables reutilizan las clases de plan.css (.chips, .chip-check,
+   .plegable, .pantalla-intro, .pantalla-acciones, .enlace) en vez de repetirlas.
+
+   Ojo con el orden: index.html carga este archivo ANTES que plan.css, así que
+   lo que aquí ajusta una clase compartida necesita un selector más específico
+   —.setup-lista .setup-ficha y no .setup-ficha a secas— o plan.css gana. */
 
 .setup { max-width: 860px; margin: 0 auto; }
 .setup-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
-.setup-head h2 { margin: 2px 0 0; letter-spacing: -.03em; }
+.setup-head h2 { margin: 2px 0 0; letter-spacing: -.03em; font-size: 1.32rem; line-height: 1.25; }
+.setup-body { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 20px; box-shadow: 0 5px 20px #3d2d1d0c; }
+.setup-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+.tour-spacer { flex: 1 1 auto; }
 
-/* La barra de pasos dice dónde estás y cuánto falta, que es lo que evita el
-   abandono a mitad. Bajo 560 px se quedan los puntos y desaparecen las palabras:
-   cinco etiquetas no caben sin partirse. */
-.setup-steps { display: flex; gap: 4px; margin-bottom: 8px; }
-.setup-step { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; font-size: .74rem; color: var(--ink-muted); }
+/* El botón que lleva el peso de la pantalla: el pulgar tiene que encontrarlo sin
+   buscarlo, y en el teléfono ocupa el ancho entero. */
+.btn-grande { min-height: 52px; padding-left: 22px; padding-right: 22px; font-size: 1rem; }
+
+/* ── Pantalla inicial: una promesa y un botón ───────────────────────────── */
+
+.setup-inicio { padding: 26px 0 10px; }
+.setup-promesa {
+  margin: 6px 0 0;
+  font-size: 1.55rem;
+  line-height: 1.32;
+  letter-spacing: -.03em;
+  max-width: 20ch;
+}
+.setup-inicio .pantalla-acciones { margin-top: 24px; }
+.setup-ejemplo { margin-top: 26px; }
+.setup-ejemplo > summary { font-weight: 650; }
+.setup-ejemplo p { font-size: .88rem; line-height: 1.6; }
+.setup-nota { margin-top: 18px; }
+
+/* ── La barra de pasos ──────────────────────────────────────────────────── */
+
+.setup-steps { display: flex; gap: 6px; margin-bottom: 8px; }
+.setup-step { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; font-size: .76rem; color: var(--ink-muted); }
 .setup-step.now { color: var(--clay-dark); font-weight: 800; }
 .setup-dot { display: grid; place-items: center; width: 22px; height: 22px; flex-shrink: 0; border-radius: 50%; background: #ece1d5; color: #6b5b51; font-size: .72rem; font-weight: 800; }
 .setup-step.now .setup-dot { background: var(--clay); color: #fff; }
 .setup-step.done .setup-dot { background: var(--sage); color: #fff; }
 .setup-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .setup-progress { margin-bottom: 20px; }
-.setup-body { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 20px; box-shadow: 0 5px 20px #3d2d1d0c; }
-.setup-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
 
-.setup-name-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 32px; }
+/* ── Paso 1: buscar, filtrar y marcar ──────────────────────────────────── */
 
-/* Las cuatro vías de empezar. Tarjetas grandes y pulsables: es una decisión, no
-   un formulario, y en el teléfono se toca con el pulgar. */
-.setup-ways { display: grid; gap: 10px; margin-top: 16px; }
-.setup-way { display: flex; gap: 13px; align-items: flex-start; text-align: left; width: 100%; padding: 15px; min-height: 44px; border: 1.5px solid var(--line); border-radius: 15px; background: var(--surface); cursor: pointer; font: inherit; color: inherit; }
-.setup-way:hover { border-color: var(--clay-line); background: #fffaf4; }
-.setup-way.chosen { border-color: var(--clay); background: var(--clay-light); box-shadow: 0 0 0 3px #a04b2222; }
-.setup-way:focus-visible { outline: 3px solid var(--clay); outline-offset: 2px; }
-.setup-way.blocked { opacity: .72; }
-.setup-way-icon { font-size: 1.5rem; line-height: 1; flex-shrink: 0; }
-.setup-way-text { display: grid; gap: 4px; min-width: 0; }
-.setup-way-text strong { font-size: .95rem; }
-.setup-way-text > span { font-size: .82rem; color: var(--ink-muted); line-height: 1.45; }
+.setup-buscador { display: flex; align-items: flex-end; gap: 8px; margin: 16px 0 12px; }
+.setup-search { flex: 1 1 auto; min-width: 0; margin: 0; }
 
-/* Categorías del catálogo: una tira que se desplaza sola en horizontal. Es el
-   único sitio donde el desplazamiento lateral es correcto —son pestañas, no
-   contenido— y aun así se puede recorrer con el teclado. */
-.setup-search { margin: 16px 0 12px; }
+/* Las categorías son una tira que se desplaza sola en horizontal. Es el único
+   sitio donde el desplazamiento lateral es correcto —son un filtro, no
+   contenido— y aun así se recorre con el teclado. */
 .setup-cats { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 12px; scrollbar-width: thin; }
-.setup-cat { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; padding: 8px 13px; min-height: 40px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: #594d45; font: inherit; font-size: .81rem; cursor: pointer; white-space: nowrap; }
+.setup-cat { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; padding: 8px 13px; min-height: 44px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: #594d45; font: inherit; font-size: .81rem; cursor: pointer; white-space: nowrap; }
 .setup-cat.active { background: var(--clay); border-color: var(--clay); color: #fff; font-weight: 700; }
 .setup-cat:focus-visible { outline: 3px solid var(--clay); outline-offset: 2px; }
 .setup-cat-count:not(:empty) { display: grid; place-items: center; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 999px; background: var(--sage); color: #fff; font-size: .68rem; font-weight: 800; }
 .setup-cat.active .setup-cat-count:not(:empty) { background: #fff; color: var(--clay-dark); }
 .setup-bulk { margin-bottom: 12px; }
 
-.setup-chips { display: flex; flex-wrap: wrap; gap: 8px; max-height: 46vh; overflow-y: auto; padding: 2px; }
-.setup-chip { min-height: 44px; }
-.setup-chip span { display: grid; gap: 1px; line-height: 1.2; }
-.setup-chip .tiny { font-size: .66rem; }
-.setup-chip.on { background: var(--clay-light); border-color: var(--clay); }
+.setup-lista { display: flex; flex-wrap: wrap; gap: 8px; max-height: 48vh; overflow-y: auto; padding: 2px; }
+/* Dos renglones dentro de la ficha —nombre y en qué se cuenta—, así que aquí la
+   píldora de plan.css deja de centrar y de apretar el texto en una línea. */
+.setup-lista .setup-ficha { min-height: 46px; padding: 7px 15px; justify-content: flex-start; text-align: left; }
+.setup-ficha-texto { display: grid; gap: 1px; line-height: 1.2; }
+.setup-ficha-texto .tiny { font-size: .66rem; font-weight: 600; opacity: .72; }
+/* El mismo aspecto que `:has(input:checked)` de plan.css, pero por clase: es la
+   que se toca al marcar sin redibujar, y además cubre los navegadores donde
+   `:has` no existe. */
+.setup-lista .setup-ficha.marcado { background: var(--clay); border-color: var(--clay); color: #fff; }
 
-.setup-amounts { display: grid; gap: 9px; margin-top: 16px; }
-.setup-amount-row { grid-template-columns: minmax(0, 2.2fr) minmax(70px, .8fr) minmax(95px, 1fr) 32px; }
+/* Siempre a la vista mientras se recorre la lista: sin esto, quien no encuentra
+   su alimento cree que la app no lo tiene y abandona. */
+.setup-falta {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin-top: 10px;
+  padding: 12px 0 4px;
+  background: linear-gradient(to bottom, #fffefd00, var(--surface) 35%);
+}
+.setup-falta .enlace { min-height: 44px; font-size: .92rem; font-weight: 650; }
 
-.setup-done { text-align: center; padding: 8px 0 20px; }
-.setup-done-mark { display: grid; place-items: center; width: 54px; height: 54px; margin: 0 auto 14px; border-radius: 50%; background: var(--sage); color: #fff; font-size: 1.6rem; font-weight: 900; }
-.setup-done h3 { margin: 0 0 7px; font-size: 1.25rem; letter-spacing: -.03em; }
+/* ── Paso 2: lo propio de cada casa ────────────────────────────────────── */
+
+.setup-dictado { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.setup-microfono { align-self: flex-start; min-height: 46px; }
+.setup-microfono.escuchando { background: var(--clay); border-color: var(--clay); color: #fff; }
+
+.setup-propios { display: grid; gap: 9px; margin-top: 6px; }
+.setup-propio-row { grid-template-columns: minmax(0, 1fr) minmax(95px, .55fr) 34px; }
+.setup-unidad-fija { align-self: center; font-size: .82rem; color: var(--ink-muted); padding-bottom: 10px; }
+.setup-fila-nota { grid-column: 1 / -1; margin: -2px 0 0; line-height: 1.45; }
+
+/* ── Paso 3: cuánto al mes ─────────────────────────────────────────────── */
+
+.setup-cantidades { display: grid; gap: 9px; margin: 16px 0 14px; }
+.setup-cantidad-row { grid-template-columns: minmax(0, 2fr) minmax(72px, .7fr) minmax(100px, 1fr) 34px; }
+.setup-cantidad-nombre { align-self: center; font-weight: 650; font-size: .93rem; line-height: 1.3; padding-bottom: 10px; overflow-wrap: anywhere; }
+
+/* ── Paso 4 ────────────────────────────────────────────────────────────── */
+
+.setup-hecho { text-align: center; padding: 4px 0 18px; }
+.setup-hecho-marca { display: grid; place-items: center; width: 54px; height: 54px; margin: 0 auto 14px; border-radius: 50%; background: var(--sage); color: #fff; font-size: 1.6rem; font-weight: 900; }
+.setup-hecho h3 { margin: 0 0 7px; font-size: 1.25rem; letter-spacing: -.03em; }
+.setup-hecho + .pantalla-intro { text-align: center; margin-left: auto; margin-right: auto; }
 
 /* Solo para lectores de pantalla: las etiquetas de las filas apretadas, donde
    enseñar el texto rompería la cuadrícula pero quitarlo dejaría campos mudos. */
@@ -66,15 +117,30 @@
 
 @media (max-width: 700px) {
   .setup-body { padding: 15px; border-radius: 15px; }
+  .setup-head h2 { font-size: 1.18rem; }
   .setup-label { display: none; }
-  .setup-steps { gap: 7px; justify-content: flex-start; }
+  .setup-steps { gap: 8px; justify-content: flex-start; }
   .setup-step { flex: 0 0 auto; }
+
+  .setup-promesa { font-size: 1.35rem; max-width: none; }
+  .setup-inicio .pantalla-acciones .btn { flex: 1 1 100%; }
+
+  /* El buscador se lleva su línea y los botones la de abajo: los tres apretados
+     a 375 px dejan el campo en cuatro caracteres. */
+  .setup-buscador { flex-wrap: wrap; }
+  .setup-search { flex: 1 1 100%; }
+
+  /* La lista deja de tener desplazamiento propio: dos barras anidadas en un
+     teléfono es una trampa para el pulgar. */
+  .setup-lista { max-height: none; overflow: visible; }
+
   /* El nombre se lleva su propia línea; debajo, cantidad, unidad y quitar. */
-  .setup-amount-row { grid-template-columns: minmax(0, 1fr) 100px 34px; }
-  .setup-amount-row .setup-amount-name { grid-column: 1 / -1; }
-  .setup-name-row { grid-template-columns: minmax(0, 1fr) 34px; }
-  .setup-name-row .field:first-child { grid-column: 1 / -1; }
-  .setup-chips { max-height: none; }
+  .setup-cantidad-row { grid-template-columns: minmax(0, 1fr) 105px 34px; }
+  .setup-cantidad-row .setup-cantidad-nombre { grid-column: 1 / -1; padding-bottom: 0; }
+  .setup-propio-row { grid-template-columns: minmax(0, 1fr) 105px 34px; }
+  .setup-propio-row .field:first-child { grid-column: 1 / -1; }
+  .setup-unidad-fija { grid-column: 1 / 3; padding-bottom: 0; }
+
   .setup-actions .btn { flex: 1 1 auto; }
 }
 

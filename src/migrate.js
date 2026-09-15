@@ -11,7 +11,7 @@
 
 import { normalizeName } from './nombres.js';
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 const clone = value => structuredClone(value);
 const today = () => {
@@ -96,11 +96,110 @@ function v1toV2(data) {
   };
 }
 
-const STEPS = { 1: v1toV2 };
+// v2 → v3. Un solo cambio de fondo, y es el que lo ordena todo: cada mes
+// guardaba una copia completa de la canasta, y a partir de aquí guarda solo
+// aquello en lo que se aparta de la habitual.
+//
+// La copia entera parecía lo más seguro y resultó ser lo contrario: con doce
+// copias nadie sabía ya qué era la costumbre y qué la excepción de un mes, y
+// corregir el hábito obligaba a repasar mes por mes. Así que cada mes se
+// compara contra la base y se guarda únicamente la diferencia. Lo que en el mes
+// era idéntico a la base no era una excepción y no deja rastro: eso no pierde
+// nada, porque volver a aplicar la base da exactamente la misma línea.
+function v2toV3(data) {
+  const notes = [];
+  // Los identificadores nuevos salen del contador que ya venía, no de cero: si
+  // se reiniciara, el primer cambio que escribiera el usuario chocaría con algo.
+  let seq = Number.isInteger(data.seq) ? data.seq : 0;
+  const nuevoId = prefix => { seq += 1; return `${prefix}-${seq}`; };
+
+  const baseBasket = data.baseBasket && Array.isArray(data.baseBasket.lines)
+    ? { lines: clone(data.baseBasket.lines), updatedAt: data.baseBasket.updatedAt ?? null, history: clone(data.baseBasket.history || []) }
+    : { lines: [], updatedAt: null, history: [] };
+  const base = new Map(baseBasket.lines.map(line => [line.productId, line]));
+
+  const monthlyBaskets = data.monthlyBaskets && typeof data.monthlyBaskets === 'object' ? data.monthlyBaskets : {};
+  const monthOverrides = {};
+  let totalCambios = 0;
+  for (const [month, basket] of Object.entries(monthlyBaskets)) {
+    if (!basket || !Array.isArray(basket.lines)) continue;
+    const changes = [];
+    const enElMes = new Set();
+    for (const line of basket.lines) {
+      enElMes.add(line.productId);
+      const original = base.get(line.productId);
+      const cantidad = line.quantity ?? null;
+      const prioridad = line.priority || 'frecuente';
+      if (original) {
+        const igual = (original.quantity ?? null) === cantidad && original.unit === line.unit && (original.priority || 'frecuente') === prioridad;
+        if (igual) continue;
+        changes.push({ id: nuevoId('cambio'), productId: line.productId, quantity: cantidad, unit: line.unit, priority: prioridad, removed: false, extra: false, note: '', createdAt: basket.createdAt || `${month}-01` });
+        continue;
+      }
+      changes.push({ id: nuevoId('cambio'), productId: line.productId, quantity: cantidad, unit: line.unit, priority: prioridad, removed: false, extra: true, note: '', createdAt: basket.createdAt || `${month}-01` });
+    }
+    // Lo que estaba en la base y no en el mes se quitó a propósito ese mes.
+    for (const line of baseBasket.lines) {
+      if (enElMes.has(line.productId)) continue;
+      changes.push({ id: nuevoId('cambio'), productId: line.productId, quantity: line.quantity ?? null, unit: line.unit, priority: line.priority || 'frecuente', removed: true, extra: false, note: '', createdAt: basket.createdAt || `${month}-01` });
+    }
+    if (!changes.length) continue;
+    monthOverrides[month] = { month, changes, createdAt: basket.createdAt || `${month}-01`, updatedAt: basket.updatedAt || basket.createdAt || `${month}-01` };
+    totalCambios += changes.length;
+  }
+
+  const plans = (data.plans || []).map(plan => ({ ...plan, routineId: plan.routineId ?? null }));
+
+  // Un mes estaba abierto si tenía canasta propia o comidas escritas. Sin un
+  // `createdAt` que copiar se usa el día 1 de ese mes, que es cierto —el mes
+  // estuvo en uso— en vez de la fecha de hoy, que sería falsa para un mes viejo.
+  const monthPlans = {};
+  const mesesUsados = new Set([...Object.keys(monthlyBaskets), ...plans.map(plan => String(plan.date || '').slice(0, 7))].filter(month => /^\d{4}-(0[1-9]|1[0-2])$/.test(month)));
+  for (const month of [...mesesUsados].sort()) {
+    monthPlans[month] = { month, openedAt: monthlyBaskets[month]?.createdAt || `${month}-01`, preparedAt: null, summary: null };
+  }
+
+  const products = data.products || [];
+  const state = {
+    version: 3,
+    seq,
+    demo: Boolean(data.demo),
+    products,
+    people: data.people || [],
+    recipes: data.recipes || [],
+    plans,
+    absences: data.absences || [],
+    opening: data.opening || {},
+    purchases: data.purchases || [],
+    // Un respaldo v2 exportado antes de que existiera el modo «cuánto queda» no
+    // dice cómo se contó. «Consumido» es lo que se hacía entonces.
+    reviews: (data.reviews || []).map(review => ({ mode: 'consumido', remaining: {}, ...review })),
+    corrections: data.corrections || [],
+    manualItems: data.manualItems || [],
+    habitualBasket: baseBasket,
+    monthOverrides,
+    // No se inventan rutinas leyendo el historial: que alguien haya comido fuera
+    // tres domingos seguidos no significa que quiera esa regla escrita.
+    mealRoutines: [],
+    monthPlans,
+    settings: { reviewWeekday: 5, onboarded: products.length > 0 },
+    activity: data.activity || []
+  };
+
+  notes.push('Tu canasta de siempre ahora se llama «canasta habitual» y es la misma de antes.');
+  if (totalCambios) notes.push(`De los meses que tenías escritos se guardaron ${totalCambios} cambio(s): solo aquello en lo que cada mes se apartaba de tu canasta. Lo que era igual no hacía falta repetirlo.`);
+  else if (Object.keys(monthlyBaskets).length) notes.push('Los meses que tenías escritos eran iguales a tu canasta, así que no hizo falta guardar ningún cambio.');
+  if (Object.keys(monthPlans).length) notes.push(`${Object.keys(monthPlans).length} mes(es) quedaron marcados como abiertos.`);
+  if ((data.invoices || []).length) notes.push(`Las ${data.invoices.length} factura(s) guardadas salen de la app, pero siguen enteras en el respaldo anterior a la migración.`);
+
+  return { state, notes };
+}
+
+const STEPS = { 1: v1toV2, 2: v2toV3 };
 
 // Campos que aparecieron dentro de una misma versión del esquema. Un respaldo
 // exportado antes de que existieran se rellena en vez de rechazarse.
-const OPTIONAL_V2 = { invoices: [], activity: [], monthlyBaskets: {} };
+const OPTIONAL_V3 = { mealRoutines: [], monthPlans: {}, monthOverrides: {}, activity: [], settings: { reviewWeekday: 5, onboarded: false } };
 
 export function migrate(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
@@ -124,7 +223,7 @@ export function migrate(data) {
     notes.push(...result.notes);
   }
 
-  for (const [key, value] of Object.entries(OPTIONAL_V2)) {
+  for (const [key, value] of Object.entries(OPTIONAL_V3)) {
     if (!(key in current)) current[key] = clone(value);
   }
 

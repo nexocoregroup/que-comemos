@@ -10,7 +10,7 @@
 //
 // Y nada de esto hace falta: sin configurar, la app entera —productos,
 // canasta, menú, compras, inventario— funciona igual y sin conexión.
-export const CAPABILITIES = ['transcribe', 'chat', 'vision'];
+export const CAPABILITIES = ['transcribe', 'chat'];
 // Clave propia, aparte de la de los datos de la casa: un respaldo exportado e
 // importado en otro teléfono no debe arrastrar la dirección ni el token del
 // primero.
@@ -18,7 +18,7 @@ export const CONFIG_KEY = 'que-comemos-proveedores-v1';
 // Espera creciente entre reintentos. Dos números, no una fórmula: son medio
 // segundo y segundo y medio, y así se leen.
 export const ESPERAS = [500, 1500];
-const NOMBRES = { transcribe: 'transcribir', chat: 'conversar', vision: 'leer facturas' };
+const NOMBRES = { transcribe: 'transcribir', chat: 'conversar' };
 
 // Aviso obligatorio antes de mandar algo fuera del dispositivo. Quien use
 // callProvider tiene que enseñar el aviso de su capacidad y esperar que el
@@ -36,19 +36,13 @@ export const AVISO_ENVIO = {
     detalle: 'Tu mensaje sale hacia el servicio que configuraste en Ajustes, junto con los nombres de los alimentos y las cantidades que hagan falta para entenderlo. No se envían tus compras ni tu historial completo.',
     confirmar: 'Enviar el mensaje',
     cancelar: 'Cancelar'
-  },
-  vision: {
-    titulo: 'Se va a enviar la foto de la factura',
-    detalle: 'La imagen completa sale hacia el servicio que configuraste en Ajustes, y de ahí al proveedor de modelo. Una factura dice dónde compraste, qué compraste y cuánto pagaste: mira la foto antes de mandarla.',
-    confirmar: 'Enviar la foto',
-    cancelar: 'Escribir la compra a mano'
   }
 };
 
 const texto = valor => String(valor ?? '').trim();
 // Todo lo que entra se normaliza: da igual si viene del almacenamiento, de un
 // formulario a medio llenar o de un respaldo viejo. Siempre sale la misma
-// forma, con las tres capacidades presentes y en booleano.
+// forma, con las dos capacidades presentes y en booleano.
 function normalizar(bruta) {
   const datos = bruta && typeof bruta === 'object' ? bruta : {};
   const activas = datos.enabled && typeof datos.enabled === 'object' ? datos.enabled : {};
@@ -91,11 +85,11 @@ export function isConfigured(capability, config = readConfig()) {
 export function describeConfig(config = readConfig()) {
   const actual = normalizar(config);
   if (actual.provider === 'mock') return 'Modo de prueba: las respuestas son inventadas y nada sale de este dispositivo.';
-  if (!actual.baseUrl) return 'Sin servicio configurado. La app funciona completa sin él: solo quedan fuera la transcripción, la lectura de facturas y el asistente.';
+  if (!actual.baseUrl) return 'Sin servicio configurado. La app funciona completa sin él: solo quedan fuera la transcripción y el asistente.';
   const activas = CAPABILITIES.filter(capacidad => actual.enabled[capacidad]).map(capacidad => NOMBRES[capacidad]);
   const partes = [`Servicio propio en ${actual.baseUrl}`, actual.token ? 'con token de sesión' : 'sin token de sesión'];
-  // Sobre http lo que se manda viaja en claro por la red, y una factura o una
-  // grabación de la casa no es cosa de decirlo en voz baja.
+  // Sobre http lo que se manda viaja en claro por la red, y una grabación de la
+  // casa no es cosa de decirla en voz baja.
   if (/^http:\/\//i.test(actual.baseUrl) && !/^http:\/\/(localhost|127\.0\.0\.1)([:/]|$)/i.test(actual.baseUrl)) partes.push('sin cifrar: la dirección es http, no https');
   const sinActivar = CAPABILITIES.filter(capacidad => !actual.enabled[capacidad]).map(capacidad => NOMBRES[capacidad]);
   const linea = `${partes.join(', ')}. ${activas.length ? `Activo para: ${activas.join(', ')}.` : 'Sin ninguna capacidad activada.'}`;
@@ -105,7 +99,7 @@ export function describeConfig(config = readConfig()) {
 // Cada fallo con su mensaje en español, su código para que el llamante decida
 // y si vale la pena reintentarlo. El mensaje se escribe entero aquí: nada de lo
 // que venga del servidor o de la excepción se copia dentro, porque ahí es donde
-// se cuelan de vuelta el token o el principio de la foto.
+// se cuelan de vuelta el token o el principio de la grabación.
 const ERRORES = {
   capacidad: ['Esa capacidad no existe.', 'capacidad-desconocida', false],
   sinConfigurar: ['No hay un servicio configurado. Escribe la dirección de tu backend en Ajustes.', 'sin-configurar', false],
@@ -114,7 +108,7 @@ const ERRORES = {
   cancelado: ['Se canceló la petición.', 'cancelado', false],
   auth: ['El servicio rechazó la petición (clave no válida).', 'no-autorizado', false],
   peticion: ['El servicio no entendió la petición.', 'peticion-invalida', false],
-  grande: ['El envío es demasiado grande para el servicio. Prueba con una foto más pequeña.', 'demasiado-grande', false],
+  grande: ['El envío es demasiado grande para el servicio. Prueba con una grabación más corta.', 'demasiado-grande', false],
   limite: ['El servicio está ocupado. Espera un momento y vuelve a intentarlo.', 'ocupado', true],
   caido: ['El servicio no está disponible en este momento.', 'servicio-caido', true],
   servidor: ['El servicio falló al procesar la petición.', 'error-del-servicio', false],
@@ -138,15 +132,7 @@ function porEstado(status) {
 // pasara por buena sería peor que no tener la función.
 const SIMULADAS = {
   transcribe: { texto: '[simulado] dos libras de arroz', confianza: 0.5 },
-  chat: { respuesta: '[simulado] Esto es una respuesta de prueba: no hay ningún servicio conectado.', acciones: [] },
-  vision: {
-    fecha: null,
-    establecimiento: '[simulado] Colmado de prueba',
-    lineas: [
-      { textoOriginal: '[simulado] ARROZ SELECTO 2LB', nombreSugerido: 'Arroz', cantidad: 2, unidad: 'lb', confianza: 0.5 },
-      { textoOriginal: '[simulado] HUEVOS 12U', nombreSugerido: 'Huevo', cantidad: 12, unidad: 'unidad', confianza: 0.5 }
-    ]
-  }
+  chat: { respuesta: '[simulado] Esto es una respuesta de prueba: no hay ningún servicio conectado.', acciones: [] }
 };
 const simular = capacidad => ({ ...structuredClone(SIMULADAS[capacidad]), simulated: true });
 
@@ -170,8 +156,8 @@ async function intentar(capability, payload, config, options, inicio) {
       method: 'POST', headers: cabeceras, body: JSON.stringify(payload ?? {}), signal: control.signal
     });
     // El cuerpo de un error no se lee ni se enseña: un servicio puede devolver
-    // de vuelta la foto que le acabamos de mandar, y un mensaje de error no es
-    // sitio para eso.
+    // de vuelta lo que le acabamos de mandar —la grabación entera incluida— y
+    // un mensaje de error no es sitio para eso.
     if (!respuesta.ok) return fallo(...porEstado(respuesta.status), 'backend', inicio);
     let data = null;
     try { data = await respuesta.json(); } catch { return fallo(...(motivo || ERRORES.respuesta), 'backend', inicio); }

@@ -6,11 +6,11 @@
 //
 // Los alias son la mitad útil del archivo. El mismo alimento llega escrito de
 // cinco formas distintas según quién lo escriba: dictado sin tildes, en plural,
-// con el nombre de la otra punta del país, o comprimido a diez caracteres en
-// una factura de supermercado («PLAT MAD», «HUEVO BLA»). Sin los alias, cada
-// una de esas formas crearía un producto nuevo y el inventario quedaría
-// repartido en cuatro fichas del mismo arroz. La comparación normaliza, así que
-// aquí se escriben todos en minúsculas.
+// con el nombre de la otra punta del país, o abreviado a diez caracteres como
+// se anota en una lista de mandado a la carrera («plat mad», «huevo bla»). Sin
+// los alias, cada una de esas formas crearía un producto nuevo y el inventario
+// quedaría repartido en cuatro fichas del mismo arroz. La comparación
+// normaliza, así que aquí se escriben todos en minúsculas.
 
 // Categorías, en el orden en que se muestran al elegir productos habituales.
 export const CATEGORIES = [
@@ -30,10 +30,11 @@ export const CATEGORIES = [
   { id: 'otros',     label: 'Otros',                emoji: '📦' }
 ];
 
-// La unidad de control es cómo se cuenta el alimento en casa y la de compra
-// cómo lo despachan en el colmado: no siempre coinciden y esa diferencia es
-// justo la que la app tiene que preguntar una vez (el salami se cuenta en
-// ruedas pero se compra entero, el ajo se cuenta por cabezas y se pesa).
+// `controlUnit` es cómo se cuenta el alimento en casa y `purchaseUnit` cómo lo
+// despachan en el colmado: no siempre coinciden, y esa diferencia es justo la
+// que la app tiene que preguntar una vez —el salami se cuenta en ruedas pero se
+// compra entero, el ajo se cuenta por cabezas y se pesa—, el día que haga falta
+// para una compra y no el primer día.
 export const SEED_PRODUCTS = [
   { name: 'Plátano maduro', category: 'viveres', controlUnit: 'unidad', purchaseUnit: 'unidad', aliases: ['platano maduro', 'plátanos maduros', 'plat mad', 'maduros'], common: true },
   { name: 'Plátano verde', category: 'viveres', controlUnit: 'unidad', purchaseUnit: 'unidad', aliases: ['platano verde', 'plátanos verdes', 'plat ver', 'verdes'], common: true },
@@ -117,7 +118,11 @@ export const SEED_PRODUCTS = [
   { name: 'Queso de hoja', category: 'lacteos', controlUnit: 'lb', purchaseUnit: 'lb', aliases: ['queso hoja', 'ques hoja', 'queso blanco', 'queso del campo'], common: false },
   { name: 'Mantequilla', category: 'lacteos', controlUnit: 'paquete', purchaseUnit: 'paquete', aliases: ['mantequillas', 'mantequilla con sal', 'mant sal', 'manteq'], common: true },
   { name: 'Margarina', category: 'lacteos', controlUnit: 'paquete', purchaseUnit: 'paquete', aliases: ['margarinas', 'margarina vegetal', 'marg veg', 'margar'], common: false },
-  { name: 'Yogur', category: 'lacteos', controlUnit: 'unidad', purchaseUnit: 'paquete', aliases: ['yogurt', 'yogures', 'yoghurt', 'yog nat'], common: false },
+  // En el colmado y en la casa se dice «yogurt», con t. Se escribe así y «yogur»
+  // queda de alias, no al revés. Los sabores entran como alias del mismo
+  // alimento: quien compra el de fresa no lleva otra cosa, lleva yogurt.
+  { name: 'Yogurt', category: 'lacteos', controlUnit: 'unidad', purchaseUnit: 'paquete', aliases: ['yogur', 'yogures', 'yoghurt', 'yogurt natural', 'yogurt de fresa', 'yogur de fresa', 'yog nat'], common: true },
+  { name: 'Queso gouda', category: 'lacteos', controlUnit: 'rebanada', purchaseUnit: 'paquete', aliases: ['gouda', 'queso guda', 'ques gouda', 'gouda en lonjas'], common: false },
   { name: 'Crema de leche', category: 'lacteos', controlUnit: 'lata', purchaseUnit: 'lata', aliases: ['crema leche', 'nata', 'crem leche', 'crema espesa'], common: false },
 
   { name: 'Pan', category: 'panes', controlUnit: 'unidad', purchaseUnit: 'unidad', aliases: ['panes', 'pan de agua', 'pan agua', 'pan corriente'], common: true },
@@ -129,7 +134,13 @@ export const SEED_PRODUCTS = [
   { name: 'Avena', category: 'panes', controlUnit: 'paquete', purchaseUnit: 'paquete', aliases: ['avena en hojuelas', 'hojuelas de avena', 'aven hoj', 'avenas'], common: false },
   { name: 'Cereal', category: 'panes', controlUnit: 'paquete', purchaseUnit: 'paquete', aliases: ['cereales', 'hojuelas de maiz', 'cer maiz', 'cereal de desayuno'], common: false },
   { name: 'Casabe', category: 'panes', controlUnit: 'unidad', purchaseUnit: 'unidad', aliases: ['casabes', 'casabe de yuca', 'casab yuca', 'torta de casabe'], common: false },
-  { name: 'Tortillas', category: 'panes', controlUnit: 'paquete', purchaseUnit: 'paquete', aliases: ['tortilla', 'tortillas de harina', 'tort harina', 'tortilla de maiz'], common: false },
+  // Eran un solo «Tortillas» con las dos clases metidas en los alias, y así el
+  // que come las de maíz y el que come las de harina llevaban la cuenta en la
+  // misma ficha. Son dos compras distintas, en estantes distintos y a precios
+  // distintos: van separadas. Ningún alias dice solo «tortilla», porque a secas
+  // no se sabe cuál de las dos es y adivinar sería peor que preguntar.
+  { name: 'Tortillas de maíz', category: 'panes', controlUnit: 'paquete', purchaseUnit: 'paquete', aliases: ['tortilla de maiz', 'tortillas de maiz', 'tort maiz', 'tortillas mexicanas'], common: false },
+  { name: 'Tortillas de harina', category: 'panes', controlUnit: 'paquete', purchaseUnit: 'paquete', aliases: ['tortilla de harina', 'tortillas de harina', 'tort harina', 'tortilla de trigo'], common: false },
 
   { name: 'Guineo', category: 'frutas', controlUnit: 'unidad', purchaseUnit: 'unidad', aliases: ['guineos', 'banana', 'platano fruta', 'guin mad'], common: true },
   { name: 'Lechosa', category: 'frutas', controlUnit: 'lb', purchaseUnit: 'lb', aliases: ['papaya', 'lechosas', 'lechoza', 'lech fruta'], common: false },

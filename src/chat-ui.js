@@ -20,16 +20,16 @@
 // CHAT_ACTIONS y los envíos de CHAT_FORMS, y guarda el estado en `ui.chat`.
 
 import { ACTION_NAMES, isQuery, runActions, toolSchemas, undoTo } from './assistant.js';
-import { capacidad, dictar, pararDictado } from './device.js';
+import { cancelarDictado, capacidad, dictar, pararDictado } from './device.js';
 import { AVISO_ENVIO, callProvider, isConfigured } from './providers.js';
 import { SLOTS, addDays, monthBounds, todayISO, weekStart } from './model.js';
 import { parseLine, parseProductText, parseQuantity } from './text-parse.js';
-import { button, cap, esc, fmt, niceDate, notice, unitText } from './ui-kit.js';
+import { button, cap, esc, fmt, monthName, niceDate, notice, unitText } from './ui-kit.js';
 
 /* ── Estado del panel ──────────────────────────────────────────────────── */
 
 export function emptyChat() {
-  return { mensajes: [], pendiente: null, deshacer: null, escuchando: false, enviando: false, error: '', errorTitulo: '', pista: '' };
+  return { mensajes: [], pendiente: null, deshacer: null, escuchando: false, oyendo: '', enviando: false, error: '', errorTitulo: '', pista: '' };
 }
 
 // `pendiente` es siempre lo mismo —algo que espera una decisión de la persona—
@@ -164,34 +164,50 @@ function recortarTrozos(texto, llano, reglas) {
   return { texto: a.replace(/\s+/g, ' ').trim(), llano: b.replace(/\s+/g, ' ').trim(), efectos };
 }
 
-// «a la canasta», «este mes», «en octubre»: lo que dice a qué canasta va la
+// «este mes», «en octubre», «desde ahora»: lo que dice hasta dónde llega la
 // línea, y que estorba para leer la cantidad y el alimento. Las reglas más
-// largas van primero, o «canasta base» se quedaría a medias en «canasta».
+// largas van primero, o «canasta habitual» se quedaría a medias en «canasta».
 // La preposición se recorta junto con el trozo: «quita el atún de este mes»
 // tiene que dejar «el atún», no «el atún de».
+//
+// El alcance: si lo que se pide vale solo para un mes o desde ahora y para
+// siempre. Es la distinción que más daño hace equivocada —cambiar la costumbre
+// de una casa porque alguien compró cangrejo una vez—, así que aquí solo se
+// reconoce lo que la frase dice con todas las letras. Lo que no se dijo se
+// devuelve como `null` y se pregunta; nunca se supone.
 const MES_DICHO = '(?:(?:de|del|para|en|durante|a)\\s+)?';
-const REGLAS_CANASTA = [
-  [new RegExp(`\\b${MES_DICHO}(?:la\\s+)?canasta\\s+base\\b`), 'base'],
-  [/\b(?:todos\s+los\s+meses|cada\s+mes|siempre)\b/, 'base'],
+const NOMBRES_DE_MES = 'enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre';
+const REGLAS_ALCANCE = [
+  // «desde ahora», «todos los meses», «mi canasta habitual»: la costumbre.
+  [/\b(?:desde\s+ahora|de\s+ahora\s+en\s+adelante|a\s+partir\s+de\s+ahora|de\s+aqui\s+en\s+adelante)\b/, 'siempre'],
+  [/\b(?:todos\s+los\s+meses|cada\s+mes|todos\s+los\s+dias\s+del\s+ano|para\s+siempre|siempre)\b/, 'siempre'],
+  [new RegExp(`\\b${MES_DICHO}(?:mi\\s+|la\\s+)?canasta\\s+habitual\\b`), 'siempre'],
+  // «este mes», «para octubre», «el mes que viene»: una excepción y nada más.
   [new RegExp(`\\b${MES_DICHO}(?:el\\s+)?mes\\s+que\\s+viene\\b|\\b${MES_DICHO}proximo\\s+mes\\b|\\bmes\\s+entrante\\b`), 'mes-siguiente'],
-  [/\b(?:en|para|de|del|a)\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\b/, 'mes-nombre'],
-  [new RegExp(`\\b${MES_DICHO}(?:solo\\s+)?(?:este|ese)\\s+mes\\b`), 'mes-actual'],
-  [new RegExp(`\\b${MES_DICHO}(?:la\\s+)?canasta(?:\\s+de(?:l)?(?:\\s+este)?\\s+mes)?\\b`), 'canasta'],
+  [new RegExp(`\\b(?:solo|solamente|unicamente)?\\s*(?:en|para|de|del|a|durante)\\s+(${NOMBRES_DE_MES})\\b`), 'mes-nombre'],
+  [new RegExp(`\\b(?:solo|solamente|unicamente)?\\s*${MES_DICHO}(?:este|ese)\\s+mes\\b`), 'mes-actual'],
+  // «a la canasta» a secas ya no significa nada: se dejaba caer en el hábito y
+  // ese era justo el error. Se recorta para poder leer la línea, pero no fija
+  // ningún alcance.
+  [new RegExp(`\\b${MES_DICHO}(?:la\\s+)?canasta(?:\\s+de(?:l)?(?:\\s+este)?\\s+mes)?\\b`), 'nada'],
   [new RegExp(`\\b${MES_DICHO}(?:el\\s+)?mes\\b`), 'mes-actual']
 ];
-function leerCanasta(texto, llano) {
-  const limpio = recortarTrozos(texto, llano, REGLAS_CANASTA);
-  let mes = null, base = false;
+function leerAlcance(texto, llano) {
+  const limpio = recortarTrozos(texto, llano, REGLAS_ALCANCE);
+  let mes = null, siempre = false;
   for (const [efecto, encontrado] of limpio.efectos) {
-    if (efecto === 'base') base = true;
+    if (efecto === 'siempre') siempre = true;
     else if (efecto === 'mes-actual') mes = mes || mesActual();
     else if (efecto === 'mes-siguiente') mes = mes || mesSiguiente(mesActual());
     else if (efecto === 'mes-nombre') mes = mes || mesPorNombre(encontrado[1]);
   }
-  // «a la canasta» a secas es la canasta base: es el hábito de la casa, que es
-  // lo que la gente quiere decir cuando no nombra ningún mes.
-  return { texto: limpio.texto, llano: limpio.llano, mes: base ? null : mes, base };
+  // «desde ahora, todos los meses» gana a cualquier mes nombrado de paso: quien
+  // dice las dos cosas está diciendo que a partir de ese mes es la norma.
+  const alcance = siempre ? 'siempre' : (mes ? 'mes' : null);
+  return { texto: limpio.texto, llano: limpio.llano, alcance, mes: alcance === 'mes' ? mes : null };
 }
+
+const mesLegible = mes => monthName(mes).toLocaleLowerCase('es');
 
 function periodoEscrito(llano) {
   const hoy = todayISO(), mes = hoy.slice(0, 7), limites = monthBounds(mes);
@@ -292,26 +308,67 @@ function reconocerRestante(texto, llano) {
     const alimento = sinArticulo(recorte(texto, comparada[1].length, comparada[2].length), comparada[2]);
     if (queda !== null && alimento.texto) return { acciones: [{ action: 'registrar_restante', arguments: { producto: alimento.texto, queda } }] };
   }
-  // «quedan 3 latas de atún»: el resto de la frase ya es una línea de producto,
-  // así que la lee el mismo intérprete que las listas dictadas.
+  // «quedan 3 latas de atún», y también «quedan dos plátanos, diez huevos y
+  // media libra de queso»: nadie repasa la despensa alimento por alimento.
   const suelta = llano.match(/^((?:¿\s*)?(?:solo\s+|ya\s+solo\s+)?(?:me\s+|nos\s+)?qued[ao]n?\s+)(.+)$/);
   if (!suelta) return null;
-  const fila = parseLine(texto.slice(suelta[1].length));
-  if (!fila || fila.quantity === null || fila.name.length <= 1) return null;
-  return { acciones: [{ action: 'registrar_restante', arguments: { producto: fila.name, queda: fila.quantity } }] };
+  const acciones = trozosDeLista(texto.slice(suelta[1].length))
+    .map(trozo => parseLine(trozo))
+    .filter(fila => fila && fila.quantity !== null && !fila.negated && fila.name.length > 1)
+    .map(fila => ({ action: 'registrar_restante', arguments: { producto: fila.name, queda: fila.quantity } }));
+  return acciones.length ? { acciones } : null;
+}
+
+// Partir «dos plátanos, diez huevos y media libra de queso» en tres. La coma es
+// fácil; la «y» no, porque también une nombres («arroz y habichuelas»). Se parte
+// solo cuando lo que sigue empieza por una cantidad y lo que queda detrás tiene
+// nombre propio: «y media libra de queso» es otro alimento, «y habichuelas» no.
+const esFilaEntera = trozo => {
+  const fila = parseLine(trozo);
+  return Boolean(fila && fila.quantity !== null && fila.name.length > 1);
+};
+function trozosDeLista(texto) {
+  const salida = [];
+  for (const parte of String(texto ?? '').split(/[;\n\r]+|(?<!\d),|,(?!\d)/)) {
+    for (const trozo of parte.split(/\s+[ye]\s+/)) {
+      if (!salida.length) { salida.push(trozo); continue; }
+      // Se pega al anterior por dos motivos: lo de antes era solo una cantidad
+      // («dos y medio plátanos») o lo de ahora no trae la suya («arroz y
+      // habichuelas»). En los dos casos la «y» está dentro de una sola fila.
+      if (!esFilaEntera(salida[salida.length - 1]) || !esFilaEntera(trozo)) salida[salida.length - 1] += ` y ${trozo}`;
+      else salida.push(trozo);
+    }
+  }
+  return salida;
 }
 
 function reconocerQuitar(texto, llano) {
-  const encontrado = llano.match(/^((?:¿\s*)?(?:quita(?:me|le)?|quitar|saca(?:me)?|sacar|elimina(?:me)?|eliminar|borra(?:me)?|no\s+compres|no\s+compremos|no\s+compramos|no\s+vamos\s+a\s+comprar|no\s+lleves|no\s+llevemos)\s+)(.+)$/);
+  const encontrado = llano.match(/^((?:¿\s*)?(?:quita(?:me|le)?|quitar|saca(?:me)?|sacar|elimina(?:me)?|eliminar|borra(?:me)?|no\s+compres|no\s+compremos|no\s+compramos|no\s+compraremos|no\s+vamos\s+a\s+comprar|no\s+lleves|no\s+llevemos)\s+)(.+)$/);
   if (!encontrado) return null;
-  const canasta = leerCanasta(texto.slice(encontrado[1].length), encontrado[2]);
-  const alimento = sinArticulo(canasta.texto, canasta.llano);
+  const leido = leerAlcance(texto.slice(encontrado[1].length), encontrado[2]);
+  const alimento = sinArticulo(leido.texto, leido.llano);
   if (!alimento.texto) return null;
-  // Quitar de la canasta base es otra cosa y no se hace por descuido: solo
-  // cuando la frase dice «base». Adivinarlo al revés borraría el hábito de la
-  // casa cuando alguien solo quería saltarse un mes.
-  if (canasta.base) return { acciones: [{ action: 'quitar_de_base', arguments: { producto: alimento.texto } }] };
-  return { acciones: [{ action: 'quitar_de_mes', arguments: { ...(canasta.mes ? { mes: canasta.mes } : {}), producto: alimento.texto } }] };
+  const mes = leido.mes || mesActual();
+  const soloEsteMes = { action: 'quitar_solo_este_mes', arguments: { mes, producto: alimento.texto } };
+  const desdeAhora = { action: 'quitar_de_habitual', arguments: { producto: alimento.texto } };
+  if (leido.alcance === 'siempre') return { acciones: [desdeAhora] };
+  if (leido.alcance === 'mes') return { acciones: [soloEsteMes] };
+  return { acciones: [soloEsteMes], duda: dudaDeAlcance(alimento.texto, mes, soloEsteMes, desdeAhora) };
+}
+
+// Las dos únicas lecturas de una frase que no dijo su alcance, cada una con la
+// acción que le corresponde. No hay valor por omisión a propósito: dar por
+// supuesto «siempre» reescribiría la costumbre de la casa, y dar por supuesto
+// «este mes» dejaría sin registrar un cambio que sí era para siempre.
+function dudaDeAlcance(nombre, mes, soloEsteMes, desdeAhora) {
+  return {
+    pregunta: `¿«${nombre}» es solo para ${mesLegible(mes)} o desde ahora, todos los meses?`,
+    campo: null,
+    opciones: [
+      { id: 'mes', nombre: `Solo en ${mesLegible(mes)}`, acciones: [soloEsteMes] },
+      { id: 'siempre', nombre: 'Desde ahora, todos los meses', acciones: [desdeAhora] }
+    ]
+  };
 }
 
 function reconocerArchivar(texto, llano) {
@@ -323,6 +380,11 @@ function reconocerArchivar(texto, llano) {
 }
 
 function reconocerCompra(texto, llano) {
+  // «compramos» es pasado y presente a la vez, así que «desde ahora compramos
+  // cuatro libras de arroz todos los meses» entraba aquí y se registraba como
+  // una compra que nadie hizo, subiendo las existencias. Quien dice «desde
+  // ahora» o «todos los meses» está describiendo la costumbre, no el colmado.
+  if (leerAlcance(texto, llano).alcance === 'siempre') return null;
   const encontrado = llano.match(/(?:^|\s)(?:acabo\s+de\s+comprar|compre|compro|compramos|compraron|compraste)\b/);
   if (!encontrado) return null;
   // Se le pasa la frase desde el verbo, porque parseProductText ya sabe que
@@ -337,21 +399,93 @@ function reconocerCompra(texto, llano) {
   return { acciones: [{ action: 'registrar_compra', arguments: { lineas, ...(fecha ? { fecha } : {}) } }] };
 }
 
+// Las formas largas van antes que las cortas: «compraremos» tiene que ganarle a
+// «compra», o se quedaría a medias y la frase no encajaría.
+const VERBO_CANASTA = '(?:agrega(?:me|le)?|agregar|anade(?:me|le)?|anadir|pon(?:me|le)?|poner|mete(?:me)?|meter|suma(?:me)?|sumar|apunta(?:me)?|anota(?:me)?|incluye|necesitamos|necesito|compraremos|compraran|compraras|compramos|compremos|comprare|compra(?:me)?|vamos\\s+a\\s+comprar|hay\\s+que\\s+comprar|llevamos|llevaremos)';
 function reconocerCanasta(texto, llano) {
-  // Se limpia primero lo que dice a qué canasta va, porque tanto «este mes pon
-  // 40 lb de arroz» como «pon 40 lb de arroz este mes» son la misma frase.
-  const canasta = leerCanasta(texto, llano);
-  const encontrado = canasta.llano.match(/^((?:¿\s*)?(?:agrega(?:me|le)?|agregar|anade(?:me|le)?|anadir|pon(?:me|le)?|poner|mete(?:me)?|meter|suma(?:me)?|sumar|apunta(?:me)?|anota(?:me)?|incluye|necesito|necesitamos|compra(?:me)?|hay\s+que\s+comprar)\s+)(.+)$/);
+  // Se limpia primero lo que dice el alcance, porque tanto «este mes pon 40 lb
+  // de arroz» como «pon 40 lb de arroz este mes» son la misma frase.
+  const leido = leerAlcance(texto, llano);
+  const encontrado = leido.llano.match(new RegExp(`^((?:¿\\s*)?${VERBO_CANASTA}\\s+)(.+)$`));
   if (!encontrado) return null;
-  const fila = parseLine(canasta.texto.slice(encontrado[1].length));
+  const fila = parseLine(leido.texto.slice(encontrado[1].length));
   if (!fila || fila.quantity === null || !fila.unit || fila.name.length <= 1) return null;
   const comun = { producto: fila.name, cantidad: fila.quantity, unidad: fila.unit };
-  if (canasta.mes) return { acciones: [{ action: 'agregar_a_mes', arguments: { mes: canasta.mes, ...comun } }] };
-  return { acciones: [{ action: 'agregar_a_base', arguments: comun }] };
+  const mes = leido.mes || mesActual();
+  const soloEsteMes = { action: 'cambiar_solo_este_mes', arguments: { mes, ...comun } };
+  const desdeAhora = { action: 'agregar_a_habitual', arguments: comun };
+  if (leido.alcance === 'siempre') return { acciones: [desdeAhora] };
+  if (leido.alcance === 'mes') return { acciones: [soloEsteMes] };
+  return { acciones: [soloEsteMes], duda: dudaDeAlcance(fila.name, mes, soloEsteMes, desdeAhora) };
+}
+
+/* ── Las rutinas dichas en voz alta ────────────────────────────────────── */
+
+// ISO, como en routines.js: 1 lunes … 7 domingo. Los que terminan en «s» no
+// cambian en plural; los otros dos sí.
+const DIAS_DICHOS = { lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6, sabados: 6, domingo: 7, domingos: 7 };
+const DIA_SUELTO = '(?:lunes|martes|miercoles|jueves|viernes|sabados?|domingos?)';
+const ORDINALES_DICHOS = { primer: 1, primero: 1, primera: 1, segundo: 2, segunda: 2, tercer: 3, tercero: 3, tercera: 3, cuarto: 4, cuarta: 4, quinto: 5, quinta: 5 };
+// Lo que puede venir pegado delante del día y forma parte de la regla, no del
+// nombre de la comida: «todos los lunes», «ningún domingo», «cada viernes».
+const ANTES_DEL_DIA = '(?:todos\\s+los\\s+|todas\\s+las\\s+|cada\\s+|ningun\\s+|ningunos\\s+|los\\s+|las\\s+|el\\s+|la\\s+)?';
+const VERBO_SLOT = [['desayuno', /\bdesayun/], ['almuerzo', /\balmuerz|\balmorz/], ['cena', /\bcena\b|\bcenas\b|\bcenar|\bcenaremos\b|\bcenamos\b/]];
+
+function reconocerRutina(texto, llano) {
+  const dias = [...llano.matchAll(new RegExp(`\\b(${DIA_SUELTO})\\b`, 'g'))].map(fila => DIAS_DICHOS[fila[1]]);
+  if (!dias.length) return null;
+  const leido = leerAlcance(texto, llano);
+  const semanas = [...leido.llano.matchAll(/\b(primer[ao]?|segund[ao]|tercer[ao]?|cuart[ao]|quint[ao])\b/g)].map(fila => ORDINALES_DICHOS[fila[1]]).filter(Boolean);
+  const comidas = VERBO_SLOT.filter(([, expresion]) => expresion.test(leido.llano)).map(([slot]) => slot);
+
+  // Fuera de casa y pedir comida se dicen así y no hay que nombrar nada más.
+  const fuera = /\bfuera\b|\bno\s+(?:comeremos|comemos|come|cocinamos|cocinaremos)\s+en\s+casa\b|\bcomer\s+fuera\b/.test(leido.llano);
+  const pedido = /\bpedir(?:emos)?\b|\bpedimos\b|\bdelivery\b|\bpedido\b|\bordenamos\b/.test(leido.llano);
+  const tipo = fuera ? 'fuera' : pedido ? 'pedido' : 'preparacion';
+
+  const comun = {
+    tipo,
+    comidas: comidas.length ? comidas : [...SLOTS],
+    dias: [...new Set(dias)].sort((a, b) => a - b),
+    ...(semanas.length ? { semanas: [...new Set(semanas)].sort((a, b) => a - b) } : {}),
+    ...(leido.alcance ? { alcance: leido.alcance === 'siempre' ? 'siempre' : 'mes' } : {}),
+    ...(leido.mes ? { mes: leido.mes } : {})
+  };
+
+  if (tipo !== 'preparacion') return { acciones: [{ action: 'crear_rutina', arguments: comun }] };
+  // Para una preparación hace falta su nombre, y está entre el verbo y la regla
+  // de los días: «pon TORTILLAS CON JAMÓN Y QUESO todos los lunes…».
+  const verbo = leido.llano.match(new RegExp(`^((?:¿\\s*)?(?:${VERBO_CANASTA}|haz|hacer|cocina|cocinar|prepara(?:me)?|preparar|come(?:mos|remos)?|desayuna(?:mos|remos)?|almorza(?:mos|remos)?|cena(?:mos|remos)?)\\s+)`));
+  const desde = verbo ? verbo[1].length : 0;
+  const corte = leido.llano.search(new RegExp(`\\b${ANTES_DEL_DIA}${DIA_SUELTO}\\b`));
+  if (corte <= desde) return null;
+  const nombre = sinArticulo(recorte(leido.texto, desde, corte - desde), leido.llano.slice(desde, corte));
+  if (!nombre.texto || nombre.texto.length <= 2) return null;
+  return { acciones: [{ action: 'crear_rutina', arguments: { ...comun, preparacion: nombre.texto } }] };
+}
+
+// «Copia la rutina de septiembre para octubre»: repetir el mes pasado es lo
+// primero que pide quien ya llenó uno entero a mano.
+function reconocerCopiarMes(texto, llano) {
+  const expresion = new RegExp(`^(?:¿\\s*)?(?:copia(?:me)?|copiar|repite(?:me)?|repetir|pasa(?:me)?|traslada)\\s+(?:l[ao]s?\\s+)?(?:rutinas?|patron|menu|plan|comidas|mismo|misma)?\\s*(?:de(?:l)?\\s+)?(${NOMBRES_DE_MES})\\s+(?:para|a|en|al)\\s+(?:el\\s+(?:mes\\s+de\\s+)?)?(${NOMBRES_DE_MES})\\b`);
+  const encontrado = llano.match(expresion);
+  if (!encontrado) return null;
+  const desde = mesPorNombre(encontrado[1]), hasta = mesPorNombre(encontrado[2]);
+  if (!desde || !hasta || desde === hasta) return null;
+  return { acciones: [{ action: 'copiar_rutina_de_mes', arguments: { desde, hasta } }] };
+}
+
+// «Cambia solamente la cena de mañana»: un solo día, sin tocar la rutina que lo
+// puso. El «solamente» es lo importante de la frase y por eso va en la acción.
+function reconocerCambiarComida(texto, llano) {
+  const encontrado = llano.match(/^(?:¿\s*)?(?:cambia(?:me|le)?|cambiar|modifica|modificar|edita|editar)\s+(?:solo|solamente|unicamente|nada\s+mas)?\s*(?:l[ao]\s+|el\s+)?(desayuno|almuerzo|cena)\b(.*)$/);
+  if (!encontrado) return null;
+  return { acciones: [{ action: 'cambiar_solo_esta_comida', arguments: { fecha: fechaEscrita(llano) || todayISO(), comida: encontrado[1] } }] };
 }
 
 const PATRONES = [
   reconocerMenu, reconocerExistencias, reconocerLista, reconocerAusencia, reconocerRestriccion,
+  reconocerCopiarMes, reconocerCambiarComida, reconocerRutina,
   reconocerRestante, reconocerQuitar, reconocerArchivar, reconocerCompra, reconocerCanasta
 ];
 
@@ -372,6 +506,12 @@ export function interpretar(texto) {
 /* ── Enseñar el resultado en español ───────────────────────────────────── */
 
 const ESTADO_COMIDA = { outside: 'fuera de casa', order: 'pedir comida', unplanned: 'sin planificar', 'sin plan': 'todavía sin decidir' };
+// Los cuatro estados que manda `dictar` por `onEstado`, dichos en español.
+const ESTADO_DEL_DICTADO = {
+  preparando: 'Abriendo el micrófono… espera a que diga «escuchando».',
+  escuchando: 'Escuchando… habla y después revisa lo que quedó escrito.',
+  procesando: 'Terminando de entender lo que dijiste…'
+};
 const cantidadTexto = (valor, unidad) => `${fmt(valor)} ${unitText(unidad, Number(valor))}`;
 const lista = filas => filas.join('\n');
 
@@ -404,9 +544,30 @@ function describirResultado(accion, resultado, argumentos = {}) {
   if (accion === 'ver_menu' && Array.isArray(resultado)) {
     return lista(resultado.map(fila => `${cap(fila.comida)}: ${fila.titulo || ESTADO_COMIDA[fila.estado] || fila.estado}`));
   }
-  if ((accion === 'ver_canasta_base' || accion === 'ver_canasta_mes') && Array.isArray(resultado)) {
+  if ((accion === 'ver_canasta_habitual' || accion === 'ver_canasta_del_mes') && Array.isArray(resultado)) {
     if (!resultado.length) return 'Esa canasta está vacía.';
-    return lista(resultado.slice(0, 30).map(fila => `• ${cantidadTexto(fila.cantidad, fila.unidad)} de ${fila.nombre}`));
+    const marca = { cambio: ' (cambiado este mes)', extra: ' (extra de este mes)' };
+    return lista(resultado.slice(0, 30).map(fila => `• ${cantidadTexto(fila.cantidad, fila.unidad)} de ${fila.nombre}${marca[fila.origen] || ''}`));
+  }
+  if (accion === 'ver_rutinas' && Array.isArray(resultado)) {
+    if (!resultado.length) return 'Todavía no tienes rutinas de comida.';
+    return lista(resultado.map(fila => `• ${fila.etiqueta}: ${fila.regla}, ${fila.comidas.join(' y ')} — ${fila.alcance === 'siempre' ? 'desde ahora, todos los meses' : 'solo este mes'} (${fila.fechas.length} día(s) este mes)`));
+  }
+  if (accion === 'crear_rutina' && resultado?.fechas) {
+    const saltados = resultado.saltados?.length ? ` Dejé ${resultado.saltados.length} comida(s) como estaban porque ya tenían algo.` : '';
+    return `Quedó escrita. Llené ${resultado.creados} comida(s) en ${resultado.fechas.length} día(s) de ${mesLegible(resultado.mes)}.${saltados}`;
+  }
+  if (accion === 'copiar_rutina_de_mes' || accion === 'aplicar_rutinas') {
+    return `Puse ${resultado.creados} comida(s). Dejé ${resultado.saltados} como estaban.`;
+  }
+  if (accion === 'ver_avance_mes' && resultado?.month) {
+    return `De ${resultado.huecos} comidas del mes, ${resultado.pendientes} siguen sin decidir (${resultado.porcentaje}% listo). En casa ${resultado.encasa}, fuera ${resultado.fuera}, pedidas ${resultado.pedido}.`;
+  }
+  if (accion === 'ver_cambios_del_mes' && resultado?.cambios) {
+    if (!resultado.cambios.length) return `En ${mesLegible(resultado.mes)} no hay ningún cambio: es mi canasta habitual tal cual.`;
+    return lista(resultado.cambios.map(fila => fila.quitado
+      ? `• ${fila.nombre}: este mes no se compra.`
+      : `• ${fila.nombre}: ${cantidadTexto(fila.cantidad, fila.unidad)}${fila.extra ? ' (solo este mes)' : ' en vez de lo habitual'}.`));
   }
   if (accion === 'listar_productos' && Array.isArray(resultado)) {
     if (!resultado.length) return 'Todavía no hay alimentos en el catálogo.';
@@ -416,13 +577,6 @@ function describirResultado(accion, resultado, argumentos = {}) {
     if (resultado.encontrado) return `Sí, «${resultado.encontrado.nombre}» está en el catálogo.`;
     if (resultado.parecidos?.length) return `No lo encontré. Parecidos: ${resultado.parecidos.map(fila => fila.nombre).join(', ')}.`;
     return 'No encontré nada parecido en el catálogo.';
-  }
-  if (accion === 'comparar_mes_con_base') {
-    const partes = [];
-    if (resultado.agregados?.length) partes.push(`De más: ${resultado.agregados.join(', ')}.`);
-    if (resultado.quitados?.length) partes.push(`De menos: ${resultado.quitados.join(', ')}.`);
-    if (resultado.cambiados?.length) partes.push(`Cambiados: ${resultado.cambiados.map(fila => `${fila.nombre} (${fmt(fila.mes)} en vez de ${fmt(fila.base)} ${fila.unidad})`).join(', ')}.`);
-    return partes.length ? lista(partes) : 'Ese mes es igual que la canasta base.';
   }
   return '';
 }
@@ -456,7 +610,7 @@ function ejecutar(ctx, acciones, requestId, confirmado = false) {
     // Lo sensible se enseña entero y en español antes de tocar nada. El mismo
     // requestId viaja con lo pendiente: es lo que impide que confirmar dos
     // veces registre la compra dos veces.
-    chat.pendiente = { tipo: 'confirmar', acciones: seguras, requestId, preview: resultado.preview || [] };
+    chat.pendiente = { tipo: 'confirmar', acciones: seguras, requestId, preview: resultado.preview || [], alcance: resultado.alcance || null };
     ctx.render();
     return;
   }
@@ -467,7 +621,7 @@ function ejecutar(ctx, acciones, requestId, confirmado = false) {
       pregunta: duda?.pregunta || resultado.question,
       // Sin campo no hay forma de reintentar sola la respuesta, así que las
       // opciones se enseñan como texto y no como botones que no harían nada.
-      campo: duda?.campo || null,
+      campo: duda?.campo || resultado.campo || null,
       opciones: duda?.opciones || resultado.options || []
     };
     ctx.render();
@@ -516,22 +670,40 @@ function conversacionPara(chat) {
   return filas;
 }
 
-function sugerirFormulario(llano) {
-  if (/\bcompr/.test(llano)) return { etiqueta: 'Anotar una compra', accion: 'open-purchase', datos: { goto: 'compras' } };
+// El asistente es una comodidad, no la puerta de entrada: todo lo que hace se
+// puede hacer a mano. Cuando no entiende, lo que toca no es disculparse, es
+// llevar a la pantalla donde eso se escribe en tres toques.
+function sugerirFormulario(llano, state) {
+  if (/\bcompr/.test(llano)) return { etiqueta: 'Anotar una compra', accion: 'open-purchase', datos: { goto: 'compra' } };
   if (/\bqueda|\bconsum|\brevis/.test(llano)) return { etiqueta: 'Abrir una revisión', accion: 'open-new-review', datos: { goto: 'revision' } };
   if (/\bno\s+(?:puede|come|cena|almuerza|desayuna)\b|\bpersona\b/.test(llano)) return { etiqueta: 'Editar una persona', accion: 'open-person' };
-  if (/\bcanasta\b|\bmes\b/.test(llano)) return { etiqueta: 'Abrir la canasta del mes', accion: 'open-basket', datos: { goto: 'compras' } };
+  // Una rutina necesita una preparación escrita; sin ninguna no hay nada que
+  // repetir, así que ahí se manda a crearla primero. Con preparaciones ya
+  // guardadas, el sitio correcto es el formulario de la rutina.
+  if (/\blunes|\bmartes|\bmiercoles|\bjueves|\bviernes|\bsabado|\bdomingo|\brutina/.test(llano)) {
+    return state.recipes.length
+      ? { etiqueta: 'Ponerlo en el calendario', accion: 'open-routine', datos: { goto: 'mes' } }
+      : { etiqueta: 'Crear una preparación', accion: 'open-recipe' };
+  }
+  if (/\bcanasta|\bhabitual|\btodos\s+los\s+meses/.test(llano)) return { etiqueta: 'Abrir mi canasta habitual', accion: 'open-basket', datos: { goto: 'canasta' } };
   return { etiqueta: 'Registrar un alimento', accion: 'open-product' };
 }
 
+// Sin servicio de lenguaje configurado —que es lo normal— lo que hay es este
+// intérprete, que reconoce formas de frase y no «cualquier cosa». Decirlo con
+// todas las letras vale más que aparentar: quien sabe qué formas hay las usa, y
+// quien no, acaba enfadado con una app que parecía entenderlo todo.
 function responderSinEntender(ctx, texto) {
   const chat = chatDe(ctx);
   const llano = plano(texto);
   decir(chat, 'app', [
-    'No entendí esa frase. Sin servicio configurado solo reconozco algunas maneras de decir las cosas:',
-    '«compré 2 lb de arroz», «quedan 3 latas de atún», «agrega 5 lb de arroz a la canasta»,',
-    '«Sofía no puede comer maní», «qué falta comprar», «qué se cocina hoy», «cuánto queda de arroz».'
-  ].join(' '), { acciones: [{ etiqueta: 'Escribir varios productos de corrido', accion: 'open-bulk' }, sugerirFormulario(llano)] });
+    'No entendí esa frase. Aquí no hay ningún servicio de lenguaje configurado: leo lo que escribes en este mismo teléfono,',
+    'y por eso reconozco formas concretas de decir las cosas, no cualquier frase. Estas sí las entiendo:',
+    '«compré 2 lb de arroz», «quedan 3 latas de atún», «agrega 5 lb de arroz solo este mes»,',
+    '«desde ahora compramos 4 lb de arroz todos los meses», «todos los viernes cenamos fuera»,',
+    '«copia la rutina de septiembre para octubre», «Sofía no puede comer maní», «qué falta comprar», «qué se cocina hoy».',
+    'Y todo esto se puede hacer también a mano, en su pantalla.'
+  ].join(' '), { acciones: [{ etiqueta: 'Escribir varios productos de corrido', accion: 'open-bulk' }, sugerirFormulario(llano, ctx.state)] });
   ctx.render();
 }
 
@@ -581,7 +753,7 @@ function enviar(ctx, texto, requestId) {
     ejecutar(ctx, leido.acciones, requestId);
     return;
   }
-  if (!isConfigured('chat')) { responderSinEntender(ctx, texto); return; }
+  if (!servicioLibre()) { responderSinEntender(ctx, texto); return; }
   // Nada sale del dispositivo sin que se diga con todas las letras qué sale y
   // sin que la persona lo autorice. Una vez por sesión, no una vez y para
   // siempre: al recargar la app se vuelve a preguntar.
@@ -595,7 +767,19 @@ function enviar(ctx, texto, requestId) {
 
 /* ── Dibujo ────────────────────────────────────────────────────────────── */
 
-const EJEMPLOS = ['Compré 2 lb de arroz y 3 latas de atún', '¿Qué falta comprar?', '¿Qué se cocina hoy?', 'Quedan 4 latas de atún'];
+// `isConfigured` lee el almacenamiento y puede fallar en un WebView con los
+// datos del sitio bloqueados. Sin servicio es el caso normal, así que un fallo
+// se lee como «no hay», que es la respuesta prudente.
+const servicioLibre = () => { try { return isConfigured('chat'); } catch { return false; } };
+
+const EJEMPLOS = [
+  'Compré 2 lb de arroz y 3 latas de atún',
+  'Quedan 4 latas de atún y media libra de queso',
+  'Agrega 4 lb de arroz solo este mes',
+  'Desde ahora compramos 4 lb de arroz todos los meses',
+  'Todos los viernes cenamos fuera',
+  '¿Qué falta comprar?'
+];
 const atributos = datos => Object.entries(datos || {}).map(([clave, valor]) => `data-${esc(clave)}="${esc(valor)}"`).join(' ');
 
 function dibujarMensaje(chat, mensaje, orden) {
@@ -616,26 +800,48 @@ function dibujarPendiente(pendiente) {
   if (pendiente.tipo === 'confirmar') {
     return `<div class="chat-aparte chat-confirma">
       <p class="chat-titulin">Esto cambia tus datos. ¿Lo hago?</p>
+      ${dibujarAlcance(pendiente.alcance)}
       <ul class="chat-previa">${(pendiente.preview || []).map(linea => `<li>${esc(linea)}</li>`).join('')}</ul>
       <div class="chat-botones">${button('Confirmar', 'chat-confirmar', 'btn-primary btn-small')}${button('Cancelar', 'chat-cancelar', 'btn-secondary btn-small')}</div></div>`;
   }
   const opciones = pendiente.opciones || [];
-  const elegibles = pendiente.campo && opciones.length;
+  // Una opción sirve para contestar si rellena un campo o si trae su propia
+  // acción; si no, es solo información y se enseña como texto.
+  const elegibles = opciones.length && (pendiente.campo || opciones.some(opcion => opcion.acciones));
   return `<div class="chat-aparte chat-duda">
     <p class="chat-titulin">${esc(pendiente.pregunta || '¿Cuál de estos?')}</p>
     ${elegibles
-      ? `<div class="chat-botones">${opciones.map(opcion => button(esc(opcion.nombre ?? opcion.id), 'chat-opcion', 'btn-secondary btn-small', `data-id="${esc(opcion.id)}" data-nombre="${esc(opcion.nombre ?? opcion.id)}"`)).join('')}${button('Cancelar', 'chat-cancelar', 'btn-quiet btn-small')}</div>`
+      ? `<div class="chat-botones">${opciones.map((opcion, indice) => button(esc(opcion.nombre ?? opcion.id), 'chat-opcion', 'btn-secondary btn-small', `data-indice="${indice}" data-id="${esc(opcion.id)}" data-nombre="${esc(opcion.nombre ?? opcion.id)}"`)).join('')}${button('Cancelar', 'chat-cancelar', 'btn-quiet btn-small')}</div>`
       : `${opciones.length ? `<p class="chat-nota">${esc(opciones.map(opcion => opcion.nombre ?? opcion.id).join(', '))}</p>` : ''}<div class="chat-botones">${button('Entendido', 'chat-cancelar', 'btn-secondary btn-small')}</div>`}
   </div>`;
+}
+
+// «Solo el jueves 16», «Solo en octubre», «Desde ahora, todos los meses», y las
+// fechas concretas cuando las hay. Es la primera línea que se lee antes de
+// confirmar: sin ella, «todos los viernes» no dice si son cuatro días o
+// cuarenta.
+function dibujarAlcance(alcance) {
+  if (!alcance || alcance.tipo === 'ninguno' || !alcance.texto) return '';
+  const dias = (alcance.fechas || []).map(fecha => Number(fecha.slice(8, 10)));
+  const detalle = dias.length
+    ? ` · ${dias.length} día(s): ${dias.slice(0, 8).join(', ')}${dias.length > 8 ? ` y ${dias.length - 8} más` : ''}`
+    : '';
+  // `chat-nota` es la clase que ya existe para una línea secundaria; la segunda
+  // queda ahí para poder distinguirla después sin tener que tocar este archivo.
+  return `<p class="chat-nota chat-alcance ${esc(alcance.tipo)}">${esc(alcance.texto)}${esc(detalle)}</p>`;
 }
 
 function dibujarEstado(chat) {
   const partes = [];
   if (chat.escuchando) {
+    // Lo que se enseña lo dice el motor, no este archivo: «Escuchando…» antes de
+    // que el micrófono esté abierto hace que la gente empiece a hablar sola y
+    // pierda la primera palabra.
+    const dicho = ESTADO_DEL_DICTADO[chat.oyendo] || ESTADO_DEL_DICTADO.escuchando;
     // `role="status"` para que quien navega escuchando se entere de que el
     // micrófono está abierto: sin eso, el indicador solo existe para quien mira.
     partes.push(`<div class="chat-aparte chat-estado escuchando" role="status" aria-live="polite"><span class="chat-onda" aria-hidden="true"></span>
-      <span>Escuchando… habla y después revisa lo que quedó escrito.</span>${button('Parar', 'chat-parar', 'btn-quiet btn-small')}</div>`);
+      <span>${esc(dicho)}</span>${chat.oyendo === 'procesando' ? '' : button('Parar', 'chat-parar', 'btn-quiet btn-small')}</div>`);
   }
   if (chat.enviando) {
     partes.push(`<div class="chat-aparte chat-estado pensando"><span class="chat-puntos" aria-hidden="true"><i></i><i></i><i></i></span><span>Pensando…</span></div>`);
@@ -651,7 +857,7 @@ export function renderChat(ctx) {
   const chat = chatDe(ctx);
   const mensajes = chat.mensajes.map((mensaje, indice) => dibujarMensaje(chat, mensaje, -indice)).join('');
   const vacio = `<div class="chat-vacio" style="order:1">
-    <p>Escribe lo que pasó en la cocina y yo lo anoto. Antes de tocar tus existencias te enseño qué voy a hacer.</p>
+    <p>Escribe lo que pasó en la cocina y yo lo anoto. Antes de tocar nada te enseño qué entendí y si el cambio es para un día, para el mes o desde ahora. Nada de esto hace falta: todo está también en sus pantallas.</p>
     <div class="chat-chips">${EJEMPLOS.map(frase => `<button type="button" class="chat-chip" data-action="chat-sugerencia" data-texto="${esc(frase)}">${esc(frase)}</button>`).join('')}</div>
   </div>`;
   // El pie va con el orden más bajo para quedar siempre debajo del último
@@ -669,7 +875,7 @@ export function renderChat(ctx) {
   return `<div class="chat-scrim" data-overlay data-action="chat-cerrar" aria-hidden="true"></div>
   <aside class="chat-panel" role="dialog" aria-modal="true" aria-label="Asistente de la casa">
     <header class="chat-head">
-      <div><strong>Asistente</strong><span>Entiende frases sueltas; lo que cambie tus datos te lo pregunta antes.</span></div>
+      <div><strong>Asistente</strong><span>${servicioLibre() ? 'Entiende frases sueltas; antes de cambiar nada te enseña qué entendió y hasta dónde llega.' : 'Sin conexión y sin servicio: reconozco formas de frase, no cualquier cosa. Todo esto se puede hacer también a mano.'}</span></div>
       <div class="chat-head-botones">${chat.mensajes.length ? button('Limpiar', 'chat-limpiar', 'btn-quiet btn-small') : ''}<button type="button" class="icon-btn" data-action="chat-cerrar" aria-label="Cerrar el asistente">×</button></div>
     </header>
     <div class="chat-mensajes" role="log" aria-live="polite">${pie}${mensajes}${chat.mensajes.length ? '' : vacio}</div>
@@ -722,14 +928,20 @@ export const CHAT_ACTIONS = {
   'chat-opcion': (el, ctx) => {
     const chat = chatDe(ctx);
     const pendiente = chat.pendiente;
-    if (pendiente?.tipo !== 'pregunta' || !pendiente.campo) return;
+    if (pendiente?.tipo !== 'pregunta') return;
+    const elegida = pendiente.opciones?.[Number(el.dataset.indice)];
+    if (!pendiente.campo && !elegida?.acciones) return;
     guardarBorrador(ctx);
     const campo = pendiente.campo, valor = el.dataset.id;
-    // La respuesta se pone en las acciones que de verdad tienen ese campo, no
-    // en todas: un grupo puede traer una consulta que no lo acepta.
-    const acciones = pendiente.acciones.map(peticion => (CAMPOS.get(peticion.action) || []).includes(campo)
-      ? { ...peticion, arguments: { ...peticion.arguments, [campo]: valor } }
-      : peticion);
+    // Hay dos clases de respuesta. Una rellena un campo que faltaba. La otra
+    // elige entre dos acciones distintas, que es lo que pasa con el alcance:
+    // «solo este mes» y «desde ahora» no son dos valores de lo mismo, son dos
+    // cosas diferentes, y por eso cada opción trae la suya escrita.
+    const acciones = elegida?.acciones
+      ? elegida.acciones
+      : pendiente.acciones.map(peticion => (CAMPOS.get(peticion.action) || []).includes(campo)
+        ? { ...peticion, arguments: { ...peticion.arguments, [campo]: valor } }
+        : peticion);
     chat.pendiente = null;
     decir(chat, 'persona', el.dataset.nombre || valor);
     // Se reutiliza el mismo requestId, pero sin dar por confirmado: una acción
@@ -777,6 +989,7 @@ export const CHAT_ACTIONS = {
     const base = chat.borrador || '';
     const sesion = ++dictadoActual;
     chat.escuchando = true;
+    chat.oyendo = 'preparando';
     chat.error = '';
     chat.errorTitulo = '';
     chat.pista = '';
@@ -789,15 +1002,26 @@ export const CHAT_ACTIONS = {
         // entero: un redibujo por palabra parpadea y le roba el foco al campo.
         const campo = campoDelChat();
         if (campo) campo.value = chat.borrador;
+      },
+      // El motor dice en qué va: preparando, escuchando, procesando. Antes esto
+      // se inventaba desde fuera y se ponía «Escuchando…» antes de que el
+      // micrófono estuviera abierto, así que la gente empezaba a hablar sola.
+      onEstado: estado => {
+        if (sesion !== dictadoActual || estado === 'listo') return;
+        chat.oyendo = estado;
+        ctx.render();
       }
     });
     if (sesion !== dictadoActual) return;
     chat.escuchando = false;
+    chat.oyendo = '';
     if (oido.ok) {
       chat.borrador = juntar(base, oido.texto);
       // `parcial` es lo que alcanzó a oír antes de cortarse. Se usa igual —tirarlo
       // obligaría a repetir la frase entera— pero se dice que quedó a medias.
-      chat.pista = oido.parcial ? 'Eso fue lo que alcancé a oír antes de que se cortara: míralo antes de enviarlo.' : '';
+      // Y si además vino un `aviso`, se dice ese, que explica por qué se cortó:
+      // perderlo obliga a repetir la frase entera sin saber qué pasó.
+      chat.pista = oido.aviso || (oido.parcial ? 'Eso fue lo que alcancé a oír antes de que se cortara: míralo antes de enviarlo.' : '');
     } else {
       // Un fallo del micrófono no borra nada: lo que se oyó a medias sigue en el
       // campo, y el motivo viene de device.js ya escrito en español.
@@ -818,7 +1042,7 @@ export const CHAT_ACTIONS = {
     // `dictar` al resolverse y se queda escrito: parar no es cancelar.
     guardarBorrador(ctx);
     pararDictado();
-    chat.escuchando = false;
+    chat.oyendo = 'procesando';
     ctx.render();
   }
 };
@@ -827,15 +1051,21 @@ function avisarDeVoz(chat, titulo, detalle) {
   chat.errorTitulo = titulo;
   chat.error = detalle;
   chat.escuchando = false;
+  chat.oyendo = '';
 }
 
 // Cierra el micrófono y da por vencido el dictado en curso: lo que llegue
 // después ya no tiene dónde escribirse sin pisar lo que la persona hizo luego.
+//
+// Se cancela, no se para. `pararDictado` cierra el micrófono pero deja puestos
+// los oyentes del motor, y dos dictados seguidos los iban acumulando: al
+// tercero, cada palabra llegaba tres veces. `cancelarDictado` los retira.
 function callarMicrofono(chat) {
   if (!chat.escuchando) return;
   dictadoActual += 1;
-  pararDictado();
+  cancelarDictado();
   chat.escuchando = false;
+  chat.oyendo = '';
 }
 
 /* ── Envío del formulario ──────────────────────────────────────────────── */

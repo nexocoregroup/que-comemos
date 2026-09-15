@@ -7,14 +7,15 @@
 // El trabajador solo se registra en contexto seguro: https o localhost. Sobre
 // http en una IP de la red local el navegador lo ignora y la app funciona
 // igual, pero sin instalación ni modo sin conexión.
-const CACHE = 'que-comemos-v6';
+const CACHE = 'que-comemos-v8';
 const SHELL = [
   './', './index.html', './manifest.webmanifest',
   './src/app.js', './src/model.js', './src/storage.js', './src/demo.js',
   './src/brand.js', './src/onboarding.js', './src/nombres.js', './src/migrate.js', './src/ui-kit.js',
   './src/catalog-seed.js', './src/setup.js', './src/assistant.js', './src/providers.js',
-  './src/device.js', './src/receipt-parse.js', './src/text-parse.js', './src/invoices.js', './src/invoice-store.js', './src/chat-ui.js', './src/bulk-entry.js', './src/invoice-ui.js',
-  './src/styles.css', './src/sidebar.css', './src/onboarding.css', './src/quick-add.css', './src/calendar.css', './src/theme.css', './src/setup.css', './src/chat.css', './src/bulk.css', './src/invoice.css',
+  './src/device.js', './src/text-parse.js', './src/chat-ui.js', './src/bulk-entry.js',
+  './src/routines.js', './src/page-mes.js', './src/page-compra.js', './src/page-mas.js',
+  './src/styles.css', './src/sidebar.css', './src/onboarding.css', './src/quick-add.css', './src/calendar.css', './src/theme.css', './src/setup.css', './src/chat.css', './src/bulk.css', './src/plan.css',
   './src/isotipo.png', './src/icon-192.png', './src/icon-512.png',
   './src/fonts/montserrat-latin.woff2', './src/fonts/montserrat-latin-ext.woff2'
 ];

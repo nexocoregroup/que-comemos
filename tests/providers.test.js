@@ -33,7 +33,7 @@ function reloj() {
   return { esperas, pausa: async ms => { esperas.push(ms); } };
 }
 
-const SERVICIO = { baseUrl: 'https://mi-servicio.ejemplo', enabled: { transcribe: true, chat: true, vision: true }, provider: 'backend' };
+const SERVICIO = { baseUrl: 'https://mi-servicio.ejemplo', enabled: { transcribe: true, chat: true }, provider: 'backend' };
 const original = globalThis.fetch;
 afterEach(() => { globalThis.fetch = original; });
 
@@ -41,7 +41,7 @@ test('la configuración por defecto no tiene dirección, ni token, ni capacidade
   const config = readConfig(almacenamiento());
   assert.equal(config.baseUrl, '');
   assert.equal(config.token, '');
-  assert.deepEqual(config.enabled, { transcribe: false, chat: false, vision: false });
+  assert.deepEqual(config.enabled, { transcribe: false, chat: false });
   // Por defecto apunta al backend propio, no al simulador: nadie debería
   // encontrarse con respuestas inventadas sin haberlas pedido.
   assert.equal(config.provider, 'backend');
@@ -55,16 +55,16 @@ test('una configuración ilegible se lee como si no hubiera nada', () => {
 
 test('escribir la configuración la limpia: barra final, espacios y valores raros', () => {
   const guardado = almacenamiento();
-  const escrita = writeConfig({ baseUrl: '  https://mi-servicio.ejemplo/// ', token: ' abc ', enabled: { chat: 'sí', vision: true, inventada: true }, provider: 'otro' }, guardado);
+  const escrita = writeConfig({ baseUrl: '  https://mi-servicio.ejemplo/// ', token: ' abc ', enabled: { chat: 'sí', transcribe: true, inventada: true }, provider: 'otro' }, guardado);
   assert.equal(escrita.baseUrl, 'https://mi-servicio.ejemplo');
   assert.equal(escrita.token, 'abc');
-  assert.deepEqual(escrita.enabled, { transcribe: false, chat: false, vision: true }, 'solo el booleano verdadero activa; «sí» no es true');
+  assert.deepEqual(escrita.enabled, { transcribe: true, chat: false }, 'solo el booleano verdadero activa; «sí» no es true');
   assert.equal(escrita.provider, 'backend');
   assert.deepEqual(readConfig(guardado), escrita, 'lo que se guarda es lo que se vuelve a leer');
 });
 
 test('isConfigured es falso sin dirección, aunque la capacidad esté activada', () => {
-  const activadas = { transcribe: true, chat: true, vision: true };
+  const activadas = { transcribe: true, chat: true };
   assert.equal(isConfigured('chat', { baseUrl: '', enabled: activadas }), false);
   assert.equal(isConfigured('chat', { ...SERVICIO, enabled: { ...activadas, chat: false } }), false);
   assert.equal(isConfigured('chat', SERVICIO), true);
@@ -114,7 +114,7 @@ test('un 401 no se reintenta', async () => {
 
 test('un 400 no se reintenta', async () => {
   const falso = red(respuestaError(400));
-  const resultado = await callProvider('vision', {}, { config: SERVICIO, retries: 2, pausa: reloj().pausa });
+  const resultado = await callProvider('transcribe', {}, { config: SERVICIO, retries: 2, pausa: reloj().pausa });
   assert.equal(resultado.code, 'peticion-invalida');
   assert.equal(resultado.retryable, false);
   assert.equal(falso.llamadas.length, 1);
@@ -147,7 +147,7 @@ test('el tiempo de espera aborta y devuelve un error en español', async () => {
   const falso = red((url, init) => new Promise((_, falla) => {
     init.signal.addEventListener('abort', () => falla(Object.assign(new Error('The operation was aborted'), { name: 'AbortError' })));
   }));
-  const resultado = await callProvider('vision', { imagenes: ['AAAA'] }, { config: SERVICIO, timeoutMs: 20, pausa: reloj().pausa });
+  const resultado = await callProvider('transcribe', { audio: 'AAAA' }, { config: SERVICIO, timeoutMs: 20, pausa: reloj().pausa });
   assert.equal(resultado.ok, false);
   assert.equal(resultado.code, 'tiempo-agotado');
   assert.equal(resultado.error, 'El servicio tardó demasiado. Inténtalo otra vez o escríbelo a mano.');
@@ -177,11 +177,11 @@ test('cancelar a mitad de camino se distingue de que el servicio tarde', async (
 });
 
 test('la dirección y las cabeceras se arman bien, con token', async () => {
-  const falso = red(respuestaOk({ lineas: [] }));
-  const payload = { imagenes: ['AAAA'], pista: 'factura' };
-  await callProvider('vision', payload, { config: { ...SERVICIO, baseUrl: 'https://mi-servicio.ejemplo/', token: 'abc' } });
+  const falso = red(respuestaOk({ respuesta: '', acciones: [] }));
+  const payload = { mensajes: [{ rol: 'persona', contenido: 'qué hay de cena' }] };
+  await callProvider('chat', payload, { config: { ...SERVICIO, baseUrl: 'https://mi-servicio.ejemplo/', token: 'abc' } });
   const [llamada] = falso.llamadas;
-  assert.equal(llamada.url, 'https://mi-servicio.ejemplo/vision', 'la barra final no duplica la del camino');
+  assert.equal(llamada.url, 'https://mi-servicio.ejemplo/chat', 'la barra final no duplica la del camino');
   assert.equal(llamada.init.method, 'POST');
   assert.equal(llamada.init.headers['Content-Type'], 'application/json');
   assert.equal(llamada.init.headers.Authorization, 'Bearer abc');
@@ -197,26 +197,26 @@ test('sin token no se manda la cabecera de autorización', async () => {
   assert.equal(llamada.init.body, '{}', 'sin datos se manda un objeto vacío, no «null»');
 });
 
-test('ningún mensaje de error lleva el token ni el base64 de la imagen', async () => {
+test('ningún mensaje de error lleva el token ni el base64 de la grabación', async () => {
   const TOKEN = 'token-secretisimo-123';
-  const IMAGEN = `iVBORw0KGgoAAAANSUhEUg${'A'.repeat(300)}`;
+  const AUDIO = `GkXfo59ChoEBQveBAULygQRC${'A'.repeat(300)}`;
   const config = { ...SERVICIO, token: TOKEN };
-  const payload = { imagenes: [IMAGEN], pista: 'factura' };
-  const soplon = () => new Error(`falló ${TOKEN} enviando ${IMAGEN}`);
+  const payload = { audio: AUDIO, mimeType: 'audio/webm', idioma: 'es-DO' };
+  const soplon = () => new Error(`falló ${TOKEN} enviando ${AUDIO}`);
   const escenarios = [
     // Un servicio que devuelve de vuelta lo que le mandaron, cabecera incluida.
-    { ok: false, status: 401, json: async () => ({ detalle: `${TOKEN} ${IMAGEN}` }) },
-    { ok: false, status: 500, json: async () => ({ detalle: IMAGEN }) },
+    { ok: false, status: 401, json: async () => ({ detalle: `${TOKEN} ${AUDIO}` }) },
+    { ok: false, status: 500, json: async () => ({ detalle: AUDIO }) },
     { ok: true, status: 200, json: async () => { throw soplon(); } },
     () => { throw soplon(); }
   ];
   for (const escenario of escenarios) {
     red(escenario);
-    const resultado = await callProvider('vision', payload, { config, retries: 0 });
+    const resultado = await callProvider('transcribe', payload, { config, retries: 0 });
     assert.equal(resultado.ok, false);
     const todo = JSON.stringify(resultado);
     assert.equal(todo.includes(TOKEN), false, `el token se coló: ${resultado.error}`);
-    assert.equal(todo.includes('iVBORw0KGgo'), false, `la imagen se coló: ${resultado.error}`);
+    assert.equal(todo.includes('GkXfo59ChoEB'), false, `la grabación se coló: ${resultado.error}`);
     assert.ok(/[áéíóúñ¿]|El servicio|No hay/.test(resultado.error), 'y el mensaje sigue siendo español legible');
   }
 });
@@ -260,11 +260,11 @@ test('cada capacidad tiene su aviso antes de que algo salga del dispositivo', ()
 test('describeConfig cuenta en español lo que hay configurado', () => {
   assert.match(describeConfig({}), /Sin servicio configurado/);
   assert.match(describeConfig({ provider: 'mock' }), /inventadas/);
-  const completo = describeConfig({ ...SERVICIO, token: 'abc', enabled: { transcribe: true, chat: false, vision: true } });
+  const completo = describeConfig({ ...SERVICIO, token: 'abc', enabled: { transcribe: true, chat: false } });
   assert.match(completo, /mi-servicio\.ejemplo/);
   assert.match(completo, /con token de sesión/);
   assert.equal(completo.includes('abc'), false, 'se dice que hay token, no cuál es');
-  assert.match(completo, /Activo para: transcribir, leer facturas/);
+  assert.match(completo, /Activo para: transcribir/);
   assert.match(completo, /Sin activar: conversar/);
   assert.match(describeConfig({ baseUrl: 'http://192.168.1.9:8787', enabled: {} }), /sin cifrar/);
   assert.equal(/sin cifrar/.test(describeConfig({ baseUrl: 'http://localhost:8787', enabled: {} })), false, 'en el propio equipo no hay red que espiar');

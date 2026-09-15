@@ -1,4 +1,5 @@
-import { addDays, addProduct, addPurchase, createEmptyState, linkPlan, openMonthBasket, makeRecipePlan, setBaseBasket, setEquivalence, todayISO, upsertPerson, upsertRecipe } from './model.js';
+import { addDays, addProduct, addPurchase, createEmptyState, linkPlan, makeRecipePlan, setEquivalence, setHabitualBasket, setMonthChange, todayISO, upsertPerson, upsertRecipe } from './model.js';
+import { addRoutine, applyRoutine, openMonth } from './routines.js';
 
 export function createDemoState() {
   const state = createEmptyState();
@@ -49,9 +50,8 @@ export function createDemoState() {
   state.opening = { [platano]: 8, [huevo]: 6, [arroz]: 2, [carne]: 1, [salami]: 0, [jamon]: 0, [atun]: 2, [pan]: 0 };
   addPurchase(state, { date: today, lines: [{ productId: salami, quantity: 1, unit: 'paquete' }, { productId: jamon, quantity: 1, unit: 'paquete' }] });
   state.manualItems.push({ id: `otro-${++state.seq}`, name: 'Detergente · ejemplo', quantity: '', done: false });
-  // Una canasta de ejemplo para ver la otra forma de comprar: sin planificar el
-  // menú, a partir de lo que la casa consume en un mes corriente.
-  setBaseBasket(state, [
+  // La canasta habitual del ejemplo: lo que esta casa compra todos los meses.
+  setHabitualBasket(state, [
     { productId: arroz, quantity: 90, unit: 'taza', priority: 'obligatorio' },
     { productId: huevo, quantity: 60, unit: 'unidad', priority: 'obligatorio' },
     { productId: carne, quantity: 8, unit: 'lb' },
@@ -59,8 +59,24 @@ export function createDemoState() {
     { productId: salami, quantity: 4, unit: 'paquete' },
     { productId: atun, quantity: 8, unit: 'lata', priority: 'ocasional' }
   ]);
-  // El mes corriente se abre copiando la base: es lo que ve cualquiera que entre
-  // hoy, y deja claro de una que el hábito y el mes son dos cosas distintas.
-  openMonthBasket(state, today.slice(0, 7));
+  // Dos rutinas, que es lo que el ejemplo tiene que enseñar de verdad: una
+  // comida y unos días de la semana llenan el mes entero de una vez. Sin esto,
+  // quien abre el ejemplo ve un calendario con tres días puestos y no entiende
+  // de dónde salió la idea.
+  const mes = today.slice(0, 7);
+  const desayunos = addRoutine(state, {
+    kind: 'recipe', recipeId: plantain, slots: ['desayuno'],
+    weekdays: [1, 3, 5, 6], weeks: null, scope: 'permanent'
+  });
+  const domingos = addRoutine(state, {
+    kind: 'outside', slots: ['almuerzo'],
+    weekdays: [7], weeks: [1, 3], scope: 'permanent', label: 'Almuerzo fuera'
+  });
+  applyRoutine(state, desayunos.id, mes, { modo: 'vacios' });
+  applyRoutine(state, domingos.id, mes, { modo: 'vacios' });
+  // Y un extra de este mes, para que se vea que existe la excepción y que no
+  // contamina los meses siguientes.
+  setMonthChange(state, mes, carne, { quantity: 12, unit: 'lb' });
+  openMonth(state, mes);
   return state;
 }

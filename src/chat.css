@@ -259,3 +259,22 @@
   .chat-fila { max-width: 88%; }
   .chat-escribe, .chat-pista { padding-bottom: 12px; }
 }
+
+/* La línea que dice hasta dónde llega un cambio.
+ *
+ * Es la más importante de todo el panel: confundir «solo este mes» con «desde
+ * ahora, todos los meses» es el peor error que la asistente puede cometer, y la
+ * única defensa real es que la persona lo lea antes de confirmar. Por eso lo
+ * permanente lleva el terracota de la marca y un filete a la izquierda, mientras
+ * que lo de una fecha o un mes se queda en el tono secundario de siempre. */
+.chat-alcance {
+  border-left: 3px solid var(--line);
+  padding-left: 10px;
+  margin: 8px 0 0;
+}
+.chat-alcance.mes { border-left-color: var(--clay-line); }
+.chat-alcance.permanente {
+  border-left-color: var(--clay);
+  color: var(--clay-dark);
+  font-weight: 650;
+}

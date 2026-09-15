@@ -1,0 +1,428 @@
+/* Pantallas del rediseño: Plan mensual, Compra y Más.
+ *
+ * Reutiliza las variables de theme.css (terracota, crema, tinta, salvia) y las
+ * clases que ya existían —card, pill, list-row, segmented—. Lo que se añade
+ * aquí son las piezas que antes no hacían falta: los días de la semana como
+ * fichas que se tocan, el recorrido de preparar el mes, y el índice de «Más».
+ *
+ * Todo está pensado para un pulgar en un teléfono de 375 px: nada mide menos de
+ * 44 px de alto, ninguna tabla se sale de la pantalla, y lo que no cabe se
+ * apila en vez de encogerse. */
+
+/* ── Piezas compartidas ─────────────────────────────────────────────────── */
+
+.pantalla-intro {
+  margin: 0 0 18px;
+  color: var(--ink-muted);
+  font-size: .94rem;
+  line-height: 1.55;
+  max-width: 62ch;
+}
+.pantalla-intro strong { color: var(--ink); }
+
+.pantalla-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.plan-sub {
+  margin: 0 0 10px;
+  font-size: .82rem;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--ink-muted);
+}
+
+/* En un teléfono, el título de una sección y su botón no caben en la misma
+   línea: el botón se comprime hasta partir «+ Nueva rutina» en dos, y queda
+   más alto que ancho. Se deja bajar a la línea siguiente, y el texto del botón
+   ya nunca se rompe. */
+.section-head { flex-wrap: wrap; }
+.section-head > div:first-child { flex: 1 1 220px; min-width: 0; }
+.section-head .btn, .pantalla-acciones .btn { white-space: nowrap; }
+
+/* Un botón que se lee como un enlace dentro de un párrafo. Hace falta que sea
+   <button> por accesibilidad, pero un botón de verdad ahí rompería la frase. */
+.enlace {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--clay);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.enlace:hover { color: var(--clay-dark); }
+
+.tachado { text-decoration: line-through; color: var(--ink-muted); }
+
+/* `details` nativo: sin JavaScript, sin estado que sincronizar, y el navegador
+   ya se encarga del teclado y del lector de pantalla. */
+.plegable {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  margin-top: 16px;
+  overflow: hidden;
+}
+.plegable > summary {
+  padding: 15px 17px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: .93rem;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+.plegable > summary::-webkit-details-marker { display: none; }
+.plegable > summary::before {
+  content: '›';
+  display: inline-block;
+  transition: transform .18s ease;
+  color: var(--clay);
+  font-size: 1.2rem;
+  line-height: 1;
+}
+.plegable[open] > summary::before { transform: rotate(90deg); }
+.plegable > summary:hover { background: var(--surface-soft); }
+.plegable > *:not(summary) { margin: 0 15px 15px; }
+.plegable > .card { box-shadow: none; }
+
+.segmented-ancho { width: 100%; margin-bottom: 18px; }
+.segmented-ancho button { flex: 1; min-height: 44px; }
+
+/* En el teléfono, abajo hay dos cosas fijas encima del contenido: la barra de
+   navegación y el botón +. Sin este hueco, la última fila de cualquier lista
+   queda debajo de la barra y no hay forma de leerla ni de tocarla, por mucho
+   que se siga desplazando. */
+@media (max-width: 700px) {
+  .main { padding-bottom: 148px; }
+
+  /* El encabezado de Hoy pone el título y un botón en la misma fila. A 375 px el
+     botón se estrecha hasta partir «Ver el mes» en tres líneas y el título en
+     cuatro. Apilados, los dos se leen enteros. */
+  .hero { flex-direction: column; align-items: flex-start; gap: 16px; padding: 22px; }
+  .hero .btn { width: auto; white-space: nowrap; }
+}
+
+/* ── Fichas que se tocan: días de la semana, comidas ────────────────────── */
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.chip, .chip-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 15px;
+  border: 1px solid var(--clay-line);
+  border-radius: 999px;
+  background: var(--surface);
+  font: inherit;
+  font-size: .9rem;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+.chip:hover, .chip-check:hover { background: var(--clay-light); }
+/* La casilla real sigue ahí: se oculta a la vista, no al teclado ni al lector
+   de pantalla. Un cuadro de 0x0 desaparece de algunos árboles de
+   accesibilidad; 1x1 recortado es el patrón que no se cae. */
+.chip-check input, .radio-pill input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.chip-check:has(input:checked) {
+  background: var(--clay);
+  border-color: var(--clay);
+  color: #fff;
+}
+.chip-check:has(input:focus-visible) { outline: 2px solid var(--clay-dark); outline-offset: 2px; }
+
+/* Los siete días tienen que caber en una línea a 375 px: siete columnas iguales
+   y el texto abreviado a tres letras. Una rejilla, no un flex que se parta. */
+.dias-semana {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.dias-semana .chip-check { padding: 0; font-size: .8rem; }
+
+.radio-fila { display: flex; flex-wrap: wrap; gap: 8px; }
+.radio-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 15px;
+  border: 1px solid var(--clay-line);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: .9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.radio-pill:has(input:checked) { background: var(--clay); border-color: var(--clay); color: #fff; }
+.radio-pill:has(input:focus-visible) { outline: 2px solid var(--clay-dark); outline-offset: 2px; }
+
+/* La versión larga: cuando la opción necesita explicarse, la píldora no sirve. */
+.opcion-larga { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.radio-bloque {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  cursor: pointer;
+  align-items: flex-start;
+}
+.radio-bloque:has(input:checked) { border-color: var(--clay); background: var(--clay-light); }
+.radio-bloque input { margin-top: 3px; flex: 0 0 auto; }
+.radio-bloque span { display: block; font-size: .88rem; line-height: 1.5; color: var(--ink-muted); }
+.radio-bloque strong { display: block; color: var(--ink); font-size: .96rem; margin-bottom: 3px; }
+.radio-bloque em { font-style: normal; color: var(--sage); font-weight: 600; }
+
+.field-group {
+  border: 0;
+  padding: 0;
+  margin: 0 0 20px;
+}
+.field-group legend {
+  padding: 0;
+  margin-bottom: 10px;
+  font-size: .88rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+.rutina-form .hint { margin-top: 9px; }
+
+/* ── Plan mensual ───────────────────────────────────────────────────────── */
+
+.plan-barra { margin-bottom: 16px; }
+.plan-mes-nombre { min-width: 165px; text-align: center; }
+
+.plan-cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: center;
+  justify-content: space-between;
+}
+.plan-cifra { flex: 1 1 230px; min-width: 0; }
+.plan-porcentaje {
+  font-size: 2.7rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--clay);
+  letter-spacing: -.03em;
+}
+.plan-porcentaje span { font-size: 1.1rem; font-weight: 700; margin-left: 2px; }
+.plan-progreso { margin: 12px 0 10px; }
+.plan-resumen-texto { margin: 0; font-size: .92rem; color: var(--ink-muted); line-height: 1.6; }
+.plan-resumen-texto strong { color: var(--ink); }
+.plan-acciones { display: flex; flex-wrap: wrap; gap: 10px; }
+
+.plan-slots { margin-top: 18px; }
+.plan-slot-cifra { font-size: 1.7rem; font-weight: 800; margin: 10px 0 2px; letter-spacing: -.02em; }
+.plan-slot-cifra .muted { font-size: 1rem; font-weight: 600; }
+
+.plan-cambios { margin: 0 0 8px; font-size: .95rem; line-height: 1.6; }
+
+.plan-calendario-pie { margin-top: 16px; }
+
+/* Una comida fuera de casa está resuelta, no pendiente: se marca en salvia, que
+   en esta paleta es siempre «esto está bien», y nunca en el gris de «falta». */
+.month-meal.fuera { background: #eef0e6; color: var(--sage); border-color: #d8ddc6; }
+
+/* ── El recorrido de preparar el mes ────────────────────────────────────── */
+
+.plan-paso { max-width: 720px; }
+.plan-paso-head { margin-bottom: 20px; }
+.plan-paso-head .progress { margin-bottom: 12px; }
+.plan-paso-head h2 { margin: 12px 0 0; font-size: 1.45rem; line-height: 1.25; }
+.plan-paso-texto { margin: 0 0 18px; color: var(--ink-muted); line-height: 1.6; max-width: 58ch; }
+.plan-paso-texto strong { color: var(--ink); }
+.plan-paso-pie {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 26px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.plan-pendiente .list-row-title { font-size: .95rem; }
+
+.plan-ok {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  border-left: 4px solid var(--sage);
+}
+.plan-ok-icono {
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #eef0e6;
+  color: var(--sage);
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+.plan-ok strong { display: block; font-size: 1.1rem; }
+.plan-ok span:not(.plan-ok-icono) { color: var(--ink-muted); font-size: .9rem; }
+
+.plan-lista-final { margin: 18px 0 0; padding-left: 20px; line-height: 2; }
+.plan-lista-final strong { color: var(--clay); }
+
+.plan-canasta-cifras {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 16px;
+  text-align: center;
+}
+.plan-canasta-cifras strong { display: block; font-size: 1.6rem; font-weight: 800; color: var(--clay); }
+.plan-canasta-cifras span { font-size: .8rem; color: var(--ink-muted); line-height: 1.4; display: block; margin-top: 3px; }
+
+/* ── Compra ─────────────────────────────────────────────────────────────── */
+
+.compra-periodo { margin-bottom: 10px; }
+.compra-mes { min-width: 165px; text-align: center; }
+.compra-otras { margin: 0 0 18px; }
+.compra-fechas { margin-bottom: 18px; align-items: flex-end; }
+
+.compra-fila { align-items: center; gap: 14px; }
+.compra-cantidad {
+  flex: 0 0 auto;
+  text-align: right;
+  font-size: 1.02rem;
+  font-variant-numeric: tabular-nums;
+}
+.compra-cantidad strong { color: var(--clay-dark); }
+.compra-acciones { margin-top: 16px; }
+
+/* ── Más ────────────────────────────────────────────────────────────────── */
+
+.mas-lista { padding: 6px; }
+.mas-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 15px 13px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ink);
+  min-height: 60px;
+  box-sizing: border-box;
+}
+.mas-item + .mas-item { border-top: 1px solid var(--line); border-radius: 0; }
+.mas-item:hover { background: var(--surface-soft); }
+.mas-item:focus-visible { outline: 2px solid var(--clay); outline-offset: -2px; }
+.mas-icono { font-size: 1.35rem; flex: 0 0 auto; width: 30px; text-align: center; }
+.mas-texto { flex: 1; min-width: 0; }
+.mas-texto strong { display: block; font-size: .98rem; font-weight: 650; }
+.mas-texto span { display: block; font-size: .83rem; color: var(--ink-muted); margin-top: 2px; }
+.mas-pista { flex: 0 0 auto; font-size: .78rem; color: var(--ink-muted); white-space: nowrap; }
+.mas-flecha { flex: 0 0 auto; color: var(--clay-line); font-size: 1.3rem; line-height: 1; }
+.mas-pie { margin-top: 18px; }
+.mas-pie h3 { margin: 0 0 8px; }
+
+.mas-volver {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 18px;
+  flex-wrap: wrap;
+}
+.mas-volver h2 { margin: 0; font-size: 1.35rem; }
+
+/* ── La canasta, editable de una vez ────────────────────────────────────── */
+
+.canasta-grupo {
+  margin: 22px 0 9px;
+  font-size: .82rem;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--ink-muted);
+}
+.canasta-card { padding: 6px 12px; }
+.canasta-fila {
+  display: grid;
+  grid-template-columns: 1fr 88px 104px 40px;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 0;
+}
+.canasta-fila + .canasta-fila { border-top: 1px solid var(--line); }
+.canasta-nombre { font-size: .94rem; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.canasta-cantidad { text-align: right; font-variant-numeric: tabular-nums; }
+.canasta-unidad { min-width: 0; }
+
+/* A 375 px las cuatro columnas dejan el nombre en dos letras. Se parte en dos
+   líneas: el nombre arriba y los controles debajo, alineados a la derecha. */
+@media (max-width: 560px) {
+  .canasta-fila {
+    grid-template-columns: 1fr 92px 40px;
+    grid-template-areas: 'nombre nombre nombre' 'unidad cantidad quitar';
+    row-gap: 7px;
+  }
+  .canasta-nombre { grid-area: nombre; }
+  .canasta-cantidad { grid-area: cantidad; }
+  .canasta-unidad { grid-area: unidad; }
+  .canasta-fila > button { grid-area: quitar; }
+}
+
+/* ── Revisión: filas, no tabla ──────────────────────────────────────────── */
+
+/* Una tabla de cuatro columnas en un teléfono obliga a desplazarse de lado para
+   ver la casilla donde hay que escribir. Con filas, el campo siempre se ve. */
+.revision-lista { padding: 6px 13px; }
+.revision-fila {
+  display: grid;
+  grid-template-columns: 1fr 96px;
+  grid-template-areas: 'nombre dato' 'derivado derivado';
+  align-items: center;
+  gap: 5px 12px;
+  padding: 13px 0;
+}
+.revision-fila + .revision-fila { border-top: 1px solid var(--line); }
+.revision-nombre { grid-area: nombre; min-width: 0; }
+.revision-nombre strong { display: block; font-size: .95rem; overflow-wrap: anywhere; }
+.revision-nombre span { display: block; margin-top: 2px; }
+.revision-dato { grid-area: dato; text-align: right; font-variant-numeric: tabular-nums; }
+.revision-derivado {
+  grid-area: derivado;
+  font-size: .82rem;
+  font-variant-numeric: tabular-nums;
+}
+.revision-derivado.pending { color: var(--ink-muted); }
+.revision-derivado.good { color: var(--sage); font-weight: 600; }
+
+@media (min-width: 620px) {
+  .revision-fila {
+    grid-template-columns: 1fr 110px 150px;
+    grid-template-areas: 'nombre dato derivado';
+  }
+  .revision-derivado { text-align: right; }
+}

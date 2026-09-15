@@ -19,11 +19,11 @@
 // avanzaría de paso.
 
 import { CATEGORIES, SEED_PRODUCTS } from './catalog-seed.js';
-import { capacidad, dictar, pararDictado } from './device.js';
+import { cancelarDictado, capacidad, dictar, pararDictado } from './device.js';
 import {
-  UNITS, addProduct, addPurchase, baseLines, findSimilarProducts, monthBasket,
-  normalizeName, openMonthBasket, product, productByName, setBaseBasket,
-  setMonthBasket, todayISO, transaction, updateProduct, validMonth
+  UNITS, addProduct, addPurchase, effectiveBasket, findSimilarProducts, habitualLines,
+  normalizeName, product, productByName, setHabitualBasket, setMonthChange,
+  todayISO, transaction, updateProduct, validMonth
 } from './model.js';
 import { parseProductText } from './text-parse.js';
 import { button, esc, measure, monthName, notice, options, productDatalist, productField } from './ui-kit.js';
@@ -48,17 +48,17 @@ const LISTA = 'bulk-alimentos';
 // repartido por la pantalla porque el botón de guardar, el aviso y el mensaje
 // final tienen que decir exactamente lo mismo.
 const DESTINOS = {
-  base: {
-    opcion: 'Canasta base: lo que la casa consume cada mes',
-    titulo: 'la canasta base',
-    explica: 'Se añaden a lo que tu casa consume en un mes corriente. Lo que ya estaba en la canasta se queda.',
-    verbo: n => `Guardar ${n} ${alimentos(n)} en la canasta base`
+  habitual: {
+    opcion: 'Mi canasta habitual: lo que se compra todos los meses',
+    titulo: 'tu canasta habitual',
+    explica: 'Se añaden a lo que tu casa consume normalmente en un mes. Lo que ya estaba se queda como estaba.',
+    verbo: n => `Guardar ${n} ${alimentos(n)} en mi canasta habitual`
   },
   mes: {
-    opcion: 'Canasta de un mes concreto',
-    titulo: 'la canasta del mes',
-    explica: 'Se añaden solo a ese mes. La canasta base —el hábito— no se toca.',
-    verbo: (n, mes) => `Guardar ${n} ${alimentos(n)} en la canasta de ${mesLegible(mes)}`
+    opcion: 'Solo para un mes concreto',
+    titulo: 'los cambios de ese mes',
+    explica: 'Se añaden solo a ese mes, como algo extraordinario. Tu canasta habitual no se toca y los demás meses tampoco.',
+    verbo: (n, mes) => `Guardar ${n} ${alimentos(n)} solo para ${mesLegible(mes)}`
   },
   compra: {
     opcion: 'Compra confirmada: ya está en casa',
@@ -114,11 +114,11 @@ const semillaDe = nombre => SEMILLAS.get(normalizeName(nombre)) || null;
 
 /* ── El estado de la pantalla ──────────────────────────────────────────── */
 
-export function emptyBulk(destino = 'base') {
+export function emptyBulk(destino = 'habitual') {
   return {
     paso: 'escribir',
     texto: '',
-    destino: destino in DESTINOS ? destino : 'base',
+    destino: destino in DESTINOS ? destino : 'habitual',
     mes: null,
     filas: [],
     avisos: [],
@@ -319,7 +319,7 @@ function textoGuardar(filas, destino, mes) {
   // En el catálogo solo se registra lo que todavía no existe; decir «guardar 6»
   // cuando cuatro ya estaban sería prometer un trabajo que no se va a hacer.
   const cuenta = destino === 'catalogo' ? vivas.filter(fila => fila.accion === 'nuevo').length : vivas.length;
-  return (DESTINOS[destino] || DESTINOS.base).verbo(cuenta, mes);
+  return (DESTINOS[destino] || DESTINOS.habitual).verbo(cuenta, mes);
 }
 
 /* ── Dibujo ────────────────────────────────────────────────────────────── */
@@ -395,7 +395,7 @@ function bloqueDictado(bulk) {
 
 function pasoRevisar(ctx, bulk) {
   const { state } = ctx;
-  const destino = DESTINOS[bulk.destino] || DESTINOS.base;
+  const destino = DESTINOS[bulk.destino] || DESTINOS.habitual;
   const tabla = bulk.filas.filter(fila => !fila.negada);
   const negadas = bulk.filas.filter(fila => fila.negada);
   return `<form data-form="bulk-revision" class="stack bulk" data-destino="${esc(bulk.destino)}" data-mes="${esc(bulk.mes || '')}">
@@ -528,10 +528,9 @@ function notasHTML(ctx, bulk, fila) {
 function lineaPrevia(ctx, bulk, fila) {
   const productId = productoDe(ctx.state, fila)?.id;
   if (!productId) return null;
-  if (bulk.destino === 'base') return baseLines(ctx.state).find(linea => linea.productId === productId) || null;
+  if (bulk.destino === 'habitual') return habitualLines(ctx.state).find(linea => linea.productId === productId) || null;
   if (bulk.destino === 'mes' && validMonth(bulk.mes)) {
-    const lineas = monthBasket(ctx.state, bulk.mes)?.lines || baseLines(ctx.state);
-    return lineas.find(linea => linea.productId === productId) || null;
+    return effectiveBasket(ctx.state, bulk.mes).find(linea => linea.productId === productId) || null;
   }
   return null;
 }
@@ -675,7 +674,7 @@ export const BULK_FORMS = {
     const valor = String(data.get('texto') || '');
     // Pasar a revisar cierra el micrófono y da por vencido el dictado en curso:
     // lo que llegara tarde escribiría en un cuadro que ya no se está mirando.
-    if (ctx.bulk.escuchando) { dictadoActual += 1; pararDictado(); ctx.bulk.escuchando = false; }
+    if (ctx.bulk.escuchando) { dictadoActual += 1; cancelarDictado(); ctx.bulk.escuchando = false; }
     if (!texto(valor)) throw new Error('Escribe o dicta qué se compró antes de revisar.');
     const destino = String(data.get('destino') || ctx.bulk.destino);
     const mes = String(data.get('mes') || '') || ctx.bulk.mes;
@@ -685,7 +684,7 @@ export const BULK_FORMS = {
     Object.assign(ctx.bulk, {
       paso: 'revisar',
       texto: valor,
-      destino: destino in DESTINOS ? destino : 'base',
+      destino: destino in DESTINOS ? destino : 'habitual',
       mes: validMonth(mes) ? mes : null,
       filas,
       avisos,
@@ -765,13 +764,15 @@ function guardar(ctx, data) {
       });
       return `Compra confirmada con ${filas.length} ${alimentos(filas.length)}. Las existencias subieron.${creados ? ` ${creados} se ${creados === 1 ? 'registró' : 'registraron'} por primera vez.` : ''}`;
     }
-    const lineas = anadirLineas(state, bulk, filas, ids);
+    // Un mes concreto guarda excepciones, no una canasta entera: lo que se
+    // dicta «para octubre» tiene que poder desaparecer en noviembre sin que
+    // nadie lo borre a mano.
     if (bulk.destino === 'mes') {
-      setMonthBasket(state, bulk.mes, lineas, { origin: 'texto' });
-      return `Canasta de ${mesLegible(bulk.mes)}: ${filas.length} ${alimentos(filas.length)} ${filas.length === 1 ? 'añadido' : 'añadidos'}.${creados ? ` ${creados} se ${creados === 1 ? 'registró' : 'registraron'} por primera vez.` : ''}`;
+      for (const fila of filas) setMonthChange(state, bulk.mes, ids.get(fila.id), { quantity: fila.cantidad, unit: fila.unidad, origin: 'texto' });
+      return `${filas.length} ${alimentos(filas.length)} solo para ${mesLegible(bulk.mes)}. Tu canasta habitual no cambió.${creados ? ` ${creados} se ${creados === 1 ? 'registró' : 'registraron'} por primera vez.` : ''}`;
     }
-    setBaseBasket(state, lineas, { origin: 'texto' });
-    return `Canasta base: ${filas.length} ${alimentos(filas.length)} ${filas.length === 1 ? 'añadido' : 'añadidos'}.${creados ? ` ${creados} se ${creados === 1 ? 'registró' : 'registraron'} por primera vez.` : ''}`;
+    setHabitualBasket(state, anadirLineas(state, bulk, filas, ids), { origin: 'texto' });
+    return `Canasta habitual: ${filas.length} ${alimentos(filas.length)} ${filas.length === 1 ? 'añadido' : 'añadidos'}.${creados ? ` ${creados} se ${creados === 1 ? 'registró' : 'registraron'} por primera vez.` : ''}`;
   });
 }
 
@@ -780,8 +781,7 @@ function guardar(ctx, data) {
 // cantidad nueva en vez de duplicarse, porque dos líneas del mismo arroz
 // contarían dos veces en la lista de compra. La fila ya lo avisó en pantalla.
 function anadirLineas(state, bulk, filas, ids) {
-  if (bulk.destino === 'mes') openMonthBasket(state, bulk.mes);
-  const previas = bulk.destino === 'mes' ? monthBasket(state, bulk.mes).lines : baseLines(state);
+  const previas = habitualLines(state);
   const lineas = previas.map(linea => ({ id: linea.id, productId: linea.productId, quantity: linea.quantity, unit: linea.unit, priority: linea.priority }));
   for (const fila of filas) {
     const productId = ids.get(fila.id);

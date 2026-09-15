@@ -6,7 +6,7 @@
 // Normalizar es lo único que permite darse cuenta de que son el mismo. Vive en
 // su propio archivo porque lo necesitan tanto el modelo (para avisar de un
 // duplicado al crear) como la migración (que no puede importar el modelo sin
-// crear un ciclo) y la lectura de facturas.
+// crear un ciclo) y la entrada de texto de corrido.
 
 const TILDES = { á: 'a', é: 'e', í: 'i', ó: 'o', ú: 'u', ü: 'u', ñ: 'n', à: 'a', è: 'e', ì: 'i', ò: 'o', ù: 'u' };
 
