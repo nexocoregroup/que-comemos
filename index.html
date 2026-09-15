@@ -5,6 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#fbf7f1">
   <meta name="description" content="Organiza las comidas de casa y compra según lo que realmente queda.">
+  <!-- Lo que el navegador tiene permitido hacer con esta página.
+       No es una muralla, y conviene decir por qué: `script-src` lleva
+       `'unsafe-inline'` porque Capacitor inyecta su puente como un <script> en
+       línea justo después de <head>, y sin eso la app quedaría muerta dentro del
+       APK. Así que esta regla NO detiene un script inyectado. Lo que sí hace, y
+       no es poco:
+
+         · Ningún script de otro sitio. Un ataque no puede traerse herramientas.
+         · Sin `'unsafe-eval'`: `eval` y `new Function` no funcionan ni aunque
+           alguien logre meter código.
+         · `connect-src` solo admite https, así que nada puede mandar la
+           despensa de una casa a un `http://` cualquiera.
+         · `object-src 'none'` y `base-uri 'none'` cierran dos vías clásicas.
+
+       La defensa de verdad contra esto es que todo texto del usuario se escapa
+       antes de llegar a la pantalla, y eso lo vigila tests/seguridad.test.js.
+       Esto es el cinturón, no los frenos.
+
+       `frame-ancestors` no se puede poner en un <meta>: solo vale como cabecera
+       HTTP, y server.js la manda. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self'; connect-src 'self' https:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'none'">
   <title>¿Qué comemos?</title>
   <link rel="icon" href="src/isotipo.png" type="image/png">
   <link rel="manifest" href="manifest.webmanifest">

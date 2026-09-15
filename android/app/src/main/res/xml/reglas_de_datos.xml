@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Qué puede salir del teléfono cuando Android hace una copia. Respuesta: nada.
+
+  Android 12 y posteriores separan dos cosas que antes iban juntas:
+
+    · cloud-backup   — la copia que sube a la cuenta de Google del dueño.
+    · device-transfer — el traspaso directo al cambiar de teléfono.
+
+  Las dos se excluyen enteras. La primera porque mandaría la despensa de una
+  casa a un servidor sin que nadie lo pidiera. La segunda porque el traspaso
+  copia el almacenamiento tal cual, y la app no tiene forma de saber si el
+  teléfono nuevo es de la misma persona.
+
+  La copia de verdad la hace el usuario desde «Más → Respaldo», que escribe un
+  archivo que él guarda donde quiera y que puede volver a traer cuando quiera.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+        <exclude domain="file" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+        <exclude domain="file" />
+    </device-transfer>
+</data-extraction-rules>

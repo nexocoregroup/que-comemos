@@ -18,7 +18,7 @@ import { addProduct, createEmptyState, createReview, saveReview, setHabitualLine
 import { addRoutine } from '../src/routines.js';
 import { PASOS, emptyMes, modalRutina, renderMes } from '../src/page-mes.js';
 import { emptyCompra, renderCompra } from '../src/page-compra.js';
-import { PAGINAS_MAS, emptyMas, renderMas } from '../src/page-mas.js';
+import { PAGINAS_MAS, emptyMas, estadoDeLaCopia, renderMas } from '../src/page-mas.js';
 
 const MES = todayISO().slice(0, 7);
 
@@ -212,6 +212,33 @@ test('la revisión se puede mirar solo por lo que falta', () => {
   // El contestado sale del listado visible pero sigue en el formulario.
   assert.ok(!html.includes(`data-review-product="${primero}"`), 'el alimento ya contestado debería esconderse');
   assert.ok(html.includes(`name="consume-${primero}"`), 'y aun así seguir viajando al guardar');
+});
+
+/* ── La copia de seguridad, que ahora es la única red que hay ──────────── */
+
+// El respaldo automático de Android está apagado a propósito, así que perder el
+// teléfono sin copia es perderlo todo. La app tiene que insistir —pero solo
+// cuando hay algo que perder y solo cuando ya toca.
+test('la app avisa de la copia cuando toca, y calla cuando no', () => {
+  const vacio = createEmptyState();
+  assert.equal(estadoDeLaCopia(vacio).hayDatos, false, 'una casa vacía no necesita que le riñan');
+
+  const conDatos = createDemoState();
+  const nunca = estadoDeLaCopia(conDatos);
+  assert.equal(nunca.ultima, null);
+  assert.equal(nunca.urgente, true, 'sin ninguna copia, el aviso tiene que salir');
+
+  conDatos.settings = { ...conDatos.settings, lastBackupAt: todayISO() };
+  const hoyMismo = estadoDeLaCopia(conDatos);
+  assert.equal(hoyMismo.dias, 0);
+  assert.equal(hoyMismo.urgente, false, 'recién guardada no debería avisar');
+
+  // Un mes es el umbral: lo que se perdería ya duele.
+  const hace40 = new Date(Date.now() - 40 * 86400000).toISOString().slice(0, 10);
+  conDatos.settings.lastBackupAt = hace40;
+  const vieja = estadoDeLaCopia(conDatos);
+  assert.equal(vieja.dias, 40);
+  assert.equal(vieja.urgente, true, 'una copia de hace cuarenta días debería avisar');
 });
 
 /* ── Que una rutina se lea en palabras ─────────────────────────────────── */

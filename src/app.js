@@ -850,7 +850,11 @@ document.addEventListener('click', event => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = `que-comemos-respaldo-${today}.json`; a.click();
       setTimeout(() => URL.revokeObjectURL(url), 5000);
-      toast('Copia descargada.');
+      // Se anota la fecha porque el respaldo automático de Android está
+      // apagado a propósito: esta copia es la única red que hay, y la app tiene
+      // que poder decir cuándo fue la última en vez de esperar a que se note.
+      state.settings = { ...(state.settings || {}), lastBackupAt: today };
+      commit('Copia descargada. Guárdala donde no dependa de este teléfono.');
     }
     else if (action === 'remove-absence') { setAbsence(state, el.dataset.date, el.dataset.slot, el.dataset.id, false); commit('Ausencia quitada.'); }
     else if (action === 'toggle-manual') { const item = state.manualItems.find(row => row.id === el.dataset.id); item.done = el.checked; commit(''); }

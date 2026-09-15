@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Nada de tráfico sin cifrar, nunca.
+
+  Desde Android 9 esto ya es lo que el sistema hace por omisión, así que este
+  archivo no cambia el comportamiento de hoy: lo fija. Si mañana alguien añade
+  una biblioteca que llame a un `http://` cualquiera, la llamada falla aquí en
+  vez de salir en claro por el wifi del vecino.
+
+  La app carga su propia interfaz desde `https://localhost`, que es el esquema
+  que Capacitor usa por omisión en Android, así que apagar el texto en claro no
+  le quita nada. La única salida a la red que existe es el servidor propio que
+  el usuario puede escribir a mano en Funciones avanzadas; obligarlo a ser
+  https es exactamente lo que hay que hacer con una dirección que viaja con
+  datos de una casa dentro.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <!-- Solo las autoridades del sistema. Sin esto, cualquier
+                 certificado que alguien instale en el teléfono —por ejemplo
+                 para espiar el tráfico— valdría para esta app también. -->
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

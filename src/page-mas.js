@@ -85,14 +85,16 @@ function renderInicio(ctx) {
     alimentos: `${state.products.filter(item => !item.archived).length}`,
     revision: lastStockReview(state) ? `última: ${niceDate(lastStockReview(state), { day: 'numeric', month: 'short' })}` : 'nunca',
     historial: `${state.purchases.length} compra(s)`,
-    respaldo: '',
+    respaldo: pistaDeCopia(state),
     ajustes: ''
   };
-  return `<div class="card mas-lista">${ENTRADAS_MAS.map(([id, icono, titulo, detalle]) => `
+  const copia = estadoDeLaCopia(state);
+  return `${copia.urgente ? `<div class="notice warn"><span>!</span><div><strong>${copia.ultima ? `Hace ${copia.dias} días que no guardas una copia.` : 'Todavía no has guardado ninguna copia.'}</strong>Todo lo que has escrito existe solo en este teléfono. <button type="button" class="enlace" data-action="navigate" data-page="respaldo">Guardar una ahora</button></div></div>` : ''}
+    <div class="card mas-lista">${ENTRADAS_MAS.map(([id, icono, titulo, detalle]) => `
     <button type="button" class="mas-item" data-action="navigate" data-page="${id}">
       <span class="mas-icono" aria-hidden="true">${icono}</span>
       <span class="mas-texto"><strong>${esc(titulo)}</strong><span>${esc(detalle)}</span></span>
-      ${pistas[id] ? `<span class="mas-pista">${esc(pistas[id])}</span>` : ''}
+      ${pistas[id] ? `<span class="mas-pista ${id === 'respaldo' && copia.urgente ? 'alerta' : ''}">${esc(pistas[id])}</span>` : ''}
       <span class="mas-flecha" aria-hidden="true">›</span>
     </button>`).join('')}</div>
     <div class="card soft mas-pie">
@@ -159,6 +161,15 @@ function vistaHabitual(ctx) {
 }
 
 const etiquetaCategoria = id => CATEGORIES.find(cat => cat.id === id)?.label || 'Otros';
+
+// La pista que va al lado de «Respaldo» en el índice de Más.
+function pistaDeCopia(state) {
+  const copia = estadoDeLaCopia(state);
+  if (!copia.hayDatos) return '';
+  if (!copia.ultima) return 'sin copia';
+  if (copia.dias === 0) return 'hoy';
+  return `hace ${copia.dias} ${copia.dias === 1 ? 'día' : 'días'}`;
+}
 
 function vistaCambios(ctx, mes, resumen) {
   const { state } = ctx;
@@ -439,11 +450,13 @@ function detalleDeEvento(state, evento) {
 /* ── Respaldo ──────────────────────────────────────────────────────────── */
 
 function renderRespaldo(ctx) {
+  const { state } = ctx;
   return `${volver('Respaldo')}
-    <p class="pantalla-intro">Tus datos viven solo en este teléfono. No hay cuenta, no hay servidor y nadie más los ve. Eso también significa que si pierdes el teléfono, se pierden: guarda una copia de vez en cuando.</p>
+    <p class="pantalla-intro">Tus datos viven solo en este teléfono. No hay cuenta, no hay servidor, y ni siquiera la copia automática de Android se los lleva: eso está apagado a propósito. La otra cara es que <strong>si pierdes el teléfono sin una copia, se pierde todo</strong>.</p>
+    ${avisoDeCopia(state)}
     <div class="card">
       <h3>Guardar una copia</h3>
-      <p class="muted small">Descarga un archivo con todo: alimentos, canasta, preparaciones, compras y revisiones. Guárdalo donde guardes tus cosas importantes.</p>
+      <p class="muted small">Descarga un archivo con todo: alimentos, canasta, preparaciones, compras y revisiones. Guárdalo donde guardes tus cosas importantes —el correo, un pendrive, otra nube—, no en este mismo teléfono.</p>
       ${button('Descargar una copia', 'export', 'btn-primary')}
     </div>
     <div class="card">
@@ -456,6 +469,33 @@ function renderRespaldo(ctx) {
       <p class="muted small">Borra todo lo de esta app en este teléfono. No se puede deshacer sin una copia guardada.</p>
       ${button('Borrar todos mis datos', 'clear-demo', 'btn-danger')}
     </div>`;
+}
+
+// Cuánto hace de la última copia, y si eso ya es preocupante.
+//
+// El umbral es de treinta días, que es más o menos un ciclo de la app: si pasó
+// un mes entero de compras y revisiones sin copia, lo que se perdería ya duele.
+// Y no se avisa cuando no hay nada que perder: una casa recién instalada no
+// necesita que le riñan por no haber respaldado una lista vacía.
+export function estadoDeLaCopia(state) {
+  const hayDatos = state.products.length > 0 || state.purchases.length > 0 || habitualLines(state).length > 0;
+  if (!hayDatos) return { hayDatos: false };
+  const ultima = state.settings?.lastBackupAt || null;
+  if (!ultima) return { hayDatos: true, ultima: null, dias: null, urgente: true };
+  const dias = Math.round((new Date(`${hoy}T12:00:00`) - new Date(`${ultima}T12:00:00`)) / 86400000);
+  return { hayDatos: true, ultima, dias, urgente: dias >= 30 };
+}
+
+function avisoDeCopia(state) {
+  const copia = estadoDeLaCopia(state);
+  if (!copia.hayDatos) return '';
+  if (!copia.ultima) {
+    return `<div class="notice warn"><span>!</span><div><strong>Todavía no has guardado ninguna copia.</strong>Ahora mismo, todo lo que has escrito existe en un solo sitio: este teléfono.</div></div>`;
+  }
+  if (copia.urgente) {
+    return `<div class="notice warn"><span>!</span><div><strong>La última copia es de hace ${copia.dias} días.</strong>Desde entonces has anotado compras y revisiones que no están en ningún otro lado.</div></div>`;
+  }
+  return `<div class="notice"><span>✓</span><div><strong>Última copia: ${esc(niceDate(copia.ultima, { day: 'numeric', month: 'long', year: 'numeric' }))}.</strong>${copia.dias === 0 ? 'Hoy mismo.' : `Hace ${copia.dias} ${copia.dias === 1 ? 'día' : 'días'}.`}</div></div>`;
 }
 
 /* ── Ajustes ───────────────────────────────────────────────────────────── */

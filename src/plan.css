@@ -464,3 +464,8 @@
   }
   .revision-derivado { text-align: right; }
 }
+
+/* La pista de «Respaldo» cuando hace demasiado que no se guarda una copia.
+   Con el respaldo automático de Android apagado, esta es la única red que hay,
+   así que el dato deja de ser gris y pasa a pedir atención. */
+.mas-pista.alerta { color: var(--clay); font-weight: 700; }

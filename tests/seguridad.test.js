@@ -133,6 +133,53 @@ test('un respaldo hostil no envenena el prototipo ni entra a medias', () => {
   }
 });
 
+// La CSP se debilita sin querer con una línea, y nadie se entera hasta que pasa
+// algo. Esto fija lo que tiene que seguir prohibido.
+test('la política de contenido sigue cerrando las vías que cierra hoy', () => {
+  const html = readFileSync(resolve(import.meta.dirname, '..', 'index.html'), 'utf8');
+  const csp = html.match(/http-equiv="Content-Security-Policy"\s+content="([^"]+)"/)?.[1];
+  assert.ok(csp, 'index.html se quedó sin política de contenido');
+
+  // `'unsafe-eval'` convertiría cualquier texto en código ejecutable. Nunca.
+  assert.ok(!csp.includes('unsafe-eval'), 'la política volvió a permitir ejecutar texto como código');
+  // Sin comodines: un `*` en script-src o connect-src anula el resto.
+  assert.ok(!/(script|connect|object)-src[^;]*\*/.test(csp), 'la política tiene un comodín donde no debe');
+
+  for (const regla of ["default-src 'self'", "object-src 'none'", "base-uri 'none'", "frame-src 'none'"]) {
+    assert.ok(csp.includes(regla), `falta la regla: ${regla}`);
+  }
+  // Nada puede salir a un http:// en claro, que es por donde se iría una fuga.
+  assert.ok(/connect-src 'self' https:/.test(csp), 'connect-src dejó de exigir https');
+
+  // `script-src` lleva 'unsafe-inline' a la fuerza: Capacitor inyecta su puente
+  // como script en línea y sin eso la app no arranca dentro del APK. Se deja
+  // constancia aquí para que nadie lo lea como un descuido.
+  assert.ok(csp.includes("script-src 'self' 'unsafe-inline'"), 'script-src cambió de forma; revisa que el puente de Capacitor siga funcionando');
+
+  // `frame-ancestors` no vale dentro de un <meta>: tiene que ir por cabecera.
+  const servidor = readFileSync(resolve(import.meta.dirname, '..', 'server.js'), 'utf8');
+  assert.ok(servidor.includes("frame-ancestors 'none'"), 'el servidor dejó de impedir que la app se meta en un marco ajeno');
+  assert.ok(servidor.includes('nosniff'), 'el servidor dejó de impedir que el navegador adivine tipos');
+});
+
+test('Android no saca los datos del teléfono por su cuenta', () => {
+  const carpeta = resolve(import.meta.dirname, '..', 'android', 'app', 'src', 'main');
+  const manifiesto = readFileSync(resolve(carpeta, 'AndroidManifest.xml'), 'utf8');
+
+  // Con el respaldo automático encendido, Android sube el almacenamiento de la
+  // app a la cuenta de Google del dueño. La app promete lo contrario.
+  assert.ok(/android:allowBackup="false"/.test(manifiesto), 'el respaldo automático de Android volvió a encenderse');
+  assert.ok(/android:dataExtractionRules="@xml\/reglas_de_datos"/.test(manifiesto), 'faltan las reglas de extracción de Android 12+');
+  assert.ok(/android:networkSecurityConfig="@xml\/seguridad_de_red"/.test(manifiesto), 'falta la configuración de red');
+
+  const reglas = readFileSync(resolve(carpeta, 'res', 'xml', 'reglas_de_datos.xml'), 'utf8');
+  for (const bloque of ['cloud-backup', 'device-transfer']) {
+    assert.ok(reglas.includes(bloque), `las reglas de datos no cubren ${bloque}`);
+  }
+  const red = readFileSync(resolve(carpeta, 'res', 'xml', 'seguridad_de_red.xml'), 'utf8');
+  assert.ok(red.includes('cleartextTrafficPermitted="false"'), 'se volvió a permitir tráfico sin cifrar');
+});
+
 test('el APK no pide permisos que ya no usa', () => {
   const manifiesto = readFileSync(resolve(import.meta.dirname, '..', 'android', 'app', 'src', 'main', 'AndroidManifest.xml'), 'utf8');
   for (const permiso of ['CAMERA', 'READ_MEDIA_IMAGES', 'READ_EXTERNAL_STORAGE', 'ACCESS_FINE_LOCATION', 'READ_CONTACTS']) {
