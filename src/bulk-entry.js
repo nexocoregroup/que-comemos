@@ -19,6 +19,7 @@
 // avanzaría de paso.
 
 import { CATEGORIES, SEED_PRODUCTS } from './catalog-seed.js';
+import { capacidad, dictar, pararDictado } from './device.js';
 import {
   UNITS, addProduct, addPurchase, baseLines, findSimilarProducts, monthBasket,
   normalizeName, openMonthBasket, product, productByName, setBaseBasket,
@@ -120,9 +121,34 @@ export function emptyBulk(destino = 'base') {
     destino: destino in DESTINOS ? destino : 'base',
     mes: null,
     filas: [],
-    avisos: []
+    avisos: [],
+    // Lo del dictado: si el micrófono está abierto, qué salió mal y lo que hay
+    // que decir de una transcripción que quedó a medias.
+    escuchando: false,
+    errorVoz: '',
+    pistaVoz: '',
+    avisoVoz: ''
   };
 }
+
+// El aviso de que la voz sale del aparato vive en el módulo y no en el estado:
+// es «una vez por sesión», así que tiene que morir al recargar la app en vez de
+// viajar dentro de la pantalla. Con el motor del teléfono no se usa nunca.
+let avisadoDeVozAjena = false;
+// Cada dictado lleva su número: si empieza otro, el anterior deja de escribir
+// aunque su promesa se resuelva tarde.
+let dictadoActual = 0;
+
+const cuadroDeTexto = () => globalThis.document?.querySelector('[data-form="bulk-texto"] [name="texto"]') || null;
+
+// Lo dictado se añade a lo que ya hubiera escrito. Una compra se dicta en tandas
+// —«ah, y también dos latas de atún»—, y empezar de cero en cada tanda obligaría
+// a repetir la lista entera.
+const juntar = (...trozos) => trozos.map(trozo => String(trozo ?? '').trim()).filter(Boolean).join(' ');
+
+// Se dice entero: «pasa por sus servidores» es exactamente lo que pasa, y quien
+// lo lee tiene que poder decidir si prefiere escribirlo a mano.
+const AVISO_VOZ_AJENA = 'Aquí el dictado lo hace el navegador, así que tu voz sí sale hacia sus servidores. En la aplicación de Android la escucha el propio teléfono y no sale del aparato.';
 
 // La decisión de cada fila viaja en un solo `select`, así que el valor lleva
 // dentro con qué producto se une: `unir:producto-3`. Un control en vez de dos
@@ -307,12 +333,13 @@ function pasoEscribir(ctx, bulk) {
   const mes = validMonth(bulk.mes) ? bulk.mes : todayISO().slice(0, 7);
   return `<form data-form="bulk-texto" class="stack bulk">
     <div class="card stack">
-      <h2>Escríbelo como lo dirías</h2>
+      <h2>Díctalo o escríbelo como lo dirías</h2>
       <p class="muted">Un párrafo con todo lo de la vuelta del mes. Se convierte en una tabla que revisas antes de que se guarde nada.</p>
       <label class="field">
         <span>Lo que compraste o lo que la casa consume</span>
         <textarea name="texto" class="bulk-texto" rows="6" placeholder="${esc(EJEMPLO)}" required>${esc(bulk.texto)}</textarea>
       </label>
+      ${bloqueDictado(bulk)}
       <div class="bulk-destino">
         <label class="field">
           <span>Adónde van estas filas</span>
@@ -340,6 +367,30 @@ function pasoEscribir(ctx, bulk) {
       </div>
     </div>
   </form>`;
+}
+
+// El micrófono del paso 1. Dictar la compra de corrido —«30 plátanos, 10 libras
+// de arroz, 4 paquetes de salami»— es para lo que se hizo esta pantalla, así que
+// el botón va pegado al cuadro de texto y no escondido detrás de nada.
+//
+// Quién puede escuchar lo decide device.js, que ya elige entre el motor del
+// teléfono y el del navegador; aquí solo se pregunta si hay alguno. Y cuando no
+// lo hay se dice, con la salida que siempre funciona: el micrófono del teclado.
+function bloqueDictado(bulk) {
+  const motor = capacidad('dictar');
+  if (!motor.ok) return `<p class="hint">${esc(motor.detalle)} Tócalo y habla dentro del cuadro de arriba: escribe lo mismo que escribirías a mano.</p>`;
+  const etiqueta = bulk.escuchando ? 'Escuchando… toca para parar' : 'Dictar';
+  return `<div class="bulk-dictado">
+    <button type="button" class="btn btn-secondary bulk-microfono ${bulk.escuchando ? 'escuchando' : ''}"
+      data-action="${bulk.escuchando ? 'bulk-parar' : 'bulk-dictar'}" aria-label="${bulk.escuchando ? 'Dejar de escuchar' : 'Dictar lo que compraste'}">
+      <span aria-hidden="true">${bulk.escuchando ? '■' : '🎤'}</span><span>${etiqueta}</span>
+    </button>
+    <p class="tiny muted">Dilo de corrido, con cantidades: «30 plátanos, 10 libras de arroz, 4 paquetes de salami». Puedes dictar en varias tandas: lo nuevo se añade a lo que ya está escrito.</p>
+  </div>
+  ${bulk.escuchando ? `<p class="bulk-escuchando" role="status" aria-live="polite"><span class="bulk-onda" aria-hidden="true"></span>Escuchando… habla y después lee lo que quedó en el cuadro. No se guarda ni avanza nada solo.</p>` : ''}
+  ${bulk.avisoVoz ? notice('Tu voz sale de este aparato', esc(bulk.avisoVoz), 'warn') : ''}
+  ${bulk.pistaVoz ? `<p class="tiny muted bulk-pista-voz">${esc(bulk.pistaVoz)}</p>` : ''}
+  ${bulk.errorVoz ? notice('No se pudo dictar', esc(bulk.errorVoz), 'error') : ''}`;
 }
 
 function pasoRevisar(ctx, bulk) {
@@ -508,16 +559,88 @@ const intentar = (ctx, fn) => {
   try { fn(); } catch (error) { ctx.toast(error.message, true); }
 };
 
+// El paso 1 se vuelve a dibujar entero en cada cambio, así que lo escrito y lo
+// elegido se guardan en el estado antes de cualquier redibujo: lo que no esté
+// ahí se pierde, y perder el párrafo que alguien acaba de dictar es imperdonable.
+function guardarLoEscrito(el, ctx) {
+  const form = el?.closest('[data-form="bulk-texto"]') || globalThis.document?.querySelector('[data-form="bulk-texto"]');
+  if (!form) return;
+  ctx.bulk.texto = form.querySelector('[name="texto"]')?.value ?? ctx.bulk.texto;
+  ctx.bulk.destino = form.querySelector('[name="destino"]')?.value || ctx.bulk.destino;
+  ctx.bulk.mes = form.querySelector('[name="mes"]')?.value || ctx.bulk.mes;
+}
+
 export const BULK_ACTIONS = {
   // Rellena el cuadro con el dictado de ejemplo, conservando el destino y el
   // mes que ya estuvieran elegidos.
   'bulk-ejemplo': (el, ctx) => intentar(ctx, () => {
-    const form = el.closest('[data-form="bulk-texto"]');
-    if (form) {
-      ctx.bulk.destino = form.querySelector('[name="destino"]')?.value || ctx.bulk.destino;
-      ctx.bulk.mes = form.querySelector('[name="mes"]')?.value || ctx.bulk.mes;
-    }
+    guardarLoEscrito(el, ctx);
     ctx.bulk.texto = EJEMPLO;
+    ctx.render();
+  }),
+  // Dictar es el camino corto de esta pantalla: se habla de corrido y el texto
+  // cae en el mismo cuadro que se escribe a mano, para revisarlo igual.
+  'bulk-dictar': async (el, ctx) => {
+    const bulk = ctx.bulk;
+    try {
+      guardarLoEscrito(el, ctx);
+      const motor = capacidad('dictar');
+      if (!motor.ok) { bulk.escuchando = false; bulk.errorVoz = motor.detalle; ctx.render(); return; }
+      // El motor del navegador manda la voz a sus servidores, y eso se dice
+      // antes de abrir el micrófono. El del teléfono no sale del aparato, así
+      // que ahí no hay nada que avisar.
+      if (motor.origen === 'navegador' && !avisadoDeVozAjena) { avisadoDeVozAjena = true; bulk.avisoVoz = AVISO_VOZ_AJENA; }
+      // Lo que ya estuviera escrito es el punto de partida, no algo que se pisa.
+      const base = bulk.texto || '';
+      const sesion = ++dictadoActual;
+      bulk.escuchando = true;
+      bulk.errorVoz = '';
+      bulk.pistaVoz = '';
+      ctx.render();
+      const oido = await dictar({
+        onParcial: trozo => {
+          if (sesion !== dictadoActual) return;
+          bulk.texto = juntar(base, trozo);
+          // El parcial se escribe en el cuadro vivo en vez de redibujar la
+          // pantalla entera: un redibujo por palabra parpadea, pierde el foco y
+          // deja al dedo sin dónde tocar para parar.
+          const cuadro = cuadroDeTexto();
+          if (cuadro) { cuadro.value = bulk.texto; cuadro.scrollTop = cuadro.scrollHeight; }
+        }
+      });
+      if (sesion !== dictadoActual) return;
+      bulk.escuchando = false;
+      if (oido.ok) {
+        bulk.texto = juntar(base, oido.texto);
+        // `parcial` es lo que alcanzó a oír antes de cortarse: se usa igual
+        // —tirarlo obligaría a repetir la compra entera— pero se dice.
+        bulk.pistaVoz = oido.parcial ? 'Eso fue lo que alcancé a oír antes de que se cortara: repásalo y sigue dictando si falta algo.' : '';
+      } else {
+        // Nada de lo dictado se pierde por un fallo del micrófono: lo que se oyó
+        // a medias sigue en el cuadro, y el motivo viene de device.js en español.
+        bulk.errorVoz = oido.error;
+      }
+      // Y aquí se para: no se avanza solo a la tabla de revisar. Una
+      // transcripción se equivoca —«treinta» por «trece»—, y saltar directo a la
+      // tabla escondería el error justo donde hay que verlo. La persona lee lo
+      // que quedó escrito, lo corrige y pulsa «Revisar».
+      ctx.render();
+      const cuadro = cuadroDeTexto();
+      if (cuadro) { cuadro.focus(); cuadro.setSelectionRange(cuadro.value.length, cuadro.value.length); }
+    } catch {
+      // Si algo se rompe por dentro, el aviso sigue siendo en español y con una
+      // salida: el mensaje de un error de JavaScript no le sirve a nadie aquí.
+      bulk.escuchando = false;
+      bulk.errorVoz = 'No se pudo dictar. Escríbelo en el cuadro, o usa el micrófono del teclado.';
+      ctx.render();
+    }
+  },
+  'bulk-parar': (el, ctx) => intentar(ctx, () => {
+    // Parar solo cierra el micrófono: lo que se oyó hasta ahí lo devuelve
+    // `dictar` al resolverse y se queda en el cuadro. Parar no es cancelar.
+    guardarLoEscrito(el, ctx);
+    pararDictado();
+    ctx.bulk.escuchando = false;
     ctx.render();
   }),
   // Vuelve al paso 1 con el texto intacto: corregir el párrafo entero es a
@@ -550,7 +673,10 @@ export const BULK_ACTIONS = {
 export const BULK_FORMS = {
   'bulk-texto': (form, data, ctx) => intentar(ctx, () => {
     const valor = String(data.get('texto') || '');
-    if (!texto(valor)) throw new Error('Escribe qué se compró antes de revisar.');
+    // Pasar a revisar cierra el micrófono y da por vencido el dictado en curso:
+    // lo que llegara tarde escribiría en un cuadro que ya no se está mirando.
+    if (ctx.bulk.escuchando) { dictadoActual += 1; pararDictado(); ctx.bulk.escuchando = false; }
+    if (!texto(valor)) throw new Error('Escribe o dicta qué se compró antes de revisar.');
     const destino = String(data.get('destino') || ctx.bulk.destino);
     const mes = String(data.get('mes') || '') || ctx.bulk.mes;
     if (destino === 'mes' && !validMonth(mes)) throw new Error('Elige el mes al que van estos alimentos.');
@@ -562,7 +688,11 @@ export const BULK_FORMS = {
       destino: destino in DESTINOS ? destino : 'base',
       mes: validMonth(mes) ? mes : null,
       filas,
-      avisos
+      avisos,
+      // Lo que pasó con el micrófono ya se leyó: no tiene que seguir colgando
+      // cuando se vuelva a escribir.
+      errorVoz: '',
+      pistaVoz: ''
     });
     ctx.render();
   }),

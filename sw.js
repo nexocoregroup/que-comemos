@@ -37,10 +37,23 @@ self.addEventListener('fetch', event => {
   event.respondWith(
     fetch(event.request)
       .then(response => {
-        const copy = response.clone();
-        caches.open(CACHE).then(cache => cache.put(event.request, copy));
+        // Solo se guarda lo que salió bien. Guardar un 404 o un 500 deja esa
+        // respuesta en el caché para siempre, y el día que falte la red la app
+        // sirve un error viejo en vez del archivo bueno que sí llegó a existir.
+        if (response.ok) {
+          const copia = response.clone();
+          caches.open(CACHE).then(cache => cache.put(event.request, copia));
+        }
         return response;
       })
-      .catch(() => caches.match(event.request).then(hit => hit || caches.match('./index.html')))
+      .catch(() => caches.match(event.request).then(hit => {
+        if (hit) return hit;
+        // Devolver index.html cuando falla un módulo de JavaScript no arregla
+        // nada: el navegador recibe HTML donde esperaba código y el error que
+        // enseña no se parece en nada al problema real. El respaldo a la página
+        // solo tiene sentido cuando se estaba navegando.
+        if (event.request.mode === 'navigate') return caches.match('./index.html');
+        return new Response('', { status: 504, statusText: 'Sin conexión y sin copia guardada' });
+      }))
   );
 });

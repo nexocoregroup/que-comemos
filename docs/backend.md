@@ -1,19 +1,38 @@
 # El backend opcional
 
-La app necesita tres cosas que no puede hacer sola: **transcribir** lo que
-dictas, **conversar** para entender una petición escrita de corrido, y **leer
-facturas** de una foto. Las tres necesitan un modelo grande, y un modelo grande
-necesita una clave.
+> **Lee esto antes que nada: es muy probable que no necesites este documento.**
+>
+> Dictar y leer facturas **ya no pasan por aquí**. Los hace el propio teléfono:
+> el reconocimiento de voz de Android y ML Kit Text Recognition viajan dentro
+> del APK y corren en el aparato, sin servidor, sin clave, sin conexión y sin
+> coste. Ver `src/device.js`.
+>
+> Este documento sirve **para una sola cosa**: entender frases totalmente libres
+> («mañana pon arroz con pollo y dile a Sofía que no cena»). Todo lo demás de la
+> aplicación funciona sin desplegar nada.
 
-Esa clave no puede vivir en la app. No hay forma de esconder una clave dentro de
-un JavaScript que se descarga ni dentro de un APK que cualquiera puede abrir:
-quien la saque la gasta a tu nombre hasta que la canceles. Así que la clave vive
-en un servicio que despliegas tú, y la app le habla por HTTP.
+La primera versión mandaba las tres cosas a un servidor que el usuario tenía que
+montar. Era un error de diseño: esta app es para una casa corriente, y una casa
+corriente no despliega un Cloudflare Worker. Lo que quedó aquí es el resto.
 
-**Y si no lo despliegas, no pasa nada.** La app entera funciona sin esto. Está
-explicado abajo, en [Qué pasa si no lo despliegas](#qué-pasa-si-no-lo-despliegas).
+## Qué queda aquí, y para quién
 
-- El transporte del lado de la app: `src/providers.js`
+| Ruta | ¿Hace falta? | Por qué |
+|---|---|---|
+| `/chat` | Solo para lenguaje libre | La app reconoce sin conexión un buen puñado de frases por su forma. Un modelo grande amplía eso, pero no cabe en el APK. |
+| `/transcribe` | Casi nunca | El teléfono transcribe solo. Esta ruta es el respaldo para aparatos sin reconocimiento de voz. |
+| `/vision` | Casi nunca | El teléfono lee la foto solo. Esta ruta es el respaldo para el navegador, donde ML Kit no existe. |
+
+**Y si lo despliegas, despliega uno solo para todos tus usuarios.** Pedirle a
+cada familia que monte el suyo es volver al error de partida. La app guarda la
+dirección por dispositivo porque así se puede probar, no porque sea el plan.
+
+Una clave no puede vivir en la app: no hay forma de esconderla dentro de un
+JavaScript que se descarga ni dentro de un APK que cualquiera puede abrir. Quien
+la saque la gasta a tu nombre hasta que la canceles.
+
+- El puente con lo que el teléfono hace solo: `src/device.js`
+- El transporte hacia este backend: `src/providers.js`
 - Un backend de verdad, listo para desplegar: `backend/ejemplo-worker.js`
 - Las variables que hay que configurar: `.env.example`
 

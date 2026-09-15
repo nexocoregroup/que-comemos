@@ -78,12 +78,18 @@ function decir(chat, quien, texto, extra = {}) {
   return mensaje;
 }
 
+const campoDelChat = () => globalThis.document?.querySelector('[data-form="chat"] [name="mensaje"]') || null;
+
 // Lo que la persona tenga escrito no se pierde porque el panel se vuelva a
 // dibujar: se lee del campo antes de cada redibujo propio.
 function guardarBorrador(ctx) {
-  const campo = globalThis.document?.querySelector('[data-form="chat"] [name="mensaje"]');
+  const campo = campoDelChat();
   if (campo) chatDe(ctx).borrador = campo.value;
 }
+
+// Lo dictado se añade a lo que ya hubiera: se dicta en tandas («ah, y también
+// dos latas de atún»), y empezar de cero en cada tanda obligaría a repetirlo todo.
+const juntar = (...trozos) => trozos.map(trozo => String(trozo ?? '').trim()).filter(Boolean).join(' ');
 
 const valorDe = (data, nombre, form) => {
   if (data && typeof data.get === 'function') return data.get(nombre);
@@ -533,6 +539,7 @@ async function preguntarAlServicio(ctx, texto, requestId) {
   const chat = chatDe(ctx);
   chat.enviando = true;
   chat.error = '';
+  chat.errorTitulo = '';
   ctx.render();
   let respuesta;
   try {
@@ -589,7 +596,6 @@ function enviar(ctx, texto, requestId) {
 /* ── Dibujo ────────────────────────────────────────────────────────────── */
 
 const EJEMPLOS = ['Compré 2 lb de arroz y 3 latas de atún', '¿Qué falta comprar?', '¿Qué se cocina hoy?', 'Quedan 4 latas de atún'];
-const hayDictado = () => Boolean(globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition);
 const atributos = datos => Object.entries(datos || {}).map(([clave, valor]) => `data-${esc(clave)}="${esc(valor)}"`).join(' ');
 
 function dibujarMensaje(chat, mensaje, orden) {
@@ -626,13 +632,18 @@ function dibujarPendiente(pendiente) {
 function dibujarEstado(chat) {
   const partes = [];
   if (chat.escuchando) {
-    partes.push(`<div class="chat-aparte chat-estado escuchando"><span class="chat-onda" aria-hidden="true"></span>
-      <span>Escuchando… habla y después revisa lo que quedó escrito.</span>${button('Cancelar', 'chat-parar', 'btn-quiet btn-small')}</div>`);
+    // `role="status"` para que quien navega escuchando se entere de que el
+    // micrófono está abierto: sin eso, el indicador solo existe para quien mira.
+    partes.push(`<div class="chat-aparte chat-estado escuchando" role="status" aria-live="polite"><span class="chat-onda" aria-hidden="true"></span>
+      <span>Escuchando… habla y después revisa lo que quedó escrito.</span>${button('Parar', 'chat-parar', 'btn-quiet btn-small')}</div>`);
   }
   if (chat.enviando) {
     partes.push(`<div class="chat-aparte chat-estado pensando"><span class="chat-puntos" aria-hidden="true"><i></i><i></i><i></i></span><span>Pensando…</span></div>`);
   }
-  if (chat.error) partes.push(`<div class="chat-aviso">${notice('No se pudo enviar', esc(chat.error), 'error')}</div>`);
+  // La pista es para lo que quedó a medias: se dice, pero sin el recuadro rojo
+  // de un error, porque el texto sí llegó y sí sirve.
+  if (chat.pista) partes.push(`<p class="chat-pista-suave">${esc(chat.pista)}</p>`);
+  if (chat.error) partes.push(`<div class="chat-aviso">${notice(esc(chat.errorTitulo || 'No se pudo enviar'), esc(chat.error), 'error')}</div>`);
   return partes.join('');
 }
 
@@ -646,7 +657,11 @@ export function renderChat(ctx) {
   // El pie va con el orden más bajo para quedar siempre debajo del último
   // mensaje, sin importar cuántos haya.
   const pie = `<div class="chat-pie" style="order:-9999">${dibujarPendiente(chat.pendiente)}${dibujarEstado(chat)}</div>`;
-  const dictado = hayDictado()
+  // Quién puede escuchar lo decide device.js, que ya elige entre el motor del
+  // teléfono y el del navegador. Aquí solo se pregunta si hay alguno: repetir
+  // esa decisión sería tener dos versiones de la misma verdad.
+  const motor = capacidad('dictar');
+  const dictado = motor.ok
     ? (chat.escuchando
       ? `<button type="button" class="chat-icono escuchando" data-action="chat-parar" aria-label="Dejar de escuchar">■</button>`
       : `<button type="button" class="chat-icono" data-action="chat-escuchar" aria-label="Dictar el mensaje">🎤</button>`)
@@ -665,26 +680,25 @@ export function renderChat(ctx) {
       ${dictado}
       <button type="submit" class="chat-icono chat-enviar" aria-label="Enviar el mensaje">↑</button>
     </form>
-    ${hayDictado() ? '' : '<p class="chat-pista">Aquí no se puede dictar dentro de la app. En Android, el micrófono del teclado dicta en cualquier campo: tócalo y habla.</p>'}
+    ${motor.ok ? '' : `<p class="chat-pista">${esc(motor.detalle)} Tócalo y habla: escribe en este campo igual que el teclado.</p>`}
   </aside>`;
 }
 
 /* ── Acciones del panel ────────────────────────────────────────────────── */
 
-const ERRORES_VOZ = {
-  'not-allowed': 'No se dio permiso al micrófono. Puedes escribirlo, o dictar con el micrófono del teclado.',
-  'service-not-allowed': 'El dictado no está disponible aquí. Usa el micrófono del teclado.',
-  'no-speech': 'No te escuché nada. Prueba otra vez o escríbelo.',
-  'audio-capture': 'No encuentro un micrófono en este dispositivo.',
-  network: 'El dictado del navegador necesita conexión. Escríbelo o usa el micrófono del teclado.'
-};
+// El aviso del motor del navegador. Se dice entero: «pasa por sus servidores»
+// es exactamente lo que pasa, y quien lo lee tiene que poder decidir si prefiere
+// escribir. En la aplicación de Android no aparece nunca.
+const AVISO_VOZ_AJENA = 'Aviso: aquí el dictado lo hace el navegador, así que tu voz sí sale hacia sus servidores. En la aplicación de Android la escucha el propio teléfono y no sale del aparato.';
 
 export const CHAT_ACTIONS = {
-  'chat-cerrar': (el, ctx) => { guardarBorrador(ctx); ctx.closeModal?.(); },
+  // Cerrar el panel cierra también el micrófono: dejarlo abierto detrás de una
+  // pantalla cerrada es lo último que debe hacer una app con el micrófono.
+  'chat-cerrar': (el, ctx) => { guardarBorrador(ctx); callarMicrofono(chatDe(ctx)); ctx.closeModal?.(); },
   'chat-limpiar': (el, ctx) => {
     const chat = chatDe(ctx);
     guardarBorrador(ctx);
-    chat.mensajes = []; chat.pendiente = null; chat.deshacer = null; chat.error = '';
+    chat.mensajes = []; chat.pendiente = null; chat.deshacer = null; chat.error = ''; chat.errorTitulo = ''; chat.pista = '';
     ctx.render();
   },
   'chat-sugerencia': (el, ctx) => { chatDe(ctx).borrador = el.dataset.texto || ''; ctx.render(); },
@@ -753,50 +767,76 @@ export const CHAT_ACTIONS = {
     decir(chat, 'app', 'No lo envié. Ahí lo dejé escrito por si quieres cambiarlo o anotarlo a mano.');
     ctx.render();
   },
-  'chat-escuchar': (el, ctx) => {
+  'chat-escuchar': async (el, ctx) => {
     const chat = chatDe(ctx);
     guardarBorrador(ctx);
-    const Dictado = globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition;
-    if (!Dictado) { chat.error = 'Este dispositivo no deja dictar dentro de la app. Usa el micrófono del teclado.'; ctx.render(); return; }
-    try {
-      escucha = new Dictado();
-      escucha.lang = 'es-DO';
-      escucha.interimResults = false;
-      escucha.maxAlternatives = 1;
-      escucha.continuous = false;
-      escucha.onresult = evento => {
-        const dicho = [...(evento.results || [])].map(fila => fila[0]?.transcript || '').join(' ').trim();
-        // Lo dictado no se ejecuta: se deja escrito para que la persona lo lea
-        // y lo corrija. Un «compré diez» oído como «compré cien» movería el
-        // inventario sin que nadie lo viera.
-        chat.borrador = [chat.borrador, dicho].filter(Boolean).join(' ').trim();
-        chat.escuchando = false;
-        ctx.render();
-      };
-      escucha.onerror = evento => {
-        chat.escuchando = false;
-        chat.error = ERRORES_VOZ[evento?.error] || 'No se pudo dictar. Escríbelo o usa el micrófono del teclado.';
-        ctx.render();
-      };
-      escucha.onend = () => { if (chat.escuchando) { chat.escuchando = false; ctx.render(); } };
-      chat.escuchando = true;
-      chat.error = '';
-      ctx.render();
-      escucha.start();
-    } catch {
-      chat.escuchando = false;
-      chat.error = 'No se pudo abrir el micrófono. Escríbelo o usa el micrófono del teclado.';
-      ctx.render();
+    const motor = capacidad('dictar');
+    if (!motor.ok) { avisarDeVoz(chat, 'No se puede dictar aquí', motor.detalle); ctx.render(); return; }
+    if (motor.origen === 'navegador' && !avisadoDeVozAjena) { avisadoDeVozAjena = true; decir(chat, 'app', AVISO_VOZ_AJENA); }
+    // Lo que ya estuviera escrito es el punto de partida, no algo que se pisa.
+    const base = chat.borrador || '';
+    const sesion = ++dictadoActual;
+    chat.escuchando = true;
+    chat.error = '';
+    chat.errorTitulo = '';
+    chat.pista = '';
+    ctx.render();
+    const oido = await dictar({
+      onParcial: trozo => {
+        if (sesion !== dictadoActual) return;
+        chat.borrador = juntar(base, trozo);
+        // El parcial se escribe en el campo vivo en vez de redibujar el panel
+        // entero: un redibujo por palabra parpadea y le roba el foco al campo.
+        const campo = campoDelChat();
+        if (campo) campo.value = chat.borrador;
+      }
+    });
+    if (sesion !== dictadoActual) return;
+    chat.escuchando = false;
+    if (oido.ok) {
+      chat.borrador = juntar(base, oido.texto);
+      // `parcial` es lo que alcanzó a oír antes de cortarse. Se usa igual —tirarlo
+      // obligaría a repetir la frase entera— pero se dice que quedó a medias.
+      chat.pista = oido.parcial ? 'Eso fue lo que alcancé a oír antes de que se cortara: míralo antes de enviarlo.' : '';
+    } else {
+      // Un fallo del micrófono no borra nada: lo que se oyó a medias sigue en el
+      // campo, y el motivo viene de device.js ya escrito en español.
+      avisarDeVoz(chat, 'No se pudo dictar', oido.error);
     }
+    // Y termina aquí a propósito: no se envía ni se ejecuta nada. El texto queda
+    // en el campo para leerlo y corregirlo, porque un «compré diez» oído como
+    // «compré cien» movería el inventario sin que nadie lo hubiera visto.
+    ctx.render();
+    const campo = campoDelChat();
+    // El foco vuelve al campo con el cursor al final: lo siguiente que toca es
+    // repasar lo dictado, y así se corrige sin buscar dónde tocar.
+    if (campo) { campo.focus(); campo.setSelectionRange(campo.value.length, campo.value.length); }
   },
   'chat-parar': (el, ctx) => {
     const chat = chatDe(ctx);
+    // Parar solo cierra el micrófono. Lo que se oyó hasta ahí lo devuelve
+    // `dictar` al resolverse y se queda escrito: parar no es cancelar.
     guardarBorrador(ctx);
-    try { escucha?.stop(); } catch { /* si ya se detuvo solo, no hay nada que hacer */ }
+    pararDictado();
     chat.escuchando = false;
     ctx.render();
   }
 };
+
+function avisarDeVoz(chat, titulo, detalle) {
+  chat.errorTitulo = titulo;
+  chat.error = detalle;
+  chat.escuchando = false;
+}
+
+// Cierra el micrófono y da por vencido el dictado en curso: lo que llegue
+// después ya no tiene dónde escribirse sin pisar lo que la persona hizo luego.
+function callarMicrofono(chat) {
+  if (!chat.escuchando) return;
+  dictadoActual += 1;
+  pararDictado();
+  chat.escuchando = false;
+}
 
 /* ── Envío del formulario ──────────────────────────────────────────────── */
 
@@ -807,7 +847,12 @@ export const CHAT_FORMS = {
   chat: (form, data, ctx) => {
     const chat = chatDe(ctx);
     const texto = String(valorDe(data, 'mensaje', form) ?? '').trim();
+    // Enviar cierra el micrófono: lo que llegara tarde volvería a llenar un
+    // campo que la persona acaba de vaciar al enviar.
+    callarMicrofono(chat);
     chat.error = '';
+    chat.errorTitulo = '';
+    chat.pista = '';
     chat.borrador = '';
     if (!texto) { ctx.render(); return; }
     const llano = plano(texto);

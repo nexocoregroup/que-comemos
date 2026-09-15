@@ -124,6 +124,9 @@
 
 .chat-estado { display: flex; align-items: center; gap: 10px; font-size: .87rem; color: var(--ink-muted); }
 .chat-estado .btn { margin-left: auto; }
+/* Lo que el dictado alcanzó a oír antes de cortarse se avisa, pero sin el
+   recuadro rojo de un error: el texto llegó y sirve, solo quedó a medias. */
+.chat-pista-suave { margin: 0; padding: 0 2px; font-size: .8rem; line-height: 1.45; color: var(--ink-muted); }
 
 .chat-onda {
   width: 13px;
