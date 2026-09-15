@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { addDays, addProduct, setSlice, setBasket, addPurchase, balances, convert, correctReview, createEmptyState, createReview, exportState, importState, inventoryNow, linkPlan, makeRecipePlan, repeatWeek, saveReview, setAbsence, setEquivalence, shoppingList, todayISO, updatePlan, upsertPerson, upsertRecipe, weekStart } from '../src/model.js';
+import { addDays, addProduct, product, setSlice, setBasket, addPurchase, balances, convert, correctReview, createEmptyState, createReview, exportState, importState, inventoryNow, linkPlan, makeRecipePlan, repeatWeek, saveReview, setAbsence, setEquivalence, shoppingList, todayISO, updatePlan, upsertPerson, upsertRecipe, weekStart } from '../src/model.js';
 import { loadState, saveState, STORAGE_KEY } from '../src/storage.js';
 
 function setup() {
@@ -199,4 +199,25 @@ test('un respaldo anterior a la canasta se rellena en vez de rechazarse', () => 
   const roto = JSON.parse(exportState(state));
   delete roto.purchases;
   assert.throws(() => importState(JSON.stringify(roto)), /no es un respaldo válido/);
+});
+
+test('la canasta crea los alimentos que no existen, sin registrarlos aparte', () => {
+  const state = createEmptyState();
+  const arroz = addProduct(state, { name: 'Arroz', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
+  setBasket(state, [
+    { name: '  arroz ', quantity: 30, unit: 'lb' },
+    { name: 'Huevo', quantity: 60, unit: 'unidad' },
+    { name: 'huevo', quantity: 12, unit: 'unidad' }
+  ]);
+  assert.equal(state.products.length, 2, 'solo se crea el huevo, y una sola vez');
+  assert.equal(state.basket[0].productId, arroz, 'un nombre que ya existe no duplica el alimento');
+  assert.equal(state.basket[1].productId, state.basket[2].productId, 'escrito distinto sigue siendo el mismo');
+  const huevo = product(state, state.basket[1].productId);
+  assert.equal(huevo.name, 'Huevo');
+  assert.equal(huevo.controlUnit, 'unidad', 'toma la unidad de su propia línea');
+  assert.equal(inventoryNow(state)[huevo.id], 0, 'nace sin existencias: la canasta dice qué se consume, no qué hay');
+  // Una línea mal escrita no puede dejar media canasta registrada.
+  assert.throws(() => setBasket(state, [{ name: 'Sal', quantity: 2, unit: 'lb' }, { name: 'Aceite', quantity: 0, unit: 'unidad' }]), /mayor que cero/);
+  assert.equal(state.products.length, 2, 'no se creó nada a medias');
+  assert.equal(state.basket.length, 3, 'la canasta anterior queda intacta');
 });

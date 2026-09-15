@@ -87,13 +87,35 @@ export function setEquivalence(state, productId, unit, factor) {
 // reutilizado. Vive aparte del menú a propósito: sirve para comprar sin haber
 // planificado día por día. Como el menú, tampoco mueve existencias —eso sigue
 // siendo cosa de compras, revisiones y correcciones—, solo calcula qué falta.
+const nameKey = value => String(value || '').trim().toLocaleLowerCase('es');
+export function productByName(state, name) {
+  const key = nameKey(name);
+  return key ? state.products.find(item => nameKey(item.name) === key) : undefined;
+}
+// La canasta se escribe de corrido, por nombre. Un alimento que todavía no
+// existe se crea al guardarla, con la unidad de esa misma línea: obligar a
+// registrar antes cada producto era pedir el mismo dato dos veces en dos
+// pantallas. Manda el nombre escrito, no el identificador: cambiar el nombre de
+// una línea la apunta a otro alimento, no renombra el que había —renombrar
+// afectaría a las preparaciones y al historial de compras.
 export function setBasket(state, lines) {
-  const items = (lines || []).map(line => {
-    if (!product(state, line.productId) || !UNITS.includes(line.unit)) throw new Error('Selecciona un alimento y su unidad.');
-    return { id: line.id || nextId(state, 'canasta'), productId: line.productId, quantity: quantity(line.quantity), unit: line.unit };
+  const rows = (lines || []).map(line => {
+    const name = String(line.name || '').trim();
+    const existing = name ? productByName(state, name) : product(state, line.productId);
+    if (!existing && !name) throw new Error('Escribe el nombre del alimento.');
+    if (!UNITS.includes(line.unit)) throw new Error('Elige la unidad de cada alimento.');
+    return { id: line.id, existing, name, quantity: quantity(line.quantity), unit: line.unit };
   });
-  state.basket = items;
-  return items;
+  // Los productos que faltan se crean solo después de validarlo todo: si una
+  // línea estuviera mal, media canasta habría quedado registrada a medias.
+  const nuevos = new Map();
+  state.basket = rows.map(row => {
+    const key = nameKey(row.name);
+    const item = row.existing || nuevos.get(key) || addProduct(state, { name: row.name, controlUnit: row.unit, purchaseUnit: row.unit });
+    if (!row.existing && key) nuevos.set(key, item);
+    return { id: row.id || nextId(state, 'canasta'), productId: item.id, quantity: row.quantity, unit: row.unit };
+  });
+  return state.basket;
 }
 // Se escribe por mes y se compra por quincena o por fechas sueltas, así que a
 // un período le toca su proporción de días sobre el mes en que empieza: una

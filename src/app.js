@@ -239,6 +239,26 @@ function itemRow(item = {}, type = 'ingredient') {
   const defaultProduct = product(state, item.productId);
   return `<div class="item-row" data-item-row><input type="hidden" name="itemId" value="${esc(item.id || '')}"><label class="field"><span>Producto</span><select name="productId" required>${productOptions(item.productId || '')}</select></label><label class="field"><span>Cantidad</span><input name="quantity" type="number" min="0" step="any" inputmode="decimal" value="${item.quantity ?? ''}" placeholder="0"></label><label class="field"><span>Unidad</span><select name="unit">${unitOptions(item.unit || defaultProduct?.[isPurchase ? 'purchaseUnit' : 'controlUnit'] || 'unidad')}</select></label>${noPerson ? '<span></span>' : `<label class="field person-select"><span>Para quién</span><select name="personId">${personOptions(item.personId)}</select></label>`}<button type="button" class="btn btn-quiet remove-item" data-action="remove-item" aria-label="Quitar alimento">✕</button></div>`;
 }
+// La canasta se escribe por nombre, no eligiendo de una lista: quien la llena
+// por primera vez todavía no tiene productos registrados, y mandarlo a crearlos
+// uno por uno en otra pantalla es pedirle el mismo dato dos veces. La lista de
+// sugerencias evita que un mismo alimento se escriba de dos formas distintas.
+function basketRow(line = {}) {
+  const item = product(state, line.productId);
+  return `<div class="item-row basket-row" data-item-row><input type="hidden" name="itemId" value="${esc(line.id || '')}">
+    <label class="field basket-name"><span>Alimento</span><input name="name" list="lista-de-productos" autocomplete="off" required value="${esc(item?.name || '')}" placeholder="Ej. Arroz"></label>
+    <label class="field"><span>Al mes</span><input name="quantity" type="number" min="0" step="any" inputmode="decimal" value="${line.quantity ?? ''}" placeholder="0"></label>
+    <label class="field"><span>Unidad</span><select name="unit">${unitOptions(line.unit || item?.controlUnit || 'unidad')}</select></label>
+    <button type="button" class="btn btn-quiet remove-item" data-action="remove-item" aria-label="Quitar alimento">✕</button></div>`;
+}
+function collectBasket(form) {
+  return [...form.querySelectorAll('[data-item-row]')].map(row => ({
+    id: row.querySelector('[name="itemId"]')?.value || undefined,
+    name: row.querySelector('[name="name"]')?.value || '',
+    quantity: row.querySelector('[name="quantity"]')?.value,
+    unit: row.querySelector('[name="unit"]')?.value
+  })).filter(line => line.name.trim() && line.quantity !== '');
+}
 function modal(title, subtitle, body, wide = false) { return `<div class="modal-overlay" data-overlay><div class="modal ${wide ? 'modal-wide' : ''}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="modal-head"><div><h2>${esc(title)}</h2>${subtitle ? `<p>${esc(subtitle)}</p>` : ''}</div><button type="button" class="icon-btn" data-action="close-modal" aria-label="Cerrar">×</button></div>${body}</div></div>`; }
 function checkPeople(name, selected, date = null, slot = null) {
   return `<div class="checks">${state.people.map(person => `<label class="check-chip"><input type="checkbox" name="${name}" value="${person.id}" ${selected.includes(person.id) ? 'checked' : ''} ${date && isAbsent(state, date, slot, person.id) ? 'disabled' : ''}>${esc(person.name)}${date && isAbsent(state, date, slot, person.id) ? ' · fuera' : ''}</label>`).join('') || '<span class="muted small">Agrega personas en la sección Personas.</span>'}</div>`;
@@ -295,11 +315,12 @@ function renderModal() {
       <div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar producto</button></div></form>`);
   }
   if (m.type === 'basket') {
-    return modal('Canasta del mes', 'Lo que tu casa consume en un mes corriente. Queda guardada y se reutiliza; solo cambias lo que varía.', `<div class="hint">Escribe las cantidades de un <strong>mes completo</strong>. Al comprar por quincena la app pide la mitad, y por fechas sueltas la parte que toque. Esto no cambia las existencias: solo calcula qué falta.</div>
+    return modal('Canasta del mes', 'Lo que tu casa consume en un mes corriente. Se escribe una vez y se reutiliza; después solo cambias lo que varía.', `<div class="hint">Escribe el alimento y cuánto se consume en un <strong>mes completo</strong>. <strong>No hace falta registrarlo antes:</strong> lo que no exista se crea al guardar, con la unidad que pongas aquí. Al comprar por quincena la app pide la mitad, y por fechas sueltas la parte que toque. Esto no cambia las existencias: solo calcula qué falta.</div>
+      <datalist id="lista-de-productos">${state.products.map(item => `<option value="${esc(item.name)}"></option>`).join('')}</datalist>
       <form data-form="basket">
-        <div class="section-head"><h3>Productos del mes</h3></div>
-        <div data-item-list="basket">${(state.basket.length ? state.basket : [{}]).map(line => itemRow(line, 'basket')).join('')}</div>
-        <div class="inline">${button('+ Añadir producto', 'add-item', 'btn-secondary btn-small', 'data-type="basket"')}</div>
+        <div class="section-head"><h3>Lo que se consume al mes</h3></div>
+        <div data-item-list="basket">${(state.basket.length ? state.basket : [{}]).map(line => basketRow(line)).join('')}</div>
+        <div class="inline">${button('+ Añadir alimento', 'add-item', 'btn-secondary btn-small', 'data-type="basket"')}</div>
         <details class="more" style="margin-top:17px">
           <summary>Llenarla con lo que compré un mes</summary>
           <p class="small muted">Suma las compras confirmadas de ese mes y reemplaza lo escrito arriba. Suele ser la forma rápida de empezar: lo que compraste el mes pasado ya es, casi siempre, tu canasta.</p>
@@ -400,7 +421,7 @@ document.addEventListener('click', event => {
       }
       if (!totals.size) throw new Error(`No hay compras confirmadas en ${monthName(month)}.`);
       if (!window.confirm(`Se reemplazará lo escrito con los ${totals.size} producto(s) que compraste en ${monthName(month)}. ¿Continuar?`)) return;
-      form.querySelector('[data-item-list="basket"]').innerHTML = [...totals].map(([productId, total]) => itemRow({ productId, quantity: Math.round(total * 1000) / 1000, unit: product(state, productId)?.controlUnit || 'unidad' }, 'basket')).join('');
+      form.querySelector('[data-item-list="basket"]').innerHTML = [...totals].map(([productId, total]) => basketRow({ productId, quantity: Math.round(total * 1000) / 1000, unit: product(state, productId)?.controlUnit || 'unidad' })).join('');
       toast(`${totals.size} producto(s) traídos de ${monthName(month)}.`);
     }
     else if (action === 'open-new-review') openModal('new-review');
@@ -416,7 +437,7 @@ document.addEventListener('click', event => {
     else if (action === 'replace-status') { const children = dependents(state, el.dataset.id); if (children.length && !window.confirm(`Esta preparación tiene ${children.length} comida(s) vinculadas. Cambiarla también eliminará esas comidas. ¿Continuar?`)) return; const old = state.plans.find(item => item.id === el.dataset.id); deletePlan(state, old.id, true); setStatusPlan(state, old.date, old.slot, el.dataset.kind); ui.modal = null; commit('Comida actualizada.'); }
     else if (action === 'delete-plan') { const children = dependents(state, el.dataset.id); if (children.length && !window.confirm(`Esta preparación tiene ${children.length} comida(s) vinculadas. Si la eliminas, esas comidas también se quitarán. ¿Continuar?`)) return; deletePlan(state, el.dataset.id, true); ui.modal = null; commit('Comida eliminada del menú.'); }
     else if (action === 'delete-recipe') { if (!window.confirm('¿Eliminar esta preparación del catálogo? Las comidas ya asignadas conservarán sus cantidades.')) return; deleteRecipe(state, el.dataset.id); commit('Preparación eliminada.'); }
-    else if (action === 'add-item') { const list = el.closest('form').querySelector(`[data-item-list="${el.dataset.type}"]`); list?.insertAdjacentHTML('beforeend', itemRow({}, el.dataset.type)); }
+    else if (action === 'add-item') { const list = el.closest('form').querySelector(`[data-item-list="${el.dataset.type}"]`); list?.insertAdjacentHTML('beforeend', el.dataset.type === 'basket' ? basketRow() : itemRow({}, el.dataset.type)); }
     // Las cantidades habituales de Personas se guardan para siempre; esto las
     // convierte en el punto de partida de una preparación en vez de dejarlas
     // como una nota que hay que volver a teclear a mano.
@@ -502,7 +523,13 @@ document.addEventListener('submit', async event => {
       commit('Producto guardado.');
     }
     else if (kind === 'equivalence') { setEquivalence(state, form.dataset.id, data.get('unit'), data.get('factor')); ui.modal = null; commit('Equivalencia guardada.'); }
-    else if (kind === 'basket') { const lines = setBasket(state, collectItems(form)); ui.modal = null; commit(lines.length ? `Canasta guardada con ${lines.length} producto(s).` : 'Canasta vacía.'); }
+    else if (kind === 'basket') {
+      const antes = state.products.length;
+      const lines = setBasket(state, collectBasket(form));
+      const creados = state.products.length - antes;
+      ui.modal = null;
+      commit(lines.length ? `Canasta guardada con ${lines.length} alimento(s).${creados ? ` ${creados} se registraron solos.` : ''}` : 'Canasta vacía.');
+    }
     else if (kind === 'assign') { makeRecipePlan(state, data.get('recipeId'), data.get('date'), data.get('slot'), selected(form,'participants')); ui.modal = null; commit('Preparación asignada.'); }
     else if (kind === 'plan') { const plan = state.plans.find(item => item.id === form.dataset.id); updatePlan(state, plan.id, { title: data.get('title'), note: data.get('note'), participants: selected(form,'participants'), items: collectItems(form).map(item => ({ ...item, id: item.id || nextId(state,'alimento'), quantity: quantity(item.quantity) })) }); ui.modal = null; commit('Comida actualizada.'); }
     else if (kind === 'link') { const source = state.plans.find(item => item.id === form.dataset.id); const allocation = Object.fromEntries(source.items.map(item => [item.id, data.get(`reserve-${item.id}`)])); linkPlan(state, source.id, data.get('date'), data.get('slot'), allocation, collectItems(form), selected(form,'participants')); ui.modal = null; commit('Comida vinculada. La parte reservada no duplica la compra.'); }

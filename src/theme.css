@@ -63,6 +63,10 @@
 .cut-option { display: grid; gap: 1px; line-height: 1.25; }
 .cut-option .tiny { white-space: nowrap; }
 
+/* La fila de la canasta no lleva la columna «para quién», y el nombre se
+   escribe en vez de elegirse, así que necesita más sitio que las demás. */
+.basket-row { grid-template-columns: minmax(130px, 2.4fr) minmax(70px, .8fr) minmax(95px, 1fr) 32px; }
+
 .sidebar { background: var(--sidebar-bg); border-right-color: var(--line); }
 /* En la app el isotipo va suelto, sin recuadro: el trazo en terracota sobre el
    fondo de la barra. El fondo lleno queda solo para el ícono de la app y el
@@ -165,6 +169,9 @@ input.text:focus, select.text:focus, textarea.text:focus { border-color: var(--c
   .shop-head { flex-wrap: wrap; }
   .shop-head .segmented { width: 100%; }
   .shop-head .segmented button { flex: 1; }
+  /* El nombre se lleva una línea entera; debajo van cantidad, unidad y quitar. */
+  .basket-row { grid-template-columns: minmax(0, 1fr) 100px 34px; }
+  .basket-row .basket-name { grid-column: 1 / -1; }
   .shopping-period { grid-template-columns: minmax(0, 1fr); }
   .shopping-period .field input, .shopping-period .field select { min-width: 0; }
   .shopping-period .btn { grid-column: auto; }
