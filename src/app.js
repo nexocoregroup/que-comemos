@@ -9,7 +9,7 @@ try { state = loadState(); } catch (error) { state = createEmptyState(); loadErr
 const today = todayISO();
 const SIDEBAR_KEY = 'que-comemos-sidebar-collapsed';
 const sidebarInitiallyCollapsed = (() => { try { return localStorage.getItem(SIDEBAR_KEY) === '1'; } catch { return false; } })();
-const ui = { page: 'hoy', menuDate: today, menuMode: 'week', shopMonth: today.slice(0, 7), shopKind: Number(today.slice(8)) <= 15 ? 'first' : 'second', customStart: today, customEnd: addDays(today, 14), shopBasis: 'menu', modal: null, reviewId: null, correctingReview: false, generationResult: null, sidebarCollapsed: sidebarInitiallyCollapsed, drawerOpen: false, welcome: firstRun, tour: null };
+const ui = { page: 'hoy', menuDate: today, menuMode: 'week', shopMonth: today.slice(0, 7), shopKind: Number(today.slice(8)) <= 15 ? 'first' : 'second', customStart: today, customEnd: addDays(today, 14), shopBasis: 'menu', modal: null, reviewId: null, correctingReview: false, generationResult: null, sidebarCollapsed: sidebarInitiallyCollapsed, drawerOpen: false, welcome: firstRun, tour: null, justStarted: false };
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const fmt = value => new Intl.NumberFormat('es-DO', { maximumFractionDigits: 3 }).format(Number(value || 0));
 const cap = value => value.charAt(0).toUpperCase() + value.slice(1);
@@ -176,6 +176,7 @@ function renderShopping() {
     ${ui.shopKind === 'custom' ? `<label class="field"><span>Desde</span><input id="shop-start" type="date" value="${esc(ui.customStart)}"></label><label class="field"><span>Hasta</span><input id="shop-end" type="date" value="${esc(ui.customEnd)}"></label>` : `<label class="field"><span>Mes</span><input id="shop-month" type="month" value="${esc(ui.shopMonth)}"></label>`}
     ${button('Preparar compra', 'open-purchase', 'btn-primary')}</div></div>
     ${periodError ? notice('Revisa las fechas de compra.', esc(periodError), 'error') : ''}
+    ${ui.justStarted && state.basket.length ? `<div class="notice"><span>✦</span><div><strong>Esta es tu primera lista.</strong>Sale de la canasta que acabas de escribir, menos lo que ya tienes en casa. Los alimentos quedaron registrados solos; en Productos y datos puedes afinarlos cuando haga falta. La app tiene más cosas —menú, preparaciones, personas— pero ninguna es obligatoria para comprar.<div class="inline" style="margin-top:11px">${button('Ver el recorrido', 'open-tour', 'btn-secondary btn-small')}${button('Ahora no', 'dismiss-start', 'btn-quiet btn-small')}</div></div></div>` : ''}
     ${basket && !periodError && state.basket.length ? notice(`La canasta es mensual y este período cubre ${list.days} de los ${list.monthDays} días de ${esc(monthName(list.month))}.`, `Por eso se pide el ${Math.round(list.share * 100)}% de cada cantidad escrita, no la del mes completo.`) : ''}
     <div class="section-head"><div><h2>Lista sugerida</h2><p>Existencias según compras y revisiones confirmadas.</p></div><span class="pill">${suggested.length} productos por comprar</span></div>
     ${list.lastReview ? notice('Última revisión de existencias: ' + niceDate(list.lastReview, { day: 'numeric', month: 'long', year: 'numeric' }) + '.', '') : notice('Todavía no hay una revisión confirmada.', 'La lista usa las existencias actuales. Haz una revisión para comprobar qué queda.', 'warn')}
@@ -390,8 +391,13 @@ document.addEventListener('click', event => {
     if (action === 'navigate') { ui.page = el.dataset.page; ui.modal = null; ui.drawerOpen = false; render(); }
     else if (action === 'open-quick') openModal('quick');
     else if (action === 'welcome-demo') { ui.welcome = false; ui.page = TOUR_STEPS[0].page; ui.tour = 0; commit('Datos de demostración cargados.'); }
-    else if (action === 'welcome-empty') { state = createEmptyState(); ui.welcome = false; ui.page = TOUR_STEPS[0].page; ui.tour = 0; commit('Todo listo para empezar con tus datos.'); }
-    else if (action === 'open-tour') goTour(0);
+    // Empezar de cero lleva directo a la canasta, no al recorrido: escribir lo
+    // que la casa consume en un mes es lo único que hay que hacer para que la
+    // app sirva, y de ahí salen los productos y la primera lista de compra. El
+    // recorrido se ofrece después, cuando ya hay algo que enseñar.
+    else if (action === 'welcome-empty') { state = createEmptyState(); ui.welcome = false; ui.tour = null; ui.page = 'compras'; ui.shopBasis = 'basket'; ui.justStarted = true; ui.modal = { type: 'basket' }; commit('Empieza por lo que tu casa consume en un mes.'); }
+    else if (action === 'dismiss-start') { ui.justStarted = false; render(); }
+    else if (action === 'open-tour') { ui.justStarted = false; goTour(0); }
     else if (action === 'tour-prev') goTour(Math.max(0, ui.tour - 1));
     else if (action === 'tour-next') { if (ui.tour + 1 < TOUR_STEPS.length) goTour(ui.tour + 1); else { ui.tour = null; render(); toast('Recorrido terminado. Vuelve a abrirlo desde Productos y datos.'); } }
     else if (action === 'tour-skip') { ui.tour = null; render(); }

@@ -14,7 +14,7 @@ export const WELCOME = {
     ['Una lista de compra', 'que sale del menú, o de la canasta que tu casa consume cada mes, menos lo que ya tienes.'],
     ['Un inventario', 'que solo se mueve cuando confirmas una compra o una revisión.']
   ],
-  note: 'Los dos caminos empiezan con un recorrido por la app. Puedes saltarlo cuando quieras.',
+  note: '«Ver el ejemplo» abre un recorrido por la app con datos de prueba. «Empezar desde cero» va directo a lo único que hace falta: escribir lo que tu casa consume en un mes. El recorrido queda a mano para después.',
   foot: 'Los datos se guardan solo en este navegador y dispositivo. No hay cuentas ni sincronización: exporta un respaldo antes de cambiar de equipo.'
 };
 
