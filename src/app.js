@@ -1,4 +1,4 @@
-import { SLICEABLE, SLICE_STYLES, SLOTS, UNITS, addDays, addProduct, addPurchase, basketShare, convert, copyPlan, correctReview, correctStock, createEmptyState, createReview, dateRange, deletePlan, deleteRecipe, dependents, exportState, generateMonth, incompatibleItems, inventoryNow, isAbsent, lastStockReview, linkPlan, makeRecipePlan, monthBounds, movePlan, nextId, planFor, product, quantity, repeatWeek, reservedQuantity, reviewAvailability, saveReview, setAbsence, setBasket, setEquivalence, setSlice, setStatusPlan, shoppingList, sliceStyle, syncReviewProducts, todayISO, updatePlan, upsertPerson, upsertRecipe, weekStart, importState } from './model.js';
+import { SLICEABLE, SLICE_STYLES, SLOTS, UNITS, addDays, addProduct, addPurchase, basketShare, convert, copyPlan, correctReview, correctStock, createEmptyState, createReview, dateRange, deletePlan, deleteRecipe, dependents, exportState, generateMonth, incompatibleItems, inventoryNow, isAbsent, lastStockReview, linkPlan, makeRecipePlan, monthBounds, movePlan, nextId, planFor, product, quantity, repeatWeek, reservedQuantity, reviewAvailability, saveReview, setAbsence, setBasket, setBasketLine, setEquivalence, setSlice, setStatusPlan, shoppingList, sliceStyle, syncReviewProducts, todayISO, updatePlan, upsertPerson, upsertRecipe, weekStart, importState } from './model.js';
 import { hasSavedState, loadState, saveState } from './storage.js';
 import { BRAND_MARK } from './brand.js';
 import { TOUR_STEPS, WELCOME } from './onboarding.js';
@@ -224,8 +224,12 @@ function renderPeople() {
 }
 function renderProducts() {
   return `<div class="card soft" style="margin-bottom:20px"><h2>Organización de la casa</h2><p class="muted small">Edita las comidas habituales y las personas que participan. El recorrido explica cada pantalla paso a paso.</p><div class="inline">${button('Preparaciones', 'navigate', 'btn-secondary', 'data-page="catalogo"')}${button('Personas', 'navigate', 'btn-secondary', 'data-page="personas"')}${button('Cómo funciona', 'open-tour', 'btn-secondary')}</div></div>
-    <div class="section-head" style="margin-top:0"><div><h2>Productos y equivalencias</h2><p>La unidad de control define cómo se cuentan las existencias.</p></div>${button('+ Añadir producto', 'open-product', 'btn-primary')}</div>
-    ${state.products.length ? `<div class="card">${state.products.map(item => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${esc(item.name)}</div><div class="list-row-sub">Control: ${esc(item.controlUnit)}${esc(cutText(item, 1))} · Compra: ${esc(item.purchaseUnit)}${Object.entries(item.equivalences || {}).length ? ` · ${Object.entries(item.equivalences).map(([unit,factor]) => `1 ${esc(unit)} = ${stockText(factor, item)}`).join(' · ')}` : ''}</div></div><div class="inline">${button('Equivalencia', 'open-equivalence', 'btn-secondary btn-small', `data-id="${item.id}"`)}${button('Editar', 'open-product', 'btn-secondary btn-small', `data-id="${item.id}"`)}</div></div>`).join('')}</div>` : empty('🥬','Sin productos todavía','Agrega los alimentos principales que quieres controlar.', button('Añadir producto', 'open-product', 'btn-primary'))}
+    <div class="section-head" style="margin-top:0"><div><h2>Los alimentos de la casa</h2><p>La ficha completa de cada uno: cómo se cuenta, cuánto se consume al mes, cuánto hay y cómo se compra. La <strong>canasta del mes</strong> es esta misma lista vista de otra forma, con solo la columna del mes, para llenar muchos de golpe.</p></div>${button('+ Añadir alimento', 'open-product', 'btn-primary')}</div>
+    ${state.products.length ? `<div class="card">${state.products.map(item => {
+      const mes = state.basket.find(line => line.productId === item.id);
+      const equivalencias = Object.entries(item.equivalences || {});
+      return `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${esc(item.name)} ${mes ? `<span class="pill">${measure(mes.quantity, mes.unit)} al mes</span>` : '<span class="pill gray">sin consumo del mes</span>'}</div><div class="list-row-sub">Se cuenta en ${esc(item.controlUnit)}${esc(cutText(item, 1))} · Se compra en ${esc(item.purchaseUnit)}${equivalencias.length ? ` · ${equivalencias.map(([unit, factor]) => `1 ${esc(unit)} = ${stockText(factor, item)}`).join(' · ')}` : ''}</div></div><div class="inline">${button('Otra medida', 'open-equivalence', 'btn-quiet btn-small', `data-id="${item.id}"`)}${button('Editar', 'open-product', 'btn-secondary btn-small', `data-id="${item.id}"`)}</div></div>`;
+    }).join('')}</div>` : empty('🥬','Todavía no hay alimentos','Lo más rápido es escribir la canasta del mes: los alimentos se registran solos desde ahí.', `${button('Escribir la canasta', 'open-basket', 'btn-primary', 'data-goto="compras"')}${button('Añadir uno a mano', 'open-product', 'btn-secondary')}`)}
     <div class="section-head"><h2>Tus datos</h2></div><div class="grid grid-2"><div class="card"><h2>Respaldo</h2><p class="muted">Los datos viven solo en este navegador y dispositivo. Exporta un archivo para conservarlos o importarlos aquí más tarde.</p><div class="inline">${button('Exportar respaldo', 'export', 'btn-primary')}${button('Importar respaldo', 'open-import', 'btn-secondary')}</div></div><div class="card"><h2>Comenzar con datos reales</h2><p class="muted">Borra las demostraciones y empieza desde cero. Esta acción elimina todos los datos locales de la app; exporta un respaldo antes si quieres conservarlos.</p>${button('Borrar todos los datos', 'clear-demo', 'btn-danger')}</div></div>`;
 }
 function options(values, selected, placeholder = '') { return `${placeholder ? `<option value="">${placeholder}</option>` : ''}${values.map(([value,label]) => `<option value="${esc(value)}" ${String(value) === String(selected) ? 'selected' : ''}>${esc(label)}</option>`).join('')}`; }
@@ -292,6 +296,7 @@ function renderModal() {
     const stock = item ? inventoryNow(state)[item.id] || 0 : 0;
     const otherUnit = item && item.purchaseUnit !== item.controlUnit;
     const controlUnit = item?.controlUnit || 'unidad';
+    const monthly = item && state.basket.find(line => line.productId === item.id);
     return modal(item ? 'Editar producto' : 'Añadir producto', item ? '' : 'Anota cómo cuentas este alimento y cuánto tienes ahora mismo.', `<form data-form="product" data-id="${item?.id || ''}" class="stack">
       <label class="field"><span>Nombre</span><input name="name" required value="${esc(item?.name || '')}" placeholder="Ej. Plátano maduro"></label>
       <div class="form-grid">
@@ -300,6 +305,10 @@ function renderModal() {
           ? `<div class="field"><span>Existencias ahora</span><div class="hint" style="min-height:42px;display:flex;align-items:center">${stockText(stock, item)}</div><small>Se cambia con una compra, una revisión o ${button('corregir existencias', 'open-correction', 'btn-quiet btn-small')}.</small></div>`
           : `<label class="field"><span>¿Cuánto tienes ahora?</span><input name="opening" type="number" min="0" step="any" inputmode="decimal" value="0" placeholder="0"><small>Déjalo en 0 si no tienes nada todavía.</small></label>`}
       </div>
+      <label class="field"><span>¿Cuánto se consume al mes?</span>
+        <div class="paired"><input name="monthly" type="number" min="0" step="any" inputmode="decimal" value="${monthly?.quantity ?? ''}" placeholder="Déjalo vacío si no lo sabes"><select name="monthlyUnit" aria-label="Unidad del consumo del mes">${unitOptions(monthly?.unit || controlUnit)}</select></div>
+        <small>Es la línea de este alimento en la <strong>canasta del mes</strong>. Con ella la app calcula la compra sin que tengas que planificar el menú día por día.</small>
+      </label>
       <div class="field" data-cut-field ${SLICEABLE.includes(controlUnit) ? '' : 'hidden'}>
         <span>¿De qué grosor las cortan en casa?</span>
         <div class="checks">${SLICE_STYLES.map(style => `<label class="check-chip"><input type="radio" name="slice" value="${style.id}" ${(item?.slice || 'media') === style.id ? 'checked' : ''}><span class="cut-option"><strong>${esc(style.label)}</strong><span class="muted tiny">${esc(style.range)}</span></span></label>`).join('')}</div>
@@ -525,6 +534,8 @@ document.addEventListener('submit', async event => {
       // La equivalencia se guarda aquí mismo para no mandar a otra pantalla.
       // Sin ella la app no convierte: Compras avisa de que la lista está incompleta.
       if (purchaseUnit !== controlUnit && factor) setEquivalence(state, item.id, purchaseUnit, factor);
+      // Y el consumo del mes, que es la línea de este alimento en la canasta.
+      setBasketLine(state, item.id, data.get('monthly'), data.get('monthlyUnit'));
       ui.modal = null;
       commit('Producto guardado.');
     }

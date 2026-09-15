@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { addDays, addProduct, product, setSlice, setBasket, addPurchase, balances, convert, correctReview, createEmptyState, createReview, exportState, importState, inventoryNow, linkPlan, makeRecipePlan, repeatWeek, saveReview, setAbsence, setEquivalence, shoppingList, todayISO, updatePlan, upsertPerson, upsertRecipe, weekStart } from '../src/model.js';
+import { addDays, addProduct, product, setSlice, setBasket, setBasketLine, addPurchase, balances, convert, correctReview, createEmptyState, createReview, exportState, importState, inventoryNow, linkPlan, makeRecipePlan, repeatWeek, saveReview, setAbsence, setEquivalence, shoppingList, todayISO, updatePlan, upsertPerson, upsertRecipe, weekStart } from '../src/model.js';
 import { loadState, saveState, STORAGE_KEY } from '../src/storage.js';
 
 function setup() {
@@ -220,4 +220,26 @@ test('la canasta crea los alimentos que no existen, sin registrarlos aparte', ()
   assert.throws(() => setBasket(state, [{ name: 'Sal', quantity: 2, unit: 'lb' }, { name: 'Aceite', quantity: 0, unit: 'unidad' }]), /mayor que cero/);
   assert.equal(state.products.length, 2, 'no se creó nada a medias');
   assert.equal(state.basket.length, 3, 'la canasta anterior queda intacta');
+});
+
+test('la canasta y la ficha del producto escriben la misma línea', () => {
+  const state = createEmptyState();
+  const arroz = addProduct(state, { name: 'Arroz', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
+  setBasketLine(state, arroz, 30, 'lb');
+  assert.equal(state.basket.length, 1);
+  const id = state.basket[0].id;
+  // Volver a escribirlo corrige la línea que ya existe, no añade otra.
+  setBasketLine(state, arroz, 25, 'lb');
+  assert.equal(state.basket.length, 1);
+  assert.equal(state.basket[0].quantity, 25);
+  assert.equal(state.basket[0].id, id, 'conserva su identidad al corregirla');
+  // Y lo escrito en la ficha es lo que lee la compra por canasta.
+  assert.equal(shoppingList(state, '2026-09-01', '2026-09-30', 'basket').lines[0].need, 25);
+  // Vacío o cero la quita: un consumo de cero no significa nada.
+  setBasketLine(state, arroz, '', 'lb');
+  assert.equal(state.basket.length, 0);
+  setBasketLine(state, arroz, 10, 'lb');
+  setBasketLine(state, arroz, 0, 'lb');
+  assert.equal(state.basket.length, 0);
+  assert.throws(() => setBasketLine(state, 'producto-inventado', 5, 'lb'), /producto/);
 });

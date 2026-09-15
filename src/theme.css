@@ -63,6 +63,12 @@
 .cut-option { display: grid; gap: 1px; line-height: 1.25; }
 .cut-option .tiny { white-space: nowrap; }
 
+/* Una cantidad y su unidad son un solo dato, así que van pegadas en vez de
+   ocupar dos campos con dos etiquetas. */
+.paired { display: flex; gap: 8px; }
+.paired input { min-width: 0; }
+.paired select { flex: 0 0 118px; }
+
 /* La fila de la canasta no lleva la columna «para quién», y el nombre se
    escribe en vez de elegirse, así que necesita más sitio que las demás. */
 .basket-row { grid-template-columns: minmax(130px, 2.4fr) minmax(70px, .8fr) minmax(95px, 1fr) 32px; }

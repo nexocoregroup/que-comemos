@@ -104,7 +104,7 @@ La bienvenida solo aparece mientras no haya nada guardado en este navegador. Con
 
 En **Hoy**, **Menú**, **Compras** y **Revisión** hay un botón **+** flotante abajo a la derecha. Abre los mismos formularios que viven en Ajustes —producto, preparación, persona, compra, revisión, corrección de existencias y ausencia— sin obligar a cambiar de sección para anotar algo. No sustituye a nada: las pantallas originales siguen igual.
 
-1. Casi nunca hace falta empezar por aquí: los alimentos que escribas en la **canasta del mes** (punto 7) se registran solos, con la unidad de su propia línea. **Productos y datos** es donde se afinan después. Para crear uno a mano, lleva su unidad de control y cuánto tienes ahora. Esa cantidad es la apertura del saldo y se pregunta una sola vez, al crear el producto: después el inventario solo se mueve con compras, revisiones y correcciones. Si lo compras en otra medida, despliega **Lo compro en otra medida** y anota ahí mismo la equivalencia; por ejemplo, cuántas ruedas de salami trae un paquete.
+1. **Productos y datos → Los alimentos de la casa** es la ficha completa de cada alimento: nombre, en qué unidad se cuenta, **cuánto se consume al mes**, cuánto hay en casa, cómo se compra y el grosor si se corta en ruedas. La **canasta del mes** (punto 7) es esa misma lista vista de otra forma, con solo la columna del mes. No son dos registros: escribir el consumo del mes en la ficha o en la canasta escribe la misma línea. Casi nunca hace falta empezar por aquí, porque los alimentos que se escriban en la canasta se registran solos. Esa cantidad es la apertura del saldo y se pregunta una sola vez, al crear el producto: después el inventario solo se mueve con compras, revisiones y correcciones. Si lo compras en otra medida, despliega **Lo compro en otra medida** y anota ahí mismo la equivalencia; por ejemplo, cuántas ruedas de salami trae un paquete.
 2. Lo que se cuenta en **ruedas** o **rebanadas** lleva además el grosor con que se corta en casa: fina (2–3 mm), mediana (4–5 mm) o gruesa (6–8 mm). No convierte cantidades —para eso está la equivalencia— pero deja escrito qué significa una rueda aquí, que es lo que hace comparable el conteo de una semana con el de la siguiente. El campo solo aparece cuando la unidad de control es una de esas dos.
 3. En **Personas**, agrega quiénes comen en casa, restricciones, cantidades habituales y ausencias por fecha y comida. Las cantidades habituales quedan guardadas: al crear una preparación, **Traer cantidades habituales** suma las de todas las personas que cubre y llena la lista de alimentos de una vez.
 4. En **Preparaciones**, guarda comidas habituales con alimentos principales, cantidades, personas cubiertas, variantes y notas.
@@ -125,7 +125,7 @@ La propuesta mensual usa reglas de repetición sencillas y solo preparaciones de
 
 ## Estructura para continuar el desarrollo
 
-- `src/model.js`: datos y reglas de menú, canasta, equivalencias, compras e inventario por movimientos.
+- `src/model.js`: datos y reglas de menú, canasta, equivalencias, compras e inventario por movimientos. La canasta se escribe entera con `setBasket` (la tabla rápida) o línea a línea con `setBasketLine` (la ficha de un alimento); las dos tocan el mismo `state.basket`.
 - `src/demo.js`: datos de ejemplo.
 - `src/storage.js`: lectura y escritura local.
 - `src/app.js`: pantallas e interacciones.

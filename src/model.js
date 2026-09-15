@@ -117,6 +117,23 @@ export function setBasket(state, lines) {
   });
   return state.basket;
 }
+// El consumo del mes de un solo alimento, para poder escribirlo desde su
+// propia ficha. La canasta y la ficha del producto son la misma lista vista de
+// dos formas: la canasta es la tabla rápida para llenar muchos de golpe, la
+// ficha tiene todo lo de uno. Vacío o cero borra la línea en vez de guardar un
+// consumo de cero, que no significa nada.
+export function setBasketLine(state, productId, amount, unit) {
+  if (!product(state, productId)) throw new Error('Selecciona un producto.');
+  const index = state.basket.findIndex(line => line.productId === productId);
+  if (amount === '' || amount === undefined || amount === null || Number(amount) === 0) {
+    if (index >= 0) state.basket.splice(index, 1);
+    return null;
+  }
+  if (!UNITS.includes(unit)) throw new Error('Elige la unidad del consumo del mes.');
+  const line = { id: index >= 0 ? state.basket[index].id : nextId(state, 'canasta'), productId, quantity: quantity(amount), unit };
+  if (index >= 0) state.basket[index] = line; else state.basket.push(line);
+  return line;
+}
 // Se escribe por mes y se compra por quincena o por fechas sueltas, así que a
 // un período le toca su proporción de días sobre el mes en que empieza: una
 // quincena de septiembre pide la mitad de la canasta.

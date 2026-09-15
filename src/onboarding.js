@@ -52,8 +52,8 @@ export const TOUR_STEPS = [
   },
   {
     page: 'productos',
-    title: 'Los productos que quieres controlar',
-    body: 'Un producto es el alimento y la forma de contarlo: el nombre, en qué unidad lo cuentas y cuánto tienes ahora en casa. Casi nunca hace falta venir aquí a crearlos: al escribir la canasta del mes se registran solos. Esta pantalla es para afinarlos después.',
+    title: 'Los alimentos de la casa',
+    body: 'Aquí vive la ficha completa de cada alimento: el nombre, en qué unidad lo cuentas, cuánto se consume al mes, cuánto hay en casa y cómo se compra. La canasta del mes es esta misma lista vista de otra forma, con solo la columna del mes, para llenar muchos de golpe. Escribas donde escribas, es el mismo dato: no son dos registros.',
     tip: 'Lo que tienes se pregunta una sola vez, al crear el producto, porque es el punto de partida del inventario. De ahí en adelante solo lo mueven las compras, las revisiones y las correcciones de conteo.'
   },
   {
@@ -78,7 +78,7 @@ export const TOUR_STEPS = [
     page: 'compras',
     title: 'O sale de la canasta del mes',
     body: 'Si tu casa consume casi lo mismo todos los meses, escríbelo una sola vez en la canasta y cambia arriba a «Canasta». La lista sale de ahí, sin planificar el menú día por día. Escribes el nombre y la cantidad y ya: los alimentos que no existan se registran solos, no hay que crearlos aparte. Para no teclearla entera, «Llenarla con lo que compré un mes» suma las compras confirmadas de ese mes.',
-    tip: 'La canasta se escribe por mes completo. Al comprar por quincena la app pide la mitad. Las dos bases no se suman: o el menú, o la canasta.'
+    tip: 'Cada línea de la canasta es el alimento que ya viste en la pantalla anterior; aquí solo se escribe su consumo del mes. Se escribe por mes completo, y al comprar por quincena la app pide la mitad. Las dos bases no se suman: o el menú, o la canasta.'
   },
   {
     page: 'revision',
