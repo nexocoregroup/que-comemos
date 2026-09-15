@@ -606,7 +606,7 @@ function renderAvanzado(ctx) {
 
     <div class="card">
       <h3>Servicios externos</h3>
-      <p class="muted small">La app funciona entera sin conexión y sin cuentas. Lo único que un servidor propio añadiría es entender frases totalmente libres en la asistente. <strong>Nadie lo necesita.</strong></p>
+      <p class="muted small">No hay ninguno, y no es un descuido: <strong>esta app no habla con ningún servidor</strong>. No hay dirección que configurar, ni clave que guardar, ni nada que pueda salir de aquí. Lo que la asistente entiende, lo entiende dentro del teléfono; lo que no, lo dice.</p>
       ${button('Ver el detalle de este aparato', 'open-diagnostico', 'btn-quiet')}
     </div>`;
 }

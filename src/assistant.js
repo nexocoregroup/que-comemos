@@ -882,11 +882,13 @@ export function undoTo(state, saved) {
 // tabla que valida, así que no pueden desincronizarse: si una acción no existe
 // aquí, tampoco se puede ejecutar.
 //
-// La forma —nombre, descripcion, parametros— es la del contrato de
-// docs/backend.md, no una invención de este archivo. El backend traduce esos
-// parametros a lo que pida su proveedor. Que las dos formas coincidan lo
-// comprueba una prueba, porque un desajuste aquí no falla: simplemente el
-// modelo se queda sin poder llamar a nada, y eso no se nota hasta usarlo.
+// La forma —nombre, descripcion, parametros— viene de cuando esto se le mandaba
+// a un servicio externo. Esa opción se quitó: la app no habla con ningún
+// servidor. La lista se conserva porque es lo que usa el intérprete para saber
+// qué campos admite cada acción, y porque es la única descripción en castellano
+// de lo que la asistente puede y no puede hacer. Que no se desincronice de la
+// tabla de acciones lo comprueba una prueba, y hace falta: un desajuste aquí no
+// rompe nada visiblemente, solo deja acciones inalcanzables.
 const SOBRE = {
   "buscar_producto": "Busca un alimento en el catálogo de la casa y devuelve los parecidos.",
   "listar_productos": "Lista los alimentos del catálogo, opcionalmente de una categoría.",

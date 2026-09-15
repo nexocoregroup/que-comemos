@@ -9,10 +9,14 @@
 
   La app carga su propia interfaz desde `https://localhost`, que es el esquema
   que Capacitor usa por omisión en Android, así que apagar el texto en claro no
-  le quita nada. La única salida a la red que existe es el servidor propio que
-  el usuario puede escribir a mano en Funciones avanzadas; obligarlo a ser
-  https es exactamente lo que hay que hacer con una dirección que viaja con
-  datos de una casa dentro.
+  le quita nada: hoy esta app no hace ninguna llamada a la red. Ni una. No hay
+  un solo `fetch` en todo el código, y hay una prueba que se pone en rojo si
+  alguien añade uno.
+
+  Esto es, entonces, una precaución para el futuro y no una restricción sobre
+  algo que exista. Si algún día se añade una llamada, nacerá obligada a viajar
+  cifrada y contra los certificados del sistema, en vez de que alguien tenga
+  que acordarse de exigirlo.
 -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="false">

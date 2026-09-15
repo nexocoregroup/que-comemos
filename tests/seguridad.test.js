@@ -164,11 +164,17 @@ test('la aplicación no ejecuta código escrito en texto', () => {
   assert.deepEqual(sospechas, [], 'formas de ejecutar texto como código');
 });
 
-test('la aplicación solo sale a la red hacia el servidor que configure el usuario', () => {
+test('la aplicación no sale a la red, y punto', () => {
+  // Aquí había una excepción: un módulo que llamaba al servidor que el usuario
+  // configurara. Esa opción se quitó —no llegaba a funcionar, y contradecía la
+  // idea de que esto tiene que servir sin que nadie monte nada—, así que la
+  // afirmación es ahora la más simple que existe: no hay ninguna salida.
+  //
+  // El día que alguien añada una, esta prueba se pone roja. Y entonces hay que
+  // cambiar también la política de privacidad y el formulario de Play, no solo
+  // esta línea.
   const salidas = modulos().filter(archivo => /\bfetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon/.test(sinComentarios(archivo)));
-  // `providers.js` es el único, y su dirección la escribe el usuario a mano.
-  // Cualquier otro módulo que aparezca aquí es una fuga que nadie pidió.
-  assert.deepEqual(salidas, ['providers.js'], 'módulos que salen a la red');
+  assert.deepEqual(salidas, [], 'módulos que salen a la red');
 });
 
 test('un respaldo hostil no envenena el prototipo ni entra a medias', () => {

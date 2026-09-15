@@ -21,7 +21,6 @@
 
 import { ACTION_NAMES, isQuery, runActions, toolSchemas, undoTo } from './assistant.js';
 import { avisoDeVoz, cancelarDictado, capacidad, comprobarDictado, dictar, pararDictado } from './device.js';
-import { AVISO_ENVIO, callProvider, isConfigured } from './providers.js';
 import { SLOTS, addDays, monthBounds, todayISO, weekStart } from './model.js';
 import { parseLine, parseProductText, parseQuantity } from './text-parse.js';
 import { button, cap, esc, fmt, monthName, niceDate, notice, unitText } from './ui-kit.js';
@@ -40,7 +39,6 @@ export function emptyChat() {
 // El permiso de envío vive en el módulo y no en `ui.chat` a propósito: es «la
 // primera vez de cada sesión», así que tiene que morir al recargar la app y no
 // viajar dentro del estado del panel.
-let permisoDeEnvio = false;
 // Lo mismo, pero para el aviso del dictado: cuando quien escucha es el motor del
 // navegador, la voz sale hacia sus servidores y eso hay que decirlo. Se dice una
 // vez por sesión —repetirlo en cada frase sería ruido— y con el motor del
@@ -594,8 +592,8 @@ function resumenLegible(acciones, resultado) {
 // Qué argumentos acepta cada acción, sacado de la misma tabla que valida. Sirve
 // para contestar una pregunta —«¿cuál de estos arroces?»— poniendo la respuesta
 // en las acciones que de verdad tienen ese campo, sin tocar las demás.
-// La forma es la del contrato de docs/backend.md —nombre, descripcion,
-// parametros— porque es la misma lista que se le manda al backend.
+// La forma —nombre, descripcion, parametros— se conserva porque es la que usa
+// el validador de acciones, no porque se le mande a nadie: ya no hay a quién.
 const CAMPOS = new Map(toolSchemas().map(herramienta => [herramienta.nombre, Object.keys(herramienta.parametros.properties)]));
 
 function ejecutar(ctx, acciones, requestId, confirmado = false) {
@@ -659,7 +657,7 @@ function contextoMinimo(state) {
   };
 }
 
-// La conversación como la espera el backend: la persona es «persona» y el panel
+// La conversación en la forma que usa el panel: la persona es «persona» y él
 // «asistente», y tiene que empezar por la persona.
 function conversacionPara(chat) {
   const filas = chat.mensajes
@@ -689,7 +687,7 @@ function sugerirFormulario(llano, state) {
   return { etiqueta: 'Registrar un alimento', accion: 'open-product' };
 }
 
-// Sin servicio de lenguaje configurado —que es lo normal— lo que hay es este
+// La app no habla con ningún servidor: lo que hay es este
 // intérprete, que reconoce formas de frase y no «cualquier cosa». Decirlo con
 // todas las letras vale más que aparentar: quien sabe qué formas hay las usa, y
 // quien no, acaba enfadado con una app que parecía entenderlo todo.
@@ -697,7 +695,7 @@ function responderSinEntender(ctx, texto) {
   const chat = chatDe(ctx);
   const llano = plano(texto);
   decir(chat, 'app', [
-    'No entendí esa frase. Aquí no hay ningún servicio de lenguaje configurado: leo lo que escribes en este mismo teléfono,',
+    'No entendí esa frase. Leo lo que escribes en este mismo teléfono, sin mandarlo a ningún sitio,',
     'y por eso reconozco formas concretas de decir las cosas, no cualquier frase. Estas sí las entiendo:',
     '«compré 2 lb de arroz», «quedan 3 latas de atún», «agrega 5 lb de arroz solo este mes»,',
     '«desde ahora compramos 4 lb de arroz todos los meses», «todos los viernes cenamos fuera»,',
@@ -705,40 +703,6 @@ function responderSinEntender(ctx, texto) {
     'Y todo esto se puede hacer también a mano, en su pantalla.'
   ].join(' '), { acciones: [{ etiqueta: 'Escribir varios productos de corrido', accion: 'open-bulk' }, sugerirFormulario(llano, ctx.state)] });
   ctx.render();
-}
-
-async function preguntarAlServicio(ctx, texto, requestId) {
-  const chat = chatDe(ctx);
-  chat.enviando = true;
-  chat.error = '';
-  chat.errorTitulo = '';
-  ctx.render();
-  let respuesta;
-  try {
-    respuesta = await callProvider('chat', { mensajes: conversacionPara(chat), herramientas: toolSchemas(), contexto: contextoMinimo(ctx.state) });
-  } catch {
-    // callProvider promete no lanzar por red, pero si algo se rompe aquí el
-    // borrador no se pierde: vuelve al campo tal como se escribió.
-    respuesta = { ok: false, error: 'No se pudo hablar con el servicio.' };
-  }
-  chat.enviando = false;
-  if (!respuesta.ok) {
-    chat.error = respuesta.error || 'No se pudo hablar con el servicio.';
-    chat.borrador = texto;
-    ctx.render();
-    return;
-  }
-  const dicho = String(respuesta.data?.respuesta || '').trim();
-  if (dicho) decir(chat, 'app', dicho);
-  const acciones = (Array.isArray(respuesta.data?.acciones) ? respuesta.data.acciones : [])
-    .filter(peticion => peticion && ACTION_NAMES.includes(peticion.action))
-    .map(peticion => ({ action: peticion.action, arguments: peticion.arguments && typeof peticion.arguments === 'object' ? peticion.arguments : {} }));
-  if (!acciones.length) {
-    if (!dicho) decir(chat, 'app', 'El servicio respondió, pero sin nada que hacer.');
-    ctx.render();
-    return;
-  }
-  ejecutar(ctx, acciones, requestId);
 }
 
 function enviar(ctx, texto, requestId) {
@@ -753,24 +717,12 @@ function enviar(ctx, texto, requestId) {
     ejecutar(ctx, leido.acciones, requestId);
     return;
   }
-  if (!servicioLibre()) { responderSinEntender(ctx, texto); return; }
-  // Nada sale del dispositivo sin que se diga con todas las letras qué sale y
-  // sin que la persona lo autorice. Una vez por sesión, no una vez y para
-  // siempre: al recargar la app se vuelve a preguntar.
-  if (!permisoDeEnvio) {
-    chat.pendiente = { tipo: 'aviso', texto, requestId };
-    ctx.render();
-    return;
-  }
-  return preguntarAlServicio(ctx, texto, requestId);
+  // No hay ningún sitio al que preguntar, y es a propósito: la app entiende lo
+  // que entiende, aquí dentro, y lo que no lo dice en vez de mandarlo fuera.
+  responderSinEntender(ctx, texto);
 }
 
 /* ── Dibujo ────────────────────────────────────────────────────────────── */
-
-// `isConfigured` lee el almacenamiento y puede fallar en un WebView con los
-// datos del sitio bloqueados. Sin servicio es el caso normal, así que un fallo
-// se lee como «no hay», que es la respuesta prudente.
-const servicioLibre = () => { try { return isConfigured('chat'); } catch { return false; } };
 
 const EJEMPLOS = [
   'Compré 2 lb de arroz y 3 latas de atún',
@@ -793,10 +745,6 @@ function dibujarMensaje(chat, mensaje, orden) {
 
 function dibujarPendiente(pendiente) {
   if (!pendiente) return '';
-  if (pendiente.tipo === 'aviso') {
-    return `<div class="chat-aviso">${notice(esc(AVISO_ENVIO.chat.titulo), esc(AVISO_ENVIO.chat.detalle), 'warn')}
-      <div class="chat-botones">${button(esc(AVISO_ENVIO.chat.confirmar), 'chat-permiso-si', 'btn-primary btn-small')}${button(esc(AVISO_ENVIO.chat.cancelar), 'chat-permiso-no', 'btn-secondary btn-small')}</div></div>`;
-  }
   if (pendiente.tipo === 'confirmar') {
     return `<div class="chat-aparte chat-confirma">
       <p class="chat-titulin">Esto cambia tus datos. ¿Lo hago?</p>
@@ -875,7 +823,7 @@ export function renderChat(ctx) {
   return `<div class="chat-scrim" data-overlay data-action="chat-cerrar" aria-hidden="true"></div>
   <aside class="chat-panel" role="dialog" aria-modal="true" aria-label="Asistente de la casa">
     <header class="chat-head">
-      <div><strong>Asistente</strong><span>${servicioLibre() ? 'Entiende frases sueltas; antes de cambiar nada te enseña qué entendió y hasta dónde llega.' : 'Sin conexión y sin servicio: reconozco formas de frase, no cualquier cosa. Todo esto se puede hacer también a mano.'}</span></div>
+      <div><strong>Asistente</strong><span>Todo pasa en este teléfono: reconozco formas de frase, no cualquier cosa, y antes de cambiar nada te enseño qué entendí y hasta dónde llega.</span></div>
       <div class="chat-head-botones">${chat.mensajes.length ? button('Limpiar', 'chat-limpiar', 'btn-quiet btn-small') : ''}<button type="button" class="icon-btn" data-action="chat-cerrar" aria-label="Cerrar el asistente">×</button></div>
     </header>
     <div class="chat-mensajes" role="log" aria-live="polite">${pie}${mensajes}${chat.mensajes.length ? '' : vacio}</div>
@@ -957,26 +905,6 @@ export const CHAT_ACTIONS = {
     chat.pendiente = null;
     decir(chat, 'app', 'Listo, lo dejé como estaba antes.');
     ctx.commit('Se deshizo el último cambio.');
-  },
-  'chat-permiso-si': (el, ctx) => {
-    const chat = chatDe(ctx);
-    const pendiente = chat.pendiente;
-    if (pendiente?.tipo !== 'aviso') return;
-    guardarBorrador(ctx);
-    permisoDeEnvio = true;
-    chat.pendiente = null;
-    return preguntarAlServicio(ctx, pendiente.texto, pendiente.requestId);
-  },
-  'chat-permiso-no': (el, ctx) => {
-    const chat = chatDe(ctx);
-    const pendiente = chat.pendiente;
-    if (pendiente?.tipo !== 'aviso') return;
-    // Lo escrito no se pierde por decir que no: vuelve al campo para poder
-    // cambiarlo o pasarlo a un formulario.
-    chat.borrador = pendiente.texto;
-    chat.pendiente = null;
-    decir(chat, 'app', 'No lo envié. Ahí lo dejé escrito por si quieres cambiarlo o anotarlo a mano.');
-    ctx.render();
   },
   'chat-escuchar': async (el, ctx) => {
     const chat = chatDe(ctx);

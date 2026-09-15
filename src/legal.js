@@ -66,7 +66,7 @@ export const LEGAL = {
           'Sin publicidad y sin rastreadores: no hay anuncios, ni píxeles, ni identificadores de publicidad.',
           'Sin informes de fallos: si la app se rompe, no nos enteramos.',
           'Sin SDK de terceros: no hay librerías de otras empresas metidas dentro recogiendo datos por su cuenta.',
-          'No es una promesa suelta. En el código de la app hay una sola función capaz de salir a internet, la del servidor opcional que se explica más abajo, y hay una prueba automática que falla si aparece cualquier otra.'
+          'No es una promesa suelta. En el código de la app no hay ni una sola función capaz de salir a internet. Ninguna. Hay una prueba automática que se pone en rojo el día que alguien añada una.'
         ]
       },
       {
@@ -77,21 +77,22 @@ export const LEGAL = {
           'La app no graba, no guarda y no envía audio por su cuenta. No queda ningún archivo de voz en tu teléfono ni en ningún otro lado.',
           'Quien entiende lo que dices es el reconocedor de voz del propio Android, el mismo del micrófono del teclado. La app solo recibe el texto ya convertido.',
           'Y aquí viene la parte que hay que decir completa. Ese reconocedor funciona de dos maneras, y cuál te toca depende de tu teléfono. Si tu teléfono entiende la voz por sí solo y tiene descargado el paquete de español, todo pasa dentro del aparato y tu voz no sale de ahí. Si tu teléfono no lo trae, Android hace lo que hace siempre en ese caso: manda el audio a sus servidores para entenderlo, y por eso ahí el dictado necesita conexión. Eso lo hace Android, no nosotros, pero pasa igual y tienes derecho a saberlo.',
-          'La app comprueba de verdad cuál de los dos casos es el tuyo antes de abrir el micrófono, en lugar de suponerlo. La respuesta para tu teléfono está en Más → Ajustes → Detalle de este aparato.',
-          'Cuando ese audio sale del teléfono, lo que pase con él ya depende de Google y de los ajustes de voz de tu propio teléfono, no de esta app.',
-          'Si usas la app desde un navegador en vez de instalada, el dictado lo hace el navegador, que también necesita conexión y manda la voz a sus servidores. Ahí la app te lo avisa en pantalla antes de abrir el micrófono.',
+          'La app le pregunta a tu teléfono cuál de los dos casos es el suyo, y si el audio va a salir te lo dice en pantalla antes de abrir el micrófono. No lo supone: lo comprueba cada vez. Así que si no ves ningún aviso, es que en tu teléfono la voz se queda dentro.',
+          'Puedes ver la respuesta para tu aparato, con calma, en Más → Ajustes → Detalle de este aparato.',
+          'Cuando Android manda ese audio a sus servidores, lo que pase con él ya depende de Google y de los ajustes de voz de tu propio teléfono, no de esta app.',
+          'Si usas la app desde un navegador en vez de instalada, el dictado lo hace el navegador, que necesita conexión y manda la voz a sus servidores. Ahí también te avisamos antes de abrir el micrófono.',
           'Y si prefieres no usar nada de esto: escribir a mano funciona siempre, en todos los campos. Puedes negar el permiso de micrófono y la app sigue completa.'
         ]
       },
       {
         titulo: 'El permiso de internet',
         parrafos: [
-          'La app pide el permiso de internet, y conviene explicar por qué, porque suena peor de lo que es.',
-          'La app no hace ninguna llamada a internet por su cuenta. Funciona entera sin conexión: los alimentos, la canasta, el menú, la compra y el inventario salen todos de tu propio teléfono.',
-          'Ese permiso está ahí para una función opcional, apagada de fábrica, que casi nadie va a usar: en Funciones avanzadas, una persona con conocimientos técnicos puede escribir a mano la dirección de un servidor suyo para que el asistente entienda frases más libres.',
-          'Esa dirección la escribe la persona. Nosotros no ponemos ninguna, y no hay ninguna dirección nuestra dentro de la app.',
-          'Si nunca escribes una dirección ahí, no sale ni un byte de tu teléfono. Si la escribes, lo que salga va a tu propio servidor, no a nosotros, y lo que ese servidor haga con lo que recibe es responsabilidad de quien lo puso.',
-          'Antes de mandar nada por ahí, la app te enseña un aviso diciendo exactamente qué va a salir, y no sale nada hasta que tú lo confirmes. La app solo acepta direcciones cifradas: el tráfico sin cifrar está bloqueado.'
+          'La app pide el permiso de internet, y aquí hay que ser exactos, porque la explicación honesta es un poco rara.',
+          'La app no habla con ningún servidor. Ni uno. No hay servidor nuestro, no hay servidor de nadie más, y no hay forma de configurar uno. La app no hace ninguna llamada a internet, ni al abrirse, ni al guardar, ni nunca.',
+          'Funciona entera sin conexión: los alimentos, la canasta, el menú, la compra y el inventario salen todos de tu propio teléfono. Puedes usarla el mes completo en modo avión.',
+          'Entonces, ¿por qué el permiso sigue ahí? Porque está declarado en la app y preferimos decírtelo a quitarlo a ciegas. Ese permiso es de los que hacen falta para que la pantalla interna de la aplicación cargue como debe, y tocarlo sin poder comprobarlo en todos los teléfonos podría romper la app para alguien.',
+          'Lo que importa es esto: el permiso existe, pero no hay ningún código que pueda usarlo. No es una promesa de buena fe, es una cuestión de que la función no está escrita en ninguna parte. Antes hubo una opción avanzada para conectar un servidor propio; se eliminó del producto entero, y con ella el archivo que la hacía.',
+          'Hay una prueba automática que revisa todos los archivos de la app y falla si aparece cualquier forma de salir a la red. Hoy está en verde con la lista vacía.'
         ]
       },
       {
@@ -99,7 +100,7 @@ export const LEGAL = {
         parrafos: [
           'En Más → Respaldo puedes escribir una copia de tus datos. Es un archivo que se descarga a tu teléfono y que tú guardas donde quieras.',
           'La app no sube ese archivo a ningún sitio. Una vez descargado, esa copia es tuya y su cuidado también: si la mandas por chat o la subes a una nube, esos datos van a donde tú los mandes.',
-          'La dirección del servidor opcional y su clave no se incluyen en el respaldo, para que una copia llevada a otro teléfono no arrastre la configuración del primero.'
+          'El respaldo lleva lo de tu casa y nada más: alimentos, cantidades, comidas, personas, compras y revisiones. No lleva identificadores tuyos ni nada que te señale a ti.'
         ]
       },
       {
@@ -113,8 +114,8 @@ export const LEGAL = {
         titulo: 'Cómo borrar tus datos',
         parrafos: [
           'Hay dos caminos y los dos los haces tú, desde tu teléfono.',
-          'Desde dentro de la app: Más → Respaldo → Borrar todos mis datos. Te pide confirmación y borra lo de tu casa: alimentos, comidas, personas, compras y revisiones.',
-          'Desinstalando la app: al desinstalarla, Android se lleva por delante todo su almacenamiento. Es el camino que no deja nada. También puedes hacerlo sin desinstalar, desde los ajustes de Android, en Aplicaciones, ¿Qué comemos?, Almacenamiento, Borrar datos.',
+          'Desde dentro de la app: Más → Respaldo → Borrar todos mis datos. Te pide confirmación y borra todo lo que la app guardó: alimentos, comidas, personas, compras, revisiones, la copia interna de seguridad y tus preferencias de pantalla.',
+          'Desinstalando la app: al desinstalarla, Android se lleva por delante todo su almacenamiento, incluida la caché del sistema. También puedes hacerlo sin desinstalar, desde los ajustes de Android, en Aplicaciones, ¿Qué comemos?, Almacenamiento, Borrar datos.',
           'Los dos son inmediatos y no se pueden deshacer. Guarda una copia antes si la quieres.'
         ]
       },
@@ -226,19 +227,18 @@ export const LEGAL = {
         ]
       },
       {
-        titulo: 'El servidor opcional',
+        titulo: 'La app no habla con ningún servidor',
         parrafos: [
-          'La app trae una función avanzada, apagada de fábrica, donde una persona con conocimientos técnicos puede conectar un servidor propio para que el asistente entienda frases más libres.',
-          'Nadie la necesita: la app está completa sin eso.',
-          'Si la usas, ese servidor es tuyo. Tú lo montas, tú lo pagas, tú respondes por lo que haga con lo que reciba. Nosotros no proveemos ningún servidor, no tenemos acceso al tuyo y no respondemos por él ni por lo que cueste.',
-          'Antes de mandar nada por ahí, la app te enseña qué va a salir y espera que lo confirmes.'
+          'No hay servidor nuestro, no hay servidor de nadie, y no hay nada que configurar. La app no hace ninguna llamada a internet.',
+          'La asistente entiende las frases aquí dentro, en tu teléfono, reconociéndolas por su forma. Por eso entiende unas cuantas maneras de decir las cosas y no cualquier frase suelta. Cuando no entiende algo, te dice lo que sí sabe hacer y te lleva a la pantalla que toca: no manda tu frase a ningún lado para que otro la interprete.',
+          'Todo lo que la asistente hace se puede hacer también a mano, en su pantalla. Es una comodidad, no un requisito.'
         ]
       },
       {
         titulo: 'El dictado depende de tu teléfono',
         parrafos: [
           'Poder dictar en vez de escribir depende del reconocedor de voz de tu propio Android y del idioma que tenga descargado. En unos teléfonos entiende sin conexión y en otros necesita internet.',
-          'Eso no lo controlamos nosotros, así que no te lo prometemos: la app comprueba qué puede hacer tu teléfono y te lo dice en Más → Ajustes → Detalle de este aparato.',
+          'Eso no lo controlamos nosotros, así que no te lo prometemos: la app le pregunta a tu teléfono qué puede hacer y, si al dictar el audio va a salir del aparato, te lo dice antes de abrir el micrófono. La respuesta para tu teléfono está en Más → Ajustes → Detalle de este aparato.',
           'Escribir a mano funciona siempre, en todos los campos, con micrófono o sin él.'
         ]
       },
@@ -299,7 +299,7 @@ export const LEGAL = {
           'Abre la app y toca Más, abajo a la derecha. Entra en Respaldo.',
           'Si quieres conservar una copia, toca primero «Guardar una copia»: se descarga un archivo a tu teléfono.',
           'Toca «Borrar todos mis datos» y confirma.',
-          'Esto borra lo de tu casa: los alimentos, las cantidades, la canasta habitual, las comidas planificadas, las rutinas, las personas, las compras, las revisiones y el historial. La app queda como recién instalada.',
+          'Esto borra todo lo que la app guardó en tu teléfono: los alimentos, las cantidades, la canasta habitual, las comidas planificadas, las rutinas, las personas, las compras, las revisiones, el historial, la copia interna de seguridad y tus preferencias de pantalla. La app queda como recién instalada.',
           'Úsalo cuando quieras empezar de cero pero seguir usando la app.'
         ]
       },
@@ -313,17 +313,18 @@ export const LEGAL = {
         ]
       },
       {
-        titulo: 'Una nota si vienes de una versión anterior',
+        titulo: '¿En qué se diferencian los dos caminos? En casi nada',
         parrafos: [
-          'Cuando la app cambia el formato en que guarda las cosas, antes de convertir nada deja a un lado una copia de lo que había, por si la conversión saliera mal. Es una red de seguridad, se queda en tu teléfono igual que el resto y nunca sale de ahí.',
-          'El botón de dentro de la app borra los datos de tu casa. Si quieres que no quede absolutamente nada, incluida esa copia de seguridad interna, usa el camino 2: desinstalar la app, o borrar los datos desde los ajustes de Android.'
+          'El botón de dentro de la app borra todas las claves que la app escribe, una por una, y eso incluye la copia interna de seguridad: cuando la app cambia el formato en que guarda las cosas, antes de convertir nada deja a un lado una copia de lo que había, por si la conversión saliera mal. Esa copia también se va.',
+          'Lo único que desinstalar se lleva además es lo que guarda el sistema, no la app: la caché del navegador interno de Android y cualquier resto suelto que deje el sistema operativo. No son datos de tu casa, pero si quieres que no quede absolutamente nada, ese es el camino.',
+          'Dicho corto: para borrar tus datos, cualquiera de los dos sirve.'
         ]
       },
       {
         titulo: 'Qué se borra con cada camino',
         parrafos: [
-          'Los dos caminos borran los alimentos y cantidades, la canasta habitual, las comidas y rutinas, las personas de la casa, las compras, las revisiones y el historial.',
-          'Solo el camino 2 borra además la copia interna de seguridad de formatos anteriores, la dirección del servidor propio si configuraste uno, y las preferencias de la pantalla.',
+          'Los dos caminos borran los alimentos y cantidades, la canasta habitual, las comidas y rutinas, las personas de la casa, las compras, las revisiones, el historial, la copia interna de seguridad y las preferencias de la pantalla.',
+          'Solo desinstalar borra además la caché del navegador interno de Android, y solo desinstalar quita la app del teléfono: con el botón de dentro, la app se queda instalada y lista para empezar de cero.',
           'Ninguno de los dos borra el archivo de respaldo que descargaste tú: ese es tuyo y está donde tú lo pusiste. Ni la app ni Android lo tocan. Si quieres deshacerte de él, bórralo tú del teléfono, del correo o de donde lo hayas guardado.'
         ]
       },

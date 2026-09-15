@@ -46,8 +46,11 @@ export function saveState(state, storage = globalThis.localStorage) {
 // del esquema— y seguía ahí después de borrar. Alguien que pide borrar sus
 // datos no espera que quede una copia completa esperando en el mismo aparato.
 //
-// La dirección del servidor opcional y su token viven en otra clave, y son lo
-// más sensible que la app llega a guardar. También se van.
+// Se borra también `que-comemos-proveedores-v1`, aunque la función que la
+// escribía —conectar un servidor propio— ya no existe: quien usó la app cuando
+// existía puede tener ahí una dirección y un token guardados, y eso es
+// precisamente lo que alguien que pide borrar sus datos espera que desaparezca.
+// La clave se queda en esta lista mientras pueda haber un teléfono con ella.
 //
 // Se enumeran una por una en vez de barrer todo lo que empiece por
 // `que-comemos-`: así, el día que alguien añada una clave nueva y se olvide de

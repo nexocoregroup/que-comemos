@@ -169,9 +169,23 @@ Este fue un error de diseño corregido: la primera versión mandaba la voz a un 
 
 Escribir a mano funciona siempre, en todos los campos, con o sin micrófono.
 
-### Lo único que sí necesitaría un servidor
+### La app no habla con ningún servidor
 
-Entender lenguaje **totalmente** libre. La app reconoce sin conexión un buen puñado de frases por su forma, no adivinando; para cualquier frase haría falta un modelo grande, que no cabe dentro de la aplicación. Quien tenga un servidor propio puede conectarlo en *Detalle de este aparato*; **nadie lo necesita para usar la app**. Las claves nunca viajan dentro del APK: irían dentro del paquete y cualquiera podría sacarlas.
+Ni uno. No hay dirección que configurar, ni clave que guardar, ni analítica, ni informes de fallos. Hay una prueba, `tests/seguridad.test.js`, que falla si algún módulo vuelve a usar `fetch`.
+
+Hubo una opción para conectar un servidor propio y que la asistente entendiera lenguaje totalmente libre. Se quitó por dos razones. La primera es que **no llegaba a funcionar**: la interfaz guardaba la dirección sin activar la capacidad, así que quien la escribía no conseguía nada y no sabía por qué. La segunda es que contradecía la idea de fondo de esta app —tiene que servir sin que nadie monte nada— y a cambio obligaba a escribir en la política de privacidad un «salvo que tú configures un servidor» que debilitaba la única promesa que importa.
+
+Lo que queda es más honesto y más simple: la app reconoce las formas de frase que reconoce, aquí dentro, y **lo que no entiende lo dice** en vez de mandarlo fuera. Para lenguaje realmente libre haría falta un modelo grande, que no cabe en la aplicación.
+
+### Qué protege esta app, y qué no
+
+No hay servidor, ni cuentas, ni contraseñas, ni pagos: casi todo el catálogo habitual de ataques no tiene dónde agarrarse. Lo que sí tiene superficie es el HTML que se dibuja con texto del usuario, dentro de un WebView que lleva al lado el puente de Capacitor. Por eso todo texto se escapa antes de llegar a la pantalla, y `tests/seguridad.test.js` mete un ataque en cada campo escribible y dibuja las 22 pantallas comprobando que no sale sin escapar en ninguna.
+
+Además: el respaldo automático de Android está **apagado** (`allowBackup="false"` y `dataExtractionRules`), porque encendido sube el almacenamiento de la app a la cuenta de Google del dueño. La contrapartida es que perder el teléfono sin copia es perderlo todo, así que la app avisa en «Más» cuando hace más de un mes que no guardas una.
+
+La política de contenido de `index.html` bloquea scripts de otros sitios, `eval` y cualquier salida a un `http://`. **No es una muralla**, y el comentario del archivo lo dice: `script-src` lleva `'unsafe-inline'` a la fuerza porque Capacitor inyecta su puente como script en línea y sin eso la app no arranca dentro del APK.
+
+Lo que ninguna app puede evitar: que alguien coja el teléfono desbloqueado, o que el teléfono esté rooteado. Contra eso protege el PIN. Cifrar el almacenamiento sería teatro: la clave tendría que viajar dentro del propio APK.
 
 ## Respaldos y migración
 
@@ -317,7 +331,6 @@ Esta elección es una hipótesis de diseño, no una afirmación de que un color 
 - `src/chat-ui.js` — el asistente y su intérprete local.
 - `src/bulk-entry.js` — escribir o dictar varios alimentos.
 - `src/device.js` — el puente con el reconocimiento de voz del teléfono. No importa ni un paquete de npm: Capacitor deja los complementos en `window.Capacitor.Plugins` y se leen de ahí, que además es la comprobación de disponibilidad más honesta que hay.
-- `src/providers.js` — transporte HTTP hacia el servidor opcional. No sabe nada del dominio.
 - `src/storage.js` — lectura y escritura locales, con la migración y su respaldo previo.
 - `src/onboarding.js` — texto de la bienvenida y del recorrido. **Se dibuja con `esc()`: no admite etiquetas HTML.**
 - `src/demo.js` — datos de ejemplo, con dos rutinas y un extra del mes para que se vea la idea.
@@ -326,7 +339,7 @@ Esta elección es una hipótesis de diseño, no una afirmación de que un color 
 
 **Empaquetado.** `build.js` copia el casco a `www/` — es todo el «build» que hay. `sw.js` guarda ese casco para abrir sin conexión; **si añades un archivo a `src/`, añádelo a su lista y sube la versión del caché**. Hay una prueba que lo comprueba. `capacitor.config.json` y `android/` son el envoltorio nativo.
 
-**Pruebas.** `tests/` — modelo, canastas, rutinas, migración, asistente, parser, dictado, proveedores y módulos. `tests/modules.test.js` es la red de seguridad del refactor: lee las importaciones de cada módulo y comprueba que apuntan a algo que existe, carga cada módulo de verdad en Node, y verifica que no queda ningún nombre del modelo anterior ni ningún resto de la lectura de facturas.
+**Pruebas.** `tests/` — modelo, canastas, rutinas, migración, asistente, parser, dictado, pantallas, seguridad y módulos. `tests/modules.test.js` es la red de seguridad del refactor: lee las importaciones de cada módulo y comprueba que apuntan a algo que existe, carga cada módulo de verdad en Node, y verifica que no queda ningún nombre del modelo anterior ni ningún resto de la lectura de facturas.
 
 La única dependencia nativa es el complemento de reconocimiento de voz, y **solo hace falta para compilar el APK**: mete código nativo dentro de la aplicación. La app web no importa ninguno, así que `npm start` y `npm test` siguen funcionando sin instalar nada.
 

@@ -28,7 +28,6 @@ import { MES_ACTIONS, MES_FORMS, abrirMesSiHaceFalta, emptyMes, modalRutina, ren
 import { COMPRA_ACTIONS, COMPRA_FORMS, emptyCompra, periodoDeCompra, renderCompra } from './page-compra.js';
 import { MAS_ACTIONS, PAGINAS_MAS, TITULOS_MAS, emptyMas, renderMas } from './page-mas.js';
 import { avisoDeVoz, cancelarDictado, capacidad, diagnostico } from './device.js';
-import { describeConfig, readConfig, writeConfig } from './providers.js';
 import { button, cap, empty, esc, fmt, measure, modal, monthName, niceDate, notice, options, productDatalist, unitText } from './ui-kit.js';
 
 const firstRun = !hasSavedState();
@@ -623,7 +622,6 @@ function modalProducto(m) {
 // distancia. Con ella, basta con que la persona mande esta lista.
 function modalDiagnostico() {
   const d = diagnostico();
-  const cfg = readConfig();
   return modal('Detalle de este aparato', 'Lo que tu teléfono puede hacer solo.',
     `<div class="cap-list">
       <div class="cap-row ${d.dictar.ok ? 'si' : 'no'}">
@@ -644,16 +642,7 @@ function modalDiagnostico() {
         ${d.voz?.ultimoError ? `<tr><td>Último fallo</td><td class="num pending">${esc(d.voz.ultimoError.mensaje || d.voz.ultimoError.codigo || 'sin detalle')}</td></tr>` : ''}
       </tbody></table>
     </details>
-    <details class="more" style="margin-top:12px" ${cfg.baseUrl ? 'open' : ''}>
-      <summary>Entender frases totalmente libres (opcional, para quien sepa)</summary>
-      <p class="small muted">La app entiende sin conexión un buen puñado de frases —poner comidas, añadir a la canasta, cuánto queda, quién no come— reconociéndolas por su forma. Para lenguaje <em>totalmente</em> libre haría falta un modelo grande, que no cabe dentro de la aplicación. Quien tenga un servidor propio puede conectarlo aquí; <strong>nadie lo necesita para usar la app</strong>.</p>
-      <form data-form="ajustes-ia" class="stack">
-        <label class="field"><span>Dirección del servidor</span><input name="baseUrl" type="url" value="${esc(cfg.baseUrl)}" placeholder="https://mi-servidor.ejemplo" autocomplete="off"><small>Vacío = no se usa ninguno.</small></label>
-        <label class="field"><span>Token compartido (opcional)</span><input name="token" type="text" value="${esc(cfg.token)}" placeholder="Solo si tu servidor lo pide" autocomplete="off"></label>
-        <p class="small muted">${esc(describeConfig(cfg))}</p>
-        <div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar</button></div>
-      </form>
-    </details>`, true);
+    ${notice('Esta app no habla con ningún servidor.', 'No hay dirección que configurar ni clave que guardar: lo que la asistente entiende, lo entiende aquí dentro, y lo que no entiende lo dice en vez de mandarlo fuera.')}`, true);
 }
 
 /* ── Utilidades de formulario ──────────────────────────────────────────── */
@@ -843,8 +832,9 @@ document.addEventListener('click', event => {
     else if (action === 'clear-demo') {
       if (!window.confirm('¿Borrar todos los datos de esta app en este aparato? No se puede deshacer sin una copia guardada.')) return;
       // Borrar de verdad: además del estado, la copia que la app guarda sola al
-      // cambiar de versión del esquema, y la dirección del servidor opcional
-      // con su token. Reemplazar el estado y guardar encima dejaba las dos.
+      // cambiar de versión del esquema —que puede tener todo lo anterior
+      // dentro— y los restos de instalaciones viejas. Reemplazar el estado y
+      // guardar encima las dejaba todas.
       clearAll();
       state = createEmptyState(); loadError = ''; ui.modal = null; ui.reviewId = null;
       ui.mes = emptyMes(mesActual); ui.compra = emptyCompra(mesActual); ui.mas = emptyMas();
@@ -1115,7 +1105,6 @@ document.addEventListener('submit', async event => {
       ui.modal = null;
       commit(`«${nombres[1]}» se unió a «${nombres[0]}».`);
     }
-    else if (kind === 'ajustes-ia') { writeConfig({ baseUrl: data.get('baseUrl'), token: data.get('token') }); ui.modal = null; commit('Guardado en este aparato.'); }
     else if (kind === 'equivalence') { setEquivalence(state, form.dataset.id, data.get('unit'), data.get('factor')); ui.modal = null; commit('Guardado.'); }
     else if (kind === 'assign') {
       const receta = data.get('recipeId');

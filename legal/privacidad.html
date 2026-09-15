@@ -124,7 +124,7 @@
   <li><strong>Sin informes de fallos.</strong> Si la app se rompe, no nos enteramos: no se manda ningún reporte.</li>
   <li><strong>Sin SDK de terceros.</strong> No hay librerías de otras empresas metidas dentro recogiendo datos por su cuenta.</li>
 </ul>
-<p>No es una promesa suelta: en el código de la app hay <strong>una sola función capaz de salir a internet</strong>, y es la del servidor opcional que se explica más abajo. Hay una prueba automática que falla si aparece cualquier otra.</p>
+<p>No es una promesa suelta: en el código de la app <strong>no hay ni una sola función capaz de salir a internet</strong>. Ninguna. Hay una prueba automática que se pone en rojo el día que alguien añada una.</p>
 
 <h2>El micrófono y el dictado</h2>
 <p>La app pide permiso de micrófono (<code>RECORD_AUDIO</code>) por una sola razón: para que puedas <strong>dictar en vez de escribir</strong>.</p>
@@ -140,27 +140,24 @@
   <li><strong>Si tu teléfono entiende la voz por sí solo</strong> y tiene descargado el paquete de español, todo pasa dentro del aparato. Tu voz no sale del teléfono.</li>
   <li><strong>Si tu teléfono no lo trae</strong>, Android hace lo que hace siempre en ese caso: <strong>manda el audio a sus servidores</strong> para entenderlo, y por eso ahí el dictado necesita conexión. Eso lo hace Android, no nosotros, pero pasa igual y tienes derecho a saberlo.</li>
 </ul>
-<p>La app comprueba de verdad cuál de los dos casos es el tuyo antes de abrir el micrófono, en lugar de suponerlo. Puedes ver la respuesta para tu teléfono en <strong>Más → Ajustes → Detalle de este aparato</strong>.</p>
-<p>Cuando lo que Android manda a sus servidores sale de tu teléfono, lo que pase con ese audio ya depende de Google y de los ajustes de voz de tu propio teléfono, no de esta app.</p>
-<p>Si usas la app <strong>desde un navegador</strong> en vez de instalada, el dictado lo hace el navegador, que también necesita conexión y manda la voz a sus servidores. En ese caso la app te lo avisa en pantalla antes de abrir el micrófono.</p>
+<p><strong>La app le pregunta a tu teléfono cuál de los dos casos es el suyo, y si el audio va a salir te lo dice en pantalla antes de abrir el micrófono.</strong> No lo supone: lo comprueba cada vez. Así que si no ves ningún aviso, es que en tu teléfono la voz se queda dentro.</p>
+<p>Puedes ver la respuesta para tu aparato, con calma, en <strong>Más → Ajustes → Detalle de este aparato</strong>.</p>
+<p>Cuando Android manda ese audio a sus servidores, lo que pase con él ya depende de Google y de los ajustes de voz de tu propio teléfono, no de esta app.</p>
+<p>Si usas la app <strong>desde un navegador</strong> en vez de instalada, el dictado lo hace el navegador, que necesita conexión y manda la voz a sus servidores. Ahí también te avisamos antes de abrir el micrófono.</p>
 <p>Y si prefieres no usar nada de esto: <strong>escribir a mano funciona siempre</strong>, en todos los campos. Puedes negar el permiso de micrófono y la app sigue completa.</p>
 
 <h2>El permiso de internet</h2>
-<p>La app pide el permiso <code>INTERNET</code>, y conviene explicar por qué, porque suena peor de lo que es.</p>
-<p><strong>La app no hace ninguna llamada a internet por su cuenta.</strong> Funciona entera sin conexión: los alimentos, la canasta, el menú, la compra y el inventario salen todos de tu propio teléfono.</p>
-<p>Ese permiso está ahí para una función opcional, apagada de fábrica, que casi nadie va a usar: en <em>Funciones avanzadas</em> una persona con conocimientos técnicos puede escribir a mano <strong>la dirección de un servidor suyo</strong>, para que el asistente entienda frases más libres.</p>
-<ul>
-  <li>Esa dirección la escribe la persona. Nosotros no ponemos ninguna, y no hay ninguna dirección nuestra dentro de la app.</li>
-  <li>Si nunca escribes una dirección ahí, <strong>no sale ni un byte de tu teléfono</strong>.</li>
-  <li>Si la escribes, lo que salga va <strong>a tu propio servidor</strong>, no a nosotros. Lo que ese servidor haga con lo que recibe es responsabilidad de quien lo puso.</li>
-  <li>Antes de mandar nada por ahí, la app te enseña un aviso diciendo exactamente qué va a salir, y no sale nada hasta que tú lo confirmes.</li>
-  <li>La app solo acepta direcciones cifradas (<code>https</code>). El tráfico sin cifrar está bloqueado en la aplicación.</li>
-</ul>
+<p>La app pide el permiso <code>INTERNET</code>, y aquí hay que ser exactos, porque la explicación honesta es un poco rara.</p>
+<p><strong>La app no habla con ningún servidor.</strong> Ni uno. No hay servidor nuestro, no hay servidor de nadie más, y no hay forma de configurar uno. La app no hace ninguna llamada a internet, ni al abrirse, ni al guardar, ni nunca.</p>
+<p>Funciona entera sin conexión: los alimentos, la canasta, el menú, la compra y el inventario salen todos de tu propio teléfono. Puedes usarla el mes completo en modo avión.</p>
+<p>Entonces, ¿por qué el permiso sigue ahí? Porque <strong>está declarado en la app y preferimos decírtelo a quitarlo a ciegas</strong>. Ese permiso es de los que hacen falta para que la pantalla interna de la aplicación cargue como debe, y tocarlo sin poder comprobarlo en todos los teléfonos podría romper la app para alguien.</p>
+<p>Lo que importa es esto: <strong>el permiso existe, pero no hay ningún código que pueda usarlo.</strong> No es una promesa de buena fe, es una cuestión de que la función no está escrita en ninguna parte. Antes hubo una opción avanzada para conectar un servidor propio; <strong>se eliminó del producto entero</strong>, y con ella el archivo que la hacía.</p>
+<p>Hay una prueba automática que revisa todos los archivos de la app y falla si aparece cualquier forma de salir a la red. Hoy está en verde con la lista vacía.</p>
 
 <h2>El respaldo lo guardas tú</h2>
 <p>En <em>Más → Respaldo</em> puedes escribir una copia de tus datos. Es un archivo <code>.json</code> que <strong>se descarga a tu teléfono</strong> y que tú guardas donde quieras: en el mismo teléfono, en una memoria, en tu correo, donde te parezca.</p>
 <p>La app <strong>no sube ese archivo a ningún sitio</strong>. Una vez descargado, esa copia es tuya y su cuidado también: si la mandas por chat o la subes a una nube, esos datos van a donde tú los mandes.</p>
-<p>La dirección del servidor opcional y su clave <strong>no se incluyen</strong> en el respaldo, para que una copia llevada a otro teléfono no arrastre la configuración del primero.</p>
+<p>El respaldo lleva lo de tu casa y nada más: alimentos, cantidades, comidas, personas, compras y revisiones. No lleva identificadores tuyos ni nada que te señale a ti.</p>
 
 <h2>Permisos que la app no pide</h2>
 <p>Vale la pena decir también lo que no está:</p>
@@ -177,8 +174,8 @@
 <h2>Cómo borrar tus datos</h2>
 <p>Hay dos caminos y los dos los haces tú, desde tu teléfono:</p>
 <ul>
-  <li><strong>Desde dentro de la app:</strong> <em>Más → Respaldo → Borrar todos mis datos</em>. Te pide confirmación y borra lo de tu casa: alimentos, comidas, personas, compras y revisiones.</li>
-  <li><strong>Desinstalando la app:</strong> al desinstalarla, Android se lleva por delante todo su almacenamiento. Es el camino que no deja nada. También puedes hacerlo sin desinstalar, desde <em>Ajustes de Android → Aplicaciones → ¿Qué comemos? → Almacenamiento → Borrar datos</em>.</li>
+  <li><strong>Desde dentro de la app:</strong> <em>Más → Respaldo → Borrar todos mis datos</em>. Te pide confirmación y borra todo lo que la app guardó: alimentos, comidas, personas, compras, revisiones, la copia interna de seguridad y tus preferencias de pantalla.</li>
+  <li><strong>Desinstalando la app:</strong> al desinstalarla, Android se lleva por delante todo su almacenamiento, incluida la caché del sistema. También puedes hacerlo sin desinstalar, desde <em>Ajustes de Android → Aplicaciones → ¿Qué comemos? → Almacenamiento → Borrar datos</em>.</li>
 </ul>
 <p>Los dos son inmediatos y no se pueden deshacer. <strong>Guarda una copia antes si la quieres.</strong></p>
 <p>Hay una página dedicada a esto: <a href="eliminar-datos.html">Cómo eliminar tus datos</a>.</p>

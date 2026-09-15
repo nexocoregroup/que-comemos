@@ -32,7 +32,7 @@ Las tres tienen que **abrir sin contraseña y sin redirección rara**. Un reviso
 
 ## 2. Seguridad de los datos (formulario «Data safety»)
 
-El apartado más importante y el que más gente rellena mal. Para esta app es casi todo «no», y **es verdad**: hay una sola función en todo el código capaz de salir a la red (`src/providers.js`), y una prueba automática en `tests/seguridad.test.js` que falla si aparece cualquier otra.
+El apartado más importante y el que más gente rellena mal. Para esta app es todo «no», y **es verdad**: en todo el código **no hay ni una función capaz de salir a la red**, y la prueba de `tests/seguridad.test.js` lo comprueba con la lista vacía (`assert.deepEqual(salidas, [])`). El día que alguien añada una, esa prueba se pone roja.
 
 ### Las respuestas
 
@@ -40,20 +40,20 @@ El apartado más importante y el que más gente rellena mal. Para esta app es ca
 |---|---|---|
 | ¿Tu app recopila o comparte alguno de los tipos de datos de usuario requeridos? | **No** | La app no transmite nada fuera del dispositivo. Todo vive en `localStorage`, dentro del teléfono. |
 | ¿Recopilas datos? | **No** | No hay cuentas, ni analítica, ni publicidad, ni informes de fallos, ni SDK de terceros. |
-| ¿Compartes datos con terceros? | **No** | No hay terceros. No hay servidor propio al que mandar nada. |
+| ¿Compartes datos con terceros? | **No** | No hay terceros. La app no habla con ningún servidor. |
 | ¿Los datos están cifrados en tránsito? | *No aplica / no se muestra* | Ver abajo. |
 | ¿Ofreces una forma de solicitar la eliminación de datos? | *Ver abajo* | |
 | ¿La app cumple la política de Familias? | **No aplica** | El público objetivo es 18+ (apartado 4). |
 
 Al responder «No» a la primera pregunta, Play da el formulario por terminado y en la ficha aparece la etiqueta **«No se recopilan datos»**. Es la etiqueta más limpia que da Google, y aquí es legítima.
 
-### Cifrado en tránsito: por qué la pregunta casi no aplica
+### Cifrado en tránsito: por qué la pregunta no aplica
 
-Esa pregunta es sobre **los datos que la app recoge y manda a algún sitio**. Esta app no manda nada, así que no hay tránsito del que hablar y Play normalmente ni te la enseña.
+Esa pregunta es sobre **los datos que la app recoge y manda a algún sitio**. Esta app no manda nada a ningún sitio, así que **no hay tránsito del que hablar** y Play normalmente ni te la enseña.
 
 Si alguna vez tienes que justificarlo ante un revisor, la respuesta corta es esta:
 
-> La aplicación no realiza ninguna petición de red por sí misma. La única salida posible es una dirección de servidor que el propio usuario escribe a mano en una función avanzada desactivada de fábrica. El `networkSecurityConfig` del manifiesto (`android/app/src/main/res/xml/seguridad_de_red.xml`) declara `cleartextTrafficPermitted="false"`, así que **cualquier tráfico sin cifrar está bloqueado a nivel de sistema**: si esa dirección no es `https`, la llamada falla en vez de salir en claro.
+> La aplicación no realiza ninguna petición de red. No existe ningún código de red en el proyecto: no hay `fetch`, ni `XMLHttpRequest`, ni `WebSocket`, ni `sendBeacon` en ningún módulo, y una prueba automatizada lo verifica en cada ejecución. Todos los datos se guardan en el almacenamiento local del dispositivo. Además, el `networkSecurityConfig` del manifiesto (`android/app/src/main/res/xml/seguridad_de_red.xml`) declara `cleartextTrafficPermitted="false"` y solo confía en las autoridades del sistema, de modo que cualquier tráfico sin cifrar quedaría bloqueado a nivel de sistema.
 
 ### Eliminación de datos
 
@@ -73,7 +73,7 @@ Para Google, «recopilar» significa que **la app** saca datos del dispositivo. 
 
 - No graba. No se crea ningún archivo de audio, ni temporal.
 - No guarda. No hay audio en `localStorage` ni en ninguna parte.
-- No transmite. La app nunca manda audio a ningún servidor.
+- No transmite. La app no puede mandar audio a ningún sitio: no tiene código de red de ninguna clase.
 
 Lo que hace es pedirle al **reconocedor de voz del propio Android** —el mismo del micrófono del teclado— que le devuelva texto. El audio lo maneja ese servicio del sistema, y la app solo recibe la cadena de texto ya convertida. Un servicio del sistema operativo del usuario no es un «tercero» tuyo en el sentido del formulario.
 
@@ -82,9 +82,9 @@ Lo que hace es pedirle al **reconocedor de voz del propio Android** —el mismo 
 Lo de arriba es correcto, pero declarar «no recojo nada» con `RECORD_AUDIO` en el manifiesto es exactamente el patrón que hace que un revisor mire dos veces. Así que:
 
 1. **Deja la explicación del micrófono en la política de privacidad.** Ya está en `legal/privacidad.html`, y dice la verdad completa: incluido que en los teléfonos sin reconocimiento local, **Android manda el audio a sus servidores** para entenderlo. Eso lo hace Android, no la app, pero ocultarlo sería mentir.
-2. **Escribe la nota al revisor** del apartado 7. Es donde se explica en dos líneas para qué está el permiso.
-3. **Que el permiso se pida en contexto.** La app solo abre el micrófono cuando la persona toca «Dictar», que es justo lo que Play quiere ver.
-4. **Si algún día la app llega a enviar audio** —por ejemplo si se activa de verdad la capacidad `transcribe` de `src/providers.js` hacia un servidor— hay que **volver a este formulario y declararlo**. Ese día la etiqueta «No se recopilan datos» deja de ser cierta.
+2. **Ten lista la nota al revisor** del apartado 7. Es donde se explica en dos líneas para qué está el permiso.
+3. **Que el permiso se pida en contexto.** La app solo abre el micrófono cuando la persona toca «Dictar», que es justo lo que Play quiere ver. Y antes de abrirlo comprueba si el audio va a salir del aparato; si va a salir, lo dice en pantalla.
+4. **Si algún día la app llegara a enviar audio** —o cualquier otra cosa— hay que **volver a este formulario y declararlo**. Ese día la etiqueta «No se recopilan datos» deja de ser cierta, y sostenerla cuando ya no lo es es motivo de retirada.
 
 ---
 
@@ -142,7 +142,7 @@ La app pide **dos permisos y ninguno más**. Hay una prueba (`tests/seguridad.te
 
 | Permiso | Para qué | ¿Hay que declararlo aparte? |
 |---|---|---|
-| `INTERNET` | Nada, de fábrica. Solo lo usa el servidor opcional que el usuario escribe a mano. | No. Es un permiso normal, no sensible. |
+| `INTERNET` | **Nada.** Está declarado, pero no hay código que pueda usarlo. | No. Es un permiso normal, no sensible. |
 | `RECORD_AUDIO` | Dictar en vez de escribir. | **No hay formulario de declaración.** Ver abajo. |
 
 **Sobre el micrófono.** `RECORD_AUDIO` **no** está en la lista de permisos sensibles que obligan a llenar un formulario de declaración en Play Console —esa lista es SMS, registro de llamadas, acceso a todos los archivos, accesibilidad, alarmas exactas, ubicación en segundo plano y poco más—. Aun así, es un permiso que se mira con lupa, así que ten la explicación lista y ponla donde se pueda:
@@ -150,6 +150,8 @@ La app pide **dos permisos y ninguno más**. Hay una prueba (`tests/seguridad.te
 > El micrófono se usa únicamente para dictar texto en lugar de escribirlo. Se activa solo cuando la persona pulsa el botón «Dictar». La app no graba, no almacena ni transmite audio: el reconocimiento lo realiza el motor de voz de Android y la app únicamente recibe el texto resultante. Toda la funcionalidad está disponible escribiendo a mano; el permiso se puede denegar y la app sigue completa.
 
 **Sobre `<queries>`.** El manifiesto declara un `<queries>` con el intent `android.speech.RecognitionService`. Es lo correcto y **no necesita declaración**: no se usa `QUERY_ALL_PACKAGES`, que sí la necesitaría. Está ahí porque desde Android 11 el sistema esconde qué apps hay instaladas, y sin eso el teléfono no encuentra su propio motor de voz.
+
+**Sobre `INTERNET`, si alguien pregunta.** Es un permiso normal: Play no lo cuestiona y no hay formulario que llenar. Pero conviene saber la respuesta, porque es rara de explicar: **el permiso está declarado y no lo usa nada**. La opción de conectar un servidor propio existió y **se eliminó del producto entero**; lo que queda es el permiso en el manifiesto, que se conserva porque quitarlo sin poder probarlo en todos los teléfonos arriesga que el WebView de la app deje de cargar. La política de privacidad lo dice con esas mismas palabras en vez de esconderlo.
 
 ---
 
@@ -175,7 +177,7 @@ No hay usuario, ni contraseña, ni código, ni nada que darle al revisor. Marca 
 - Si Google te escribe pidiendo aclaraciones sobre el micrófono o sobre el permiso de internet —que es el motivo más probable de una consulta en esta app—, esta es la respuesta, ya redactada.
 - Si alguna vez tienes que apelar un rechazo, lo mismo.
 
-**Este es el texto que contesta el «no pudimos probar la función del micrófono»** (1.157 caracteres):
+**Este es el texto que contesta el «no pudimos probar la función del micrófono»** (1.274 caracteres):
 
 ```
 La app funciona sin cuenta, sin registro y sin conexión. No hacen falta
@@ -191,14 +193,15 @@ probarlo: botón + (abajo a la derecha) -> "Hablar o dictar".
 Toda la funcionalidad está disponible escribiendo a mano. El permiso se puede
 denegar y la app sigue siendo completamente utilizable.
 
-Sobre el permiso de INTERNET: la app no realiza ninguna petición de red por
-sí misma. El permiso existe para una función avanzada, desactivada de
-fábrica, en la que el propio usuario puede escribir la dirección de un
-servidor suyo (Más -> Ajustes -> Detalle de este aparato). Sin configurarla,
-no sale ningún dato del dispositivo.
+Sobre el permiso de INTERNET: la app no realiza ninguna petición de red. No
+existe código de red en el proyecto (ni fetch, ni XMLHttpRequest, ni
+WebSocket, ni sendBeacon), y una prueba automatizada lo verifica en cada
+ejecución. El permiso permanece declarado en el manifiesto por compatibilidad
+del WebView, pero ningún código de la aplicación puede utilizarlo.
 
 Todos los datos se guardan en el almacenamiento local del dispositivo. No hay
-servidor del desarrollador y no se recopila ningún dato del usuario.
+servidor del desarrollador, no hay servicios de terceros integrados y no se
+recopila ningún dato del usuario. La app funciona por completo en modo avión.
 ```
 
 ---
