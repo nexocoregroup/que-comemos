@@ -147,7 +147,7 @@ function renderMenu() {
   }
   return `<div class="toolbar"><div class="inline">${button('‹', 'menu-prev', 'btn-secondary btn-small')}<div class="strong" style="min-width:185px;text-align:center">${esc(label)}</div>${button('›', 'menu-next', 'btn-secondary btn-small')}${button('Hoy', 'menu-today', 'btn-quiet btn-small')}</div><div class="segmented"><button type="button" data-action="menu-mode" data-mode="week" class="${ui.menuMode === 'week' ? 'active' : ''}">Semana</button><button type="button" data-action="menu-mode" data-mode="month" class="${ui.menuMode === 'month' ? 'active' : ''}">Mes</button></div></div>
     ${ui.generationResult ? notice(`${ui.generationResult.count} comidas propuestas este mes.`, ui.generationResult.unavailable.length ? `${ui.generationResult.unavailable.length} comida(s) quedaron sin una preparación compatible; decide cómo resolverlas desde el calendario.` : 'Puedes modificar cualquier comida desde el calendario.', ui.generationResult.unavailable.length ? 'warn' : '') : ''}
-    <div class="card" style="padding:15px">${calendar}</div>
+    <div class="card calendar-card">${calendar}</div>
     <div class="section-head"><div><h2>Organizar más rápido</h2><p>La propuesta solo usa tus preparaciones y respeta las restricciones registradas.</p></div></div>
     <div class="inline">${button('✦ Proponer este mes', 'generate-month', 'btn-primary')}${button('Repetir esta semana en el mes', 'repeat-week', 'btn-secondary')}${button('Registrar ausencia', 'open-absence', 'btn-secondary')}</div>
     ${state.recipes.length ? '' : `<div style="margin-top:18px">${empty('📖','Primero crea preparaciones','Luego podrás asignarlas y generar un menú.', button('Abrir preparaciones', 'navigate', 'btn-primary', 'data-page="catalogo"'))}</div>`}`;
