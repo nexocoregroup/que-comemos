@@ -1053,9 +1053,18 @@ export const MES_FORMS = {
     // fecha: cambiar la regla a «los martes desde noviembre» es legítimo aunque
     // octubre se quede vacío. Creando no, porque no se vería pasar nada.
     if (!fechas.length && !editandoId) throw new Error('Con esos días y esas fechas no queda ningún día del mes.');
+    const ocupadas = fechas.flatMap(date => slots.filter(slot => planFor(state, date, slot))).length;
+    let modoEfectivo = modo;
     if (modo === 'reemplazar') {
-      const ocupadas = fechas.flatMap(date => slots.filter(slot => planFor(state, date, slot))).length;
       if (ocupadas && !window.confirm(`Esto va a reemplazar ${ocupadas} comida(s) que ya estaban puestas en ${monthName(month)}. ¿Continuar?`)) return;
+    }
+    // Editando, «dejarlo como está» sobre días que ya están ocupados deja la
+    // rutina sin una sola comida, y eso solo se descubre leyendo el aviso de
+    // después. Se pregunta antes, que es cuando todavía se puede elegir: quien
+    // acaba de decir «ahora son los martes» casi siempre quiere los martes.
+    else if (editandoId && ocupadas) {
+      modoEfectivo = window.confirm(`En esos días ya hay ${ocupadas} comida(s) puestas en ${monthName(month)}.\n\nAceptar: se reemplazan por esta rutina.\nCancelar: se quedan como están y la rutina solo llena los huecos.`)
+        ? 'reemplazar' : 'vacios';
     }
 
     const antes = snapshot(state);
@@ -1084,10 +1093,15 @@ export const MES_FORMS = {
         if (plan.date.slice(0, 7) !== month) continue;
         if (vigentes.has(`${plan.date}|${plan.slot}`)) continue;
         plan.routineId = null;
+        // Y deja de decir que viene de una rutina, porque ya no viene de
+        // ninguna. El calendario promete decir de dónde salió cada comida; una
+        // que dijera «Rutina» sin regla detrás sería justo la mentira que esa
+        // promesa existe para evitar. A partir de aquí es de quien la conserve.
+        plan.origen = 'manual';
         liberadas++;
       }
     }
-    const resultado = applyRoutine(state, rutina.id, month, { modo, hasta, desde });
+    const resultado = applyRoutine(state, rutina.id, month, { modo: modoEfectivo, hasta, desde });
 
     // Y los meses futuros que ya estaban abiertos. Sin esto, quien preparó
     // noviembre en octubre escribía una costumbre que noviembre no llegaba a
@@ -1097,7 +1111,7 @@ export const MES_FORMS = {
       const pisaria = ocupadasEnMesesAbiertos(state, rutina.id, month);
       const permiso = !pisaria.length || modo !== 'reemplazar'
         || window.confirm(`En los meses que ya tienes preparados hay ${pisaria.length} comida(s) puestas en esos mismos días. ¿Reemplazarlas también?`);
-      futuros = extenderAMesesAbiertos(state, rutina.id, month, { modo: permiso ? modo : 'vacios' });
+      futuros = extenderAMesesAbiertos(state, rutina.id, month, { modo: permiso ? modoEfectivo : 'vacios' });
     }
 
     ui.mes.deshacer = antes;

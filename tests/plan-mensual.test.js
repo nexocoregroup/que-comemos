@@ -455,3 +455,25 @@ test('borrar una comida del día no deja rastros ni orígenes huérfanos', () =>
   assert.equal(state.plans.length, 0);
   assert.equal(planFor(state, `${MES}-05`, 'desayuno'), undefined);
 });
+
+// Salió probando a mano, no compilando: al editar una rutina, las comidas que
+// la regla nueva ya no cubre se sueltan —bien— pero seguían diciendo que venían
+// de una rutina. El calendario promete decir de dónde salió cada comida, y una
+// que dijera «Rutina» sin ninguna regla detrás es justo la mentira que esa
+// promesa existe para evitar.
+test('una comida que deja de seguir la rutina deja de decir que viene de una', () => {
+  const codigo = readFileSync(resolve(import.meta.dirname, '..', 'src', 'page-mes.js'), 'utf8');
+  const bloque = codigo.slice(codigo.indexOf('if (vigentes.has('), codigo.indexOf('liberadas++'));
+  assert.ok(/plan\.routineId = null;/.test(bloque), 'soltar la comida de la regla');
+  assert.ok(/plan\.origen = 'manual';/.test(bloque), 'soltarla sin corregir su origen la deja mintiendo');
+});
+
+// Y el otro que salió del mismo recorrido: editar una rutina para ponerla en
+// unos días que ya estaban ocupados dejaba la rutina sin una sola comida, y
+// solo se descubría leyendo el aviso de después.
+test('editar sobre días ocupados pregunta antes, no después', () => {
+  const codigo = readFileSync(resolve(import.meta.dirname, '..', 'src', 'page-mes.js'), 'utf8');
+  assert.ok(/else if \(editandoId && ocupadas\)/.test(codigo), 'no se pregunta al editar sobre días ocupados');
+  assert.ok(/modoEfectivo = window\.confirm\(/.test(codigo), 'la respuesta no decide el modo');
+  assert.ok(/applyRoutine\(state, rutina\.id, month, \{ modo: modoEfectivo/.test(codigo), 'se pregunta y luego se aplica otro modo');
+});
