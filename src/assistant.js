@@ -26,11 +26,11 @@
 // fechas a la vista. Nunca enseñando el JSON.
 
 import {
-  BASES, PRIORITIES, SLOTS, UNITS, addProduct, addPurchase, archiveProduct, basisLabel,
+  BASES, MOTIVOS_DE_RESTRICCION, PRIORITIES, SLOTS, UNITS, addProduct, addPurchase, archiveProduct, basisLabel,
   copyPlan, correctStock, createReview, deletePlan, deleteRecipe, duplicateRecipe, effectiveBasket,
-  findSimilarProducts, generateMonth, habitualLines, inventoryNow, makeRecipePlan, mergeProducts,
+  findSimilarProducts, generateMonth, habitualLines, inventoryNow, linkPendingRestrictions, makeRecipePlan, mergeProducts,
   monthBasketSummary, monthChanges, movePlan, planFor, product, productByName, promoteToHabitual,
-  removeHabitualLine, removeMonthChange, repeatWeek, restore, restoreProduct, saveReview, setAbsence,
+  removeHabitualLine, removeMonthChange, repeatWeek, restore, restoreProduct, restriccionesDe, saveReview, setAbsence,
   setEquivalence, setHabitualLine, setMonthChange, setStatusPlan, shoppingList, snapshot, todayISO,
   transaction, updateProduct, upsertPerson, upsertRecipe, validDate, validMonth, weekStart
 } from './model.js';
@@ -468,17 +468,22 @@ export const ACTIONS = {
     run: (state, a) => ({ id: upsertPerson(state, { name: a.nombre, kind: a.tipo, restrictions: [], habitual: [] }).id })
   },
   agregar_restriccion: {
-    kind: 'cambio', args: { persona: { type: 'persona' }, alimento: { type: 'texto' } },
+    kind: 'cambio', args: { persona: { type: 'persona' }, alimento: { type: 'texto' }, motivo: { type: 'texto', required: false } },
     describe: a => `${a.persona.name} no puede comer ${a.alimento}.`,
     // Si el alimento todavía no existe se guarda por nombre y se enlaza cuando
     // aparezca. Obligar a crear el producto antes es el orden invertido que
     // hace que nadie termine de registrar a su familia.
+    //
+    // El motivo llega solo si la frase lo decía. Dictar «Sofía no puede comer
+    // maní» no dice si es alergia o manía, y el asistente no lo va a adivinar:
+    // la fila queda sin motivo y se completa desde Más → Familia.
     run: (state, a) => {
       const match = productByName(state, a.alimento);
       const person = state.people.find(item => item.id === a.persona.id);
-      if (match) { if (!person.restrictions.includes(match.id)) person.restrictions.push(match.id); return { enlazado: true, nombre: match.name }; }
-      person.pendingRestrictions = [...new Set([...(person.pendingRestrictions || []), a.alimento])];
-      return { enlazado: false, nombre: a.alimento };
+      const motivo = MOTIVOS_DE_RESTRICCION.includes(a.motivo) ? a.motivo : null;
+      person.restricciones = [...restriccionesDe(person), { productId: match?.id || null, texto: match ? '' : a.alimento, motivo }];
+      linkPendingRestrictions(state, person);
+      return { enlazado: Boolean(match), nombre: match ? match.name : a.alimento };
     }
   },
   registrar_ausencia: {
@@ -494,7 +499,7 @@ export const ACTIONS = {
       const person = state.people.find(item => item.id === a.persona.id);
       const habitual = (person.habitual || []).filter(row => row.productId !== a.producto.id);
       habitual.push({ productId: a.producto.id, quantity: a.cantidad, unit: a.unidad });
-      return upsertPerson(state, { id: person.id, name: person.name, restrictions: person.restrictions, pendingRestrictions: person.pendingRestrictions, habitual });
+      return upsertPerson(state, { id: person.id, name: person.name, habitual });
     }
   },
 

@@ -10,12 +10,13 @@
 
 import { CATEGORIES } from './catalog-seed.js';
 import {
-  UNITS, archiveProduct, effectiveBasket, findSimilarProducts, habitualLines, inventoryNow,
-  lastStockReview, monthBasketSummary, monthChanges, product, productByName, restoreProduct,
-  reviewAvailability, sliceStyle, syncReviewProducts, todayISO
+  UNITS, archiveProduct, effectiveBasket, esActiva, findSimilarProducts, habitualLines, inventoryNow,
+  lastStockReview, monthBasketSummary, monthChanges, personasActivas, product, productByName, restoreProduct,
+  restriccionesDe, reviewAvailability, sliceStyle, syncReviewProducts, todayISO
 } from './model.js';
+import { claseDe, hogarDe, resumenDeRestricciones } from './hogar.js';
 import { WEEKDAY_LABELS, WEEKDAYS } from './routines.js';
-import { button, cap, empty, esc, fmt, measure, monthName, niceDate, options, shiftMonth, unitText } from './ui-kit.js';
+import { button, cap, empty, esc, fmt, measure, monthName, niceDate, notice, options, shiftMonth, unitText } from './ui-kit.js';
 import { avisoDeVoz, capacidad, comprobarDictado } from './device.js';
 import { panelDeVoz } from './voz.js';
 // El intérprete de frases vive en el asistente, y entiende «quedan dos plátanos,
@@ -92,7 +93,7 @@ function renderInicio(ctx) {
   const pistas = {
     canasta: `${habitualLines(state).length} alimento(s)`,
     preparaciones: `${state.recipes.length}`,
-    familia: `${state.people.length} persona(s)`,
+    familia: `${personasActivas(state).length} persona(s)`,
     alimentos: `${state.products.filter(item => !item.archived).length}`,
     revision: lastStockReview(state) ? `última: ${niceDate(lastStockReview(state), { day: 'numeric', month: 'short' })}` : 'nunca',
     historial: `${state.purchases.length} compra(s)`,
@@ -249,21 +250,55 @@ function renderPreparaciones(ctx) {
 
 /* ── Familia ───────────────────────────────────────────────────────────── */
 
+// Quien llega aquí viene por una de dos razones: registrar a su casa por primera
+// vez, o cambiar algo porque la familia cambió. Las dos tienen su botón arriba y
+// ninguna obliga a pasar por la otra.
+//
+// Dar de baja no borra. Una persona que se fue de casa tiene que seguir
+// leyéndose en las comidas de marzo —fue quien las comió— y su ficha sigue
+// entera por si vuelve. Lo único que cambia es que deja de contar para lo que se
+// va a cocinar. Por eso aquí no hay ningún botón de «eliminar»: borrar a alguien
+// reescribiría el historial, que es justo lo que no puede pasar.
 function renderFamilia(ctx) {
   const { state } = ctx;
   const nombreProducto = id => product(state, id)?.name || 'Alimento eliminado';
+  const enCasa = personasActivas(state);
+  const fuera = state.people.filter(persona => !esActiva(persona));
+  const hogar = hogarDe(state);
+  const sinMotivo = state.people.reduce((total, persona) => total + restriccionesDe(persona).filter(fila => !fila.motivo).length, 0);
+
+  const tarjeta = (persona, activa) => `<article class="card familia-persona">
+    <div class="between">
+      <h3>${esc(persona.name)}</h3>
+      <div class="familia-etiquetas">
+        <span class="pill gray">${esc(claseDe(persona.kind).etiqueta)}</span>
+        ${activa ? '' : '<span class="pill warm">Dado de baja</span>'}
+      </div>
+    </div>
+    ${resumenDeRestricciones(state, persona)}
+    ${persona.habitual?.length ? `<p class="small" style="margin-top:12px"><strong>Come normalmente:</strong> ${persona.habitual.map(item => `${esc(measure(item.quantity, item.unit))} de ${esc(nombreProducto(item.productId))}`).join(' · ')}</p>` : ''}
+    <div class="familia-acciones">
+      ${button('Editar', 'hogar-editar', 'btn-secondary btn-small', `data-id="${persona.id}"`)}
+      ${activa
+        ? button('Ya no vive aquí', 'hogar-baja', 'btn-quiet btn-small', `data-id="${persona.id}"`)
+        : button('Vuelve a vivir aquí', 'hogar-alta', 'btn-secondary btn-small', `data-id="${persona.id}"`)}
+    </div>
+  </article>`;
+
   return `${volver('Familia y restricciones')}
     <p class="pantalla-intro">Quién come en casa y qué evita cada quien. La app avisa si una comida lleva algo que alguien no puede comer.</p>
-    <div class="pantalla-acciones">${button('+ Añadir persona', 'open-person', 'btn-primary')}${button('Marcar una ausencia', 'open-absence', 'btn-secondary')}</div>
-    ${state.people.length
-      ? `<div class="grid grid-2">${state.people.map(persona => `<article class="card">
-          <div class="between"><h3>${esc(persona.name)}</h3>${button('Editar', 'open-person', 'btn-quiet btn-small', `data-id="${persona.id}"`)}</div>
-          <p class="small"><strong>Evita:</strong> ${persona.restrictions.length || persona.pendingRestrictions?.length
-            ? [...persona.restrictions.map(id => esc(nombreProducto(id))), ...(persona.pendingRestrictions || []).map(texto => `${esc(texto)} <span class="muted">(por enlazar)</span>`)].join(', ')
-            : 'nada anotado'}</p>
-          ${persona.habitual.length ? `<p class="small"><strong>Come normalmente:</strong> ${persona.habitual.map(item => `${esc(measure(item.quantity, item.unit))} de ${esc(nombreProducto(item.productId))}`).join(' · ')}</p>` : ''}
-        </article>`).join('')}</div>`
-      : empty('👨‍👩‍👧‍👦', 'Todavía no hay nadie', 'Anotar quién come en casa sirve para dos cosas: avisar de restricciones y calcular cuánto preparar. No es obligatorio para nada más.', button('Añadir la primera persona', 'open-person', 'btn-primary'))}
+    <div class="pantalla-acciones">
+      ${button(hogar.estado === 'listo' || enCasa.length ? 'Configurar mi hogar otra vez' : 'Configurar mi hogar', 'hogar-open', enCasa.length ? 'btn-secondary' : 'btn-primary')}
+      ${button('+ Añadir persona', 'hogar-editar', enCasa.length ? 'btn-primary' : 'btn-secondary')}
+      ${button('Marcar una ausencia', 'open-absence', 'btn-secondary')}
+    </div>
+    ${sinMotivo ? notice('Hay alimentos anotados sin decir por qué', `${sinMotivo} alimento(s) están marcados como «sin decir»: se anotaron antes de que la app preguntara si era alergia, intolerancia o preferencia. La app avisa de ellos igual que siempre. Si entras a editar a la persona puedes decir cuál es cada uno.`, 'warn') : ''}
+    ${enCasa.length
+      ? `<div class="grid grid-2">${enCasa.map(persona => tarjeta(persona, true)).join('')}</div>`
+      : empty('👨‍👩‍👧‍👦', 'Todavía no hay nadie', 'Anotar quién come en casa sirve para dos cosas: avisar de alergias y saber para cuántos se cocina. Son dos preguntas por persona.', button('Configurar mi hogar', 'hogar-open', 'btn-primary'))}
+    ${fuera.length ? `<div class="section-head"><h3 class="plan-sub">Ya no viven aquí</h3></div>
+      <p class="small muted">Siguen apareciendo en las comidas de antes, porque las comieron. No cuentan para las comidas nuevas.</p>
+      <div class="grid grid-2 familia-baja">${fuera.map(persona => tarjeta(persona, false)).join('')}</div>` : ''}
     ${state.absences.length ? `<div class="section-head"><h3 class="plan-sub">Ausencias anotadas</h3></div>
       <div class="card">${[...state.absences].sort((a, b) => a.date.localeCompare(b.date)).map(item => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${esc(state.people.find(p => p.id === item.personId)?.name || 'Persona eliminada')}</div><div class="list-row-sub">${cap(item.slot)} · ${esc(niceDate(item.date, { weekday: 'long', day: 'numeric', month: 'long' }))}</div></div>${button('Quitar', 'remove-absence', 'btn-quiet btn-small', `data-date="${item.date}" data-slot="${item.slot}" data-id="${item.personId}"`)}</div>`).join('')}</div>` : ''}`;
 }
@@ -529,6 +564,14 @@ function renderAjustes(ctx) {
       <p class="small ${dictado.ok ? '' : 'muted'}">${dictado.ok ? '✓ Disponible en este aparato.' : '· No disponible en este aparato. Puedes escribir a mano en cualquier campo, o usar el micrófono del teclado de Android.'}</p>
       <p class="small muted">${esc(dictado.detalle)}</p>
       ${button('Detalle técnico de este aparato', 'open-diagnostico', 'btn-quiet btn-small')}
+    </div>
+    <div class="card">
+      <h3>Las personas de tu hogar</h3>
+      <p class="muted small">Quién vive aquí, qué es de la casa cada quien y qué alimentos debe evitar. Desde aquí se añade gente, se corrige y se da de baja a quien ya no vive contigo.</p>
+      <p class="small">${personasActivas(state).length
+        ? `${personasActivas(state).length} persona(s) en casa${state.people.length - personasActivas(state).length ? ` · ${state.people.length - personasActivas(state).length} dada(s) de baja` : ''}.`
+        : 'Todavía no hay nadie registrado.'}</p>
+      <div class="inline">${button('Editar mi familia', 'navigate', 'btn-secondary btn-small', 'data-page="familia"')}${button('Configuración guiada', 'hogar-open', 'btn-quiet btn-small')}</div>
     </div>
     <div class="card">
       <h3>Cómo funciona la app</h3>

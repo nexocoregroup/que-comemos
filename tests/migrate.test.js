@@ -75,9 +75,9 @@ test('la cadena de la versión 1 a la 3 corre entera y no pierde nada de lo que 
   const { ok, state, from, to, migrated } = migrate(viejo);
   assert.equal(ok, true);
   assert.equal(from, 1);
-  assert.equal(to, 3);
+  assert.equal(to, 4);
   assert.equal(to, SCHEMA_VERSION);
-  assert.equal(state.version, 3);
+  assert.equal(state.version, 4);
   assert.equal(migrated, true);
   for (const clave of ['people', 'recipes', 'plans', 'absences', 'purchases', 'reviews', 'corrections', 'manualItems']) {
     assert.equal(state[clave].length, viejo[clave].length, `se conservaron los datos de ${clave}`);
@@ -89,7 +89,7 @@ test('la cadena de la versión 1 a la 3 corre entera y no pierde nada de lo que 
 test('los identificadores y las referencias entre datos siguen apuntando a lo mismo', () => {
   const { state } = migrate(respaldoV1());
   assert.deepEqual(state.products.map(item => item.id), ['producto-1', 'producto-2']);
-  assert.equal(state.people[0].restrictions[0], 'producto-2');
+  assert.equal(state.people[0].restricciones[0].productId, 'producto-2');
   assert.equal(state.recipes[0].items[0].productId, 'producto-1');
   assert.equal(state.plans[0].items[0].productId, 'producto-1');
   assert.equal(state.purchases[0].lines[0].productId, 'producto-2');
@@ -136,7 +136,7 @@ test('un respaldo de la versión 2 se convierte directamente, sin pasar por la 1
   const { ok, state, from, to } = migrate(respaldoV2());
   assert.equal(ok, true);
   assert.equal(from, 2);
-  assert.equal(to, 3);
+  assert.equal(to, 4);
   assert.equal(state.products.length, 3);
   assert.equal(state.purchases.length, 1);
   assert.equal(state.reviews.length, 1);

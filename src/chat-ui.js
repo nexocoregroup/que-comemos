@@ -285,7 +285,13 @@ function reconocerRestriccion(texto, llano) {
   const persona = recorte(texto, partido[1].length, partido[2].length);
   const alimento = sinArticulo(texto.slice(texto.length - partido[3].length), partido[3]);
   if (!persona || !alimento.texto) return null;
-  return { acciones: [{ action: 'agregar_restriccion', arguments: { persona, alimento: alimento.texto } }] };
+  // Solo se anota el motivo cuando la frase lo dice con esas palabras. «Es
+  // alérgico al maní» es una alergia; «no le damos maní» no dice por qué, y
+  // adivinarlo sería pintar de rojo un gusto o de gris una alergia.
+  const motivo = /es\s+alergic[oa]\s+a|tiene\s+alergia\s+a/.test(llano) ? 'alergia'
+    : /no\s+le\s+cae\s+bien/.test(llano) ? 'intolerancia'
+    : null;
+  return { acciones: [{ action: 'agregar_restriccion', arguments: motivo ? { persona, alimento: alimento.texto, motivo } : { persona, alimento: alimento.texto } }] };
 }
 
 function reconocerRestante(texto, llano) {

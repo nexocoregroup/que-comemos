@@ -355,12 +355,13 @@ test('una restricción de una persona no se bloquea porque el alimento aún no e
   const result = pedir(state, 'agregar_restriccion', { persona: 'Sofía', alimento: 'Maní' });
   assert.equal(result.ok, true);
   assert.equal(result.results[0].result.enlazado, false);
-  assert.deepEqual(state.people[0].pendingRestrictions, ['Maní']);
+  assert.deepEqual(state.people[0].restricciones, [{ productId: null, texto: 'Maní', motivo: null }]);
   // Y en cuanto el alimento aparece, se enlaza solo al guardar la persona.
   addProduct(state, { name: 'Maní', controlUnit: 'lb', purchaseUnit: 'lb' });
-  upsertPerson(state, { id: state.people[0].id, name: 'Sofía', restrictions: [], pendingRestrictions: ['Maní'], habitual: [] });
-  assert.equal(state.people[0].restrictions.length, 1);
-  assert.deepEqual(state.people[0].pendingRestrictions, []);
+  upsertPerson(state, { id: state.people[0].id, name: 'Sofía', habitual: [] });
+  assert.equal(state.people[0].restricciones.length, 1);
+  assert.ok(state.people[0].restricciones[0].productId, 'el texto pasó a apuntar al alimento');
+  assert.equal(state.people[0].restricciones[0].texto, '');
 });
 
 test('la lista calculada explica por qué pide cada cantidad', () => {

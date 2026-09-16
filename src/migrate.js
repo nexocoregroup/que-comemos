@@ -11,7 +11,14 @@
 
 import { normalizeName } from './nombres.js';
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
+
+// Las tres clasificaciones de una persona de la casa y los tres motivos por los
+// que puede evitar un alimento. Viven aquí y no en model.js porque una
+// migración tiene que poder normalizar datos viejos sin arrastrar el modelo
+// entero —que importa este archivo, no al revés—.
+export const CLASES_DE_PERSONA = ['adulto', 'adolescente', 'nino'];
+export const MOTIVOS_DE_RESTRICCION = ['alergia', 'intolerancia', 'preferencia'];
 
 const clone = value => structuredClone(value);
 const today = () => {
@@ -195,7 +202,76 @@ function v2toV3(data) {
   return { state, notes };
 }
 
-const STEPS = { 1: v1toV2, 2: v2toV3 };
+// v3 → v4. La casa deja de ser una lista de nombres.
+//
+// Hasta aquí una persona tenía dos listas sueltas: los identificadores de lo
+// que no puede comer y los nombres de lo que todavía no está en el catálogo.
+// Ninguna de las dos decía lo único que de verdad cambia lo que hace quien
+// cocina: si eso es una alergia, una intolerancia o algo que simplemente no le
+// gusta. Las dos listas se juntan en una sola con un motivo por línea.
+//
+// El motivo nace **sin decir**, y es deliberado. Rellenarlo con «preferencia»
+// convertiría una alergia real en un gusto; rellenarlo con «alergia» pintaría
+// de rojo un alimento que a alguien simplemente no le apetece. Las dos mentiras
+// son inaceptables en una app que avisa sobre comida. Sin motivo, la app avisa
+// exactamente igual que antes —no se relaja ninguna advertencia— y pregunta la
+// próxima vez que se edite a esa persona.
+//
+// `activo` nace en `true` para todo el mundo: nadie pidió dar a nadie de baja.
+function v3toV4(data) {
+  const notes = [];
+  const state = clone(data);
+  let conMotivoPendiente = 0;
+  state.people = (state.people || []).map(persona => {
+    const restricciones = restriccionesNormalizadas(persona);
+    if (restricciones.some(fila => !fila.motivo)) conMotivoPendiente++;
+    return personaNormalizada(persona, restricciones);
+  });
+  state.version = 4;
+  if (conMotivoPendiente) {
+    notes.push(`${conMotivoPendiente} persona(s) tenían alimentos anotados sin decir por qué. Se conservan y se sigue avisando igual; puedes marcar si es alergia, intolerancia o preferencia desde Más → Familia.`);
+  }
+  return { state, notes };
+}
+
+// Las dos listas viejas —y la nueva, si ya existe— convertidas en una sola
+// lista de filas con motivo. Es idempotente: pasarla dos veces da lo mismo.
+function restriccionesNormalizadas(persona) {
+  const filas = [];
+  const vistas = new Set();
+  const meter = (productId, texto, motivo) => {
+    const clave = productId ? `id:${productId}` : `txt:${String(texto).trim().toLocaleLowerCase('es')}`;
+    if (clave === 'txt:' || vistas.has(clave)) return;
+    vistas.add(clave);
+    filas.push({
+      productId: productId || null,
+      texto: String(texto || '').trim(),
+      motivo: MOTIVOS_DE_RESTRICCION.includes(motivo) ? motivo : null
+    });
+  };
+  for (const fila of persona.restricciones || []) meter(fila?.productId, fila?.texto, fila?.motivo);
+  for (const productId of persona.restrictions || []) meter(productId, '', null);
+  for (const texto of persona.pendingRestrictions || []) meter(null, texto, null);
+  return filas;
+}
+
+// Una persona con la forma de v4 y sin los dos campos que la sustituyen. Se
+// usa en la conversión y otra vez al final, por si un respaldo trae una persona
+// a medias.
+function personaNormalizada(persona, restricciones) {
+  const copia = { ...persona };
+  delete copia.restrictions;
+  delete copia.pendingRestrictions;
+  return {
+    ...copia,
+    kind: CLASES_DE_PERSONA.includes(persona.kind) ? persona.kind : 'adulto',
+    activo: persona.activo !== false,
+    restricciones,
+    habitual: Array.isArray(persona.habitual) ? persona.habitual : []
+  };
+}
+
+const STEPS = { 1: v1toV2, 2: v2toV3, 3: v3toV4 };
 
 // Campos que aparecieron dentro de una misma versión del esquema. Un respaldo
 // exportado antes de que existieran se rellena en vez de rechazarse.
@@ -225,6 +301,14 @@ export function migrate(data) {
 
   for (const [key, value] of Object.entries(OPTIONAL_V3)) {
     if (!(key in current)) current[key] = clone(value);
+  }
+
+  // Y una última pasada por las personas, venga el respaldo de donde venga.
+  // Un archivo exportado a media tarde de un día en que `restricciones` ya
+  // existía pero `activo` todavía no entra por aquí igual que uno de la v1, y
+  // repetirlo sobre datos ya convertidos no cambia nada.
+  if (Array.isArray(current.people)) {
+    current.people = current.people.map(persona => personaNormalizada(persona, restriccionesNormalizadas(persona)));
   }
 
   return { ok: true, state: current, from, to: SCHEMA_VERSION, migrated: from < SCHEMA_VERSION, notes };

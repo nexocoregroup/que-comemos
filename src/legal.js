@@ -51,7 +51,9 @@ export const LEGAL = {
       {
         titulo: 'Qué se guarda y dónde',
         parrafos: [
-          'La app guarda lo que tú escribes en ella: los alimentos de tu casa y sus cantidades, las comidas que planificas, tus rutinas y tus notas, las personas de la casa con el nombre que tú les pongas y sus restricciones si las anotas, tus compras, tus revisiones de «cuánto queda» y el historial que sale de ahí.',
+          'La app guarda lo que tú escribes en ella: los alimentos de tu casa y sus cantidades, las comidas que planificas, tus rutinas y tus notas, las personas de la casa con el nombre que tú les pongas, tus compras, tus revisiones de «cuánto queda» y el historial que sale de ahí.',
+          'De cada persona de la casa se guardan tres cosas y ninguna más: el nombre o apodo que tú elijas, si es adulto, adolescente o niño, y los alimentos que evita con el motivo que tú marques —alergia, intolerancia, o simplemente que lo evita—. Marcar una alergia es hablar de salud, y por eso conviene decirlo con todas las letras: esa palabra la escribes tú, se guarda igual que todo lo demás, y si enciendes la sincronización viaja a tu cuenta con el resto de tu casa.',
+          'Lo que la app no te pide, y no debes escribir en ella, es el peso de nadie, su fecha de nacimiento, un diagnóstico o una medicación. No los necesita para nada, y lo que no se guarda no se puede perder.',
           'Todo eso vive en el almacenamiento local del navegador dentro de tu propio teléfono. Es el mismo teléfono donde instalaste la app, y nada más.',
           'Con la sincronización apagada —que es como viene— no se copia a ninguna parte. Si abres la app en otro teléfono, ahí empiezas de cero.',
           'Si la enciendes, ese mismo contenido se guarda además en tu cuenta, en servidores de Supabase, y vuelve solo cuando entras desde otro teléfono. Viaja cifrado y solo tú puedes leerlo: la base de datos está configurada para que cada cuenta vea únicamente su propia casa. Puedes apagarla cuando quieras, y borrar la cuenta borra lo que hubiera subido.',

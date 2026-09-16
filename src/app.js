@@ -11,17 +11,18 @@ import {
   SLICEABLE, SLICE_STYLES, SLOTS, UNITS, addDays, addProduct, addPurchase, archiveProduct,
   copyPlan, correctReview, correctStock, createEmptyState, createReview, dependents, effectiveBasket,
   exportState, findSimilarProducts, habitualLines, importState, incompatibleItems, inventoryNow,
-  isAbsent, linkPlan, makeRecipePlan, mergeProducts, monthBounds, movePlan, nextId, planFor, product,
+  esActiva, isAbsent, linkPlan, makeRecipePlan, mergeProducts, monthBounds, movePlan, nextId, personasActivas, planFor, product,
   promoteToHabitual, quantity, removeMonthChange, restoreProduct, reservedQuantity, reviewAvailability,
   saveReview, setAbsence, setEquivalence, setHabitualBasket, setHabitualLine, setMonthChange,
   setSlice, setStatusPlan, shoppingList, sliceStyle, todayISO, updatePlan, updateProduct,
-  upsertPerson, upsertRecipe
+  upsertRecipe
 } from './model.js';
 import { clearAll, hasSavedState, loadStateDetailed, saveState } from './storage.js';
 import { BRAND_MARK } from './brand.js';
 import { TOUR_STEPS, WELCOME } from './onboarding.js';
 import { CATEGORIES } from './catalog-seed.js';
 import { SETUP_ACTIONS, SETUP_FORMS, emptySetup, renderSetup } from './setup.js';
+import { HOGAR_ACTIONS, HOGAR_FORMS, cuerpoDeFicha, emptyHogar, fichaActiva, renderHogar, tocaConfigurarElHogar } from './hogar.js';
 import { CHAT_ACTIONS, CHAT_FORMS, emptyChat, renderChat } from './chat-ui.js';
 import { BULK_ACTIONS, BULK_FORMS, emptyBulk, renderBulk } from './bulk-entry.js';
 import { MES_ACTIONS, MES_FORMS, abrirMesSiHaceFalta, emptyMes, modalRutina, renderMes } from './page-mes.js';
@@ -32,7 +33,7 @@ import { VOZ_ACTIONS, comprobarSiElDictadoMatoLaApp, emptyVoz, fallosDeVoz, seRi
 import { anotar, fallosRecientes, instalarRed, protegida } from './fallos.js';
 import { CUENTA_ACTIONS, CUENTA_FORMS, emptyCuenta, renderCuenta, volvimosDeGoogle } from './page-cuenta.js';
 import { CAJON_DE_ESTE_TELEFONO, arrancarSesion, cajonDe, fundirSesion, guardarSesion, olvidarSesion } from './sesion.js';
-import { guardarCopiaAntesDeBajar, sincronizar } from './sincronizar.js';
+import { guardarCopiaAntesDeBajar, mereceLaPenaVincular, sincronizar } from './sincronizar.js';
 import { hayNube } from './config-nube.js';
 import { button, cap, empty, esc, fmt, measure, modal, monthName, niceDate, notice, options, productDatalist, unitText } from './ui-kit.js';
 
@@ -84,6 +85,7 @@ function abrirCajon(cual) {
   ui.reviewId = null; ui.correctingReview = false; ui.modal = null;
   ui.mes = emptyMes(mesActual); ui.compra = emptyCompra(mesActual); ui.mas = emptyMas();
   ui.setup = null; ui.chat = null; ui.bulk = null;
+  ui.hogar = emptyHogar();
   ui.voz = emptyVoz();
 }
 const today = todayISO();
@@ -95,6 +97,7 @@ const ui = {
   page: 'hoy',
   modal: null,
   setup: null, chat: null, bulk: null,
+  hogar: emptyHogar(),
   mes: emptyMes(mesActual),
   compra: emptyCompra(mesActual),
   mas: emptyMas(),
@@ -217,6 +220,14 @@ function traerEstadoDeLaNube(estadoRemoto, revision) {
 
 /* ── Entrar, salir, borrarse ──────────────────────────────────────────── */
 
+// La casa que había en este teléfono antes de que nadie se registrara. Es lo que
+// se ofrece subir al crear una cuenta, y lo que decide si a alguien se le
+// pregunta por su hogar o no: quien ya lo tenía escrito no tiene que repetirlo.
+function leerElCajonDelTelefono() {
+  try { return loadStateDetailed(undefined, CAJON_DE_ESTE_TELEFONO).state; }
+  catch { return null; }
+}
+
 async function alEntrar(sesionNueva, { nueva = false } = {}) {
   const guardada = guardarSesion(sesionNueva);
   ponerSesion(guardada);
@@ -226,7 +237,16 @@ async function alEntrar(sesionNueva, { nueva = false } = {}) {
   abrirCajon(cajonDe(guardada.usuario.id));
   ui.cuenta = emptyCuenta();
   ui.cuenta.vista = 'cuenta';
-  ui.page = nueva ? 'cuenta' : 'hoy';
+  // Quien acaba de crear su cuenta pasa directo a conocer su hogar: es lo
+  // primero que la app necesita saber para servir de algo, y preguntarlo ahora
+  // —cuando ya se decidió a registrarse— cuesta menos que perseguirlo después.
+  // Quien vuelve a entrar no ve nada de esto, y quien ya tiene gente registrada
+  // tampoco: `tocaConfigurarElHogar` mira las dos cosas.
+  // La excepción: si en este teléfono ya había una casa montada de antes de
+  // registrarse, primero se ofrece subirla. Preguntarle quién vive en su hogar a
+  // quien ya lo tiene escrito sería pedirle dos veces lo mismo.
+  const hayQueVincular = mereceLaPenaVincular(leerElCajonDelTelefono());
+  ui.page = nueva && tocaConfigurarElHogar(state) && !hayQueVincular ? 'hogar' : nueva ? 'cuenta' : 'hoy';
   render();
   // Y si la sincronización estaba encendida de una sesión anterior, se pone al
   // día en segundo plano. Que tarde no puede bloquear la pantalla.
@@ -288,10 +308,7 @@ function ctxCuenta() {
     datosDeLaCasa: () => state,
     // Lo que hay en el cajón de este teléfono, que es lo que se ofrece vincular
     // después de crear una cuenta.
-    datosDelTelefono: () => {
-      try { return loadStateDetailed(undefined, CAJON_DE_ESTE_TELEFONO).state; }
-      catch { return null; }
-    },
+    datosDelTelefono: leerElCajonDelTelefono,
     abrirEnNavegador: async url => {
       const aparato = globalThis.Capacitor?.Plugins?.Aparato;
       if (aparato?.abrirEnNavegador) {
@@ -398,6 +415,14 @@ function ctx() {
   };
 }
 
+// El hogar necesita una cosa más que las demás pantallas: saber leer las filas
+// de «cuánto come normalmente», que las dibuja `itemRow` de este archivo. Se le
+// pasa la función en vez de mudar `itemRow` a `hogar.js`, porque esas filas las
+// comparten las preparaciones y las compras.
+function ctxHogar() {
+  return { ...ctx(), leerHabitual: form => collectItems(form) };
+}
+
 // El panel de dictado sirve a cuatro pantallas, así que necesita ver los cuatro
 // trozos de interfaz donde puede acabar el texto. `alUsarLaVoz` es la puerta por
 // la que una pantalla hace algo más que guardar lo dicho: la revisión lo reparte
@@ -413,7 +438,7 @@ function ctxConVoz() {
   };
 }
 
-const TITULOS = { hoy: 'Hoy en casa', mes: 'Plan mensual', compra: 'La compra', mas: 'Más', setup: 'Organizar mi casa', legal: 'Privacidad y condiciones', cuenta: 'Mi cuenta', ...TITULOS_MAS };
+const TITULOS = { hoy: 'Hoy en casa', mes: 'Plan mensual', compra: 'La compra', mas: 'Más', setup: 'Organizar mi casa', hogar: 'Mi hogar', legal: 'Privacidad y condiciones', cuenta: 'Mi cuenta', ...TITULOS_MAS };
 function pageTitle() { return TITULOS[ui.page] || '¿Qué comemos?'; }
 
 /* ── Bienvenida y recorrido ────────────────────────────────────────────── */
@@ -450,6 +475,7 @@ const PAGINAS = {
   mes: () => renderMes(ctx()),
   compra: () => renderCompra(ctx()),
   setup: () => renderSetup(ctx()),
+  hogar: () => renderHogar(ctxHogar()),
   cuenta: () => renderCuenta(ctxCuenta())
 };
 const esPaginaDeMas = pagina => pagina === 'mas' || PAGINAS_MAS.includes(pagina);
@@ -529,7 +555,7 @@ function pintar() {
       ${state.demo ? `<div class="demo-banner"><span>✦</span><div><strong>Estás viendo un ejemplo</strong>Las cantidades son inventadas para que veas cómo funciona; no son recomendaciones de alimentación.</div>${button('Borrar el ejemplo', 'clear-demo', 'btn-secondary btn-small')}</div>` : ''}
       ${cuerpo}
     </main>
-    ${ui.modal || ui.page === 'setup' ? '' : `<button type="button" class="fab" data-action="open-quick" aria-label="Anotar algo"><span aria-hidden="true">+</span></button>`}
+    ${ui.modal || ui.page === 'setup' || ui.page === 'hogar' ? '' : `<button type="button" class="fab" data-action="open-quick" aria-label="Anotar algo"><span aria-hidden="true">+</span></button>`}
     <nav class="mobile-nav" aria-label="Navegación principal">${NAV.map(([id, icon, label]) => `<button type="button" class="${activa(id)}" data-action="navigate" data-page="${id}"><span>${icon}</span>${label}</button>`).join('')}</nav>
   </div>`;
   document.querySelector('#modal-root').innerHTML = ui.modal ? renderModal() : ui.tour === null ? '' : tourCard();
@@ -649,7 +675,7 @@ const rotuloDePeriodo = () => ({
 
 const unitOptions = selected => options(UNITS.map(unit => [unit, unit]), selected);
 const productOptions = selected => options(state.products.filter(item => !item.archived).map(item => [item.id, item.name]), selected, 'Elegir un alimento');
-const personOptions = selected => options([['', 'Para todos'], ...state.people.map(item => [item.id, item.name])], selected || '');
+const personOptions = selected => options([['', 'Para todos'], ...personasActivas(state).map(item => [item.id, item.name])], selected || '');
 
 function itemRow(item = {}, type = 'ingredient') {
   const isPurchase = type === 'purchase';
@@ -663,9 +689,13 @@ function itemRow(item = {}, type = 'ingredient') {
     <button type="button" class="btn btn-quiet remove-item" data-action="remove-item" aria-label="Quitar alimento">✕</button></div>`;
 }
 
+// Quien está dado de baja no aparece aquí, salvo que ya estuviera marcado en
+// esta comida: una comida de marzo la comió quien la comió, y editarla no puede
+// expulsar a nadie por haberse mudado en agosto.
 function checkPeople(name, selected, date = null, slot = null) {
-  if (!state.people.length) return '<p class="muted small">Todavía no hay personas registradas. Puedes seguir sin ellas.</p>';
-  return `<div class="checks">${state.people.map(person => {
+  const gente = state.people.filter(person => esActiva(person) || selected.includes(person.id));
+  if (!gente.length) return '<p class="muted small">Todavía no hay personas registradas. Puedes seguir sin ellas.</p>';
+  return `<div class="checks">${gente.map(person => {
     const ausente = date && isAbsent(state, date, slot, person.id);
     return `<label class="check-chip ${ausente ? 'disabled' : ''}"><input type="checkbox" name="${name}" value="${person.id}" ${selected.includes(person.id) ? 'checked' : ''} ${ausente ? 'disabled' : ''}>${esc(person.name)}${ausente ? ' <span class="muted">(fuera)</span>' : ''}</label>`;
   }).join('')}</div>`;
@@ -720,22 +750,26 @@ function renderModal() {
       </form>`, true);
   }
 
-  if (m.type === 'person') {
+  // La ficha de una persona. El cuerpo lo dibuja `hogar.js`: es exactamente el
+  // mismo formulario que el de la configuración guiada, y tenerlo dos veces
+  // escrito sería tener dos sitios donde olvidarse de preguntar el motivo.
+  //
+  // Lo único que añade esta ventana es «cuánto come normalmente», que vive aquí
+  // porque las filas de alimento con cantidad y unidad las dibuja `itemRow`, de
+  // este archivo. El asistente guiado no la pregunta a propósito: son dos
+  // campos por alimento y no hacen falta para avisar de una alergia.
+  if (m.type === 'persona') {
     const person = state.people.find(item => item.id === m.id);
-    return modal(person ? 'Editar persona' : 'Añadir persona', '', `<form data-form="person" data-id="${person?.id || ''}">
-      <label class="field"><span>Nombre</span><input name="name" required value="${esc(person?.name || '')}" placeholder="Nombre de la persona"></label>
-      <div class="field" style="margin-top:16px"><span>¿Hay algo que no pueda comer?</span>
-        <input name="pendingRestrictions" class="text" value="${esc((person?.pendingRestrictions || []).join(', '))}" placeholder="Ej. maní, mariscos" autocomplete="off" aria-label="Alimentos que no puede comer">
-        <small>Escríbelos aunque no estén todavía en tu lista: se enlazan solos en cuanto aparezcan.</small>
-        ${state.products.length ? `<details class="more" style="margin-top:10px"><summary>O marcarlos de la lista</summary><div class="checks">${state.products.filter(item => !item.archived).map(item => `<label class="check-chip"><input type="checkbox" name="restrictions" value="${item.id}" ${person?.restrictions.includes(item.id) ? 'checked' : ''}>${esc(item.name)}</label>`).join('')}</div></details>` : ''}
-      </div>
-      <details class="more" style="margin-top:16px" ${person?.habitual.length ? 'open' : ''}>
+    const ficha = fichaActiva(ctxHogar());
+    return modal(person ? 'Editar persona' : 'Añadir persona', '', `<form data-form="persona" data-id="${esc(person?.id || '')}">
+      ${cuerpoDeFicha(ctxHogar(), ficha, { prefijo: 'hogar' })}
+      <details class="more" style="margin-top:16px" ${person?.habitual?.length ? 'open' : ''}>
         <summary>Más opciones: cuánto come normalmente</summary>
         <p class="small muted">Queda guardado y no hay que volver a escribirlo: al crear una preparación se suman con un toque las de todos los que comen.</p>
         <div data-item-list="habitual">${(person?.habitual || []).map(item => itemRow(item, 'habitual')).join('')}</div>
         ${button('+ Añadir cantidad', 'add-item', 'btn-secondary btn-small', 'data-type="habitual"')}
       </details>
-      <div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar</button></div></form>`, true);
+      <div class="modal-actions">${person ? button(esActiva(person) ? 'Ya no vive aquí' : 'Vuelve a vivir aquí', esActiva(person) ? 'hogar-baja' : 'hogar-alta', 'btn-quiet', `data-id="${esc(person.id)}"`) : ''}<button type="submit" class="btn btn-primary">Guardar</button></div></form>`, true);
   }
 
   if (m.type === 'product') return modalProducto(m);
@@ -884,7 +918,9 @@ function modalComida(m) {
   const contexto = `${cap(m.slot)} · ${niceDate(m.date, { weekday: 'long', day: 'numeric', month: 'long' })}`;
   if (!plan) {
     const opciones = state.recipes.filter(recipe => recipe.uses.includes(m.slot));
-    const marcados = opciones[0]?.covers.length ? opciones[0].covers : state.people.map(person => person.id);
+    // Sin decir nada, la comida es para toda la casa: se marcan todos los que
+    // viven aquí hoy. Quitar a alguien es la excepción, no el trámite.
+    const marcados = (opciones[0]?.covers.length ? opciones[0].covers : personasActivas(state).map(person => person.id)).filter(id => esActiva(state.people.find(item => item.id === id)));
     return modal('¿Qué se come?', contexto, `<form data-form="assign" class="stack">
       <input type="hidden" name="date" value="${m.date}"><input type="hidden" name="slot" value="${m.slot}">
       <label class="field"><span>Preparación</span><select name="recipeId" id="assign-recipe" ${opciones.length ? '' : 'disabled'}>${options(opciones.map(recipe => [recipe.id, recipe.name]), opciones[0]?.id, opciones.length ? '' : 'Todavía no hay ninguna')}</select></label>
@@ -1122,6 +1158,7 @@ document.addEventListener('click', event => {
       if (ui.page === 'mes' && abrirMesSiHaceFalta(ctx(), ui.mes.month)) commit('');
       return;
     }
+    if (HOGAR_ACTIONS[action]) { llamarAccion(action, HOGAR_ACTIONS[action], el, ctxHogar()); return; }
     if (CHAT_ACTIONS[action]) { llamarAccion(action, CHAT_ACTIONS[action], el, { ...ctx(), chat: ui.chat }); return; }
     if (BULK_ACTIONS[action]) { llamarAccion(action, BULK_ACTIONS[action], el, { ...ctx(), bulk: ui.bulk }); return; }
     if (MES_ACTIONS[action]) { llamarAccion(action, MES_ACTIONS[action], el, ctx()); return; }
@@ -1160,7 +1197,6 @@ document.addEventListener('click', event => {
     else if (action === 'close-modal') closeModal();
     else if (action === 'open-meal') openModal('meal', { date: el.dataset.date, slot: el.dataset.slot });
     else if (action === 'open-recipe') openModal('recipe', { id: el.dataset.id });
-    else if (action === 'open-person') openModal('person', { id: el.dataset.id });
     else if (action === 'open-product') openModal('product', { id: el.dataset.id });
     else if (action === 'open-equivalence') openModal('equivalence', { id: el.dataset.id });
     else if (action === 'open-merge') openModal('merge', { id: el.dataset.id });
@@ -1447,6 +1483,7 @@ document.addEventListener('submit', async event => {
   try {
     if (CUENTA_FORMS[kind]) { await CUENTA_FORMS[kind](form, data, ctxCuenta()); return; }
     if (SETUP_FORMS[kind]) { SETUP_FORMS[kind](form, data, ctx()); return; }
+    if (HOGAR_FORMS[kind]) { HOGAR_FORMS[kind](form, data, ctxHogar()); return; }
     if (CHAT_FORMS[kind]) { await CHAT_FORMS[kind](form, data, { ...ctx(), chat: ui.chat }); return; }
     if (BULK_FORMS[kind]) { await BULK_FORMS[kind](form, data, { ...ctx(), bulk: ui.bulk }); return; }
     if (MES_FORMS[kind]) { MES_FORMS[kind](form, data, ctx()); return; }
@@ -1455,12 +1492,6 @@ document.addEventListener('submit', async event => {
     if (kind === 'recipe') {
       upsertRecipe(state, { id: form.dataset.id, name: data.get('name'), uses: selected(form, 'uses'), covers: selected(form, 'covers'), servings: data.get('servings'), items: collectItems(form), note: data.get('note') });
       ui.modal = null; commit('Preparación guardada.');
-    }
-    else if (kind === 'person') {
-      const escritas = String(data.get('pendingRestrictions') || '').split(/[,;]/).map(texto => texto.trim()).filter(Boolean);
-      const persona = upsertPerson(state, { id: form.dataset.id, name: data.get('name'), restrictions: selected(form, 'restrictions'), pendingRestrictions: escritas, habitual: collectItems(form) });
-      ui.modal = null;
-      commit(persona.pendingRestrictions.length ? `Guardado. ${persona.pendingRestrictions.length} alimento(s) se enlazarán cuando los registres.` : 'Guardado.');
     }
     else if (kind === 'product') {
       const existente = product(state, form.dataset.id);

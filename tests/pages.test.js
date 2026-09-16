@@ -15,7 +15,7 @@ import { readFileSync } from 'node:fs';
 // campo que cambió de forma y el `undefined` que se cuela en la pantalla.
 
 import { createDemoState } from '../src/demo.js';
-import { addProduct, createEmptyState, createReview, saveReview, setHabitualLine, setMonthChange, todayISO } from '../src/model.js';
+import { addProduct, createEmptyState, createReview, saveReview, setHabitualLine, setMonthChange, setPersonActive, todayISO, upsertPerson } from '../src/model.js';
 import { addRoutine } from '../src/routines.js';
 import { PASOS, emptyMes, modalRutina, renderMes } from '../src/page-mes.js';
 import { emptyCompra, renderCompra } from '../src/page-compra.js';
@@ -99,6 +99,31 @@ test('la canasta se dibuja en sus dos vistas', () => {
   revisar(renderMas(ctx), 'canasta (lo de siempre)');
   ctx.ui.mas.canastaVista = 'cambios';
   revisar(renderMas(ctx), 'canasta (cambios del mes)');
+});
+
+// Familia es la pantalla donde un fallo de dibujo tiene consecuencias: si una
+// alergia no se pinta, quien cocina no la ve. Se prueba con las cuatro
+// situaciones a la vez, que es como se ve en una casa de verdad.
+test('familia se dibuja con alergias, con gente de baja y con motivos sin decir', () => {
+  const state = createEmptyState();
+  const mani = addProduct(state, { name: 'Maní', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
+  upsertPerson(state, { name: 'Sofía', kind: 'nino', restricciones: [
+    { productId: mani, texto: '', motivo: 'alergia' },
+    { productId: null, texto: 'Berenjena', motivo: 'preferencia' },
+    { productId: null, texto: 'Mariscos', motivo: null }
+  ], habitual: [] });
+  const luis = upsertPerson(state, { name: 'Luis', kind: 'adolescente', restricciones: [], habitual: [] });
+  setPersonActive(state, luis.id, false);
+
+  const ctx = contexto(state, { page: 'familia' });
+  const html = renderMas(ctx);
+  revisar(html, 'familia');
+  assert.ok(html.includes('restriccion-alergia'), 'la alergia se distingue');
+  assert.ok(html.includes('Dado de baja'), 'quien se fue sigue a la vista, marcado');
+  assert.ok(html.includes('Ya no viven aquí'));
+  assert.ok(html.includes('Adolescente'), 'la clasificación nueva se pinta');
+  assert.ok(html.includes('sin decir por qué'), 'se avisa de lo que falta por completar');
+  assert.ok(html.indexOf('Maní') < html.indexOf('Berenjena'), 'la alergia va delante de la preferencia');
 });
 
 /* ── Sin datos: los estados vacíos son los que más se ven ──────────────── */

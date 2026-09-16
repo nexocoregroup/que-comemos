@@ -1,7 +1,7 @@
 import { containsWords, normalizeName, similarity } from './nombres.js';
-import { SCHEMA_VERSION, migrate } from './migrate.js';
+import { CLASES_DE_PERSONA, MOTIVOS_DE_RESTRICCION, SCHEMA_VERSION, migrate } from './migrate.js';
 
-export { normalizeName, SCHEMA_VERSION };
+export { normalizeName, SCHEMA_VERSION, CLASES_DE_PERSONA, MOTIVOS_DE_RESTRICCION };
 
 export const SLOTS = ['desayuno', 'almuerzo', 'cena'];
 export const UNITS = ['unidad', 'lb', 'taza', 'lata', 'paquete', 'rueda', 'rebanada'];
@@ -62,7 +62,12 @@ export const createEmptyState = () => ({
   // fuera», «los lunes mangú». Un mes abierto es un mes al que ya se le
   // aplicaron.
   mealRoutines: [], monthPlans: {},
-  settings: { reviewWeekday: 5, onboarded: false },
+  // `hogar` guarda por dónde va la configuración guiada de la casa. Va en el
+  // estado y no en la interfaz a propósito: quien cierra la app a mitad de la
+  // tercera ficha tiene que encontrarla abierta por la tercera ficha, y quien
+  // cambia de teléfono también. Los respaldos viejos no lo traen, así que todo
+  // lo que lo lee lo lee con `hogarDe()`, que devuelve el valor de fábrica.
+  settings: { reviewWeekday: 5, onboarded: false, hogar: null },
   activity: []
 });
 export function nextId(state, prefix) { state.seq += 1; return `${prefix}-${state.seq}`; }
@@ -216,7 +221,11 @@ export function mergeProducts(state, keepId, dropId) {
     for (const recipe of state.recipes) for (const line of recipe.items) line.productId = swap(line.productId);
     for (const plan of state.plans) for (const line of plan.items) line.productId = swap(line.productId);
     for (const person of state.people) {
-      person.restrictions = [...new Set(person.restrictions.map(swap))];
+      // Si los dos alimentos que se unen estaban los dos restringidos, después
+      // de la unión son la misma restricción. `linkPendingRestrictions` junta
+      // las dos filas y conserva el motivo que alguna de ellas tuviera.
+      person.restricciones = restriccionesDe(person).map(fila => ({ ...fila, productId: fila.productId ? swap(fila.productId) : null }));
+      linkPendingRestrictions(state, person);
       person.habitual = person.habitual.map(row => ({ ...row, productId: swap(row.productId) }));
     }
     state.habitualBasket.lines = mergeBasketLines(state.habitualBasket.lines.map(line => ({ ...line, productId: swap(line.productId) })));
@@ -496,31 +505,112 @@ export function basketShare(start, end) {
 
 /* ── Personas, preparaciones y menú ────────────────────────────────────── */
 
+// Una restricción es una fila con tres cosas: qué alimento, escrito cómo, y por
+// qué se evita. El «por qué» es lo único que cambia lo que hace quien cocina:
+// un maní que mata no se trata igual que una berenjena que no gusta.
+//
+// `motivo` puede ser `null`, y significa exactamente «todavía no se ha dicho».
+// No se rellena solo: inventar un motivo es lo único que esta parte de la app no
+// puede permitirse. Mientras esté sin decir, la app avisa igual que siempre.
+export const restriccionesDe = person => (Array.isArray(person?.restricciones) ? person.restricciones : []);
+export const alimentosProhibidos = person => new Set(restriccionesDe(person).filter(fila => fila.productId).map(fila => fila.productId));
+export const restriccionDe = (person, productId) => restriccionesDe(person).find(fila => fila.productId === productId) || null;
+
+// Quién vive hoy en la casa. Una persona dada de baja no desaparece —su nombre
+// tiene que seguir leyéndose en las comidas de marzo— pero deja de contar para
+// lo que se va a cocinar a partir de ahora.
+export const esActiva = person => person?.activo !== false;
+export const personasActivas = state => state.people.filter(esActiva);
+
+const claveDeTexto = texto => normalizeName(String(texto || ''));
+
+// Deja la lista en su forma buena: sin repetidos, sin filas vacías, sin
+// identificadores de alimentos que ya no existen y sin motivos inventados.
+function normalizarRestricciones(state, filas) {
+  const salida = [];
+  const vistas = new Set();
+  for (const fila of filas || []) {
+    const enlazado = fila?.productId && product(state, fila.productId) ? fila.productId : null;
+    const texto = String(fila?.texto || '').trim();
+    if (!enlazado && !texto) continue;
+    const llave = enlazado ? `id:${enlazado}` : `txt:${claveDeTexto(texto)}`;
+    if (vistas.has(llave)) continue;
+    vistas.add(llave);
+    salida.push({
+      productId: enlazado,
+      texto: enlazado ? '' : texto,
+      motivo: MOTIVOS_DE_RESTRICCION.includes(fila?.motivo) ? fila.motivo : null
+    });
+  }
+  return salida;
+}
+
+// De dónde salen las restricciones que se van a guardar. Hay tres casos y los
+// tres importan:
+//
+//  · Viene `restricciones`: es la forma de hoy y manda, aunque venga vacía —
+//    vaciarla es una orden legítima—.
+//  · Vienen las dos listas viejas: se convierten, y el motivo que ya tuviera
+//    cada línea se conserva. Guardar desde una pantalla que todavía no pregunta
+//    el motivo no puede borrar el que alguien escribió en otra.
+//  · No viene ninguna: se deja lo que la persona ya tenía.
+function restriccionesDesdeCampos(fields, person) {
+  if (Array.isArray(fields.restricciones)) return fields.restricciones;
+  if (!Array.isArray(fields.restrictions) && !Array.isArray(fields.pendingRestrictions)) return restriccionesDe(person);
+  const previas = restriccionesDe(person);
+  const motivoPrevio = (productId, texto) => previas.find(fila =>
+    productId ? fila.productId === productId : claveDeTexto(fila.texto) === claveDeTexto(texto))?.motivo ?? null;
+  return [
+    ...(fields.restrictions || []).map(productId => ({ productId, texto: '', motivo: motivoPrevio(productId, '') })),
+    ...(fields.pendingRestrictions || []).map(texto => ({ productId: null, texto, motivo: motivoPrevio(null, texto) }))
+  ];
+}
+
 export function upsertPerson(state, fields) {
   const name = String(fields.name || '').trim();
   if (!name) throw new Error('Escribe el nombre de la persona.');
   let person = state.people.find(item => item.id === fields.id);
   if (!person) { person = { id: nextId(state, 'persona') }; state.people.push(person); }
   person.name = name;
-  person.kind = ['adulto', 'nino'].includes(fields.kind) ? fields.kind : person.kind || 'adulto';
-  person.restrictions = [...new Set(fields.restrictions || [])].filter(id => product(state, id));
+  person.kind = CLASES_DE_PERSONA.includes(fields.kind) ? fields.kind : person.kind || 'adulto';
+  person.activo = 'activo' in fields ? fields.activo !== false : esActiva(person);
+  person.restricciones = normalizarRestricciones(state, restriccionesDesdeCampos(fields, person));
+  person.habitual = (fields.habitual || []).map(item => ({ productId: item.productId, quantity: quantity(item.quantity), unit: item.unit }));
   // Una restricción escrita por nombre cuando el alimento todavía no existe no
   // se pierde: se guarda como texto y se enlaza en cuanto el alimento aparezca.
   // Bloquear a quien registra su casa por un producto que aún no creó sería
   // justo el orden invertido que hace que nadie termine de configurar nada.
-  person.pendingRestrictions = [...new Set((fields.pendingRestrictions || []).map(value => String(value).trim()).filter(Boolean))];
-  person.habitual = (fields.habitual || []).map(item => ({ productId: item.productId, quantity: quantity(item.quantity), unit: item.unit }));
   linkPendingRestrictions(state, person);
   return person;
 }
+
+// Dar de baja no es borrar. La persona se queda en la casa con su nombre, sus
+// restricciones y su sitio en todas las comidas que ya se cocinaron; lo único
+// que cambia es que a partir de ahora no cuenta para lo que se va a preparar.
+// Por eso aquí no se toca ni un plan, ni una ausencia, ni una preparación: el
+// historial de marzo tiene que seguir diciendo lo que decía en marzo.
+export function setPersonActive(state, personId, activo) {
+  const person = state.people.find(item => item.id === personId);
+  if (!person) throw new Error('Esa persona ya no está en la casa.');
+  person.activo = activo !== false;
+  return person;
+}
+
 export function linkPendingRestrictions(state, person) {
-  const left = [];
-  for (const text of person.pendingRestrictions || []) {
-    const match = productByName(state, text);
-    if (match) { if (!person.restrictions.includes(match.id)) person.restrictions.push(match.id); }
-    else left.push(text);
+  const porProducto = new Map();
+  const filas = [];
+  for (const fila of restriccionesDe(person)) {
+    const id = fila.productId || productByName(state, fila.texto)?.id || null;
+    if (!id) { filas.push(fila); continue; }
+    const previa = porProducto.get(id);
+    // El mismo alimento escrito dos veces —una por nombre y otra de la lista—
+    // es una sola restricción. Si una de las dos traía motivo, ese se queda.
+    if (previa) { if (!previa.motivo && fila.motivo) previa.motivo = fila.motivo; continue; }
+    const nueva = { productId: id, texto: '', motivo: fila.motivo || null };
+    porProducto.set(id, nueva);
+    filas.push(nueva);
   }
-  person.pendingRestrictions = left;
+  person.restricciones = filas;
   return person;
 }
 export function setAbsence(state, date, slot, personId, absent) {
@@ -575,14 +665,23 @@ export function deleteRecipe(state, id) {
   // Calendar entries keep their own quantities and title.
 }
 export function planFor(state, date, slot) { return state.plans.find(item => item.date === date && item.slot === slot); }
+// Sin decir nada, una comida es para toda la casa. Solo quien esté dado de baja
+// o marcado fuera ese día se queda fuera de la cuenta.
 export function effectiveParticipants(state, recipe, date, slot, selected) {
   const ids = selected || (recipe.covers.length ? recipe.covers : state.people.map(item => item.id));
-  return ids.filter(id => state.people.some(person => person.id === id) && !isAbsent(state, date, slot, id));
+  return ids.filter(id => {
+    const person = state.people.find(item => item.id === id);
+    if (!person) return false;
+    // Una selección explícita manda —editar una comida de antes no puede
+    // expulsar a quien ya figuraba en ella—; el reparto automático, no.
+    if (!selected && !esActiva(person)) return false;
+    return !isAbsent(state, date, slot, id);
+  });
 }
 export function incompatibleItems(state, items, participants) {
   return items.filter(item => participants.some(id => {
     const person = state.people.find(p => p.id === id);
-    return person?.restrictions.includes(item.productId) && (!item.personId || item.personId === id);
+    return Boolean(person) && alimentosProhibidos(person).has(item.productId) && (!item.personId || item.personId === id);
   }));
 }
 // `routineId` deja escrito que esta comida la puso una rutina y no una persona.
@@ -593,7 +692,7 @@ export function makeRecipePlan(state, recipeId, date, slot, selected, routineId 
   if (!recipe || !recipe.uses.includes(slot)) throw new Error('Esta preparación no está disponible para esa comida.');
   if (planFor(state, date, slot)) throw new Error('Esa comida ya tiene un plan.');
   const participants = effectiveParticipants(state, recipe, date, slot, selected);
-  if (state.people.length && !participants.length) throw new Error('Selecciona al menos una persona que comerá en casa.');
+  if (personasActivas(state).length && !participants.length) throw new Error('Selecciona al menos una persona que comerá en casa.');
   const rawItems = recipe.items.filter(item => !item.personId || participants.includes(item.personId));
   if (incompatibleItems(state, rawItems, participants).length) throw new Error('La preparación incluye un alimento incompatible con una de las personas seleccionadas.');
   const plan = { id: nextId(state, 'comida'), date, slot, kind: 'recipe', recipeId, routineId: routineId || null, title: recipe.name, note: recipe.note, servings: recipe.servings, participants, items: rawItems.map(item => ({ ...item, id: nextId(state, 'alimento') })) };
@@ -623,7 +722,7 @@ export function linkPlan(state, sourceId, date, slot, allocation, extraItems = [
     return { sourceItemId, quantity: quantity(amount) };
   });
   if (!reservedItems.length) throw new Error('Indica qué cantidad vas a reservar.');
-  if (state.people.length && !participants.length) throw new Error('Selecciona quién comerá la parte reservada.');
+  if (personasActivas(state).length && !participants.length) throw new Error('Selecciona quién comerá la parte reservada.');
   if (participants.some(id => isAbsent(state, date, slot, id))) throw new Error('Una persona seleccionada está marcada fuera de casa en esa comida.');
   const items = extraItems.map(item => {
     if (!product(state, item.productId) || !UNITS.includes(item.unit)) throw new Error('Selecciona alimentos y unidades válidas.');
@@ -680,7 +779,7 @@ export function copyPlan(state, id, date, slot) {
   // alguien colocó a mano.
   copy.routineId = null;
   copy.participants = copy.participants.filter(personId => !isAbsent(state, date, slot, personId));
-  if (state.people.length && source.participants.length && !copy.participants.length) throw new Error('No hay participantes disponibles para esa comida.');
+  if (personasActivas(state).length && source.participants.length && !copy.participants.length) throw new Error('No hay participantes disponibles para esa comida.');
   copy.items = copy.items.filter(item => !item.personId || copy.participants.includes(item.personId)).map(item => ({ ...item, id: nextId(state, 'alimento') }));
   if (incompatibleItems(state, copy.items, copy.participants).length) throw new Error('La copia incluye un alimento incompatible con una persona.');
   state.plans.push(copy);
@@ -727,7 +826,7 @@ export function generateMonth(state, month) {
     const options = state.recipes.filter(recipe => {
       if (!recipe.uses.includes(slot)) return false;
       const participants = effectiveParticipants(state, recipe, date, slot);
-      return (!state.people.length || participants.length > 0) && !incompatibleItems(state, recipe.items, participants).length;
+      return (!personasActivas(state).length || participants.length > 0) && !incompatibleItems(state, recipe.items, participants).length;
     });
     if (!options.length) { unavailable.push({ date, slot }); continue; }
     const scored = options.map(recipe => ({ recipe, uses: state.plans.filter(plan => plan.recipeId === recipe.id && plan.slot === slot).length, yesterday: state.plans.some(plan => plan.date === addDays(date, -1) && plan.slot === slot && plan.recipeId === recipe.id) }));
