@@ -163,13 +163,6 @@ const deUnDia = fecha => ({ tipo: 'fecha', texto: `Solo el ${fechaTexto(fecha)}`
 const deUnMes = (mes, fechas = []) => ({ tipo: 'mes', texto: `Solo en ${mesTexto(mes)}`, fechas, mes });
 const deSiempre = (fechas = [], mes = null) => ({ tipo: 'permanente', texto: 'Desde ahora, todos los meses', fechas, mes });
 
-export const SCOPE_TEXT = {
-  ninguno: '',
-  fecha: 'Solo ese día',
-  mes: 'Solo ese mes',
-  permanente: 'Desde ahora, todos los meses'
-};
-
 const ORDEN_ALCANCE = { ninguno: 0, fecha: 1, mes: 2, permanente: 3 };
 const masAmplio = (a, b) => (ORDEN_ALCANCE[b.tipo] > ORDEN_ALCANCE[a.tipo] ? b : a);
 

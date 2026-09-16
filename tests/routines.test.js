@@ -530,6 +530,22 @@ test('al borrar se puede elegir qué pasa con las comidas, y las pasadas nunca s
   for (const fecha of miercoles.slice(2)) assert.equal(planFor(state, fecha, 'desayuno'), undefined);
 });
 
+test('una palabra que no está en la lista no borra comidas', () => {
+  const { state, mangu } = cocina();
+  const rutina = addRoutine(state, { kind: 'recipe', recipeId: mangu, slots: ['desayuno'], weekdays: [3] });
+  applyRoutine(state, rutina.id, '2026-10');
+  const miercoles = diasRealesDe('2026-10', 3);
+
+  // Solo la palabra exacta borra. 'Quitar' con mayúscula, 'borrar' o un campo
+  // vacío conservan, y así tiene que seguir siendo: entre equivocarse hacia lo
+  // que se deshace y hacia lo que no, esto se equivoca hacia lo que se deshace.
+  const salida = deleteRoutine(state, rutina.id, { comidas: 'Quitar', desde: '2026-10-01' });
+  assert.equal(salida.borrada, true, 'la regla sí se va');
+  assert.equal(salida.quitadas, 0, 'pero no se lleva ninguna comida por delante');
+  assert.equal(salida.conservadas, miercoles.length);
+  for (const fecha of miercoles) assert.ok(planFor(state, fecha, 'desayuno'), `el ${fecha} sigue puesto`);
+});
+
 /* ── Los criterios de aceptación del encargo, uno por uno ───────────────── */
 
 test('se puede configurar un desayuno los lunes, miércoles y viernes', () => {

@@ -144,8 +144,6 @@ export function updateRoutine(state, id, fields) {
    `desde` acota el borrado: por defecto solo se quitan las de hoy en adelante,
    porque quitar las de la semana pasada no deshace ninguna cena. */
 
-export const QUE_HACER_CON_LAS_COMIDAS = ['conservar', 'quitar'];
-
 export function deleteRoutine(state, id, { comidas = 'conservar', desde = todayISO() } = {}) {
   const before = state.mealRoutines.length;
   state.mealRoutines = state.mealRoutines.filter(item => item.id !== id);

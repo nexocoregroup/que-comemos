@@ -374,10 +374,6 @@ async function reconocimientoLocal(voz, idioma) {
    de Android. Si no está —en el navegador no está— se dice que no se pudo, y
    quien llama enseña el camino a mano. */
 
-export async function sePuedenAbrirLosAjustes() {
-  return Boolean(nativo() && plugin('Aparato'));
-}
-
 export async function abrirAjustesDelTelefono() {
   const aparato = plugin('Aparato');
   if (!aparato?.abrirAjustes) return { ok: false, motivo: 'no-disponible' };
