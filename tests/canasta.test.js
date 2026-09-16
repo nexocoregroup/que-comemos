@@ -423,7 +423,7 @@ test('lo marcado en los ocho rubros llega entero al paso de las cantidades', () 
   SETUP_ACTIONS['setup-falta'](null, ctx);
   SETUP_FORMS['setup-nuevo'](null, new Map([['nombre', 'Fresa']]), ctx);
 
-  ctx.ui.setup.paso = 3;
+  ctx.ui.setup.paso = 4;   // las cantidades
   const html = renderSetup(ctx);
   revisar(html, 'paso de cantidades');
   for (const nombre of ['Yuca', 'Arroz', 'Fresa']) {
@@ -444,7 +444,7 @@ test('un alimento desmarcado después de escribirlo no llega a la canasta', () =
   SETUP_FORMS['setup-nuevo'](null, new Map([['nombre', 'Fresa']]), ctx);
   SETUP_ACTIONS['setup-marcar'](casilla('Fresa', false), ctx);
 
-  ctx.ui.setup.paso = 3;
+  ctx.ui.setup.paso = 4;   // las cantidades
   const html = renderSetup(ctx);
   assert.ok(!html.includes('value="Fresa"'), 'la fresa desmarcada no debería estar en las cantidades');
   // Pero sigue en la lista de su rubro, por si se quiere volver a marcar sin

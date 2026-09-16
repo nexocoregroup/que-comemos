@@ -10,10 +10,12 @@
 
 import { CATEGORIES } from './catalog-seed.js';
 import {
-  UNITS, archiveProduct, effectiveBasket, esActiva, findSimilarProducts, habitualLines, inventoryNow,
-  lastStockReview, monthBasketSummary, monthChanges, personasActivas, product, productByName, restoreProduct,
-  restriccionesDe, reviewAvailability, sliceStyle, syncReviewProducts, todayISO
+  FRECUENCIAS, UNITS, archiveProduct, effectiveBasket, esActiva, findSimilarProducts, frecuenciaDe,
+  habitualLines, historialDeFrecuencia, inventoryNow, lastStockReview, monthBasketSummary, monthChanges,
+  periodosDelMes, personasActivas, product, productByName, restoreProduct, restriccionesDe,
+  reviewAvailability, sliceStyle, syncReviewProducts, todayISO
 } from './model.js';
+import { filaDeReparto } from './setup.js';
 import { claseDe, hogarDe, resumenDeRestricciones } from './hogar.js';
 import { WEEKDAY_LABELS, WEEKDAYS } from './routines.js';
 import { button, cap, empty, esc, fmt, measure, monthName, niceDate, notice, options, shiftMonth, unitText } from './ui-kit.js';
@@ -50,15 +52,22 @@ export const ENTRADAS_MAS = [
 // las pantallas de `page-cuenta.js`, que necesitan cosas —la sesión, el cajón
 // abierto, la sincronización— que solo conoce `app.js`. Por eso se queda fuera
 // de esta lista aunque esté en la de arriba.
-export const PAGINAS_MAS = [...ENTRADAS_MAS.map(([id]) => id).filter(id => id !== 'cuenta'), 'legal'];
+export const PAGINAS_MAS = [...ENTRADAS_MAS.map(([id]) => id).filter(id => id !== 'cuenta'), 'legal', 'organizacion'];
 
-export const TITULOS_MAS = Object.fromEntries(ENTRADAS_MAS.map(([id, , titulo]) => [id, titulo]));
+export const TITULOS_MAS = {
+  ...Object.fromEntries(ENTRADAS_MAS.map(([id, , titulo]) => [id, titulo])),
+  // Tampoco sale en el índice: se llega desde Ajustes, que es donde el usuario
+  // la pidió —«Ajustes → Organización de compra → Frecuencia de compra»—.
+  organizacion: 'Organización de compra'
+};
 
 export function emptyMas() {
   return {
     canastaVista: 'habitual', canastaMes: hoy.slice(0, 7), filtroAlimento: '', verArchivados: false,
     revisionFiltro: '', revisionSoloFaltan: false, revisionAviso: '',
-    documento: 'privacidad'
+    documento: 'privacidad',
+    // El formulario de cambiar la frecuencia, plegado hasta que alguien lo pide.
+    cambiandoFrecuencia: false, frecuenciaNueva: '', frecuenciaDesde: ''
   };
 }
 
@@ -76,6 +85,7 @@ export function renderMas(ctx) {
     historial: renderHistorial,
     respaldo: renderRespaldo,
     ajustes: renderAjustes,
+    organizacion: renderOrganizacion,
     avanzado: renderAvanzado,
     legal: renderLegal
   };
@@ -566,6 +576,12 @@ function renderAjustes(ctx) {
       ${button('Detalle técnico de este aparato', 'open-diagnostico', 'btn-quiet btn-small')}
     </div>
     <div class="card">
+      <h3>Organización de compra</h3>
+      <p class="muted small">Cada cuánto se hace la compra principal, y cómo se reparte el mes cuando se compra dos veces.</p>
+      <p class="small">Ahora mismo: <strong>${esc(frecuenciaDe(state, hoy.slice(0, 7)) === 'quincenal' ? 'quincenal — dos compras al mes' : 'mensual — una compra al mes')}</strong>.</p>
+      <div class="inline">${button('Frecuencia de compra', 'navigate', 'btn-secondary btn-small', 'data-page="organizacion"')}</div>
+    </div>
+    <div class="card">
       <h3>Las personas de tu hogar</h3>
       <p class="muted small">Quién vive aquí, qué es de la casa cada quien y qué alimentos debe evitar. Desde aquí se añade gente, se corrige y se da de baja a quien ya no vive contigo.</p>
       <p class="small">${personasActivas(state).length
@@ -583,6 +599,98 @@ function renderAjustes(ctx) {
       <p class="muted small">Qué se guarda, dónde, y qué no sale de aquí. Está dentro de la app a propósito: se puede leer sin conexión y sin abrir el navegador.</p>
       ${button('Leerlo', 'navigate', 'btn-secondary btn-small', 'data-page="legal"')}
     </div>`;
+}
+
+/* ── Organización de compra ────────────────────────────────────────────────
+
+   La frecuencia no es un interruptor: es una lista de tramos con fecha de
+   vigencia. Cambiarla hoy no puede reescribir lo que pasó en marzo —si en marzo
+   se compró una vez al mes, marzo se compró una vez al mes— así que lo único
+   que se puede elegir es desde qué mes de aquí en adelante entra en vigencia, y
+   lo que se recomienda es el mes siguiente: cambiarla a mitad de mes deja el
+   mes en curso partido por la mitad. */
+
+function renderOrganizacion(ctx) {
+  const { state, ui } = ctx;
+  const mesActual = hoy.slice(0, 7);
+  const actual = frecuenciaDe(state, mesActual);
+  const historial = historialDeFrecuencia(state);
+  const periodos = periodosDelMes(state, mesActual);
+  const quincenal = actual === 'quincenal';
+
+  return `${volver('Organización de compra')}
+    <p class="pantalla-intro">Cada cuánto se hace la compra principal de la casa. De esto salen los períodos que ves en la pantalla de la compra.</p>
+
+    <div class="card">
+      <h3>Frecuencia de compra</h3>
+      <p class="small"><strong>${quincenal ? 'Quincenal' : 'Mensual'}</strong> — ${quincenal ? 'dos compras al mes' : 'una compra al mes'} en ${esc(monthName(mesActual))}.</p>
+      <p class="small muted">Este mes se parte así: ${periodos.map(periodo => `${esc(periodo.etiqueta)} (${periodo.dias} días)`).join(' · ')}.</p>
+
+      ${historial.length ? `<div class="section-head"><h3 class="plan-sub">Desde cuándo</h3></div>
+        <div class="organizacion-historial">${historial.map((fila, indice) => {
+          const siguiente = historial[indice + 1];
+          const hasta = siguiente ? ` hasta ${esc(monthName(shiftMonth(siguiente.desde, -1)))}` : '';
+          return `<div class="list-row"><div class="list-row-main">
+            <div class="list-row-title">${fila.tipo === 'quincenal' ? 'Quincenal' : 'Mensual'}</div>
+            <div class="list-row-sub">Desde ${esc(monthName(fila.desde))}${hasta}</div>
+          </div>${fila.desde > mesActual ? '<span class="pill warm">Aún no empieza</span>' : ''}</div>`;
+        }).join('')}</div>` : '<p class="small muted">Nunca se ha cambiado: la app viene con la compra mensual.</p>'}
+
+      ${ui.mas.cambiandoFrecuencia ? formularioDeFrecuencia(ctx, actual, mesActual) : `<div class="inline" style="margin-top:14px">${button('Cambiar la frecuencia', 'frecuencia-abrir', 'btn-secondary')}</div>`}
+      <p class="tiny muted">Cambiarla no toca ninguna compra, revisión ni resultado de los meses anteriores: cada mes se queda con la frecuencia que tenía cuando se compró.</p>
+    </div>
+
+    ${quincenal ? bloqueDeReparto(ctx) : ''}`;
+}
+
+function formularioDeFrecuencia(ctx, actual, mesActual) {
+  const { ui } = ctx;
+  const recomendado = shiftMonth(mesActual, 1);
+  const elegida = ui.mas.frecuenciaNueva || (actual === 'quincenal' ? 'mensual' : 'quincenal');
+  const desde = ui.mas.frecuenciaDesde || recomendado;
+  // Solo de aquí en adelante. Hacia atrás no se ofrece porque cambiaría meses
+  // que ya se compraron, y eso es justamente lo que no puede pasar.
+  const meses = [mesActual, ...Array.from({ length: 5 }, (unused, i) => shiftMonth(mesActual, i + 1))];
+  const opcion = (id, titulo, detalle) => `<button type="button" class="setup-opcion ${elegida === id ? 'activa' : ''}"
+      data-action="frecuencia-tipo" data-frecuencia="${id}" aria-pressed="${elegida === id}">
+      <strong>${esc(titulo)}</strong><small>${esc(detalle)}</small></button>`;
+
+  return `<form data-form="frecuencia" class="stack organizacion-form">
+    <div class="field"><span>¿Cada cuánto hacen la compra principal en tu hogar?</span>
+      <div class="setup-opciones">
+        ${opcion('quincenal', 'Quincenal', 'Del 1 al 15 y del 16 al último día del mes.')}
+        ${opcion('mensual', 'Mensual', 'Una sola compra para el mes completo.')}
+      </div>
+      <input type="hidden" name="tipo" value="${esc(elegida)}">
+    </div>
+    <label class="field"><span>¿Desde qué mes entra en vigencia?</span>
+      <select name="desde">${options(meses.map(mes => [mes, `${monthName(mes)}${mes === recomendado ? ' (recomendado)' : ''}${mes === mesActual ? ' — este mes, ya empezado' : ''}`]), desde)}</select>
+      <small>Lo anterior a ese mes se queda como está. No se puede cambiar hacia atrás.</small>
+    </label>
+    <div class="inline">
+      <button type="submit" class="btn btn-primary">Guardar el cambio</button>
+      ${button('Cancelar', 'frecuencia-cerrar', 'btn-quiet')}
+    </div>
+  </form>`;
+}
+
+// El reparto entre las dos quincenas, el mismo que enseña el asistente. Aquí
+// vive el resto del año, que es cuando de verdad se corrige.
+function bloqueDeReparto(ctx) {
+  const { state } = ctx;
+  const filas = habitualLines(state)
+    .map(linea => ({ linea, item: product(state, linea.productId) }))
+    .filter(fila => fila.item && fila.linea.quantity !== null)
+    .sort((a, b) => a.item.name.localeCompare(b.item.name));
+  if (!filas.length) {
+    return `<div class="card"><h3>Cómo se reparte el mes</h3>
+      <p class="muted small">Cuando escribas cuánto se compra al mes de cada alimento, aquí podrás decir cuánto de eso entra en la primera quincena.</p></div>`;
+  }
+  return `<div class="card">
+    <h3>Cómo se reparte el mes</h3>
+    <p class="muted small">La cantidad del mes no cambia: esto solo dice cuánto de ella entra en la primera compra. Lo que no toques se reparte a la mitad.</p>
+    <div class="setup-reparto">${filas.map(({ linea, item }) => filaDeReparto(ctx, linea, item)).join('')}</div>
+  </div>`;
 }
 
 /* ── Privacidad y condiciones ──────────────────────────────────────────── */
@@ -731,6 +839,22 @@ export const MAS_ACTIONS = {
     // pide permisos, así que se lanza y se vuelve a pintar cuando conteste: es
     // la diferencia entre decir «no se sabe» y decir la verdad.
     comprobarDictado().then(() => { if (ctx.ui.modal?.type === 'diagnostico') ctx.render(); }).catch(() => {});
+  },
+  'frecuencia-abrir': (el, ctx) => {
+    Object.assign(ctx.ui.mas, { cambiandoFrecuencia: true, frecuenciaNueva: '', frecuenciaDesde: '' });
+    ctx.render();
+  },
+  'frecuencia-cerrar': (el, ctx) => {
+    Object.assign(ctx.ui.mas, { cambiandoFrecuencia: false, frecuenciaNueva: '', frecuenciaDesde: '' });
+    ctx.render();
+  },
+  'frecuencia-tipo': (el, ctx) => {
+    if (!FRECUENCIAS.includes(el.dataset.frecuencia)) return;
+    // Lo que ya estuviera elegido en el desplegable no se pierde al cambiar de
+    // botón: se lee de la pantalla antes de redibujar.
+    ctx.ui.mas.frecuenciaDesde = document.querySelector('[data-form="frecuencia"] [name="desde"]')?.value || ctx.ui.mas.frecuenciaDesde;
+    ctx.ui.mas.frecuenciaNueva = el.dataset.frecuencia;
+    ctx.render();
   },
   'archive-product': (el, ctx) => { archiveProduct(ctx.state, el.dataset.id); ctx.closeModal(); ctx.commit('Alimento archivado. Su historial se conserva.'); },
   'restore-product': (el, ctx) => { restoreProduct(ctx.state, el.dataset.id); ctx.commit('Alimento disponible otra vez.'); }

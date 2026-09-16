@@ -11,7 +11,7 @@ import {
   SLICEABLE, SLICE_STYLES, SLOTS, UNITS, addDays, addProduct, addPurchase, archiveProduct,
   copyPlan, correctReview, correctStock, createEmptyState, createReview, dependents, effectiveBasket,
   exportState, findSimilarProducts, habitualLines, importState, incompatibleItems, inventoryNow,
-  esActiva, isAbsent, linkPlan, makeRecipePlan, mergeProducts, monthBounds, movePlan, nextId, personasActivas, planFor, product,
+  esActiva, isAbsent, linkPlan, makeRecipePlan, mergeProducts, monthBounds, movePlan, nextId, personasActivas, planFor, ponerFrecuencia, product,
   promoteToHabitual, quantity, removeMonthChange, restoreProduct, reservedQuantity, reviewAvailability,
   saveReview, setAbsence, setEquivalence, setHabitualBasket, setHabitualLine, setMonthChange,
   setSlice, setStatusPlan, shoppingList, sliceStyle, todayISO, updatePlan, updateProduct,
@@ -21,7 +21,7 @@ import { clearAll, hasSavedState, loadStateDetailed, saveState } from './storage
 import { BRAND_MARK } from './brand.js';
 import { TOUR_STEPS, WELCOME } from './onboarding.js';
 import { CATEGORIES } from './catalog-seed.js';
-import { SETUP_ACTIONS, SETUP_FORMS, avanceGuardado, emptySetup, renderSetup } from './setup.js';
+import { SETUP_ACTIONS, SETUP_FORMS, aplicarReparto, avanceGuardado, emptySetup, renderSetup } from './setup.js';
 import { HOGAR_ACTIONS, HOGAR_FORMS, cuerpoDeFicha, emptyHogar, fichaActiva, renderHogar, tocaConfigurarElHogar } from './hogar.js';
 import { CHAT_ACTIONS, CHAT_FORMS, emptyChat, renderChat } from './chat-ui.js';
 import { BULK_ACTIONS, BULK_FORMS, emptyBulk, renderBulk } from './bulk-entry.js';
@@ -1428,6 +1428,9 @@ document.addEventListener('change', event => {
   // El grosor solo aparece en lo que se corta; se oculta sin volver a dibujar
   // el formulario para no perder lo ya escrito.
   if (el.name === 'controlUnit' && el.closest('[data-form="product"]')) { const campo = el.form.querySelector('[data-cut-field]'); if (campo) campo.hidden = !SLICEABLE.includes(el.value); }
+  // Escribir cuánto va en la primera quincena: la segunda es el resto, así que
+  // se recalcula al salir del campo. Las dos partes suman siempre el mes.
+  if (el.matches('[data-reparto-primera]')) { aplicarReparto(ctx(), el); return; }
   // Elegir «una preparación» o «fuera de casa» enseña u oculta el selector.
   if (el.name === 'kind' && el.closest('[data-form="rutina"]')) { const campo = el.form.querySelector('[data-rutina-receta]'); if (campo) campo.hidden = el.value !== 'recipe'; }
 });
@@ -1554,6 +1557,15 @@ document.addEventListener('submit', async event => {
       if (!mensaje) throw new Error('Escribe un alimento o marca algo que quitar.');
       ui.modal = null;
       commit(mensaje);
+    }
+    // La frecuencia de compra no se guarda como un valor suelto: se añade un
+    // tramo con su fecha de vigencia, y lo anterior a esa fecha no se toca.
+    else if (kind === 'frecuencia') {
+      const tipo = data.get('tipo');
+      const desde = data.get('desde');
+      ponerFrecuencia(state, tipo, desde);
+      Object.assign(ui.mas, { cambiandoFrecuencia: false, frecuenciaNueva: '', frecuenciaDesde: '' });
+      commit(`Desde ${monthName(desde)} la compra es ${tipo === 'quincenal' ? 'quincenal' : 'mensual'}. Los meses anteriores se quedan como estaban.`);
     }
     else if (kind === 'ajuste-revision') {
       state.settings = { ...(state.settings || {}), reviewWeekday: Number(data.get('dia')) };

@@ -16,7 +16,7 @@
 // Las dos cuentas nunca se suman. Sumarlas contaría dos veces el mismo arroz:
 // una por estar en la canasta y otra por estar dentro de una preparación.
 
-import { effectiveBasket, lastStockReview, monthBounds, product, shoppingList, todayISO } from './model.js';
+import { effectiveBasket, frecuenciaDe, lastStockReview, monthBounds, periodosDelMes, product, shoppingList, todayISO } from './model.js';
 import { button, cap, empty, esc, measure, monthName, niceDate, notice, shiftMonth } from './ui-kit.js';
 
 const hoy = todayISO();
@@ -35,11 +35,25 @@ export function emptyCompra(month = hoy.slice(0, 7)) {
   };
 }
 
-const TRAMOS = [
-  ['mes', 'Todo el mes'],
-  ['primera', '1.ª quincena'],
-  ['segunda', '2.ª quincena']
-];
+// Los tramos que se ofrecen salen de la frecuencia de ESE mes, no de una lista
+// fija: una casa que compra una vez al mes no tiene que elegir entre tres
+// botones para ver su única lista, y una que compra dos veces no tiene por qué
+// ver «todo el mes» como si fuera lo normal.
+//
+// Cualquier otro rango sigue disponible en «Usar otras fechas», que es la
+// salida para la compra de mitad de semana que no encaja en ningún esquema.
+const tramosDelMes = (state, month) => periodosDelMes(state, month).map(periodo => [periodo.id, periodo.etiqueta, periodo.dias]);
+
+// El tramo abierto tiene que ser uno de los que ese mes ofrece. Cambiar de mes
+// —o cambiar la frecuencia— puede dejar puesto uno que ya no existe, y entonces
+// la lista se calcularía sobre un período que la casa no usa.
+function tramoQueToca(state, compra) {
+  if (compra.tramo === 'fechas') return 'fechas';
+  const disponibles = tramosDelMes(state, compra.month).map(([id]) => id);
+  if (disponibles.includes(compra.tramo)) return compra.tramo;
+  if (disponibles.length === 1) return disponibles[0];
+  return Number(hoy.slice(8)) <= 15 ? 'primera' : 'segunda';
+}
 
 export function periodoDeCompra(compra) {
   if (compra.tramo === 'fechas') return { start: compra.desde, end: compra.hasta };
@@ -54,6 +68,7 @@ export function renderCompra(ctx) {
   const { state, ui } = ctx;
   if (!ui.compra) ui.compra = emptyCompra();
   const compra = ui.compra;
+  compra.tramo = tramoQueToca(state, compra);
   const periodo = periodoDeCompra(compra);
 
   let lista, errorPeriodo = '';
@@ -82,7 +97,11 @@ export function renderCompra(ctx) {
 /* ── Período ───────────────────────────────────────────────────────────── */
 
 function selectorDePeriodo(ctx, compra) {
+  const { state } = ctx;
   const periodo = periodoDeCompra(compra);
+  const tramos = tramosDelMes(state, compra.month);
+  const quincenal = frecuenciaDe(state, compra.month) === 'quincenal';
+  const abierto = tramos.find(([id]) => id === compra.tramo);
   const rotulo = compra.tramo === 'fechas' && periodo.start && periodo.end
     ? `${niceDate(periodo.start, { day: 'numeric', month: 'short' })} – ${niceDate(periodo.end, { day: 'numeric', month: 'short' })}`
     : monthName(compra.month);
@@ -92,8 +111,9 @@ function selectorDePeriodo(ctx, compra) {
       <div class="strong compra-mes">${esc(rotulo)}</div>
       ${button('›', 'compra-mover', 'btn-secondary btn-small', 'data-delta="1" aria-label="Mes siguiente"')}
     </div>
-    <div class="segmented">${TRAMOS.map(([id, texto]) => `<button type="button" data-action="compra-tramo" data-tramo="${id}" class="${compra.tramo === id ? 'active' : ''}">${texto}</button>`).join('')}</div>
+    ${tramos.length > 1 ? `<div class="segmented">${tramos.map(([id, texto]) => `<button type="button" data-action="compra-tramo" data-tramo="${id}" class="${compra.tramo === id ? 'active' : ''}">${texto}</button>`).join('')}</div>` : ''}
   </div>
+  ${quincenal && abierto ? `<p class="small muted compra-quincena">${esc(abierto[1])} de ${esc(monthName(compra.month))}: ${abierto[2]} días. <button type="button" class="enlace" data-action="navigate" data-page="organizacion">Cambiar cómo se reparte el mes</button></p>` : ''}
   ${compra.tramo === 'fechas'
     ? `<div class="inline compra-fechas"><label class="field"><span>Desde</span><input id="compra-desde" type="date" value="${esc(compra.desde)}"></label><label class="field"><span>Hasta</span><input id="compra-hasta" type="date" value="${esc(compra.hasta)}"></label>${button('Volver al mes', 'compra-tramo', 'btn-quiet btn-small', 'data-tramo="mes"')}</div>`
     : `<p class="small muted compra-otras"><button type="button" class="enlace" data-action="compra-tramo" data-tramo="fechas">Usar otras fechas</button></p>`}`;

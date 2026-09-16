@@ -67,7 +67,11 @@ export const createEmptyState = () => ({
   // tercera ficha tiene que encontrarla abierta por la tercera ficha, y quien
   // cambia de teléfono también. Los respaldos viejos no lo traen, así que todo
   // lo que lo lee lo lee con `hogarDe()`, que devuelve el valor de fábrica.
-  settings: { reviewWeekday: 5, onboarded: false, hogar: null },
+  // `compra` guarda cada cuánto se hace la compra —como una lista de tramos con
+  // fecha de vigencia, no como un interruptor— y cómo se parte el mes entre las
+  // dos quincenas. Los respaldos viejos no lo traen: sin él todo es mensual,
+  // que es como se comportaba la app antes.
+  settings: { reviewWeekday: 5, onboarded: false, hogar: null, canasta: null, compra: null },
   activity: []
 });
 export function nextId(state, prefix) { state.seq += 1; return `${prefix}-${state.seq}`; }
@@ -988,6 +992,10 @@ export function shoppingList(state, start, end, basis = 'casa') {
     }
   } else {
     months = periodMonths(start, end);
+    // Si el período es exactamente una de las dos quincenas de un mes que se
+    // compra por quincenas, manda el reparto que la casa haya decidido por
+    // alimento. En cualquier otro caso se prorratea por días, como siempre.
+    const quincena = quincenaDe(state, start, end);
     for (const segment of months) {
       // Cada tramo se cobra contra la canasta de SU mes —el hábito con los
       // cambios de ese mes ya aplicados—, prorrateado por los días de ese mes.
@@ -995,7 +1003,10 @@ export function shoppingList(state, start, end, basis = 'casa') {
       // que no significaba nada cuando la compra cruzaba de mes.
       for (const line of effectiveBasket(state, segment.month)) {
         if (line.quantity === null) { pending.push({ productId: line.productId, unit: line.unit, date: null, reason: 'cantidad' }); continue; }
-        const converted = convert(state, line.productId, line.quantity * segment.share, line.unit);
+        const delPeriodo = quincena
+          ? parteDeLaQuincena(state, line.productId, line.quantity, quincena.id)
+          : line.quantity * segment.share;
+        const converted = convert(state, line.productId, delPeriodo, line.unit);
         if (converted === null) { pending.push({ productId: line.productId, unit: line.unit, date: null, reason: 'equivalencia' }); continue; }
         need[line.productId] = round((need[line.productId] || 0) + converted);
       }
@@ -1030,6 +1041,147 @@ export function shoppingList(state, start, end, basis = 'casa') {
   return { start, end, basis: resolved, lines, missing, pending, months, fuera, lastReview: lastStockReview(state), future: start > todayISO(), ...share };
 }
 export const basisLabel = basis => ({ casa: 'mi canasta habitual', menu: 'el menú' })[normalizeBasis(basis)];
+
+/* ── Cada cuánto se hace la compra ─────────────────────────────────────────
+
+   Hay casas que compran una vez al mes y casas que compran cada quincena, y no
+   es una preferencia de pantalla: cambia en cuántas veces se parte la lista.
+
+   Lo que no puede pasar es que cambiar hoy la frecuencia reescriba lo que pasó
+   en marzo. Si en marzo se compró una vez al mes, marzo se compró una vez al
+   mes, y el historial tiene que seguir diciendo eso dentro de dos años. Por eso
+   la frecuencia no es un interruptor: es una lista de tramos con fecha de
+   vigencia, y cada mes pregunta cuál le tocaba a él.
+
+       [{ desde: '2026-01', tipo: 'mensual' }, { desde: '2026-10', tipo: 'quincenal' }]
+
+   Eso se lee «mensual hasta septiembre de 2026, quincenal desde octubre». Los
+   meses anteriores al primer tramo son mensuales, que es como se comportaba la
+   app antes de que esto existiera: quien ya la usaba no ve ningún cambio.
+
+   Las quincenas son del 1 al 15 y del 16 al último día real del mes. No son
+   ventanas de catorce días: en un mes de 31 la segunda quincena tiene dieciséis
+   días y en febrero tiene trece, porque es cuando la casa come. */
+
+export const FRECUENCIAS = ['mensual', 'quincenal'];
+export const FRECUENCIA_POR_DEFECTO = 'mensual';
+const frecuenciaValida = tipo => (FRECUENCIAS.includes(tipo) ? tipo : null);
+
+const compraDe = state => (state?.settings?.compra && typeof state.settings.compra === 'object' ? state.settings.compra : {});
+
+// Los tramos en orden, sin basura y sin repetidos por mes.
+export function historialDeFrecuencia(state) {
+  const filas = Array.isArray(compraDe(state).frecuencia) ? compraDe(state).frecuencia : [];
+  const porMes = new Map();
+  for (const fila of filas) {
+    const tipo = frecuenciaValida(fila?.tipo);
+    if (!tipo || !validMonth(fila?.desde)) continue;
+    porMes.set(fila.desde, { desde: fila.desde, tipo });
+  }
+  return [...porMes.values()].sort((a, b) => a.desde.localeCompare(b.desde));
+}
+
+export function frecuenciaDe(state, mes) {
+  if (!validMonth(mes)) return FRECUENCIA_POR_DEFECTO;
+  let tipo = FRECUENCIA_POR_DEFECTO;
+  for (const fila of historialDeFrecuencia(state)) {
+    if (fila.desde > mes) break;
+    tipo = fila.tipo;
+  }
+  return tipo;
+}
+
+// Cambiar la frecuencia a partir de un mes. Lo anterior a ese mes no se toca:
+// ni este dato, ni las compras, ni las revisiones, ni nada.
+export function ponerFrecuencia(state, tipo, desde) {
+  const valido = frecuenciaValida(tipo);
+  if (!valido) throw new Error('Elige si la compra es mensual o quincenal.');
+  if (!validMonth(desde)) throw new Error('Elige desde qué mes entra en vigencia.');
+  if (!state.settings || typeof state.settings !== 'object') state.settings = {};
+  if (!state.settings.compra || typeof state.settings.compra !== 'object') state.settings.compra = {};
+  const filas = historialDeFrecuencia(state).filter(fila => fila.desde !== desde);
+  filas.push({ desde, tipo: valido });
+  filas.sort((a, b) => a.desde.localeCompare(b.desde));
+  // Dos tramos seguidos que dicen lo mismo no son dos tramos: sobraría uno, y
+  // el historial que se le enseña al usuario se llenaría de líneas sin cambio.
+  const limpias = filas.filter((fila, indice) => indice === 0 || fila.tipo !== filas[indice - 1].tipo);
+  state.settings.compra.frecuencia = limpias;
+  return limpias;
+}
+
+// Los períodos de compra de un mes: uno si es mensual, dos si es quincenal.
+export function periodosDelMes(state, mes) {
+  if (!validMonth(mes)) throw new Error('Ese mes no es válido.');
+  const { start, end } = monthBounds(mes);
+  const dias = (desde, hasta) => dateRange(desde, hasta).length;
+  if (frecuenciaDe(state, mes) !== 'quincenal') {
+    return [{ id: 'mes', etiqueta: 'Todo el mes', start, end, dias: dias(start, end) }];
+  }
+  const corte = `${mes}-15`;
+  return [
+    { id: 'primera', etiqueta: '1.ª quincena', start, end: corte, dias: dias(start, corte) },
+    { id: 'segunda', etiqueta: '2.ª quincena', start: `${mes}-16`, end, dias: dias(`${mes}-16`, end) }
+  ];
+}
+
+// ¿Este período es exactamente una de las dos quincenas de un mes que se compra
+// por quincenas? Solo entonces manda el reparto por producto. Cualquier otro
+// rango de fechas —«del 3 al 9», un mes entero, una casa que compra mensual—
+// sigue calculándose como siempre, por días.
+export function quincenaDe(state, start, end) {
+  if (!validDate(start) || !validDate(end)) return null;
+  const mes = start.slice(0, 7);
+  if (end.slice(0, 7) !== mes || frecuenciaDe(state, mes) !== 'quincenal') return null;
+  return periodosDelMes(state, mes).find(periodo => periodo.start === start && periodo.end === end) || null;
+}
+
+/* ── Cómo se parte el mes entre las dos quincenas ──────────────────────────
+
+   La necesidad del mes no se toca: sigue siendo la del hábito. Lo único que se
+   guarda aquí es qué parte de ella se compra en la primera quincena, y solo
+   para los alimentos donde alguien lo dijo.
+
+   Sin decir nada, se reparte a la mitad. Es una sugerencia viva, no una
+   división escrita: si mañana cambia la cantidad del mes, la sugerencia cambia
+   con ella. Escribir de entrada la mitad de cada alimento en el disco sería
+   convertir una suposición en un dato, y después nadie sabría cuáles eligió. */
+
+export const MODOS_DE_REPARTO = ['mitad', 'todo', 'nada', 'cantidad'];
+
+export function repartoDe(state, productId, total) {
+  const cantidadMes = Number(total);
+  if (!Number.isFinite(cantidadMes) || cantidadMes < 0) return { primera: 0, segunda: 0, modo: 'mitad', sugerido: true };
+  const fila = compraDe(state).reparto?.[productId];
+  const modo = MODOS_DE_REPARTO.includes(fila?.modo) ? fila.modo : 'mitad';
+  if (modo === 'todo') return { primera: cantidadMes, segunda: 0, modo, sugerido: false };
+  if (modo === 'nada') return { primera: 0, segunda: cantidadMes, modo, sugerido: false };
+  if (modo === 'cantidad') {
+    const primera = round(Math.min(cantidadMes, Math.max(0, Number(fila.cantidad) || 0)));
+    return { primera, segunda: round(cantidadMes - primera), modo, sugerido: false };
+  }
+  const primera = round(cantidadMes / 2);
+  return { primera, segunda: round(cantidadMes - primera), modo: 'mitad', sugerido: true };
+}
+
+export function ponerReparto(state, productId, modo, cantidad = null) {
+  if (!product(state, productId)) throw new Error('Ese alimento ya no existe.');
+  if (!MODOS_DE_REPARTO.includes(modo)) throw new Error('Ese reparto no es válido.');
+  if (!state.settings || typeof state.settings !== 'object') state.settings = {};
+  if (!state.settings.compra || typeof state.settings.compra !== 'object') state.settings.compra = {};
+  if (!state.settings.compra.reparto || typeof state.settings.compra.reparto !== 'object') state.settings.compra.reparto = {};
+  // «A la mitad» es la ausencia de decisión, así que se guarda quitando la fila
+  // en vez de escribiendo una: así la sugerencia sigue viva si cambia el mes.
+  if (modo === 'mitad') delete state.settings.compra.reparto[productId];
+  else state.settings.compra.reparto[productId] = { modo, cantidad: modo === 'cantidad' ? round(Math.max(0, Number(cantidad) || 0)) : null };
+  return state.settings.compra.reparto[productId] || { modo: 'mitad', cantidad: null };
+}
+
+// Lo que le toca a una quincena de la cantidad mensual de un alimento. Las dos
+// partes suman siempre el mes entero: es lo único que no puede fallar aquí.
+export function parteDeLaQuincena(state, productId, total, cual) {
+  const reparto = repartoDe(state, productId, total);
+  return cual === 'primera' ? reparto.primera : reparto.segunda;
+}
 
 /* ── Respaldo ──────────────────────────────────────────────────────────── */
 
