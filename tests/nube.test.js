@@ -101,7 +101,10 @@ const quienEs = (estado, cabeceras) => {
 
 function atender(estado, ruta, metodo, cuerpo, cabeceras) {
   /* ── GoTrue ── */
-  if (ruta === '/auth/v1/signup' && metodo === 'POST') {
+  // GoTrue admite `?redirect_to=` en el registro aunque su openapi.yaml no lo
+  // documente: es lo que hace el cliente oficial. Por eso se compara el
+  // principio de la ruta y no la ruta entera.
+  if (ruta.startsWith('/auth/v1/signup') && metodo === 'POST') {
     if (estado.usuarios.has(cuerpo.email)) return respuesta(422, { error_code: 'user_already_exists', msg: 'User already registered' });
     if (String(cuerpo.password || '').length < 6) return respuesta(422, { error_code: 'weak_password', msg: 'Password should be at least 6 characters' });
     const usuario = {
@@ -139,7 +142,7 @@ function atender(estado, ruta, metodo, cuerpo, cabeceras) {
 
   if (ruta.startsWith('/auth/v1/recover') && metodo === 'POST') return respuesta(200, {});
   if (ruta === '/auth/v1/logout' && metodo === 'POST') return respuesta(204, {});
-  if (ruta === '/auth/v1/resend' && metodo === 'POST') return respuesta(200, {});
+  if (ruta.startsWith('/auth/v1/resend') && metodo === 'POST') return respuesta(200, {});
 
   if (ruta === '/auth/v1/user') {
     const usuario = quienEs(estado, cabeceras);
@@ -239,7 +242,7 @@ test('registrarse sin confirmación obligatoria entra directo', async t => {
   montarAlmacen();
   t.after(restaurar);
 
-  const salida = await registrar({ correo: 'maria@ejemplo.com', contrasena: 'arroz con habichuelas', nombre: 'María' });
+  const salida = await registrar({ correo: 'maria@ejemplo.com', contrasena: 'arroz con habichuelas', nombre: 'María', volverA: 'quecomemos://cuenta' });
   assert.equal(salida.ok, true);
   assert.equal(salida.haceFaltaConfirmar, false);
   assert.equal(salida.sesion.usuario.correo, 'maria@ejemplo.com');
@@ -247,9 +250,16 @@ test('registrarse sin confirmación obligatoria entra directo', async t => {
   assert.ok(salida.sesion.token, 'sin token no hay sesión');
   assert.ok(salida.sesion.caducaEn > Math.floor(Date.now() / 1000), 'la caducidad se guarda como momento absoluto');
 
-  const peticion = nube.peticiones.find(p => p.ruta === '/auth/v1/signup');
+  const peticion = nube.peticiones.find(p => p.ruta.startsWith('/auth/v1/signup'));
   assert.equal(peticion.cuerpo.data.nombre, 'María');
   assert.equal(peticion.cabeceras.apikey, CLAVE_PRUEBA);
+
+  // El enlace de vuelta del correo de confirmación tiene que viajar en la
+  // llamada. Sin él manda el «Site URL» del panel, que viene de fábrica
+  // apuntando a `http://localhost:3000`: quien tocara el enlace desde su
+  // teléfono acabaría en una página que no existe, daría el registro por
+  // fallido, y la cuenta habría quedado confirmada igual sin que se enterara.
+  assert.match(peticion.ruta, /redirect_to=quecomemos%3A%2F%2Fcuenta/, 'el registro no dice a dónde volver desde el correo');
 });
 
 test('registrarse con confirmación obligatoria NO es un error: es ir a mirar el correo', async t => {

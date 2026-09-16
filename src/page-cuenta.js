@@ -310,7 +310,7 @@ export const CUENTA_ACTIONS = {
   'cuenta-reenviar': async (el, ctx) => {
     const cuenta = cuentaDe(ctx);
     esperar(ctx, cuenta, 'reenviar');
-    const salida = await reenviarConfirmacion(cuenta.correo);
+    const salida = await reenviarConfirmacion(cuenta.correo, volverAquiDespuesDelCorreo(VUELTA_DE_GOOGLE));
     cuenta.cargando = '';
     if (salida.ok) { cuenta.aviso = 'Mandado otra vez. Puede tardar un par de minutos.'; cuenta.error = ''; }
     else cuenta.error = salida.error;
@@ -431,7 +431,12 @@ export const CUENTA_FORMS = {
     if (!vale) { cuenta.error = ''; ctx.render(); enfocarLoMalo(); return; }
 
     esperar(ctx, cuenta, 'registro');
-    const salida = await registrar({ correo: campos.correo, contrasena: campos.contrasena, nombre: campos.nombre });
+    const salida = await registrar({
+      correo: campos.correo,
+      contrasena: campos.contrasena,
+      nombre: campos.nombre,
+      volverA: volverAquiDespuesDelCorreo(VUELTA_DE_GOOGLE)
+    });
     cuenta.cargando = '';
     if (!salida.ok) { cuenta.error = salida.error; ctx.render(); return; }
 

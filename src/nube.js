@@ -170,8 +170,19 @@ async function llamar(ruta, { metodo = 'GET', cuerpo = null, token = null, cabec
 // proyecto exige confirmar el correo, esto devuelve el usuario SIN sesión, y no
 // es un error —es que hay que ir a mirar el correo—. Si no la exige, devuelve
 // sesión y se entra directo. Los dos casos son buenos y hay que distinguirlos.
-export async function registrar({ correo, contrasena, nombre }) {
-  const salida = await llamar('/auth/v1/signup', {
+// `volverA` es a dónde lleva el enlace del correo de confirmación después de
+// validarlo. Decirlo aquí no es opcional aunque el servidor tenga un valor por
+// omisión: ese valor —el «Site URL» del panel— viene de fábrica apuntando a
+// `http://localhost:3000`, y quien tocara el enlace desde su teléfono acabaría
+// en una página que no existe. La cuenta quedaría confirmada igual, porque eso
+// pasa en el servidor antes de la redirección, pero la persona vería un error
+// del navegador y daría por hecho que falló.
+//
+// No está en el `openapi.yaml` de GoTrue, pero es lo que hace el cliente
+// oficial: `redirectTo` se convierte en `?redirect_to=` sobre la propia
+// dirección de la llamada (auth-js, src/lib/fetch.ts).
+export async function registrar({ correo, contrasena, nombre, volverA = '' }) {
+  const salida = await llamar(`/auth/v1/signup${volverA ? `?redirect_to=${encodeURIComponent(volverA)}` : ''}`, {
     metodo: 'POST',
     cuerpo: { email: correo, password: contrasena, data: { nombre: String(nombre || '').trim() } }
   });
