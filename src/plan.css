@@ -680,3 +680,24 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 .destino-opcion strong { font-size: .95rem; }
 .destino-opcion:has(input:checked) { border-color: var(--clay); background: var(--clay-light); }
 .destino-opcion:has(input:checked) strong { color: var(--clay-dark); }
+
+/* ── Un período cerrado ────────────────────────────────────────────────────
+
+   La fotografía de lo que se calculó aquel día. Se lee como un documento y no
+   como una pantalla viva, y por eso va en tono apagado: lo que hay aquí no se
+   toca desde aquí. */
+
+.notice.cerrado { border-color: var(--line); background: var(--surface-soft); }
+.cierre-fila .list-row-sub + .list-row-sub { margin-top: 2px; }
+.cierre-detalle {
+  display: grid; gap: 16px;
+  margin: 0 0 14px; padding: 16px;
+  border: 1px solid var(--line); border-left: 3px solid var(--clay-line);
+  border-radius: 14px; background: var(--surface-soft);
+}
+.cierre-seccion h4 {
+  margin: 0 0 8px; font-size: .78rem; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .07em; color: var(--ink-muted);
+}
+.cierre-seccion .food-list { margin: 0; }
+.cierre-seccion p { margin: 0 0 6px; }

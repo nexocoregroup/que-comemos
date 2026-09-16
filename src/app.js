@@ -14,6 +14,7 @@ import {
   esActiva, isAbsent, linkPlan, makeRecipePlan, mergeProducts, monthBounds, movePlan, nextId, personasActivas, planFor, ponerFrecuencia, product,
   promoteToHabitual, quantity, removeMonthChange, restoreProduct, reservedQuantity, reviewAvailability,
   saveReview, setAbsence, setEquivalence, setHabitualBasket, setHabitualLine, setMonthChange, detalleDeOrigen, etiquetaDeOrigen, origenDe,
+  cerrarPeriodo, setReviewScope, ultimaCompra,
   setSlice, setStatusPlan, shoppingList, sliceStyle, todayISO, updatePlan, updateProduct,
   upsertRecipe
 } from './model.js';
@@ -1012,6 +1013,32 @@ function renderModal() {
 
   if (m.type === 'product') return modalProducto(m);
 
+  /* ── ¿Desde qué mes entra en la canasta base? ────────────────────────────
+
+     «Este mes compré cangrejo» y «en esta casa ahora se come cangrejo» son dos
+     cosas distintas, y entre una y otra hay una fecha. Sin preguntarla, pasar
+     algo a la canasta base lo metía hacia atrás en todos los meses que ya
+     habían pasado —incluido el historial— y eso es reescribir lo que la casa
+     compró de verdad. */
+  if (m.type === 'promoter') {
+    const item = product(state, m.id);
+    const mesActual = today.slice(0, 7);
+    const siguiente = shiftMonth(mesActual, 1);
+    // El mes del cambio entra en la lista porque es cuando la casa lo compró por
+    // primera vez; nunca se ofrece nada anterior a él.
+    const meses = [...new Set([m.month, mesActual, siguiente, shiftMonth(mesActual, 2), shiftMonth(mesActual, 3)])]
+      .filter(mes => mes >= m.month).sort();
+    return modal('Añadir a mi canasta base', esc(item?.name || ''),
+      `<form data-form="promover" data-id="${esc(m.id)}" data-month="${esc(m.month)}" class="stack">
+        <p class="muted">Pasará a comprarse <strong>todos los meses</strong>, sin tener que anotarlo cada vez.</p>
+        <label class="field"><span>¿Desde qué mes?</span>
+          <select name="desde">${options(meses.map(mes => [mes, monthName(mes)]), siguiente >= m.month ? siguiente : m.month)}</select>
+          <small>Los meses anteriores a esa fecha no se tocan: seguirán diciendo lo que dijeron.</small>
+        </label>
+        <div class="modal-actions">${button('Cancelar', 'close-modal', 'btn-secondary')}<button type="submit" class="btn btn-primary">Añadir</button></div>
+      </form>`);
+  }
+
   if (m.type === 'cambio-mes') {
     const mes = m.month;
     const enCanasta = new Set(habitualLines(state).map(linea => linea.productId));
@@ -1494,10 +1521,19 @@ document.addEventListener('click', event => {
     else if (action === 'review-mode') { const review = state.reviews.find(item => item.id === el.dataset.id); if (review && review.status === 'draft') { review.mode = el.dataset.mode; commit(''); } }
     else if (action === 'select-review') { ui.reviewId = el.dataset.id; ui.correctingReview = false; ui.page = 'revision'; render(); }
     else if (action === 'toggle-correct-review') { ui.correctingReview = !ui.correctingReview; render(); }
-    else if (action === 'canasta-promover') {
-      promoteToHabitual(state, el.dataset.month, [el.dataset.id]);
-      commit(`«${productName(el.dataset.id)}» pasa a tu canasta habitual. Desde el mes siguiente aparece solo.`);
+    // Pasar algo a la canasta base es decidir desde cuándo es verdad, y eso no
+    // se puede suponer: hacerlo valer «desde siempre» reescribiría meses que ya
+    // pasaron, y hacerlo valer desde hoy puede dejar fuera el mes en que la casa
+    // empezó a comprarlo. Se pregunta.
+    else if (action === 'canasta-promover') openModal('promover', { id: el.dataset.id, month: el.dataset.month });
+
+    else if (action === 'compra-cerrar') {
+      const periodo = periodoDeCompra(ui.compra);
+      const cierre = cerrarPeriodo(state, { start: periodo.start, end: periodo.end, periodo: ui.compra.tramo, basis: ui.compra.base });
+      commit(`Período cerrado. Queda guardado lo que se calculó: ${cierre.lista.length} alimento(s), la canasta de ${monthName(cierre.month)} y lo que declaraste que quedaba.`);
     }
+
+    else if (action === 'review-scope') { setReviewScope(state, el.dataset.id, el.dataset.origen); commit(''); }
     else if (action === 'canasta-quitar-cambio') { removeMonthChange(state, el.dataset.month, el.dataset.id); commit('Ese cambio se quitó; vuelve a ser como siempre.'); }
     else if (action === 'canasta-quitar') {
       const fila = el.closest('.canasta-fila');
@@ -1827,6 +1863,12 @@ document.addEventListener('submit', async event => {
       }
       ui.modal = null;
       commit(mensaje);
+    }
+    else if (kind === 'promover') {
+      const desde = String(data.get('desde') || '');
+      promoteToHabitual(state, form.dataset.month, [form.dataset.id], desde);
+      ui.modal = null;
+      commit(`«${productName(form.dataset.id)}» entra en tu canasta base desde ${monthName(desde)}. Lo anterior no cambia.`);
     }
     else if (kind === 'canasta-habitual') {
       const lineas = [];

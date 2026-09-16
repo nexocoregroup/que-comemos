@@ -11,7 +11,7 @@
 
 import { normalizeName } from './nombres.js';
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 // Los momentos en que una preparación suele comerse. Viven aquí, igual que las
 // clases de persona, para que la migración pueda normalizarlas sin arrastrar el
@@ -356,7 +356,26 @@ const origenDeducido = plan => {
   return plan?.kind === 'outside' || plan?.kind === 'order' ? 'excepcion' : 'manual';
 };
 
-const STEPS = { 1: v1toV2, 2: v2toV3, 3: v3toV4, 4: v4toV5, 5: v5toV6 };
+// v6 → v7. Los períodos cerrados se guardan en su sitio.
+//
+// La app decía «los meses ya cerrados no cambian» y no era verdad: nada estaba
+// congelado, y la lista de marzo se recalculaba contra la canasta de hoy cada
+// vez que alguien la miraba. Desde aquí hay dónde guardar la fotografía de un
+// período —canasta, excepciones, frecuencia, compras, existencia declarada,
+// lista final y menú si aplica— y la app la lee en vez de volver a sumar.
+//
+// No se cierra nada al convertir. Un respaldo viejo no trae esas fotografías y
+// no hay forma honrada de reconstruirlas: la canasta de entonces ya no existe.
+// Lo que se hace es dejar la lista vacía y que se cierre de aquí en adelante,
+// que es lo único que se puede prometer sin inventar.
+function v6toV7(data) {
+  const state = clone(data);
+  if (!Array.isArray(state.closedPeriods)) state.closedPeriods = [];
+  state.version = 7;
+  return { state, notes: [] };
+}
+
+const STEPS = { 1: v1toV2, 2: v2toV3, 3: v3toV4, 4: v4toV5, 5: v5toV6, 6: v6toV7 };
 
 // Campos que aparecieron dentro de una misma versión del esquema. Un respaldo
 // exportado antes de que existieran se rellena en vez de rechazarse.
@@ -395,6 +414,7 @@ export function migrate(data) {
   if (Array.isArray(current.people)) {
     current.people = current.people.map(persona => personaNormalizada(persona, restriccionesNormalizadas(persona)));
   }
+  if (!Array.isArray(current.closedPeriods)) current.closedPeriods = [];
   // Y una por las comidas: un respaldo exportado a media tarde puede traer unas
   // con origen y otras sin él, y una comida sin origen dejaría la pantalla
   // diciendo «undefined» donde debería decir de dónde vino.

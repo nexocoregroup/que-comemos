@@ -97,6 +97,9 @@ export const createEmptyState = () => ({
   // fuera», «los lunes mangú». Un mes abierto es un mes al que ya se le
   // aplicaron.
   mealRoutines: [], monthPlans: {},
+  // La fotografía de cada período que se da por cerrado. Desde que existe, la
+  // app no vuelve a calcular ese período: lo lee. Ver `cerrarPeriodo`.
+  closedPeriods: [],
   // `hogar` guarda por dónde va la configuración guiada de la casa. Va en el
   // estado y no en la interfaz a propósito: quien cierra la app a mitad de la
   // tercera ficha tiene que encontrarla abierta por la tercera ficha, y quien
@@ -339,7 +342,10 @@ function normalizeBasketLines(state, lines, { origin = 'canasta' } = {}) {
       id: line.id, existing, name,
       quantity: optionalQuantity(line.quantity),
       unit: line.unit,
-      priority: PRIORITIES.includes(line.priority) ? line.priority : 'frecuente'
+      priority: PRIORITIES.includes(line.priority) ? line.priority : 'frecuente',
+      // Desde qué mes cuenta esta línea. Sin fecha cuenta desde siempre, que es
+      // lo que traen todas las canastas escritas hasta hoy.
+      desde: validMonth(line.desde) ? line.desde : null
     };
   });
   // Los alimentos que faltan se crean solo después de validarlo todo: si una
@@ -349,7 +355,7 @@ function normalizeBasketLines(state, lines, { origin = 'canasta' } = {}) {
     const key = normalizeName(row.name);
     const item = row.existing || nuevos.get(key) || addProduct(state, { name: row.name, controlUnit: row.unit, purchaseUnit: row.unit, origin });
     if (!row.existing && key) nuevos.set(key, item);
-    return { id: row.id || nextId(state, 'canasta'), productId: item.id, quantity: row.quantity, unit: row.unit, priority: row.priority };
+    return { id: row.id || nextId(state, 'canasta'), productId: item.id, quantity: row.quantity, unit: row.unit, priority: row.priority, desde: row.desde };
   });
 }
 
@@ -368,13 +374,17 @@ export function setHabitualBasket(state, lines, options = {}) {
 // vacío como una baja; ascender un cambio del mes no puede hacerlo, porque
 // «todavía no sé cuánto» es una cantidad legítima y borrar el alimento por eso
 // sería perder justo lo que acaban de pedir conservar.
-function writeHabitualLine(state, { productId, quantity: amount, unit, priority }) {
+function writeHabitualLine(state, { productId, quantity: amount, unit, priority, desde }) {
   const lines = state.habitualBasket.lines;
   const index = lines.findIndex(line => line.productId === productId);
   const line = {
     id: index >= 0 ? lines[index].id : nextId(state, 'canasta'),
     productId, quantity: amount, unit,
-    priority: PRIORITIES.includes(priority) ? priority : lines[index]?.priority || 'frecuente'
+    priority: PRIORITIES.includes(priority) ? priority : lines[index]?.priority || 'frecuente',
+    // Una línea que ya estaba conserva su vigencia; una nueva puede traer la
+    // suya. Corregir la cantidad del arroz no puede cambiar desde cuándo se
+    // compra arroz en esta casa.
+    desde: validMonth(desde) ? desde : (index >= 0 ? lines[index].desde ?? null : null)
   };
   if (index >= 0) lines[index] = line; else lines.push(line);
   state.habitualBasket.updatedAt = todayISO();
@@ -425,9 +435,13 @@ export function openMonthChanges(state, month) {
 export function effectiveBasket(state, month) {
   const changes = monthChanges(state, month).changes;
   const byProduct = new Map(changes.map(change => [change.productId, change]));
-  const habituales = new Set(habitualLines(state).map(line => line.productId));
+  // Una línea con fecha de vigencia no existe antes de esa fecha. Es lo que
+  // permite decir «el pollo entra en mi canasta desde noviembre» sin que
+  // octubre, que ya pasó, aparezca comprando pollo.
+  const vigentes = habitualLines(state).filter(line => !line.desde || line.desde <= month);
+  const habituales = new Set(vigentes.map(line => line.productId));
   const out = [];
-  for (const line of habitualLines(state)) {
+  for (const line of vigentes) {
     const change = byProduct.get(line.productId);
     if (!change) { out.push({ productId: line.productId, quantity: line.quantity, unit: line.unit, priority: line.priority, source: 'habitual' }); continue; }
     if (change.removed) continue;
@@ -483,8 +497,9 @@ export function removeMonthChange(state, month, productId) {
 // Pasar un cambio al hábito es siempre explícito y alimento por alimento: es lo
 // que separa «este mes compré más pollo» de «en esta casa ahora se come más
 // pollo». Confundirlos reescribiría la costumbre sin que nadie lo pidiera.
-export function promoteToHabitual(state, month, productIds) {
+export function promoteToHabitual(state, month, productIds, desde = null) {
   if (!validMonth(month)) throw new Error('Elige un mes válido.');
+  if (desde !== null && !validMonth(desde)) throw new Error('Elige desde qué mes entra en tu canasta base.');
   const wanted = [...new Set(productIds || [])];
   if (!wanted.length) throw new Error('Selecciona qué alimentos pasan a la canasta habitual.');
   const override = state.monthOverrides[month];
@@ -494,9 +509,16 @@ export function promoteToHabitual(state, month, productIds) {
     const change = override.changes.find(row => row.productId === id);
     if (!change) continue;
     if (change.removed) removeHabitualLine(state, id);
-    else writeHabitualLine(state, change);
-    // Deja de ser una excepción del mes porque acaba de convertirse en la norma.
-    override.changes = override.changes.filter(row => row.productId !== id);
+    // Desde qué mes cuenta. Sin decir nada cuenta desde el mes del cambio, que
+    // es donde la casa lo compró por primera vez; nunca desde el principio de
+    // los tiempos, que reescribiría meses que ya pasaron.
+    else writeHabitualLine(state, { ...change, desde: desde || month });
+    // La excepción del mes solo se retira cuando la norma nueva ya cubre ese
+    // mes. Con vigencia a partir de noviembre, octubre sigue necesitando su
+    // excepción: si se quitara, octubre se quedaría sin un alimento que sí
+    // compró, y eso es reescribir un mes que ya pasó.
+    const vigenteAqui = !desde || desde <= month;
+    if (vigenteAqui) override.changes = override.changes.filter(row => row.productId !== id);
     applied++;
   }
   if (applied) override.updatedAt = todayISO();
@@ -504,13 +526,13 @@ export function promoteToHabitual(state, month, productIds) {
 }
 
 export function monthExtras(state, month) {
-  const habituales = new Set(habitualLines(state).map(line => line.productId));
+  const habituales = new Set(habitualLines(state).filter(line => !line.desde || line.desde <= month).map(line => line.productId));
   return monthChanges(state, month).changes.filter(change => !habituales.has(change.productId) && !change.removed);
 }
 
 export function monthBasketSummary(state, month) {
   const basket = effectiveBasket(state, month);
-  const habituales = new Set(habitualLines(state).map(line => line.productId));
+  const habituales = new Set(habitualLines(state).filter(line => !line.desde || line.desde <= month).map(line => line.productId));
   return {
     habituales: basket.filter(line => line.source === 'habitual').length,
     cambiados: basket.filter(line => line.source === 'cambio').length,
@@ -1027,16 +1049,65 @@ export function addPurchase(state, fields) {
   state.purchases.push(purchase);
   return purchase;
 }
-export function createReview(state, date = todayISO(), mode = 'restante') {
-  const review = { id: nextId(state, 'revision'), seq: state.seq, date, status: 'draft', mode: mode === 'consumido' ? 'consumido' : 'restante', productIds: [], consumed: {}, remaining: {} };
+// La última compra anotada antes de una fecha. Es de donde sale la lista de
+// una revisión: lo que se revisa es lo que se trajo, no el catálogo entero.
+export function ultimaCompra(state, hasta = todayISO()) {
+  return [...state.purchases].filter(compra => compra.date <= hasta).sort((a, b) => a.date.localeCompare(b.date) || a.seq - b.seq).pop() || null;
+}
+
+/* ── De qué se pregunta en una revisión ────────────────────────────────────
+
+   Antes se preguntaba por todo lo que tuviera existencias: cuarenta alimentos,
+   incluidos los que nadie ha tocado desde marzo. Revisar cuarenta cosas de
+   corrido es exactamente donde se abandona una revisión.
+
+   Ahora se parte de la compra anterior —lo que se trajo es lo que se está
+   gastando, y es lo que hay que contar antes de volver al colmado— y el resto
+   sigue estando a un toque, para quien quiera repasar la despensa entera. */
+
+export const ORIGENES_DE_REVISION = ['compra', 'todo'];
+
+export function createReview(state, date = todayISO(), mode = 'restante', origen = 'compra') {
+  const compra = ultimaCompra(state, date);
+  const review = {
+    id: nextId(state, 'revision'), seq: state.seq, date, status: 'draft',
+    mode: mode === 'consumido' ? 'consumido' : 'restante',
+    // Sin ninguna compra anotada no hay «lo de la compra anterior» que enseñar,
+    // así que se cae a la despensa entera en vez de a una lista vacía.
+    origen: ORIGENES_DE_REVISION.includes(origen) && compra ? origen : 'todo',
+    purchaseId: compra?.id || null,
+    productIds: [], consumed: {}, remaining: {}
+  };
   state.reviews.push(review);
   syncReviewProducts(state, review);
   return review;
 }
 export function reviewAvailability(state, review) { return balances(state, { date: review.date, seq: review.seq }).values; }
+
+// Qué alimentos entran en la revisión. Lo ya contestado no se cae nunca, ni
+// siquiera al cambiar de alcance: sería tirar trabajo que alguien ya hizo.
 export function syncReviewProducts(state, review) {
   const available = reviewAvailability(state, review);
-  review.productIds = [...new Set([...review.productIds, ...Object.keys(available).filter(id => available[id] > EPS)])];
+  const conExistencias = Object.keys(available).filter(id => available[id] > EPS);
+  const contestados = Object.keys(review.consumed || {});
+  if (review.origen === 'compra' && review.purchaseId) {
+    const compra = state.purchases.find(item => item.id === review.purchaseId);
+    const suyos = (compra?.lines || []).map(linea => linea.productId);
+    review.productIds = [...new Set([...suyos, ...contestados])];
+    return;
+  }
+  review.productIds = [...new Set([...review.productIds, ...conExistencias, ...contestados])];
+}
+
+// Cambiar entre «lo de la última compra» y «toda la despensa» sin perder nada.
+export function setReviewScope(state, reviewId, origen) {
+  const review = state.reviews.find(item => item.id === reviewId);
+  if (!review || review.status === 'confirmed') throw new Error('Esta revisión ya está terminada.');
+  review.origen = ORIGENES_DE_REVISION.includes(origen) ? origen : 'todo';
+  if (review.origen === 'compra' && !review.purchaseId) review.purchaseId = ultimaCompra(state, review.date)?.id || null;
+  if (review.origen === 'compra' && !review.purchaseId) review.origen = 'todo';
+  syncReviewProducts(state, review);
+  return review;
 }
 // Preguntar «¿cuánto queda?» en vez de «¿cuánto se consumió?» es la diferencia
 // entre mirar la nevera y hacer una resta de memoria. Lo que se guarda sigue
@@ -1127,12 +1198,30 @@ export const BASES = ['casa', 'menu'];
 const normalizeBasis = basis => (basis === 'menu' ? 'menu' : 'casa');
 export function shoppingList(state, start, end, basis = 'casa') {
   if (!validDate(start) || !validDate(end) || start > end) throw new Error('Selecciona un período válido.');
+  // Un período cerrado se lee, no se suma. Es toda la diferencia entre un
+  // historial y una proyección hacia atrás: la lista de marzo tiene que seguir
+  // diciendo lo que dijo en marzo aunque la canasta haya cambiado tres veces.
+  const cerrado = periodoCerrado(state, start, end);
+  if (cerrado) {
+    return {
+      start, end, basis: cerrado.basis, lines: cerrado.lista.map(linea => ({ ...linea })),
+      missing: [], pending: (cerrado.pendientes || []).map(item => ({ ...item })),
+      sinCantidades: (cerrado.sinCantidades || []).map(item => ({ ...item })),
+      months: [], fuera: 0, lastReview: cerrado.existencia?.fecha || null, future: false,
+      congelado: true, cierre: cerrado
+    };
+  }
   const resolved = normalizeBasis(basis);
-  const need = {}, pending = [];
+  const need = {}, pending = [], sinCantidades = [];
   let months = [];
   if (resolved === 'menu') {
     for (const plan of state.plans) {
       if (plan.date < start || plan.date > end || !['recipe', 'linked'].includes(plan.kind)) continue;
+      // Una preparación sin alimentos anotados no aporta nada, y lo que no se
+      // puede calcular se dice: inventar media libra de arroz porque «algo
+      // llevará» es peor que no calcularlo, porque la compra sale mal y nadie
+      // sabe por qué.
+      if (!plan.items.length) { sinCantidades.push({ planId: plan.id, date: plan.date, slot: plan.slot, title: plan.title || 'Sin nombre', recipeId: plan.recipeId || null }); continue; }
       for (const item of plan.items) {
         const converted = convert(state, item.productId, item.quantity, item.unit);
         if (converted === null) { pending.push({ productId: item.productId, unit: item.unit, date: plan.date, reason: 'equivalencia' }); continue; }
@@ -1190,9 +1279,110 @@ export function shoppingList(state, start, end, basis = 'casa') {
   // detergente del mes porque la familia almorzó fuera un domingo no tiene
   // sentido. Se cuentan para poder decirlo como aviso, nunca para restarlo.
   const fuera = state.plans.filter(plan => plan.date >= start && plan.date <= end && ['outside', 'order'].includes(plan.kind)).length;
-  return { start, end, basis: resolved, lines, missing, pending, months, fuera, lastReview: lastStockReview(state), future: start > todayISO(), ...share };
+  return { start, end, basis: resolved, lines, missing, pending, sinCantidades, months, fuera, lastReview: lastStockReview(state), future: start > todayISO(), congelado: false, cierre: null, ...share };
 }
 export const basisLabel = basis => ({ casa: 'mi canasta habitual', menu: 'el menú' })[normalizeBasis(basis)];
+
+/* ── Un período cerrado no se vuelve a calcular ────────────────────────────
+
+   La app decía «los meses ya cerrados no cambian» y no era verdad. Nada estaba
+   congelado: la lista de marzo se recalculaba cada vez que alguien la miraba,
+   contra la canasta de hoy. Subir el arroz de 10 a 15 libras en septiembre
+   reescribía en silencio lo que marzo decía haber necesitado, y el historial
+   dejaba de ser un historial para ser una proyección hacia atrás.
+
+   Cerrar un período guarda una fotografía de todo lo que hizo falta para
+   calcularlo: la canasta que se usó, las excepciones de ese mes, la frecuencia
+   vigente, lo que se compró, lo que se declaró que quedaba, la lista final y
+   —si se calculó desde el menú— las comidas que la produjeron. Desde entonces
+   la app lee la fotografía y no vuelve a sumar nada.
+
+   También se guardan los nombres de los alimentos. Un producto archivado o
+   renombrado dos años después no puede convertir una compra de marzo en una
+   lista de «Alimento eliminado». */
+
+export const PERIODOS_DE_CIERRE = ['mes', 'primera', 'segunda', 'fechas'];
+
+export const cierresDe = (state, month) =>
+  (state.closedPeriods || []).filter(cierre => cierre.month === month).sort((a, b) => a.start.localeCompare(b.start));
+
+// El cierre de un período exacto. Se compara por fechas y no por etiqueta
+// porque la etiqueta depende de la frecuencia, y la frecuencia puede cambiar
+// después: lo que no cambia nunca es del 1 al 15 de septiembre.
+export const periodoCerrado = (state, start, end) =>
+  (state.closedPeriods || []).find(cierre => cierre.start === start && cierre.end === end) || null;
+
+// Lo que la casa declaró que le quedaba en ese período. Sale de la última
+// revisión confirmada dentro del período; si no hubo ninguna, se guarda el
+// saldo calculado y se dice que es calculado, que no es lo mismo.
+function existenciaDeclarada(state, start, end) {
+  const revisiones = state.reviews
+    .filter(item => item.status === 'confirmed' && item.date >= start && item.date <= end)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.seq - b.seq);
+  const ultima = revisiones[revisiones.length - 1];
+  if (ultima) {
+    return { origen: 'revision', revisionId: ultima.id, fecha: ultima.date, valores: { ...ultima.remaining } };
+  }
+  return { origen: 'calculada', revisionId: null, fecha: todayISO(), valores: { ...inventoryNow(state) } };
+}
+
+export function cerrarPeriodo(state, { start, end, periodo = 'mes', basis = 'casa' } = {}) {
+  if (!validDate(start) || !validDate(end) || start > end) throw new Error('Selecciona un período válido.');
+  if (periodoCerrado(state, start, end)) throw new Error('Ese período ya está cerrado.');
+  const month = start.slice(0, 7);
+  const lista = shoppingList(state, start, end, basis);
+  const compras = state.purchases
+    .filter(compra => compra.date >= start && compra.date <= end)
+    .map(compra => ({ purchaseId: compra.id, date: compra.date, basis: compra.basis || null, lines: compra.lines.map(linea => ({ ...linea })) }));
+
+  // Los nombres de todo lo que aparece en la fotografía, para que siga
+  // leyéndose aunque el alimento se archive o se renombre.
+  const nombres = {};
+  const anotar = id => { if (id && !nombres[id]) nombres[id] = product(state, id)?.name || 'Alimento eliminado'; };
+  for (const linea of lista.lines) anotar(linea.productId);
+
+  const canasta = effectiveBasket(state, month).map(linea => ({ ...linea }));
+  for (const linea of canasta) anotar(linea.productId);
+  const excepciones = monthChanges(state, month).changes.map(cambio => ({ ...cambio }));
+  for (const cambio of excepciones) anotar(cambio.productId);
+  for (const compra of compras) for (const linea of compra.lines) anotar(linea.productId);
+  const existencia = existenciaDeclarada(state, start, end);
+  for (const id of Object.keys(existencia.valores)) anotar(id);
+
+  // El menú solo se guarda cuando fue el que produjo la lista. Guardarlo
+  // siempre engordaría la fotografía con comidas que no intervinieron en nada.
+  const menu = basis !== 'menu' ? null : state.plans
+    .filter(plan => plan.date >= start && plan.date <= end && ['recipe', 'linked'].includes(plan.kind))
+    .map(plan => ({ date: plan.date, slot: plan.slot, title: plan.title, items: plan.items.map(item => ({ ...item })) }));
+  if (menu) for (const plan of menu) for (const item of plan.items) anotar(item.productId);
+
+  const cierre = {
+    id: nextId(state, 'cierre'), seq: state.seq, month, periodo: PERIODOS_DE_CIERRE.includes(periodo) ? periodo : 'mes',
+    start, end, closedAt: todayISO(), basis: lista.basis,
+    frecuencia: frecuenciaDe(state, month),
+    canasta, excepciones, compras, existencia, menu, nombres,
+    lista: lista.lines.map(linea => ({ ...linea })),
+    pendientes: lista.pending.map(item => ({ ...item })),
+    sinCantidades: (lista.sinCantidades || []).map(item => ({ ...item }))
+  };
+  state.closedPeriods = [...(state.closedPeriods || []), cierre];
+  return cierre;
+}
+
+// Reabrir es una decisión, no un descuido: vuelve a dejar el período a merced
+// de la canasta de hoy. Lo que se borra es la fotografía, nunca las compras ni
+// las revisiones, que son hechos y viven en su propio sitio.
+export function reabrirPeriodo(state, id) {
+  const antes = (state.closedPeriods || []).length;
+  state.closedPeriods = (state.closedPeriods || []).filter(cierre => cierre.id !== id);
+  return antes !== state.closedPeriods.length;
+}
+
+// El nombre que tenía un alimento cuando se cerró el período. Si la fotografía
+// no lo trae —un respaldo viejo— se cae al nombre de hoy, que es lo único que
+// hay.
+export const nombreEnElCierre = (state, cierre, productId) =>
+  cierre?.nombres?.[productId] || product(state, productId)?.name || 'Alimento eliminado';
 
 /* ── Cada cuánto se hace la compra ─────────────────────────────────────────
 
