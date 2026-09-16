@@ -10,7 +10,7 @@
 
 import { CATEGORIES } from './catalog-seed.js';
 import {
-  FRECUENCIAS, UNITS, archiveProduct, effectiveBasket, esActiva, findSimilarProducts, frecuenciaDe,
+  FRECUENCIAS, MOMENTOS, UNITS, archiveProduct, effectiveBasket, esActiva, findSimilarProducts, frecuenciaDe,
   habitualLines, historialDeFrecuencia, inventoryNow, lastStockReview, monthBasketSummary, monthChanges,
   periodosDelMes, personasActivas, product, productByName, restoreProduct, restriccionesDe,
   reviewAvailability, sliceStyle, syncReviewProducts, todayISO
@@ -65,6 +65,9 @@ export function emptyMas() {
   return {
     canastaVista: 'habitual', canastaMes: hoy.slice(0, 7), filtroAlimento: '', verArchivados: false,
     revisionFiltro: '', revisionSoloFaltan: false, revisionAviso: '',
+    // El buscador de preparaciones y qué bloques están abiertos. Empiezan todos
+    // abiertos: una casa con seis preparaciones no quiere abrir cinco cajones.
+    recetaFiltro: '', recetasPlegadas: [],
     documento: 'privacidad',
     // El formulario de cambiar la frecuencia, plegado hasta que alguien lo pide.
     cambiandoFrecuencia: false, frecuenciaNueva: '', frecuenciaDesde: ''
@@ -235,27 +238,84 @@ function vistaCambios(ctx, mes, resumen) {
 
 /* ── Preparaciones ─────────────────────────────────────────────────────── */
 
+/* ── Preparaciones ─────────────────────────────────────────────────────────
+
+   Una rejilla plana de tarjetas deja de servir en cuanto hay quince: para
+   encontrar lo que se cena hay que leerlas todas. Ahora van en cinco bloques
+   plegables, uno por momento del día, con la cuenta a la vista.
+
+   Una preparación marcada para dos momentos sale en los dos bloques, y sigue
+   siendo un solo registro: los bloques filtran la misma lista, no la copian.
+   Por eso editarla desde cualquiera de ellos la actualiza en todos, sin nada
+   que sincronizar. */
+
 function renderPreparaciones(ctx) {
-  const { state } = ctx;
-  const nombrePersona = id => state.people.find(persona => persona.id === id)?.name || 'Persona eliminada';
+  const { state, ui } = ctx;
+  const filtro = String(ui.mas.recetaFiltro || '').trim().toLocaleLowerCase('es');
+  const coincide = receta => !filtro
+    || receta.name.toLocaleLowerCase('es').includes(filtro)
+    || (receta.note || '').toLocaleLowerCase('es').includes(filtro)
+    || receta.items.some(item => (product(state, item.productId)?.name || '').toLocaleLowerCase('es').includes(filtro));
+  const visibles = state.recipes.filter(coincide);
+  const plegados = new Set(ui.mas.recetasPlegadas || []);
+  const sinMomento = state.recipes.filter(receta => !receta.uses?.length);
+
+  if (!state.recipes.length) {
+    return `${volver('Preparaciones')}
+      ${empty('📖', 'Todavía no hay ninguna',
+        'Una preparación es algo como «mangú con salami» o «arroz con pollo»: el nombre, en cuáles momentos suele comerse y, si quieres, los alimentos principales. No hace falta anotar la sal ni el aceite.',
+        button('Crear la primera', 'open-recipe', 'btn-primary'))}`;
+  }
+
   return `${volver('Preparaciones')}
     <p class="pantalla-intro">Comidas que se repiten en tu casa. Se guardan una vez y después se ponen en el calendario de golpe, eligiendo los días de la semana.</p>
     <div class="pantalla-acciones">${button('+ Nueva preparación', 'open-recipe', 'btn-primary')}</div>
-    ${state.recipes.length
-      ? `<div class="grid grid-2">${state.recipes.map(receta => `<article class="card">
-          <div class="between"><h3>${esc(receta.name)}</h3><span class="pill warm">${receta.uses.map(cap).join(' · ')}</span></div>
-          <p class="small muted">${receta.covers.length ? receta.covers.map(id => esc(nombrePersona(id))).join(', ') : 'Para quien coma ese día'}${receta.servings ? ` · ${fmt(receta.servings)} raciones` : ''}</p>
-          ${receta.items.length ? `<ul class="food-list">${receta.items.map(item => `<li>${esc(measure(item.quantity, item.unit))} · ${esc(product(state, item.productId)?.name || '—')}</li>`).join('')}</ul>` : '<p class="small muted">Sin alimentos anotados todavía. Puedes añadirlos cuando quieras.</p>'}
-          ${receta.note ? `<p class="small"><strong>Para quien cocina:</strong> ${esc(receta.note)}</p>` : ''}
-          <div class="inline">
-            ${button('Ponerla en el calendario', 'mes-nueva-rutina', 'btn-secondary btn-small', `data-receta="${receta.id}"`)}
-            ${button('Editar', 'open-recipe', 'btn-quiet btn-small', `data-id="${receta.id}"`)}
-            ${button('Eliminar', 'delete-recipe', 'btn-quiet btn-small', `data-id="${receta.id}"`)}
-          </div>
-        </article>`).join('')}</div>`
-      : empty('📖', 'Todavía no hay ninguna',
-          'Una preparación es algo como «mangú con salami» o «arroz con pollo»: el nombre, en qué comida se sirve y, si quieres, los alimentos principales. No hace falta anotar la sal ni el aceite.',
-          button('Crear la primera', 'open-recipe', 'btn-primary'))}`;
+
+    <div class="setup-buscador">
+      <label class="field setup-search"><span class="sr-only">Buscar una preparación</span>
+        <input type="search" id="receta-filtro" value="${esc(ui.mas.recetaFiltro || '')}" placeholder="Buscar entre ${state.recipes.length} preparación(es)…" autocomplete="off" aria-label="Buscar una preparación">
+      </label>
+      ${ui.mas.recetaFiltro ? button('Ver todo', 'receta-limpiar', 'btn-quiet') : ''}
+    </div>
+
+    ${filtro && !visibles.length ? `<p class="muted">Nada coincide con «${esc(ui.mas.recetaFiltro)}».</p>` : ''}
+
+    ${MOMENTOS.map(momento => {
+      const delMomento = visibles.filter(receta => receta.uses?.includes(momento.id));
+      // Un bloque vacío se sigue enseñando cuando no hay búsqueda: saber que
+      // no hay ninguna merienda anotada es información, no ruido.
+      if (filtro && !delMomento.length) return '';
+      const abierto = !plegados.has(momento.id);
+      return `<section class="recetas-bloque">
+        <button type="button" class="recetas-cabecera" data-action="receta-plegar" data-momento="${momento.id}" aria-expanded="${abierto}">
+          <span class="recetas-flecha" aria-hidden="true">${abierto ? '⌄' : '›'}</span>
+          <span class="recetas-titulo">${esc(momento.plural)}</span>
+          <span class="badge-count">${delMomento.length}</span>
+        </button>
+        ${abierto ? (delMomento.length
+          ? `<div class="grid grid-2">${delMomento.map(receta => tarjetaDeReceta(state, receta)).join('')}</div>`
+          : `<p class="small muted recetas-vacio">Todavía no hay ninguna para ${esc(momento.etiqueta.toLocaleLowerCase('es'))}.</p>`) : ''}
+      </section>`;
+    }).join('')}
+
+    ${sinMomento.length ? notice('Hay preparaciones sin momento', `${sinMomento.length} preparación(es) no tienen ningún momento marcado, así que no salen en ningún bloque: ${sinMomento.map(receta => esc(receta.name)).join(', ')}. Ábrelas y marca cuándo se comen.`, 'warn') : ''}`;
+}
+
+function tarjetaDeReceta(state, receta) {
+  const momentos = (receta.uses || []).map(id => MOMENTOS.find(item => item.id === id)?.etiqueta || id);
+  return `<article class="card receta-tarjeta">
+    <div class="between"><h3>${esc(receta.name)}</h3>${receta.servings ? `<span class="pill gray">${fmt(receta.servings)} porciones</span>` : ''}</div>
+    <p class="small muted">${momentos.map(texto => `<span class="pill warm">${esc(texto)}</span>`).join(' ')}</p>
+    ${receta.items.length
+      ? `<ul class="food-list">${receta.items.map(item => `<li>${esc(measure(item.quantity, item.unit))} · ${esc(product(state, item.productId)?.name || '—')}</li>`).join('')}</ul>`
+      : '<p class="small muted receta-incompleta">Sin alimentos anotados. Sirve igual para el calendario; lo que no puede todavía es aportar a la compra.</p>'}
+    ${receta.note ? `<p class="small"><strong>Para quien cocina:</strong> ${esc(receta.note)}</p>` : ''}
+    <div class="inline">
+      ${button('Ponerla en el calendario', 'mes-nueva-rutina', 'btn-secondary btn-small', `data-receta="${receta.id}"`)}
+      ${button('Editar', 'open-recipe', 'btn-quiet btn-small', `data-id="${receta.id}"`)}
+      ${button('Eliminar', 'delete-recipe', 'btn-quiet btn-small', `data-id="${receta.id}"`)}
+    </div>
+  </article>`;
 }
 
 /* ── Familia ───────────────────────────────────────────────────────────── */
@@ -840,6 +900,14 @@ export const MAS_ACTIONS = {
     // la diferencia entre decir «no se sabe» y decir la verdad.
     comprobarDictado().then(() => { if (ctx.ui.modal?.type === 'diagnostico') ctx.render(); }).catch(() => {});
   },
+  'receta-plegar': (el, ctx) => {
+    const plegadas = new Set(ctx.ui.mas.recetasPlegadas || []);
+    const momento = el.dataset.momento;
+    if (plegadas.has(momento)) plegadas.delete(momento); else plegadas.add(momento);
+    ctx.ui.mas.recetasPlegadas = [...plegadas];
+    ctx.render();
+  },
+  'receta-limpiar': (el, ctx) => { ctx.ui.mas.recetaFiltro = ''; ctx.render(); },
   'frecuencia-abrir': (el, ctx) => {
     Object.assign(ctx.ui.mas, { cambiandoFrecuencia: true, frecuenciaNueva: '', frecuenciaDesde: '' });
     ctx.render();

@@ -11,7 +11,12 @@
 
 import { normalizeName } from './nombres.js';
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
+
+// Los momentos en que una preparación suele comerse. Viven aquí, igual que las
+// clases de persona, para que la migración pueda normalizarlas sin arrastrar el
+// modelo entero. `model.js` los reexporta con su etiqueta.
+export const MOMENTOS_DE_PREPARACION = ['desayuno', 'merienda-manana', 'almuerzo', 'merienda-tarde', 'cena'];
 
 // Las tres clasificaciones de una persona de la casa y los tres motivos por los
 // que puede evitar un alimento. Viven aquí y no en model.js porque una
@@ -271,7 +276,43 @@ function personaNormalizada(persona, restricciones) {
   };
 }
 
-const STEPS = { 1: v1toV2, 2: v2toV3, 3: v3toV4 };
+// v4 → v5. La preparación deja de decir quién la come.
+//
+// Tenía un campo `covers` —«quiénes la comen normalmente»— que se preguntaba al
+// crearla y se volvía a preguntar al ponerla en el calendario. De las dos
+// respuestas, la buena era siempre la segunda: quién come depende del día, no
+// del plato. La primera solo servía para prerrellenar la segunda, y para que
+// todo el mundo contestara dos veces la misma pregunta.
+//
+// Se borra el campo. No se pierde nada de lo planificado: cada comida del
+// calendario guarda sus propios participantes, y esos no se tocan. Lo único que
+// cambia es de dónde sale la marca por defecto al crear una comida nueva, que
+// ahora es «toda la casa».
+//
+// Los momentos viejos se llamaban igual que los nuevos —desayuno, almuerzo,
+// cena— así que se conservan tal cual. Las dos meriendas nacen vacías: nadie ha
+// dicho que su mangú sea también merienda, y suponerlo llenaría la sección de
+// meriendas de platos que nadie puso ahí.
+function v4toV5(data) {
+  const notes = [];
+  const state = clone(data);
+  let conPersonas = 0;
+  state.recipes = (state.recipes || []).map(receta => {
+    const copia = { ...receta };
+    if (Array.isArray(copia.covers) && copia.covers.length) conPersonas++;
+    delete copia.covers;
+    const marcados = new Set(Array.isArray(receta.uses) ? receta.uses : []);
+    copia.uses = MOMENTOS_DE_PREPARACION.filter(id => marcados.has(id));
+    return copia;
+  });
+  state.version = 5;
+  if (conPersonas) {
+    notes.push(`${conPersonas} preparación(es) tenían anotado quién las comía. Esa pregunta ya no existe: una preparación es para toda la casa, y quien no coma se marca el día que toque. Las comidas que ya estaban en el calendario no cambian.`);
+  }
+  return { state, notes };
+}
+
+const STEPS = { 1: v1toV2, 2: v2toV3, 3: v3toV4, 4: v4toV5 };
 
 // Campos que aparecieron dentro de una misma versión del esquema. Un respaldo
 // exportado antes de que existieran se rellena en vez de rechazarse.
@@ -309,6 +350,17 @@ export function migrate(data) {
   // repetirlo sobre datos ya convertidos no cambia nada.
   if (Array.isArray(current.people)) {
     current.people = current.people.map(persona => personaNormalizada(persona, restriccionesNormalizadas(persona)));
+  }
+  // Y otra por las preparaciones, por lo mismo: un respaldo exportado a media
+  // tarde puede traer todavía el campo que ya no existe.
+  if (Array.isArray(current.recipes)) {
+    current.recipes = current.recipes.map(receta => {
+      const copia = { ...receta };
+      delete copia.covers;
+      const marcados = new Set(Array.isArray(receta.uses) ? receta.uses : []);
+      copia.uses = MOMENTOS_DE_PREPARACION.filter(id => marcados.has(id));
+      return copia;
+    });
   }
 
   return { ok: true, state: current, from, to: SCHEMA_VERSION, migrated: from < SCHEMA_VERSION, notes };

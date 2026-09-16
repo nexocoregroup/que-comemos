@@ -8,7 +8,7 @@
 // la frecuencia con que hace falta de verdad.
 
 import {
-  SLICEABLE, SLICE_STYLES, SLOTS, UNITS, addDays, addProduct, addPurchase, archiveProduct,
+  MOMENTOS, SLICEABLE, SLICE_STYLES, SLOTS, UNITS, addDays, addProduct, addPurchase, archiveProduct,
   copyPlan, correctReview, correctStock, createEmptyState, createReview, dependents, effectiveBasket,
   exportState, findSimilarProducts, habitualLines, importState, incompatibleItems, inventoryNow,
   esActiva, isAbsent, linkPlan, makeRecipePlan, mergeProducts, monthBounds, movePlan, nextId, personasActivas, planFor, ponerFrecuencia, product,
@@ -384,6 +384,7 @@ const NAV = [
 // escoger entre once formularios es peor que no tener el botón.
 const RAPIDAS = [
   ['rapida-comida', '🍽️', 'Poner una comida', 'En un día, o en todos los lunes'],
+  ['open-recipe', '📖', 'Crear una preparación', 'Un plato que se repite en casa'],
   ['open-chat', '💬', 'Hablar o dictar', 'Dile lo que pasó y ella lo anota'],
   ['open-purchase', '🧺', 'Anotar una compra', 'Lo que trajiste del colmado'],
   ['open-product', '🥬', 'Añadir un alimento', 'Uno nuevo, con su medida']
@@ -745,22 +746,49 @@ function renderModal() {
        </div>`);
   }
 
+  /* ── Una preparación ──────────────────────────────────────────────────────
+
+     Seis cosas en orden y ninguna escondida: nombre, cuándo se come, qué lleva,
+     cuánto rinde, la nota de quien cocina, y guardar.
+
+     Lo que se fue: «¿quiénes la comen normalmente?». Se preguntaba aquí y se
+     volvía a preguntar al ponerla en el calendario, y de las dos respuestas la
+     buena era siempre la segunda, porque quién come depende del día y no del
+     plato. Ahora una preparación es de la casa, y la excepción se marca el día
+     que toca.
+
+     Y los alimentos salen del plegable. Estaban dentro de «Más opciones», que
+     es exactamente donde no se mira: son lo que convierte una preparación en
+     una lista de compra, y esconderlos era esconder para qué sirve todo esto. */
   if (m.type === 'recipe') {
     const recipe = state.recipes.find(item => item.id === m.id);
+    const enCasa = personasActivas(state).length;
     return modal(recipe ? 'Editar preparación' : 'Nueva preparación',
-      'Con el nombre y en qué comida se sirve ya basta. Lo demás se puede añadir después.',
-      `<form data-form="recipe" data-id="${recipe?.id || ''}">
+      'Con el nombre y cuándo se come ya basta. Lo demás se puede añadir después.',
+      `<form data-form="recipe" data-id="${recipe?.id || ''}" class="receta-form">
         <label class="field"><span>¿Cómo se llama?</span><input name="name" required value="${esc(recipe?.name || '')}" placeholder="Ej. Mangú con salami"></label>
-        <div class="field" style="margin-top:14px"><span>¿En qué comida?</span><div class="checks">${SLOTS.map(slot => `<label class="check-chip"><input type="checkbox" name="uses" value="${slot}" ${recipe?.uses.includes(slot) ? 'checked' : ''}>${cap(slot)}</label>`).join('')}</div></div>
-        <div class="field" style="margin-top:14px"><span>¿Quiénes la comen normalmente?</span>${checkPeople('covers', recipe?.covers || [])}<small>Si no marcas a nadie, vale para quien coma ese día.</small></div>
-        <label class="field" style="margin-top:14px"><span>Nota para quien cocina (opcional)</span><textarea name="note" placeholder="Ej. dejar una parte para la cena" autocapitalize="sentences" spellcheck="true" enterkeyhint="done">${esc(recipe?.note || '')}</textarea></label>
-        <details class="more" style="margin-top:17px" ${recipe?.items.length ? 'open' : ''}>
-          <summary>Más opciones: alimentos y raciones</summary>
-          <p class="small muted">Solo los alimentos principales. No hace falta anotar la sal, el aceite, el ajo ni los condimentos: la app no les lleva la cuenta y pedírtelos sería trabajo para nada.</p>
-          <label class="field"><span>¿Para cuántas raciones? (opcional)</span><input name="servings" type="number" min="0.1" step="any" inputmode="decimal" value="${recipe?.servings ?? ''}" placeholder="Ej. 4"></label>
-          <div data-item-list="ingredient">${(recipe?.items || []).map(item => itemRow(item)).join('')}</div>
-          <div class="inline">${button('+ Añadir alimento', 'add-item', 'btn-secondary btn-small', 'data-type="ingredient"')}${state.people.some(person => person.habitual?.length) ? button('↺ Traer las cantidades habituales', 'fill-habitual', 'btn-quiet btn-small') : ''}</div>
-        </details>
+
+        <div class="field">
+          <span>¿En cuáles momentos suelen comer esta preparación? Puedes seleccionar más de uno.</span>
+          <div class="checks receta-momentos">${MOMENTOS.map(momento => `<label class="check-chip"><input type="checkbox" name="uses" value="${momento.id}" ${recipe?.uses?.includes(momento.id) ? 'checked' : ''}>${esc(momento.etiqueta)}</label>`).join('')}</div>
+          <small>El mangú con salami, por ejemplo, suele estar en Desayuno y en Cena.</small>
+        </div>
+
+        <div class="field">
+          <span>Alimentos principales y cantidades</span>
+          <p class="small muted">Solo los que hacen falta para la compra. No hace falta anotar la sal, la pimienta, el agua, el aceite ni los condimentos: la app no les lleva la cuenta y pedírtelos sería trabajo para nada.</p>
+          <div data-item-list="receta">${(recipe?.items || []).map(item => itemRow(item, 'receta')).join('')}</div>
+          <div class="inline">${button('+ Añadir alimento', 'add-item', 'btn-secondary btn-small', 'data-type="receta"')}${state.people.some(person => person.habitual?.length) ? button('↺ Traer las cantidades habituales', 'fill-habitual', 'btn-quiet btn-small') : ''}</div>
+        </div>
+
+        <label class="field">
+          <span>¿Cuántas porciones rinde esta preparación? (opcional)</span>
+          <input name="servings" type="number" min="0.1" step="any" inputmode="decimal" value="${recipe?.servings ?? ''}" placeholder="${enCasa || 4}">
+          <small>Una porción equivale aproximadamente a la cantidad que come una persona una vez.${enCasa ? ` En tu casa viven ${enCasa}.` : ''}</small>
+        </label>
+
+        <label class="field"><span>Nota para quien cocina (opcional)</span><textarea name="note" placeholder="Ej. guardar lo que sobre para el desayuno del día siguiente" autocapitalize="sentences" spellcheck="true" enterkeyhint="done">${esc(recipe?.note || '')}</textarea></label>
+
         <div class="modal-actions"><button class="btn btn-primary" type="submit">Guardar</button></div>
       </form>`, true);
   }
@@ -935,7 +963,7 @@ function modalComida(m) {
     const opciones = state.recipes.filter(recipe => recipe.uses.includes(m.slot));
     // Sin decir nada, la comida es para toda la casa: se marcan todos los que
     // viven aquí hoy. Quitar a alguien es la excepción, no el trámite.
-    const marcados = (opciones[0]?.covers.length ? opciones[0].covers : personasActivas(state).map(person => person.id)).filter(id => esActiva(state.people.find(item => item.id === id)));
+    const marcados = personasActivas(state).map(person => person.id);
     return modal('¿Qué se come?', contexto, `<form data-form="assign" class="stack">
       <input type="hidden" name="date" value="${m.date}"><input type="hidden" name="slot" value="${m.slot}">
       <label class="field"><span>Preparación</span><select name="recipeId" id="assign-recipe" ${opciones.length ? '' : 'disabled'}>${options(opciones.map(recipe => [recipe.id, recipe.name]), opciones[0]?.id, opciones.length ? '' : 'Todavía no hay ninguna')}</select></label>
@@ -1386,20 +1414,23 @@ function aplicarPorAlcance(planId, alcance) {
 
 function traerCantidadesHabituales(el) {
   const form = el.closest('form');
-  const lista = form.querySelector('[data-item-list="ingredient"]');
-  const marcadas = selected(form, 'covers');
-  const personas = state.people.filter(person => (!marcadas.length || marcadas.includes(person.id)) && person.habitual?.length);
+  const lista = form.querySelector('[data-item-list="receta"]');
+  // Se suman las de toda la casa. Antes se podía filtrar por las personas
+  // marcadas en la propia preparación, pero esa pregunta ya no existe: una
+  // preparación es familiar, así que lo habitual que se trae es lo de todos los
+  // que viven aquí hoy.
+  const personas = personasActivas(state).filter(person => person.habitual?.length);
   const totales = new Map();
   for (const persona of personas) for (const fila of persona.habitual) {
     const clave = `${fila.productId}|${fila.unit}`;
     totales.set(clave, (totales.get(clave) || 0) + Number(fila.quantity));
   }
-  if (!totales.size) throw new Error(marcadas.length ? 'Las personas marcadas no tienen cantidades guardadas.' : 'Todavía no hay cantidades habituales guardadas en Familia.');
+  if (!totales.size) throw new Error('Todavía no hay cantidades habituales guardadas en Más → Familia.');
   const escrito = [...lista.querySelectorAll('[data-item-row]')].some(row => row.querySelector('[name="productId"]')?.value);
   if (escrito && !window.confirm('Se reemplazará lo escrito por la suma de las cantidades habituales. ¿Continuar?')) return;
   lista.innerHTML = [...totales].map(([clave, total]) => {
     const [productId, unit] = clave.split('|');
-    return itemRow({ productId, quantity: Math.round(total * 1000) / 1000, unit });
+    return itemRow({ productId, quantity: Math.round(total * 1000) / 1000, unit }, 'receta');
   }).join('');
   toast(`${totales.size} alimento(s) sumados de ${personas.length} persona(s).`);
 }
@@ -1413,7 +1444,9 @@ document.addEventListener('change', event => {
   if (el.id === 'assign-recipe') {
     const receta = state.recipes.find(item => item.id === el.value);
     const form = el.closest('form');
-    form.querySelectorAll('[name="participants"]').forEach(input => input.checked = !input.disabled && (receta?.covers.length ? receta.covers.includes(input.value) : true));
+    // Cambiar de preparación no cambia quién come: una preparación es de la
+    // casa, así que se marcan todos los que no estén fuera ese día.
+    form.querySelectorAll('[name="participants"]').forEach(input => { input.checked = !input.disabled; });
   }
   if (['date', 'slot'].includes(el.name) && el.closest('[data-form="absence"]')) {
     const form = el.closest('form'), date = form.querySelector('[name="date"]').value, slot = form.querySelector('[name="slot"]').value;
@@ -1444,6 +1477,7 @@ document.addEventListener('input', event => {
   const buscadores = {
     'alimento-filtro': valor => { ui.mas.filtroAlimento = valor; },
     'revision-filtro': valor => { ui.mas.revisionFiltro = valor; },
+    'receta-filtro': valor => { ui.mas.recetaFiltro = valor; },
     'setup-buscar': valor => { ui.setup.busqueda = valor; }
   };
   const escribir = buscadores[event.target.id];
@@ -1508,8 +1542,12 @@ document.addEventListener('submit', async event => {
     if (COMPRA_FORMS[kind]) { COMPRA_FORMS[kind](form, data, ctx()); return; }
 
     if (kind === 'recipe') {
-      upsertRecipe(state, { id: form.dataset.id, name: data.get('name'), uses: selected(form, 'uses'), covers: selected(form, 'covers'), servings: data.get('servings'), items: collectItems(form), note: data.get('note') });
-      ui.modal = null; commit('Preparación guardada.');
+      const receta = upsertRecipe(state, { id: form.dataset.id, name: data.get('name'), uses: selected(form, 'uses'), servings: data.get('servings'), items: collectItems(form), note: data.get('note') });
+      ui.modal = null;
+      // Se guarda igual sin alimentos: la preparación ya sirve para llenar el
+      // calendario. Lo único que no puede hacer es aportar a la compra, y eso
+      // se dice en voz baja en vez de bloquear el guardado.
+      commit(receta.items.length ? 'Preparación guardada.' : 'Guardada. Cuando le añadas alimentos y cantidades podrá contar para la compra.');
     }
     else if (kind === 'product') {
       const existente = product(state, form.dataset.id);

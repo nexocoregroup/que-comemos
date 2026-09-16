@@ -3,7 +3,34 @@ import { CLASES_DE_PERSONA, MOTIVOS_DE_RESTRICCION, SCHEMA_VERSION, migrate } fr
 
 export { normalizeName, SCHEMA_VERSION, CLASES_DE_PERSONA, MOTIVOS_DE_RESTRICCION };
 
-export const SLOTS = ['desayuno', 'almuerzo', 'cena'];
+/* ── Los momentos del día ──────────────────────────────────────────────────
+
+   Hay dos listas parecidas y conviene no confundirlas nunca:
+
+   · `MOMENTOS` son los momentos en que una preparación **suele comerse**. Son
+     cinco, porque una casa merienda, y el mangú con salami es de desayuno y de
+     cena a la vez. Es una etiqueta de la preparación, no una casilla del día.
+
+   · `SLOTS` son las comidas que el **calendario** tiene por día. Siguen siendo
+     tres. Añadir dos meriendas al calendario cambiaría el plan del mes, la
+     pantalla de Hoy, las rutinas y la cuenta de «3 de 3 comidas decididas», y
+     eso no es de esta parte: sería decidir por la casa que tiene que
+     planificar dos meriendas diarias.
+
+   `SLOTS` se deriva de `MOMENTOS` para que no puedan separarse por olvido. */
+
+export const MOMENTOS = [
+  { id: 'desayuno',        etiqueta: 'Desayuno',           plural: 'Desayunos',           enElDia: true },
+  { id: 'merienda-manana', etiqueta: 'Merienda de mañana', plural: 'Meriendas de mañana', enElDia: false },
+  { id: 'almuerzo',        etiqueta: 'Almuerzo',           plural: 'Almuerzos',           enElDia: true },
+  { id: 'merienda-tarde',  etiqueta: 'Merienda de tarde',  plural: 'Meriendas de tarde',  enElDia: false },
+  { id: 'cena',            etiqueta: 'Cena',               plural: 'Cenas',               enElDia: true }
+];
+export const MOMENTOS_IDS = MOMENTOS.map(item => item.id);
+export const momentoDe = id => MOMENTOS.find(item => item.id === id) || null;
+export const etiquetaDeMomento = id => momentoDe(id)?.etiqueta || id;
+
+export const SLOTS = MOMENTOS.filter(item => item.enElDia).map(item => item.id);
 export const UNITS = ['unidad', 'lb', 'taza', 'lata', 'paquete', 'rueda', 'rebanada'];
 // Una «rueda» no mide lo mismo en dos casas: quien corta fino saca el doble de
 // ruedas del mismo salami. El grosor no convierte nada por sí solo —para eso
@@ -638,8 +665,11 @@ export const isAbsent = (state, date, slot, personId) => state.absences.some(ite
 export function upsertRecipe(state, fields) {
   const name = String(fields.name || '').trim();
   if (!name) throw new Error('Escribe el nombre de la preparación.');
-  const uses = [...new Set(fields.uses || [])].filter(slot => SLOTS.includes(slot));
-  if (!uses.length) throw new Error('Selecciona cuándo se puede usar.');
+  // Los momentos se guardan en el orden del día, no en el que se fueron
+  // tocando: «desayuno y cena» se lee mejor que «cena y desayuno».
+  const marcados = new Set(fields.uses || []);
+  const uses = MOMENTOS_IDS.filter(id => marcados.has(id));
+  if (!uses.length) throw new Error('Selecciona en cuáles momentos suelen comerla.');
   const items = (fields.items || []).map(item => {
     if (!product(state, item.productId) || !UNITS.includes(item.unit)) throw new Error('Selecciona un alimento y su unidad.');
     return { productId: item.productId, quantity: quantity(item.quantity), unit: item.unit, personId: item.personId || null };
@@ -652,7 +682,17 @@ export function upsertRecipe(state, fields) {
   // compra ya avisa de eso por su cuenta.
   let recipe = state.recipes.find(item => item.id === fields.id);
   if (!recipe) { recipe = { id: nextId(state, 'preparacion') }; state.recipes.push(recipe); }
-  Object.assign(recipe, { name, uses, items, covers: (fields.covers || []).filter(id => state.people.some(person => person.id === id)), servings: fields.servings === '' || fields.servings === undefined || fields.servings === null ? null : quantity(fields.servings), note: String(fields.note || '').trim() });
+  // Una preparación es de la casa. No guarda a quién le toca: preguntarlo aquí
+  // era pedir dos veces lo mismo —una en la preparación y otra al ponerla en el
+  // calendario— y la respuesta de la preparación casi nunca era la buena, porque
+  // quién come depende del día y no del plato. Si un día come solo una parte de
+  // la casa, eso se marca ese día, que es cuando se sabe.
+  Object.assign(recipe, {
+    name, uses, items,
+    servings: fields.servings === '' || fields.servings === undefined || fields.servings === null ? null : quantity(fields.servings),
+    note: String(fields.note || '').trim()
+  });
+  delete recipe.covers;
   return recipe;
 }
 export function duplicateRecipe(state, id) {
@@ -672,7 +712,10 @@ export function planFor(state, date, slot) { return state.plans.find(item => ite
 // Sin decir nada, una comida es para toda la casa. Solo quien esté dado de baja
 // o marcado fuera ese día se queda fuera de la cuenta.
 export function effectiveParticipants(state, recipe, date, slot, selected) {
-  const ids = selected || (recipe.covers.length ? recipe.covers : state.people.map(item => item.id));
+  // Una preparación es familiar mientras nadie diga lo contrario ese día. Antes
+  // la preparación traía su propia lista de personas y ganaba por encima de la
+  // casa; ahora la excepción se marca donde se sabe, que es en el calendario.
+  const ids = selected || state.people.map(item => item.id);
   return ids.filter(id => {
     const person = state.people.find(item => item.id === id);
     if (!person) return false;

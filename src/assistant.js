@@ -513,7 +513,7 @@ export const ACTIONS = {
         if (!found.ok) throw new Error(found.error);
         return { productId: found.value.id, quantity: row.cantidad ?? row.quantity, unit: row.unidad ?? row.unit };
       });
-      return { id: upsertRecipe(state, { name: a.nombre, uses: a.comidas, items, covers: [] }).id };
+      return { id: upsertRecipe(state, { name: a.nombre, uses: a.comidas, items }).id };
     }
   },
   duplicar_preparacion: {

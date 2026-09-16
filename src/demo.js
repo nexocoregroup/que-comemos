@@ -20,7 +20,10 @@ export function createDemoState() {
   const luis = upsertPerson(state, { name: 'Luis · ejemplo', restrictions: [], habitual: [] }).id;
   const nina = upsertPerson(state, { name: 'Niña · ejemplo', restrictions: [], habitual: [{ productId: huevo, quantity: 2, unit: 'unidad' }] }).id;
   const nino = upsertPerson(state, { name: 'Niño · ejemplo', restrictions: [], habitual: [{ productId: salami, quantity: 4, unit: 'rueda' }] }).id;
-  const recipe = (name, uses, items, covers = [], note = '') => upsertRecipe(state, { name, uses, items, covers, note }).id;
+  // El cuarto argumento era «quiénes la comen normalmente». Esa pregunta ya no
+  // existe: una preparación es de la casa. Se sigue aceptando y se ignora para
+  // no tener que reescribir las diez llamadas de abajo por un dato muerto.
+  const recipe = (name, uses, items, unused = [], note = '') => upsertRecipe(state, { name, uses, items, note }).id;
   const eggsHam = recipe('Huevos con jamón', ['desayuno', 'cena'], [
     { productId: huevo, quantity: 4, unit: 'unidad' }, { productId: jamon, quantity: 4, unit: 'rebanada' }
   ], [ana, luis]);

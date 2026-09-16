@@ -485,3 +485,48 @@
 }
 .documento p { margin: 0 0 12px; max-width: 64ch; }
 .documento > p:first-of-type { color: var(--ink-muted); }
+
+/* ── Preparaciones: cinco bloques, uno por momento del día ─────────────────
+
+   La cabecera es un botón de ancho completo, no una flechita: en un teléfono
+   lo que se toca es la fila entera, y el número de al lado dice cuántas hay
+   sin tener que abrirla. */
+
+.recetas-bloque { margin-bottom: 18px; }
+.recetas-cabecera {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  border: 1px solid var(--line); border-radius: 14px; padding: 13px 15px;
+  background: var(--surface); color: var(--ink); text-align: left;
+  font: inherit; font-weight: 800; letter-spacing: -.02em; min-height: 52px;
+  margin-bottom: 12px;
+}
+.recetas-cabecera:hover { border-color: var(--clay-line); background: var(--clay-light); }
+.recetas-cabecera[aria-expanded="false"] { margin-bottom: 0; }
+.recetas-flecha { color: var(--clay); font-size: 1.05rem; line-height: 1; width: 14px; text-align: center; }
+.recetas-titulo { flex: 1; min-width: 0; }
+.recetas-cabecera .badge-count { margin-left: 0; font-size: .78rem; }
+.recetas-vacio { margin: 0 0 4px 39px; }
+
+.receta-tarjeta .between { margin-bottom: 8px; }
+.receta-tarjeta h3 { margin: 0; font-size: 1.06rem; }
+.receta-tarjeta .pill { margin-right: 4px; }
+.receta-incompleta { font-style: italic; }
+
+/* El formulario de una preparación: seis cosas en fila, ninguna escondida. */
+.receta-form { display: grid; gap: 18px; }
+.receta-form .field { gap: 8px; }
+.receta-form .field > span { font-size: .88rem; line-height: 1.4; }
+.receta-momentos { gap: 8px; }
+
+/* La casilla de una ficha marcable no crece con la ficha.
+   `.check-chip` es un flex y el `input` no trae tamaño propio, así que con una
+   etiqueta larga —«Merienda de mañana»— el navegador le daba a la casilla todo
+   el ancho sobrante: un cuadro de 85 píxeles al lado de un texto de tres
+   renglones. Con las etiquetas cortas de siempre no se notaba. */
+.check-chip input[type="checkbox"], .check-chip input[type="radio"] {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+.receta-momentos .check-chip { align-items: center; }

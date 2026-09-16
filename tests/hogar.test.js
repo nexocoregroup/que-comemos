@@ -87,7 +87,7 @@ test('un respaldo de la versión 3 llega entero a la 4 y nadie pierde una restri
   assert.equal(ok, true);
   assert.equal(from, 3);
   assert.equal(to, SCHEMA_VERSION);
-  assert.equal(state.version, 4);
+  assert.equal(state.version, 5);
   assert.equal(migrated, true);
   assert.equal(state.people.length, 2);
 
