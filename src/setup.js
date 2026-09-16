@@ -341,7 +341,7 @@ function filaCantidad({ nombre = '', unidad = 'unidad', cantidad = '', origen = 
       <input name="cantidad" type="number" min="0" step="any" inputmode="decimal" value="${esc(cantidad)}" placeholder="Al mes" aria-label="Cantidad al mes de ${esc(nombre)}"></label>
     <label class="field"><span class="sr-only">Unidad de ${esc(nombre)}</span>
       <select name="unidad" aria-label="Unidad de ${esc(nombre)}">${unidades(unidad)}</select></label>
-    <button type="button" class="btn btn-quiet remove-item" data-action="setup-quitar-cantidad" aria-label="Quitar ${esc(nombre)}">✕</button>
+    <button type="button" class="btn btn-quiet remove-item" data-action="setup-quitar-cantidad" aria-label="Quitar ${esc(nombre)}">${icono('cerrar', { tamano: 17 })}</button>
   </div>`;
 }
 

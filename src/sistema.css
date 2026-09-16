@@ -378,3 +378,23 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
    y se alinea con los otros tres, que siguen siendo letra. */
 .choque-marca, .restriccion-marca { display: inline-flex; align-items: center; justify-content: center; }
 .choque-marca .ico, .restriccion-marca .ico { display: block; }
+
+/* Un botón redondo dentro de una fila flexible se dejaba estrujar: el de cerrar
+   la ventana medía 30 px de ancho en vez de 40 porque el título de al lado le
+   quitaba sitio. Un objetivo táctil no negocia su tamaño. */
+.icon-btn { flex: none; }
+
+/* La columna del botón de quitar, en las filas de cantidad del asistente,
+   medía 34 px. Quitar un alimento de la canasta por error es de las pocas cosas
+   de esta pantalla que cuesta deshacer, así que es justo el botón que no puede
+   fallarse. Los 6 px salen de la columna del nombre, que va sobrada. */
+.setup-cantidad-row { grid-template-columns: minmax(0, 2fr) minmax(72px, .7fr) minmax(100px, 1fr) var(--toque-chico); }
+@media (max-width: 700px) {
+  .setup-cantidad-row { grid-template-columns: minmax(0, 1fr) 105px var(--toque-chico); }
+}
+/* Y lo mismo en las filas de la canasta y de los alimentos sueltos. */
+.item-row { grid-template-columns: minmax(110px, 2fr) minmax(70px, .7fr) minmax(90px, 1fr) minmax(105px, 1.1fr) var(--toque-chico); }
+.basket-row { grid-template-columns: minmax(120px, 2.1fr) minmax(70px, .75fr) minmax(90px, 1fr) minmax(110px, 1.1fr) var(--toque-chico); }
+@media (max-width: 700px) {
+  .basket-row { grid-template-columns: minmax(0, 1fr) 100px var(--toque-chico); }
+}
