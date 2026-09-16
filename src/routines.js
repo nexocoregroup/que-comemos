@@ -255,7 +255,13 @@ export function copyPatternFromMonth(state, from, to) {
     // Un quinto lunes no tiene dónde caer en un mes que solo tiene cuatro.
     if (!date) { saltados.push({ date: plan.date, slot: plan.slot, motivo: 'ese día no existe en el mes nuevo' }); continue; }
     if (planFor(state, date, plan.slot)) { saltados.push({ date, slot: plan.slot, motivo: 'ya tenía plan' }); continue; }
-    try { creados.push(copyPlan(state, plan.id, date, plan.slot).id); }
+    try {
+      const copia = copyPlan(state, plan.id, date, plan.slot);
+      // Traída del mes pasado, y así se dirá en el calendario: es la diferencia
+      // entre «esto lo decidí yo» y «esto venía de antes y puedo cambiarlo».
+      copia.origen = 'mes-anterior';
+      creados.push(copia.id);
+    }
     catch (error) { saltados.push({ date, slot: plan.slot, motivo: error.message }); }
   }
   return { creados, saltados };

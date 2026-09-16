@@ -157,7 +157,7 @@ test('un respaldo de la versión 4 llega a la 5 y pierde solo el campo que sobra
   assert.equal(ok, true);
   assert.equal(from, 4);
   assert.equal(to, SCHEMA_VERSION);
-  assert.equal(state.version, 5);
+  assert.equal(state.version, SCHEMA_VERSION);
   assert.equal(migrated, true);
 
   const mangu = state.recipes[0];

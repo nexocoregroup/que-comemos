@@ -785,10 +785,54 @@ export function choquesDeLaComida(state, items, participants) {
 
 // La gravedad de la comida entera: la del peor de sus choques.
 export const gravedadDeLaComida = choques => choques.reduce((peor, choque) => Math.max(peor, choque.gravedad), 0);
+/* ── De dónde salió cada comida ────────────────────────────────────────────
+
+   Un calendario lleno no dice quién lo llenó, y eso frena a quien lo mira:
+   delante del martes con mangú no se sabe si lo puso él, si vino de «los martes
+   mangú», si se arrastró del mes pasado o si fue el arreglo del jueves que vino
+   su madre. Sin saberlo nadie se atreve a tocarlo.
+
+   Se guarda en la comida porque casi nada de esto se deduce después:
+   `routineId` delata a la rutina, pero nada distingue una comida traída del mes
+   pasado de una escrita a mano esta mañana. */
+
+export const ORIGENES = [
+  { id: 'rutina', etiqueta: 'Rutina', detalle: 'Viene de una costumbre que guardaste' },
+  { id: 'mes-anterior', etiqueta: 'Mes anterior', detalle: 'Se trajo del mes pasado' },
+  { id: 'excepcion', etiqueta: 'Excepción', detalle: 'Este mes se sale de lo normal' },
+  { id: 'manual', etiqueta: 'Cambio manual', detalle: 'La pusiste tú, ese día' },
+  // La quinta no la pidió nadie, pero rellenar el mes desde la asistente pone
+  // comidas que no son ninguna de las otras cuatro, y llamarlas «cambio manual»
+  // sería mentir justo en el sitio donde la app promete decir de dónde vino
+  // cada cosa.
+  { id: 'sugerida', etiqueta: 'Sugerida', detalle: 'La eligió la app al rellenar el mes' }
+];
+export const ORIGENES_IDS = ORIGENES.map(item => item.id);
+export const etiquetaDeOrigen = id => ORIGENES.find(item => item.id === id)?.etiqueta || 'Cambio manual';
+export const detalleDeOrigen = id => ORIGENES.find(item => item.id === id)?.detalle || '';
+
+// Una comida guardada antes de que esto existiera no se inventa: se deduce lo
+// que se puede —la rutina deja marca, y un «fuera de casa» es una excepción por
+// definición— y lo demás fue un cambio a mano, que es lo que era.
+export function origenDe(plan) {
+  if (!plan) return null;
+  if (ORIGENES_IDS.includes(plan.origen)) return plan.origen;
+  if (plan.routineId) return 'rutina';
+  if (plan.kind === 'outside' || plan.kind === 'order') return 'excepcion';
+  return 'manual';
+}
+
+// Un origen que no se dice se deduce de lo que se sabe en ese momento.
+const normalizarOrigen = (origen, routineId, kind) => {
+  if (ORIGENES_IDS.includes(origen)) return origen;
+  if (routineId) return 'rutina';
+  return kind === 'outside' || kind === 'order' ? 'excepcion' : 'manual';
+};
+
 // `routineId` deja escrito que esta comida la puso una rutina y no una persona.
 // Sin esa marca no se podría deshacer «los domingos fuera» sin borrar también
 // los domingos que alguien decidió a mano.
-export function makeRecipePlan(state, recipeId, date, slot, selected, routineId = null) {
+export function makeRecipePlan(state, recipeId, date, slot, selected, routineId = null, origen = null) {
   const recipe = state.recipes.find(item => item.id === recipeId);
   if (!recipe || !recipe.uses.includes(slot)) throw new Error('Esta preparación no está disponible para esa comida.');
   if (planFor(state, date, slot)) throw new Error('Esa comida ya tiene un plan.');
@@ -797,14 +841,14 @@ export function makeRecipePlan(state, recipeId, date, slot, selected, routineId 
   const rawItems = recipe.items.filter(item => !item.personId || participants.includes(item.personId));
   // Un alimento que alguien evita ya no impide guardar la comida: se avisa en
   // la pantalla, con la gravedad que toca, y decide quien cocina.
-  const plan = { id: nextId(state, 'comida'), date, slot, kind: 'recipe', recipeId, routineId: routineId || null, title: recipe.name, note: recipe.note, servings: recipe.servings, participants, items: rawItems.map(item => ({ ...item, id: nextId(state, 'alimento') })) };
+  const plan = { id: nextId(state, 'comida'), date, slot, kind: 'recipe', recipeId, routineId: routineId || null, origen: normalizarOrigen(origen, routineId, 'recipe'), title: recipe.name, note: recipe.note, servings: recipe.servings, participants, items: rawItems.map(item => ({ ...item, id: nextId(state, 'alimento') })) };
   state.plans.push(plan);
   return plan;
 }
-export function setStatusPlan(state, date, slot, kind, routineId = null) {
+export function setStatusPlan(state, date, slot, kind, routineId = null, origen = null) {
   if (!['outside', 'order', 'unplanned'].includes(kind)) throw new Error('Estado de comida no válido.');
   if (planFor(state, date, slot)) throw new Error('Elimina o cambia primero el plan existente.');
-  const plan = { id: nextId(state, 'comida'), date, slot, kind, routineId: routineId || null, participants: [], items: [] };
+  const plan = { id: nextId(state, 'comida'), date, slot, kind, routineId: routineId || null, origen: normalizarOrigen(origen, routineId, kind), participants: [], items: [] };
   state.plans.push(plan);
   return plan;
 }
@@ -854,6 +898,10 @@ export function updatePlan(state, planId, fields) {
   plan.participants = participants;
   plan.note = String(fields.note || '').trim();
   plan.title = String(fields.title || plan.title).trim();
+  // Quien rehace una comida a mano deja de tener delante lo que puso la rutina,
+  // y la pantalla tiene que decirlo: si no, «viene de la rutina» acabaría
+  // describiendo comidas que ya no se parecen en nada a ella.
+  plan.origen = 'manual';
 }
 export function deletePlan(state, id, cascade = false) {
   const children = dependents(state, id);
@@ -880,6 +928,7 @@ export function copyPlan(state, id, date, slot) {
   // marca haría que deshacer la rutina se llevara por delante una comida que
   // alguien colocó a mano.
   copy.routineId = null;
+  copy.origen = 'manual';
   copy.participants = copy.participants.filter(personId => !isAbsent(state, date, slot, personId));
   if (personasActivas(state).length && source.participants.length && !copy.participants.length) throw new Error('No hay participantes disponibles para esa comida.');
   copy.items = copy.items.filter(item => !item.personId || copy.participants.includes(item.personId)).map(item => ({ ...item, id: nextId(state, 'alimento') }));
@@ -935,7 +984,7 @@ export function generateMonth(state, month) {
     if (!options.length) { unavailable.push({ date, slot }); continue; }
     const scored = options.map(recipe => ({ recipe, uses: state.plans.filter(plan => plan.recipeId === recipe.id && plan.slot === slot).length, yesterday: state.plans.some(plan => plan.date === addDays(date, -1) && plan.slot === slot && plan.recipeId === recipe.id) }));
     scored.sort((a, b) => Number(a.yesterday) - Number(b.yesterday) || a.uses - b.uses || a.recipe.name.localeCompare(b.recipe.name));
-    makeRecipePlan(state, scored[0].recipe.id, date, slot); count++;
+    makeRecipePlan(state, scored[0].recipe.id, date, slot, null, null, 'sugerida'); count++;
   }
   return { count, unavailable };
 }

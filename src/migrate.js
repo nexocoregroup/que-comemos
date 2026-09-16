@@ -11,7 +11,7 @@
 
 import { normalizeName } from './nombres.js';
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 // Los momentos en que una preparación suele comerse. Viven aquí, igual que las
 // clases de persona, para que la migración pueda normalizarlas sin arrastrar el
@@ -23,6 +23,12 @@ export const MOMENTOS_DE_PREPARACION = ['desayuno', 'merienda-manana', 'almuerzo
 // migración tiene que poder normalizar datos viejos sin arrastrar el modelo
 // entero —que importa este archivo, no al revés—.
 export const CLASES_DE_PERSONA = ['adulto', 'adolescente', 'nino'];
+
+// De dónde salió una comida del calendario. La lista vive también en el modelo;
+// aquí está repetida a propósito, porque una migración no puede depender de lo
+// que el modelo diga dentro de tres versiones: tiene que seguir convirtiendo
+// igual un respaldo de hoy dentro de dos años.
+export const ORIGENES_DE_COMIDA = ['rutina', 'mes-anterior', 'excepcion', 'manual', 'sugerida'];
 export const MOTIVOS_DE_RESTRICCION = ['alergia', 'intolerancia', 'preferencia'];
 
 const clone = value => structuredClone(value);
@@ -312,7 +318,45 @@ function v4toV5(data) {
   return { state, notes };
 }
 
-const STEPS = { 1: v1toV2, 2: v2toV3, 3: v3toV4, 4: v4toV5 };
+// v5 → v6. Cada comida dice de dónde salió.
+//
+// El calendario se llenaba y no decía quién lo había llenado. Delante de un
+// martes con mangú no había forma de saber si lo puso una rutina, si se copió
+// del mes pasado o si alguien lo escribió a mano, y sin saberlo nadie se atreve
+// a cambiarlo: quitarlo podría estar quitando una costumbre.
+//
+// Lo que se sabe de una comida vieja se deduce, y lo que no se sabe no se
+// inventa. `routineId` delata a la rutina. Un «fuera de casa» o un «pedido» es
+// una excepción por definición: nadie tiene de costumbre pedir todos los días
+// sin haber escrito la regla. Y todo lo demás lo puso una persona, que es
+// exactamente lo que significa «cambio manual».
+//
+// Lo que no se puede recuperar es cuáles vinieron del mes anterior: hasta hoy
+// una copia era indistinguible de una comida escrita a mano. Se quedan como
+// cambio manual, que es la respuesta prudente —dice menos de lo que nos
+// gustaría, pero no dice nada falso— y de aquí en adelante sí se marcan.
+function v5toV6(data) {
+  const notes = [];
+  const state = clone(data);
+  let deducidas = 0;
+  state.plans = (state.plans || []).map(plan => {
+    if (ORIGENES_DE_COMIDA.includes(plan?.origen)) return plan;
+    deducidas++;
+    return { ...plan, origen: origenDeducido(plan) };
+  });
+  state.version = 6;
+  if (deducidas) {
+    notes.push(`${deducidas} comida(s) del calendario no decían de dónde venían. Las que puso una rutina y las que estaban marcadas fuera de casa o pedidas se reconocen solas; el resto quedan como cambio manual. Ninguna comida cambia de día, de plato ni de cantidad.`);
+  }
+  return { state, notes };
+}
+
+const origenDeducido = plan => {
+  if (plan?.routineId) return 'rutina';
+  return plan?.kind === 'outside' || plan?.kind === 'order' ? 'excepcion' : 'manual';
+};
+
+const STEPS = { 1: v1toV2, 2: v2toV3, 3: v3toV4, 4: v4toV5, 5: v5toV6 };
 
 // Campos que aparecieron dentro de una misma versión del esquema. Un respaldo
 // exportado antes de que existieran se rellena en vez de rechazarse.
@@ -350,6 +394,13 @@ export function migrate(data) {
   // repetirlo sobre datos ya convertidos no cambia nada.
   if (Array.isArray(current.people)) {
     current.people = current.people.map(persona => personaNormalizada(persona, restriccionesNormalizadas(persona)));
+  }
+  // Y una por las comidas: un respaldo exportado a media tarde puede traer unas
+  // con origen y otras sin él, y una comida sin origen dejaría la pantalla
+  // diciendo «undefined» donde debería decir de dónde vino.
+  if (Array.isArray(current.plans)) {
+    current.plans = current.plans.map(plan =>
+      (ORIGENES_DE_COMIDA.includes(plan?.origen) ? plan : { ...plan, origen: origenDeducido(plan) }));
   }
   // Y otra por las preparaciones, por lo mismo: un respaldo exportado a media
   // tarde puede traer todavía el campo que ya no existe.

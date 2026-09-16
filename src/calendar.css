@@ -97,3 +97,12 @@
   .calendar-month .month-meal.missing { background: transparent; border: 1px dashed var(--line); }
   .calendar-month .month-meal.missing span { color: #b6a89b; font-weight: 700; }
 }
+
+/* El número del día abre el día entero. Era un <div> y ahora es un <button>:
+   sin esto heredaría el fondo, el borde y la tipografía del navegador. */
+.month-cell .number {
+  appearance: none; background: none; border: 0; padding: 0;
+  font: inherit; color: inherit; cursor: pointer; width: 100%;
+}
+.month-cell .number:hover { color: var(--clay-dark); }
+.month-cell .number:focus-visible { outline: 2px solid var(--clay); outline-offset: 2px; border-radius: 6px; }

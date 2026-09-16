@@ -30,19 +30,47 @@ import { LEGAL } from './legal.js';
 
 const hoy = todayISO();
 
-// El orden no es alfabético ni por categorías: es por cuántas veces al año una
-// casa necesita abrir cada cosa. La canasta se toca a menudo; el respaldo, casi
-// nunca, pero cuando hace falta hace muchísima falta.
+/* ── El índice de Más ──────────────────────────────────────────────────────
+
+   Eran diez filas seguidas, todas iguales, sin una sola separación. Una lista
+   de diez sin jerarquía se lee como un armario sin baldas: para encontrar algo
+   hay que mirarlo entero, y la décima vez que alguien busca «revisar lo que
+   queda» sigue recorriéndola desde arriba.
+
+   Ahora son tres grupos con un rótulo cada uno y, debajo, Ajustes solo. El
+   orden dentro de cada grupo sigue siendo el de siempre: por cuántas veces al
+   año una casa necesita abrir cada cosa.
+
+   Lo único que se movió de sitio es «Funciones avanzadas» —medidas, uniones,
+   correcciones— que ahora se entra desde Ajustes. No se ha quitado nada: son
+   pantallas que se usan una vez cada muchos meses y que estaban compitiendo en
+   la misma lista con la canasta, que se toca todas las semanas. */
+
+export const GRUPOS_MAS = [
+  ['Lo de cada semana', [
+    ['canasta', '🧺', 'Mi canasta habitual', 'Lo que se compra todos los meses'],
+    ['preparaciones', '📖', 'Preparaciones', 'Las comidas que se repiten en casa'],
+    ['revision', '✓', 'Revisar lo que queda', 'Un repaso a la nevera y la despensa']
+  ]],
+  ['Mi casa', [
+    ['familia', '👨‍👩‍👧‍👦', 'Familia y restricciones', 'Quién come y qué evita cada quien'],
+    ['alimentos', '🥬', 'Alimentos de la casa', 'La ficha de cada uno: medidas y existencias']
+  ]],
+  ['Mis datos', [
+    ['historial', '🕘', 'Historial', 'Compras, revisiones y correcciones'],
+    ['respaldo', '💾', 'Respaldo', 'Guardar una copia o traerla de vuelta'],
+    ['cuenta', '👤', 'Mi cuenta', 'Entrar, sincronizar o cerrar sesión']
+  ]],
+  ['', [
+    ['ajustes', '⚙️', 'Ajustes', 'Compra, micrófono, funciones avanzadas y ayuda']
+  ]]
+];
+
+// La lista plana sigue existiendo porque de ella salen las rutas y los títulos.
+// «avanzado» no está en ningún grupo —se entra desde Ajustes— pero es una
+// página de Más como las demás.
 export const ENTRADAS_MAS = [
-  ['canasta', '🧺', 'Mi canasta habitual', 'Lo que se compra todos los meses'],
-  ['preparaciones', '📖', 'Preparaciones', 'Las comidas que se repiten en casa'],
-  ['familia', '👨‍👩‍👧‍👦', 'Familia y restricciones', 'Quién come y qué evita cada quien'],
-  ['revision', '✓', 'Revisar lo que queda', 'Un repaso a la nevera y la despensa'],
-  ['alimentos', '🥬', 'Alimentos de la casa', 'La ficha de cada uno: medidas y existencias'],
-  ['historial', '🕘', 'Historial', 'Compras, revisiones y correcciones'],
-  ['respaldo', '💾', 'Respaldo', 'Guardar una copia o traerla de vuelta'],
-  ['cuenta', '👤', 'Mi cuenta', 'Entrar, sincronizar o cerrar sesión'],
-  ['ajustes', '⚙️', 'Ajustes', 'Día de revisión, micrófono y ayuda'],
+  ...GRUPOS_MAS.flatMap(([, filas]) => filas),
   ['avanzado', '🔧', 'Funciones avanzadas', 'Medidas, correcciones y uniones']
 ];
 
@@ -114,14 +142,15 @@ function renderInicio(ctx) {
     ajustes: ''
   };
   const copia = estadoDeLaCopia(state);
-  return `${copia.urgente ? `<div class="notice warn"><span>!</span><div><strong>${copia.ultima ? `Hace ${copia.dias} días que no guardas una copia.` : 'Todavía no has guardado ninguna copia.'}</strong>Todo lo que has escrito existe solo en este teléfono. <button type="button" class="enlace" data-action="navigate" data-page="respaldo">Guardar una ahora</button></div></div>` : ''}
-    <div class="card mas-lista">${ENTRADAS_MAS.map(([id, icono, titulo, detalle]) => `
+  const fila = ([id, icono, titulo, detalle]) => `
     <button type="button" class="mas-item" data-action="navigate" data-page="${id}">
       <span class="mas-icono" aria-hidden="true">${icono}</span>
       <span class="mas-texto"><strong>${esc(titulo)}</strong><span>${esc(detalle)}</span></span>
       ${pistas[id] ? `<span class="mas-pista ${id === 'respaldo' && copia.urgente ? 'alerta' : ''}">${esc(pistas[id])}</span>` : ''}
       <span class="mas-flecha" aria-hidden="true">›</span>
-    </button>`).join('')}</div>
+    </button>`;
+  return `${copia.urgente ? `<div class="notice warn"><span>!</span><div><strong>${copia.ultima ? `Hace ${copia.dias} días que no guardas una copia.` : 'Todavía no has guardado ninguna copia.'}</strong>Todo lo que has escrito existe solo en este teléfono. <button type="button" class="enlace" data-action="navigate" data-page="respaldo">Guardar una ahora</button></div></div>` : ''}
+    ${GRUPOS_MAS.map(([rotulo, filas]) => `${rotulo ? `<h3 class="mas-grupo">${esc(rotulo)}</h3>` : ''}<div class="card mas-lista">${filas.map(fila).join('')}</div>`).join('')}
     <div class="card soft mas-pie">
       <h3>¿Cómo funciona?</h3>
       <p class="muted small">Lo habitual se escribe una vez. Cada mes empieza ya preparado y tú solo revisas lo diferente. Si algo no te cuadra, nada de lo que toques aquí borra tu historial.</p>
@@ -653,6 +682,11 @@ function renderAjustes(ctx) {
       <h3>Cómo funciona la app</h3>
       <p class="muted small">Un recorrido corto por las cuatro pantallas y por la idea de fondo: escribir una vez lo habitual y revisar solo lo diferente.</p>
       <div class="inline">${button('Ver el recorrido', 'open-tour', 'btn-secondary btn-small')}${button('Organizar mi casa otra vez', 'setup-open', 'btn-quiet btn-small')}</div>
+    </div>
+    <div class="card">
+      <h3>Funciones avanzadas</h3>
+      <p class="muted small">Medidas y equivalencias, unir dos alimentos que son el mismo, corregir existencias a mano. Están aquí y no en la lista de Más porque una casa las abre una vez cada muchos meses —y cuando las abre, las necesita enteras.</p>
+      ${button('Abrir funciones avanzadas', 'navigate', 'btn-secondary btn-small', 'data-page="avanzado"')}
     </div>
     <div class="card">
       <h3>Privacidad y condiciones</h3>

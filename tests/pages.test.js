@@ -17,7 +17,7 @@ import { readFileSync } from 'node:fs';
 import { createDemoState } from '../src/demo.js';
 import { addProduct, createEmptyState, createReview, saveReview, setHabitualLine, setMonthChange, setPersonActive, todayISO, upsertPerson } from '../src/model.js';
 import { addRoutine } from '../src/routines.js';
-import { PASOS, emptyMes, modalRutina, renderMes } from '../src/page-mes.js';
+import { BLOQUES, emptyMes, modalDia, modalRutina, renderMes } from '../src/page-mes.js';
 import { emptyCompra, renderCompra } from '../src/page-compra.js';
 import { PAGINAS_MAS, emptyMas, estadoDeLaCopia, renderMas } from '../src/page-mas.js';
 
@@ -61,11 +61,11 @@ test('plan mensual se dibuja con datos', () => {
   revisar(renderMes(ctx), 'renderMes (calendario)');
 });
 
-test('los siete pasos de preparar el mes se dibujan', () => {
+test('los tres bloques de preparar el mes se dibujan', () => {
   const ctx = contexto(createDemoState());
-  for (const paso of PASOS) {
-    ctx.ui.mes.paso = paso.id;
-    revisar(renderMes(ctx), `paso «${paso.id}»`);
+  for (const bloque of BLOQUES) {
+    ctx.ui.mes.bloque = bloque.id;
+    revisar(renderMes(ctx), `bloque «${bloque.id}»`);
   }
 });
 
@@ -137,9 +137,9 @@ test('todas las pantallas se dibujan con el estado vacío', () => {
     ctx.ui.page = pagina;
     revisar(renderMas(ctx), `renderMas vacío («${pagina}»)`);
   }
-  for (const paso of PASOS) {
-    ctx.ui.mes.paso = paso.id;
-    revisar(renderMes(ctx), `paso vacío «${paso.id}»`);
+  for (const bloque of BLOQUES) {
+    ctx.ui.mes.bloque = bloque.id;
+    revisar(renderMes(ctx), `bloque vacío «${bloque.id}»`);
   }
 });
 

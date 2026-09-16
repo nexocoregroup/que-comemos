@@ -13,7 +13,7 @@ import {
   choquesDeLaComida, esOpcional, etiquetaDeMomento, exportState, findSimilarProducts, habitualLines, importState, incompatibleItems, inventoryNow,
   esActiva, isAbsent, linkPlan, makeRecipePlan, mergeProducts, monthBounds, movePlan, nextId, personasActivas, planFor, ponerFrecuencia, product,
   promoteToHabitual, quantity, removeMonthChange, restoreProduct, reservedQuantity, reviewAvailability,
-  saveReview, setAbsence, setEquivalence, setHabitualBasket, setHabitualLine, setMonthChange,
+  saveReview, setAbsence, setEquivalence, setHabitualBasket, setHabitualLine, setMonthChange, detalleDeOrigen, etiquetaDeOrigen, origenDe,
   setSlice, setStatusPlan, shoppingList, sliceStyle, todayISO, updatePlan, updateProduct,
   upsertRecipe
 } from './model.js';
@@ -25,7 +25,7 @@ import { SETUP_ACTIONS, SETUP_FORMS, aplicarReparto, avanceGuardado, emptySetup,
 import { HOGAR_ACTIONS, HOGAR_FORMS, cuerpoDeFicha, emptyHogar, fichaActiva, renderHogar, tocaConfigurarElHogar } from './hogar.js';
 import { CHAT_ACTIONS, CHAT_FORMS, emptyChat, renderChat } from './chat-ui.js';
 import { BULK_ACTIONS, BULK_FORMS, emptyBulk, renderBulk } from './bulk-entry.js';
-import { MES_ACTIONS, MES_FORMS, abrirMesSiHaceFalta, emptyMes, modalRutina, renderMes } from './page-mes.js';
+import { MES_ACTIONS, MES_FORMS, abrirMesSiHaceFalta, emptyMes, modalDia, modalRutina, renderMes } from './page-mes.js';
 import { COMPRA_ACTIONS, COMPRA_FORMS, emptyCompra, periodoDeCompra, renderCompra } from './page-compra.js';
 import { MAS_ACTIONS, PAGINAS_MAS, TITULOS_MAS, aplicarDictado, emptyMas, renderMas } from './page-mas.js';
 import { avisoDeVoz, cancelarDictado, capacidad, diagnostico, falloAnterior, olvidarFalloAnterior } from './device.js';
@@ -571,7 +571,7 @@ function pintar() {
       ${state.demo ? `<div class="demo-banner"><span>✦</span><div><strong>Estás viendo un ejemplo</strong>Las cantidades son inventadas para que veas cómo funciona; no son recomendaciones de alimentación.</div>${button('Borrar el ejemplo', 'clear-demo', 'btn-secondary btn-small')}</div>` : ''}
       ${cuerpo}
     </main>
-    ${ui.modal || ui.page === 'setup' || ui.page === 'hogar' ? '' : `<button type="button" class="fab" data-action="open-quick" aria-label="Anotar algo"><span aria-hidden="true">+</span></button>`}
+    ${ui.modal || ui.page === 'setup' || ui.page === 'hogar' || (ui.page === 'mes' && ui.mes?.bloque) ? '' : `<button type="button" class="fab" data-action="open-quick" aria-label="Anotar algo"><span aria-hidden="true">+</span></button>`}
     <nav class="mobile-nav" aria-label="Navegación principal">${NAV.map(([id, icon, label]) => `<button type="button" class="${activa(id)}" data-action="navigate" data-page="${id}"><span>${icon}</span>${label}</button>`).join('')}</nav>
   </div>`;
   document.querySelector('#modal-root').innerHTML = ui.modal ? renderModal() : ui.tour === null ? '' : tourCard();
@@ -806,6 +806,15 @@ function bloqueDeQuienCome(name, marcados, date, slot, { abierto } = {}) {
   </div>`;
 }
 
+// Delante de una comida del calendario, la primera pregunta de cualquiera es
+// si la puso él. Contestarla en una línea es lo que hace que se atreva a
+// cambiarla: quitar algo que vino de una rutina no es lo mismo que quitar algo
+// que uno mismo escribió el martes.
+function lineaDeOrigen(plan) {
+  const origen = origenDe(plan);
+  return `<p class="origen-linea"><span class="origen-punto origen-${esc(origen)}" aria-hidden="true"></span><strong>${esc(etiquetaDeOrigen(origen))}</strong> · ${esc(detalleDeOrigen(origen))}</p>`;
+}
+
 function checkPeople(name, selected, date = null, slot = null) {
   const gente = state.people.filter(person => esActiva(person) || selected.includes(person.id));
   if (!gente.length) return '<p class="muted small">Todavía no hay personas registradas. Puedes seguir sin ellas.</p>';
@@ -826,6 +835,8 @@ function renderModal() {
   }
 
   if (m.type === 'rutina') return modalRutina(ctx(), m);
+
+  if (m.type === 'dia') return modalDia(ctx(), m);
 
   if (m.type === 'meal') return modalComida(m);
 
@@ -1084,12 +1095,13 @@ function modalComida(m) {
       <p class="small muted" style="margin:12px 0 0">Un día de paseo no se parte en tres: ${button('marcar el día entero fuera', 'mark-day', 'btn-quiet btn-small', `data-date="${m.date}" data-kind="outside"`)}</p>`);
   }
   if (!['recipe', 'linked'].includes(plan.kind)) {
-    return modal(planTitle(plan), contexto, `<p class="muted">Esta comida está resuelta: no cuenta como pendiente y no gasta alimentos.</p>
-      ${plan.routineId ? '<p class="small muted">Viene de una rutina.</p>' : ''}
+    return modal(planTitle(plan), contexto, `${lineaDeOrigen(plan)}
+      <p class="muted">Esta comida está resuelta: no cuenta como pendiente y no gasta alimentos.</p>
       <div class="modal-actions">${button('Cambiarla por una comida', 'delete-plan', 'btn-secondary', `data-id="${plan.id}"`)}${button('Quitar la marca', 'delete-plan', 'btn-quiet', `data-id="${plan.id}"`)}</div>`);
   }
   return modal(plan.kind === 'linked' ? 'Comida apartada' : 'Esta comida', contexto,
-    `${plan.routineId ? `<div class="hint">Esta comida viene de una rutina. Lo que cambies aquí afecta <strong>solo a este día</strong>; para cambiar la rutina entera, ve a Plan mensual.</div>` : '<div class="hint">Lo que cambies aquí afecta solo a este día.</div>'}
+    `${lineaDeOrigen(plan)}
+     ${plan.routineId ? `<div class="hint">Esta comida viene de una rutina. Lo que cambies aquí afecta <strong>solo a este día</strong>; para cambiar la rutina entera, ve a Plan mensual.</div>` : '<div class="hint">Lo que cambies aquí afecta solo a este día.</div>'}
      ${plan.kind === 'linked' ? cantidades(plan) : dependents(state, plan.id).length ? `<div class="notice warn"><span>↪</span><div><strong>De esta comida se aparta una parte para otro día.</strong>Si bajas las cantidades, deja suficiente.</div></div>` : ''}
      <div data-choque>${avisoDeChoques(choquesDeLaComida(state, plan.items, plan.participants), { conSalidas: true })}</div>
      <form data-form="plan" data-id="${plan.id}">
@@ -1117,6 +1129,40 @@ function modalComida(m) {
        button(label, 'replace-status', 'btn-quiet btn-small', `data-id="${plan.id}" data-kind="${kind}"`)).join('')}</div>`, true);
 }
 
+/* ── ¿Es de todos los meses, o solo de este? ───────────────────────────────
+
+   Lo que se compra una vez y lo que se compra siempre son dos cosas distintas y
+   se escribían igual. El cangrejo que se compra en Navidad acababa en la
+   canasta habitual —«lo que consume tu casa en un mes corriente»— y aparecía en
+   la lista de febrero, de marzo y de todos los demás.
+
+   Así que se pregunta, y la respuesta que toca la costumbre nunca viene
+   marcada: añadir algo para siempre es una decisión, no un descuido. */
+
+const DESTINOS = [
+  ['mes', 'Solo para este mes', 'Entra en la compra de este mes y no vuelve a aparecer.'],
+  ['siempre', 'Añadir a mi canasta base', 'Aparecerá en la compra de todos los meses, desde ahora.'],
+  ['ficha', 'Solo guardar la ficha', 'Queda anotado como alimento de la casa, sin entrar en ninguna compra.']
+];
+
+function bloqueDeDestino(item, mensual) {
+  // Editando algo que ya está en la canasta, la pregunta ya está contestada: lo
+  // que se escriba corrige la costumbre, que es donde vive.
+  if (item && mensual) {
+    return `<p class="small muted">Este alimento ya está en tu canasta base: lo que escribas arriba corrige lo de <strong>todos los meses</strong>. Para cambiar solo un mes, entra en Más → Mi canasta habitual → Cambios de este mes.</p>
+      <input type="hidden" name="destino" value="siempre">`;
+  }
+  const mesActual = todayISO().slice(0, 7);
+  return `<div class="field"><span>¿Dónde entra este alimento?</span>
+    <div class="setup-opciones destino-opciones">${DESTINOS.map(([id, titulo, detalle], indice) =>
+      `<label class="setup-opcion destino-opcion">
+        <input type="radio" name="destino" value="${id}" ${indice === 0 ? 'checked' : ''}>
+        <span><strong>${esc(titulo === 'Solo para este mes' ? `Solo para ${monthName(mesActual)}` : titulo)}</strong><small>${esc(detalle)}</small></span>
+      </label>`).join('')}</div>
+    <small>Lo ocasional no entra solo en la costumbre: para que aparezca todos los meses hay que decirlo aquí.</small>
+  </div>`;
+}
+
 function modalProducto(m) {
   const item = product(state, m.id);
   const stock = item ? inventoryNow(state)[item.id] || 0 : 0;
@@ -1129,10 +1175,11 @@ function modalProducto(m) {
       <div data-dedup-warning></div>
       <div class="form-grid">
         <label class="field"><span>¿Cómo lo cuentas?</span><select name="controlUnit" ${item ? 'disabled' : ''}>${unitOptions(controlUnit)}</select><small>${item ? 'No se cambia cuando ya hay movimientos.' : 'Por unidades, por libras, por paquetes…'}</small></label>
-        <label class="field"><span>¿Cuánto se consume al mes?</span>
-          <div class="paired"><input name="monthly" type="number" min="0" step="any" inputmode="decimal" value="${mensual?.quantity ?? ''}" placeholder="No lo sé"><select name="monthlyUnit" aria-label="Unidad del consumo del mes">${unitOptions(mensual?.unit || controlUnit)}</select></div>
-          <small>Es lo que entra en tu canasta habitual. Puedes dejarlo vacío.</small></label>
+        <label class="field"><span>¿Cuánto se compra?</span>
+          <div class="paired"><input name="monthly" type="number" min="0" step="any" inputmode="decimal" value="${mensual?.quantity ?? ''}" placeholder="No lo sé"><select name="monthlyUnit" aria-label="Unidad de la cantidad">${unitOptions(mensual?.unit || controlUnit)}</select></div>
+          <small>Puedes dejarlo vacío y ponerlo después.</small></label>
       </div>
+      ${bloqueDeDestino(item, mensual)}
       <details class="more" ${item ? 'open' : ''}>
         <summary>Más opciones</summary>
         <label class="field"><span>Categoría</span><select name="category">${options(CATEGORIES.map(cat => [cat.id, `${cat.emoji} ${cat.label}`]), item?.category || 'otros')}</select><small>Solo sirve para ordenar y buscar.</small></label>
@@ -1669,9 +1716,20 @@ document.addEventListener('submit', async event => {
       if (existente) updateProduct(state, existente.id, { name: data.get('name'), purchaseUnit, category: data.get('category') });
       if (data.get('slice')) setSlice(state, item.id, data.get('slice'));
       if (purchaseUnit !== controlUnit && factor) setEquivalence(state, item.id, purchaseUnit, factor);
-      setHabitualLine(state, item.id, data.get('monthly'), data.get('monthlyUnit'));
+      const destino = String(data.get('destino') || 'ficha');
+      const mesActual = todayISO().slice(0, 7);
+      let mensaje = 'Guardado.';
+      if (destino === 'siempre') {
+        setHabitualLine(state, item.id, data.get('monthly'), data.get('monthlyUnit'));
+        mensaje = `«${item.name}» entra en tu canasta base: aparecerá todos los meses.`;
+      } else if (destino === 'mes') {
+        setMonthChange(state, mesActual, item.id, { quantity: data.get('monthly'), unit: data.get('monthlyUnit') || controlUnit });
+        mensaje = `«${item.name}» entra solo en la compra de ${monthName(mesActual)}. Tu canasta base no cambia.`;
+      } else {
+        mensaje = `«${item.name}» queda guardado. No entra en ninguna compra hasta que lo digas.`;
+      }
       ui.modal = null;
-      commit('Guardado.');
+      commit(mensaje);
     }
     else if (kind === 'canasta-habitual') {
       const lineas = [];

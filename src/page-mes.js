@@ -13,27 +13,23 @@
 // El mes se abre solo. Entrar en octubre por primera vez aplica las rutinas
 // permanentes y deja el calendario montado; lo que el usuario hace entonces no
 // es construir el mes, es revisar en qué se va a diferenciar.
+//
+// Y revisarlo son tres preguntas, no siete pantallas: con qué empieza el mes,
+// en qué se va a salir de lo normal, y si se da por bueno. Cada comida del
+// calendario dice además de dónde salió —de una rutina, del mes pasado, de una
+// excepción o de la mano de alguien—, que es lo que hace falta saber para
+// atreverse a cambiarla.
 
-import { MOMENTOS, SLOTS, SLOTS_PRINCIPALES, dateRange, deletePlan, effectiveBasket, esOpcional, etiquetaDeMomento, makeRecipePlan, momentoDe, monthBasketSummary, monthBounds, planFor, restore, setStatusPlan, shoppingList, snapshot, todayISO } from './model.js';
+import { MOMENTOS, ORIGENES, SLOTS, SLOTS_PRINCIPALES, dateRange, deletePlan, effectiveBasket, esOpcional, etiquetaDeMomento, etiquetaDeOrigen, makeRecipePlan, momentoDe, monthBasketSummary, monthBounds, origenDe, planFor, restore, setStatusPlan, shoppingList, snapshot, todayISO } from './model.js';
 import { WEEKDAY_SHORT, WEEKDAYS, addRoutine, applyRoutine, applyRoutines, copyPatternFromMonth, datesForRule, deleteRoutine, describeRule, monthProgress, openMonth, routinesFor } from './routines.js';
 import { button, cap, empty, esc, measure, modal, monthName, niceDate, notice, options, shiftMonth } from './ui-kit.js';
 
 const hoy = todayISO();
 
-// Los pasos de «Preparar este mes». Siete pantallas cortas, cada una con una
-// sola pregunta, en lugar de una pantalla con siete decisiones a la vez.
-export const PASOS = [
-  { id: 'rutinas', titulo: 'Lo que se repite', pregunta: '¿Qué come tu casa normalmente?' },
-  { id: 'comparar', titulo: 'Qué cambia', pregunta: '¿En qué se parece al mes pasado?' },
-  { id: 'salidas', titulo: 'Comidas fuera', pregunta: '¿Qué días no van a comer en casa?' },
-  { id: 'pendientes', titulo: 'Lo que falta', pregunta: '¿Qué hacemos con los huecos?' },
-  { id: 'canasta', titulo: 'La compra del mes', pregunta: '¿Este mes cambia algo de lo que compran?' },
-  { id: 'compra', titulo: 'La lista', pregunta: '¿Qué habría que comprar?' },
-  { id: 'listo', titulo: 'Listo', pregunta: '' }
-];
-
 export function emptyMes(month = hoy.slice(0, 7)) {
-  return { month, vista: 'resumen', paso: null, deshacer: null, aviso: null, verPendientes: 12 };
+  // `base` recuerda cuál de las tres salidas del primer bloque —conservar,
+  // copiar o ajustar— eligió la persona, para poder marcarla con un visto.
+  return { month, vista: 'resumen', bloque: null, base: null, deshacer: null, aviso: null, verPendientes: 12 };
 }
 
 /* ── Abrir un mes ──────────────────────────────────────────────────────── */
@@ -61,7 +57,7 @@ export function abrirMesSiHaceFalta(ctx, month) {
 export function renderMes(ctx) {
   const { ui } = ctx;
   if (!ui.mes) ui.mes = emptyMes();
-  if (ui.mes.paso) return renderPaso(ctx);
+  if (ui.mes.bloque) return renderBloque(ctx);
   return ui.mes.vista === 'calendario' ? renderCalendario(ctx) : renderResumen(ctx);
 }
 
@@ -97,6 +93,7 @@ function renderResumen(ctx) {
   const month = ui.mes.month;
   const progreso = monthProgress(state, month);
   const rutinas = routinesFor(state, month);
+  const cerrado = state.monthPlans?.[month]?.preparedAt || null;
   const sinNada = !rutinas.length && !progreso.encasa && !progreso.fuera;
 
   const cabecera = `<section class="plan-cabecera card">
@@ -106,9 +103,10 @@ function renderResumen(ctx) {
       <p class="plan-resumen-texto">${resumenEnPalabras(progreso)}</p>
     </div>
     <div class="plan-acciones">
-      ${button(progreso.pendientes ? 'Preparar este mes' : 'Revisar este mes', 'mes-preparar', 'btn-primary')}
+      ${button(cerrado ? 'Volver a revisarlo' : 'Preparar este mes', 'mes-preparar', 'btn-primary')}
       ${button('Ver calendario', 'mes-vista', 'btn-secondary', 'data-vista="calendario"')}
     </div>
+    ${cerrado ? `<p class="tiny muted plan-cerrado">Lo diste por bueno el ${esc(niceDate(cerrado, { day: 'numeric', month: 'long' }))}. Puedes seguir cambiándolo cuando quieras.</p>` : ''}
   </section>`;
 
   const desglose = `<div class="plan-slots">${MOMENTOS.map(momento => {
@@ -220,14 +218,15 @@ function renderCalendario(ctx) {
   const celdas = dateRange(start, end).map(date => {
     const dentro = date === hoy ? 'hoy' : '';
     return `<div class="month-cell ${dentro}">
-      <div class="number">${Number(date.slice(8))}</div>
+      <button type="button" class="number" data-action="mes-abrir-dia" data-date="${date}" aria-label="Abrir el ${esc(niceDate(date, { weekday: 'long', day: 'numeric', month: 'long' }))}">${Number(date.slice(8))}</button>
       ${SLOTS.map(slot => {
         const plan = planFor(state, date, slot);
         // Una merienda vacía no ocupa sitio en la casilla del día. Están las
         // que alguien puso, y el resto se añade desde la comida de al lado.
         if (!plan && esOpcional(slot)) return '';
         const estado = !plan || plan.kind === 'unplanned' ? 'missing' : plan.kind === 'outside' || plan.kind === 'order' ? 'fuera' : '';
-        return `<button type="button" class="month-meal ${estado} ${esOpcional(slot) ? 'month-meal-opcional' : ''}" data-action="open-meal" data-date="${date}" data-slot="${slot}" aria-label="${esc(etiquetaDeMomento(slot))} del ${esc(niceDate(date, { day: 'numeric', month: 'long' }))}"><span>${esc(letraDeMomento(slot))}</span> ${esc(plan ? tituloDePlan(plan) : 'Agregar')}</button>`;
+        const origen = plan ? origenDe(plan) : null;
+        return `<button type="button" class="month-meal ${estado} ${esOpcional(slot) ? 'month-meal-opcional' : ''}" ${origen ? `data-origen="${origen}"` : ''} data-action="open-meal" data-date="${date}" data-slot="${slot}" aria-label="${esc(etiquetaDeMomento(slot))} del ${esc(niceDate(date, { day: 'numeric', month: 'long' }))}${origen ? `. ${esc(etiquetaDeOrigen(origen))}` : ''}"><span>${esc(letraDeMomento(slot))}</span> ${esc(plan ? tituloDePlan(plan) : 'Agregar')}</button>`;
       }).join('')}
       ${SLOTS.filter(esOpcional).every(slot => planFor(state, date, slot))
         ? ''
@@ -241,9 +240,11 @@ function renderCalendario(ctx) {
       ${Array.from({ length: hueco }, () => '<div class="month-cell outside"></div>').join('')}
       ${celdas}
     </div></div>
+    ${leyendaDeOrigenes()}
+    <p class="tiny muted">Toca una comida para cambiarla, o el número del día para verlo entero.</p>
     <div class="inline plan-calendario-pie">
       ${button('+ Nueva rutina', 'mes-nueva-rutina', 'btn-secondary')}
-      ${button('Usar el patrón del mes pasado', 'mes-copiar-patron', 'btn-quiet')}
+      ${button('Traer el menú del mes pasado', 'mes-copiar-patron', 'btn-quiet')}
     </div>`;
 }
 
@@ -251,69 +252,150 @@ const tituloDePlan = plan => plan.kind === 'recipe' || plan.kind === 'linked'
   ? plan.title
   : ({ outside: 'Fuera de casa', order: 'Pedido', unplanned: 'Sin decidir' }[plan.kind] || 'Sin decidir');
 
-/* ── El recorrido de «Preparar este mes» ───────────────────────────────── */
+/* ── Preparar el mes: tres bloques ─────────────────────────────────────────
 
-function renderPaso(ctx) {
+   Eran siete pantallas. Siete son más de las que nadie recuerda haber
+   empezado, y a la cuarta ya no se sabe si se está organizando el mes o
+   rellenando un formulario. Lo peor no era la cantidad: era que varias
+   preguntaban lo mismo desde otro ángulo. «Qué se repite» y «en qué se parece
+   al mes pasado» son la misma pregunta —con qué empieza este mes— y «la
+   canasta» y «la lista» son la misma respuesta.
+
+   Quedan tres, que son las tres cosas que una casa decide de verdad: con qué
+   empieza el mes, en qué se va a salir de lo normal, y si se da por bueno.
+
+   Ninguno de los tres bloquea nada. Se cierra el mes con huecos si hace falta:
+   un hueco es una comida que todavía no se ha decidido, no un error. */
+
+export const BLOQUES = [
+  { id: 'base', titulo: 'La base del mes', pregunta: '¿Con qué empieza este mes?' },
+  { id: 'excepciones', titulo: 'Lo que será distinto', pregunta: '¿Qué días se salen de lo normal?' },
+  { id: 'confirmar', titulo: 'Revisar y cerrar', pregunta: '¿Lo damos por bueno?' }
+];
+
+function renderBloque(ctx) {
   const { ui } = ctx;
-  const indice = PASOS.findIndex(paso => paso.id === ui.mes.paso);
-  const paso = PASOS[indice];
-  const cuerpo = ({
-    rutinas: pasoRutinas,
-    comparar: pasoComparar,
-    salidas: pasoSalidas,
-    pendientes: pasoPendientes,
-    canasta: pasoCanasta,
-    compra: pasoCompra,
-    listo: pasoListo
-  })[paso.id](ctx);
-  const ultimo = paso.id === 'listo';
-  return `<section class="plan-paso">
-    <div class="plan-paso-head">
-      <div class="progress"><span style="width:${Math.round((indice + 1) / PASOS.length * 100)}%"></span></div>
+  const indice = Math.max(0, BLOQUES.findIndex(bloque => bloque.id === ui.mes.bloque));
+  const bloque = BLOQUES[indice];
+  const cuerpo = ({ base: bloqueBase, excepciones: bloqueExcepciones, confirmar: bloqueConfirmar })[bloque.id](ctx);
+  const ultimo = indice === BLOQUES.length - 1;
+  return `<section class="plan-bloque">
+    <div class="plan-bloque-head">
+      <div class="progress"><span style="width:${Math.round((indice + 1) / BLOQUES.length * 100)}%"></span></div>
       <div class="between">
-        <span class="small muted">Paso ${indice + 1} de ${PASOS.length} · ${esc(monthName(ui.mes.month))}</span>
-        ${button('Salir', 'mes-salir-paso', 'btn-quiet btn-small')}
+        <span class="small muted">Bloque ${indice + 1} de ${BLOQUES.length} · ${esc(monthName(ui.mes.month))}</span>
+        ${button('Salir', 'mes-salir-bloque', 'btn-quiet btn-small')}
       </div>
-      <h2>${esc(paso.pregunta || paso.titulo)}</h2>
+      <h2>${esc(bloque.pregunta)}</h2>
+      <p class="small muted plan-bloque-pasos">${BLOQUES.map((item, i) =>
+        `<span class="${i === indice ? 'strong' : ''}">${i + 1}. ${esc(item.titulo)}</span>`).join(' → ')}</p>
     </div>
     ${cuerpo}
-    <div class="plan-paso-pie">
-      ${indice > 0 && !ultimo ? button('Atrás', 'mes-paso-atras', 'btn-secondary') : '<span></span>'}
-      ${ultimo ? button('Terminar', 'mes-salir-paso', 'btn-primary') : button('Continuar', 'mes-paso-siguiente', 'btn-primary')}
+    <div class="plan-bloque-pie">
+      ${indice > 0 ? button('Atrás', 'mes-bloque-atras', 'btn-secondary') : '<span></span>'}
+      ${ultimo ? button('Finalizar', 'mes-finalizar', 'btn-primary') : button('Continuar', 'mes-bloque-siguiente', 'btn-primary')}
     </div>
   </section>`;
 }
 
-function pasoRutinas(ctx) {
+/* ── De dónde salió cada comida ────────────────────────────────────────── */
+
+// Un color y una palabra. El color vale para el calendario, donde no cabe una
+// frase; la palabra vale para todo lo demás, que es donde de verdad se lee.
+const puntoDeOrigen = origen => `<span class="origen-punto origen-${esc(origen)}" aria-hidden="true"></span>`;
+const chipDeOrigen = origen => `<span class="origen-chip origen-${esc(origen)}">${puntoDeOrigen(origen)}${esc(etiquetaDeOrigen(origen))}</span>`;
+
+function leyendaDeOrigenes() {
+  return `<div class="origen-leyenda">${ORIGENES.map(origen =>
+    `<span class="origen-chip origen-${esc(origen.id)}" title="${esc(origen.detalle)}">${puntoDeOrigen(origen.id)}${esc(origen.etiqueta)}</span>`).join('')}</div>`;
+}
+
+function planesDelMes(state, month) {
+  const { start, end } = monthBounds(month);
+  return state.plans
+    .filter(plan => plan.date >= start && plan.date <= end && plan.kind !== 'unplanned')
+    .sort((a, b) => a.date.localeCompare(b.date) || SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot));
+}
+
+function cuentasPorOrigen(state, month) {
+  const cuentas = new Map(ORIGENES.map(origen => [origen.id, 0]));
+  for (const plan of planesDelMes(state, month)) {
+    const origen = origenDe(plan);
+    cuentas.set(origen, (cuentas.get(origen) || 0) + 1);
+  }
+  return cuentas;
+}
+
+// «40 de tus rutinas, 12 del mes pasado, 3 que pusiste tú» contesta de un
+// vistazo la pregunta que frena a todo el mundo delante de un calendario lleno:
+// ¿esto lo decidí yo, o venía de antes?
+function resumenDeOrigenes(cuentas, month) {
+  const total = [...cuentas.values()].reduce((suma, valor) => suma + valor, 0);
+  if (!total) {
+    return `<div class="card soft"><p class="muted">${esc(monthName(month))} está en blanco todavía. En cuanto guardes una rutina, o traigas el patrón del mes pasado, se llena solo.</p></div>`;
+  }
+  return `<div class="card origen-resumen">
+    <h3 class="plan-sub">Ya hay ${total} comida(s) puestas, y esto las puso</h3>
+    <ul class="origen-lista">${ORIGENES.filter(origen => cuentas.get(origen.id)).map(origen =>
+      `<li>${puntoDeOrigen(origen.id)}<strong>${cuentas.get(origen.id)}</strong> <span>${esc(origen.detalle.toLocaleLowerCase('es'))}</span></li>`).join('')}</ul>
+    <p class="tiny muted">En el calendario cada comida lleva ese mismo color, y al abrir un día te lo dice con todas las letras.</p>
+  </div>`;
+}
+
+/* ── Bloque 1: la base del mes ─────────────────────────────────────────── */
+
+function bloqueBase(ctx) {
   const { state, ui } = ctx;
-  const rutinas = routinesFor(state, ui.mes.month);
-  return `<p class="plan-paso-texto">Estas son las comidas que se repiten en tu casa. Se guardan una vez y llenan el calendario de cada mes; aquí solo compruebas que siguen siendo verdad.</p>
+  const month = ui.mes.month;
+  const rutinas = routinesFor(state, month);
+  const permanentes = rutinas.filter(rutina => rutina.scope === 'permanent');
+  const anterior = shiftMonth(month, -1);
+  const seOrganizoAntes = Boolean(state.monthPlans?.[anterior]) || state.plans.some(plan => plan.date.slice(0, 7) === anterior);
+
+  return `<p class="plan-bloque-texto">${esc(monthName(month))} no empieza en blanco. Ya tiene lo que tu casa come de costumbre; aquí solo compruebas que sigue siendo verdad y decides qué traer del mes pasado. <strong>No hay que escribir el menú otra vez.</strong></p>
+    ${resumenDeOrigenes(cuentasPorOrigen(state, month), month)}
+
+    <div class="section-head"><div><h3 class="plan-sub">Lo que se repite en tu casa</h3><p class="small muted">Se guarda una vez y llena el calendario de todos los meses.</p></div>${button('+ Añadir otra', 'mes-nueva-rutina', 'btn-secondary btn-small')}</div>
     ${rutinas.length
-      ? `<div class="card">${rutinas.map(rutina => filaDeRutina(state, ui.mes.month, rutina)).join('')}</div>
-         <div class="inline" style="margin-top:14px">${button('+ Añadir otra', 'mes-nueva-rutina', 'btn-secondary')}${button('Aplicarlas todas a este mes', 'mes-aplicar-todas', 'btn-secondary')}</div>`
-      : empty('🔁', 'Todavía no hay ninguna', 'Una rutina es algo como «mangú con salami, los martes y jueves de desayuno». Con dos o tres, el mes entero queda hecho.', `${button('Crear mi primera rutina', 'mes-nueva-rutina', 'btn-primary')}${button('Usar el patrón del mes pasado', 'mes-copiar-patron', 'btn-secondary')}`)}
+      ? `<div class="card">${rutinas.map(rutina => filaDeRutina(state, month, rutina)).join('')}</div>
+         <div class="inline" style="margin-top:12px">${button('Aplicarlas todas a este mes', 'mes-aplicar-todas', 'btn-secondary btn-small')}</div>
+         ${permanentes.length ? '' : '<p class="small muted">Ninguna es permanente todavía: todas valen solo para este mes. Al crearlas puedes marcar «desde ahora, todos los meses» y entonces cada mes nuevo se abre ya con ellas.</p>'}`
+      : empty('🔁', 'Todavía no hay ninguna', 'Una rutina es algo como «mangú con salami, los martes y jueves de desayuno». Con dos o tres, el mes entero queda hecho.', button('Crear mi primera rutina', 'mes-nueva-rutina', 'btn-primary'))}
+
+    ${bloqueMesAnterior(ctx, anterior, seOrganizoAntes)}
     ${avisoDeApertura(ctx)}`;
 }
 
-// Comparar con el mes pasado no es una estadística: es la forma de acordarse de
-// lo que se hizo distinto. «El mes pasado comimos fuera cuatro veces y este
-// llevas una» es una frase que hace pensar; dos gráficos, no.
-function pasoComparar(ctx) {
+// Conservar, copiar o ajustar. Las tres están escritas como tres botones y no
+// como un párrafo que las insinúe: quien abre esto quiere elegir, no leer.
+function bloqueMesAnterior(ctx, anterior, seOrganizoAntes) {
   const { state, ui } = ctx;
-  const mes = ui.mes.month;
-  const anterior = shiftMonth(mes, -1);
-  const seOrganizoAntes = Boolean(state.monthPlans?.[anterior]) || state.plans.some(plan => plan.date.slice(0, 7) === anterior);
+  const month = ui.mes.month;
   if (!seOrganizoAntes) {
-    return `<p class="plan-paso-texto">${esc(monthName(anterior))} no llegó a organizarse, así que no hay con qué comparar. Sigue adelante.</p>`;
+    return `<div class="section-head"><h3 class="plan-sub">Del mes pasado</h3></div>
+      <div class="card"><p class="muted">${esc(monthName(anterior))} no llegó a organizarse, así que no hay nada que traer. Con las rutinas de arriba basta para empezar.</p></div>`;
   }
   const antes = monthProgress(state, anterior);
-  const ahora = monthProgress(state, mes);
-  const fila = (etiqueta, a, b) => `<tr><td>${esc(etiqueta)}</td><td class="num">${a}</td><td class="num strong">${b}</td></tr>`;
+  const ahora = monthProgress(state, month);
+  const elegida = ui.mes.base;
+  const opcion = (id, action, extra, titulo, detalle) => `<button type="button" class="radio-bloque ${elegida === id ? 'elegida' : ''}" data-action="${action}" ${extra}>
+    <span><strong>${esc(titulo)}${elegida === id ? ' ✓' : ''}</strong>${esc(detalle)}</span></button>`;
 
-  // Y qué cambia en lo que se compra: los alimentos cuya cantidad no coincide.
+  return `<div class="section-head"><div><h3 class="plan-sub">Del mes pasado</h3><p class="small muted">En ${esc(monthName(anterior))} hubo ${antes.encasa} comida(s) en casa${antes.fuera ? `, ${antes.fuera} fuera` : ''}${antes.pedido ? ` y ${antes.pedido} pedida(s)` : ''}. ${esc(monthName(month))} lleva ${ahora.encasa} en casa y ${ahora.pendientes} sin decidir.</p></div></div>
+    <div class="opcion-larga">
+      ${opcion('conservar', 'mes-conservar', '', 'Dejarlo como está', 'Lo que ya está puesto se queda. Puedes seguir y decidir el resto sobre la marcha.')}
+      ${opcion('copiar', 'mes-copiar-patron', '', `Traer el menú de ${monthName(anterior)}`, 'Se copian las preparaciones por día de la semana, no por número de fecha, y solo en los días que estén libres. Las salidas y los pedidos del mes pasado no se copian: eran de aquel mes.')}
+      ${opcion('ajustar', 'mes-vista', 'data-vista="calendario"', 'Ajustarlo día por día', 'Abre el calendario. Cada comida dice de dónde vino y se cambia tocándola.')}
+    </div>
+    ${cambiosEnLaCompra(state, anterior, month)}`;
+}
+
+// Qué cambia en lo que se compra. No es una estadística: es la forma de
+// acordarse de lo que se hizo distinto.
+function cambiosEnLaCompra(state, anterior, month) {
   const mapa = lista => new Map(lista.map(linea => [linea.productId, linea]));
   const deAntes = mapa(effectiveBasket(state, anterior));
-  const deAhora = mapa(effectiveBasket(state, mes));
+  const deAhora = mapa(effectiveBasket(state, month));
   const distintos = [];
   for (const [id, linea] of deAhora) {
     const viejo = deAntes.get(id);
@@ -321,48 +403,12 @@ function pasoComparar(ctx) {
     else if (viejo.quantity !== linea.quantity) distintos.push(`${nombreProducto(state, id)}: ${viejo.quantity === null ? 'sin cantidad' : measure(viejo.quantity, viejo.unit)} → ${linea.quantity === null ? 'sin cantidad' : measure(linea.quantity, linea.unit)}`);
   }
   for (const [id] of deAntes) if (!deAhora.has(id)) distintos.push(`${nombreProducto(state, id)}: este mes no se compra`);
-
-  return `<p class="plan-paso-texto">Así va ${esc(monthName(mes))} comparado con ${esc(monthName(anterior))}.</p>
-    <div class="card table-wrap"><table class="data-table">
-      <thead><tr><th></th><th class="num">${esc(monthName(anterior).split(' ')[0])}</th><th class="num">${esc(monthName(mes).split(' ')[0])}</th></tr></thead>
-      <tbody>
-        ${fila('Comidas en casa', antes.encasa, ahora.encasa)}
-        ${fila('Fuera de casa', antes.fuera, ahora.fuera)}
-        ${antes.pedido || ahora.pedido ? fila('Pedidas', antes.pedido, ahora.pedido) : ''}
-        ${fila('Sin decidir', antes.pendientes, ahora.pendientes)}
-      </tbody>
-    </table></div>
-    ${distintos.length
-      ? `<div class="section-head"><h3 class="plan-sub">Lo que cambia en la compra</h3></div>
-         <div class="card"><ul class="food-list">${distintos.slice(0, 10).map(texto => `<li>${esc(texto)}</li>`).join('')}</ul>${distintos.length > 10 ? `<p class="small muted">Y ${distintos.length - 10} más.</p>` : ''}</div>`
-      : '<p class="small muted">En la compra, este mes es igual que el pasado.</p>'}
-    ${ahora.pendientes > antes.pendientes && antes.encasa
-      ? `<div class="inline" style="margin-top:14px">${button(`Usar el patrón de ${monthName(anterior)}`, 'mes-copiar-patron', 'btn-secondary')}</div>`
-      : ''}
-    ${avisoDeApertura(ctx)}`;
+  if (!distintos.length) return '<p class="small muted" style="margin-top:14px">En la compra, este mes es igual que el pasado.</p>';
+  return `<div class="section-head"><h3 class="plan-sub">Y en la compra cambia esto</h3></div>
+    <div class="card"><ul class="food-list">${distintos.slice(0, 10).map(texto => `<li>${esc(texto)}</li>`).join('')}</ul>${distintos.length > 10 ? `<p class="small muted">Y ${distintos.length - 10} más.</p>` : ''}</div>`;
 }
 
-// La lista sale de lo que ya está decidido, y se enseña aquí para que el mes no
-// se dé por organizado sin haber mirado lo que va a costar.
-function pasoCompra(ctx) {
-  const { state, ui } = ctx;
-  const { start, end } = monthBounds(ui.mes.month);
-  let lista;
-  try { lista = shoppingList(state, start, end, 'casa'); }
-  catch (error) { return `<p class="plan-paso-texto">No se pudo calcular la lista: ${esc(error.message)}</p>`; }
-  const faltan = lista.lines.filter(linea => linea.shortfall > 0);
-  if (!faltan.length) {
-    return `<div class="card plan-ok"><span class="plan-ok-icono">✓</span><div><strong>No falta nada.</strong><span>Con lo que hay en casa alcanza para ${esc(monthName(ui.mes.month))}.</span></div></div>
-      <div class="inline" style="margin-top:14px">${button('Abrir la compra', 'navigate', 'btn-secondary', 'data-page="compra"')}</div>`;
-  }
-  return `<p class="plan-paso-texto">Esto es lo que haría falta comprar para todo ${esc(monthName(ui.mes.month))}, según tu canasta y lo que ya queda en casa. Todavía no hay que hacer nada: es para que lo veas antes de dar el mes por cerrado.</p>
-    <div class="card">${faltan.slice(0, 12).map(linea => {
-      const item = state.products.find(row => row.id === linea.productId);
-      return `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${esc(item?.name || '')}</div></div><div class="compra-cantidad">${linea.purchaseQuantity === null ? '<span class="pill gray">falta una medida</span>' : `<strong>${esc(measure(linea.purchaseQuantity, linea.purchaseUnit))}</strong>`}</div></div>`;
-    }).join('')}</div>
-    ${faltan.length > 12 ? `<p class="small muted">Y ${faltan.length - 12} alimento(s) más.</p>` : ''}
-    <div class="inline" style="margin-top:14px">${button('Abrir la compra', 'navigate', 'btn-secondary', 'data-page="compra"')}</div>`;
-}
+/* ── Bloque 2: lo que será distinto ────────────────────────────────────── */
 
 // Los domingos son el caso real que pidió el usuario: primer y tercer domingo
 // fuera, segundo y cuarto en casa. Los atajos escriben esa regla sin que haya
@@ -374,49 +420,122 @@ const ATAJOS_SALIDA = [
   { id: 'viernes', etiqueta: 'Todos los viernes', weekdays: [5], weeks: null }
 ];
 
-function pasoSalidas(ctx) {
+function bloqueExcepciones(ctx) {
   const { state, ui } = ctx;
   const month = ui.mes.month;
-  const salidas = routinesFor(state, month).filter(rutina => rutina.kind === 'outside' || rutina.kind === 'order');
-  const sueltas = [];
+  const reglas = routinesFor(state, month).filter(rutina => rutina.kind === 'outside' || rutina.kind === 'order');
   const { start, end } = monthBounds(month);
-  for (const date of dateRange(start, end)) for (const slot of SLOTS) {
-    const plan = planFor(state, date, slot);
-    if (plan && (plan.kind === 'outside' || plan.kind === 'order') && !plan.routineId) sueltas.push({ date, slot, plan });
+
+  const sueltas = [];
+  const puntuales = [];
+  for (const plan of planesDelMes(state, month)) {
+    const origen = origenDe(plan);
+    if ((plan.kind === 'outside' || plan.kind === 'order') && !plan.routineId) sueltas.push(plan);
+    else if (origen === 'manual' && plan.kind !== 'outside' && plan.kind !== 'order') puntuales.push(plan);
   }
-  sueltas.sort((a, b) => a.date.localeCompare(b.date) || SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot));
-  return `<p class="plan-paso-texto">Marcar una comida fuera de casa la deja resuelta: no aparece como pendiente y no gasta alimentos del menú.</p>
+  const ausencias = state.absences
+    .filter(item => item.date >= start && item.date <= end)
+    .sort((a, b) => a.date.localeCompare(b.date) || SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot));
+
+  return `<p class="plan-bloque-texto">Lo normal ya está puesto. Aquí se anota lo que este mes <strong>no</strong> va a ser normal: los días que no se come en casa, los que se pide, la comida en familia fuera, la fecha especial, o el día que se cocina otra cosa.</p>
+
     <div class="card">
-      <h3 class="plan-sub">Lo más común</h3>
-      <div class="chips">${ATAJOS_SALIDA.map(atajo => `<button type="button" class="chip" data-action="mes-salida-rapida" data-atajo="${atajo.id}">${esc(atajo.etiqueta)}</button>`).join('')}</div>
-      <p class="small muted" style="margin-top:12px">Te preguntamos qué comida y si vale solo para ${esc(monthName(month))} o desde ahora siempre.</p>
+      <h3 class="plan-sub">Días que no se cocina en casa</h3>
+      <p class="small muted">Comer fuera, una comida en familia en casa de alguien, o pedir. Marcarlo deja esa comida resuelta: no aparece como pendiente y no gasta alimentos del menú.</p>
+      <div class="chips">${ATAJOS_SALIDA.map(atajo =>
+        `<button type="button" class="chip" data-action="mes-salida-rapida" data-atajo="${atajo.id}">${esc(atajo.etiqueta)}</button>`).join('')}
+        <button type="button" class="chip" data-action="mes-fechas-sueltas">Fechas concretas…</button></div>
+      <p class="tiny muted" style="margin-top:10px">Te preguntamos qué comida y si vale solo para ${esc(monthName(month))} o desde ahora siempre. «Primer y tercer domingo» son los que caigan en el mes, sean las fechas que sean.</p>
     </div>
-    ${salidas.length ? `<div class="section-head"><h3 class="plan-sub">Reglas guardadas</h3></div><div class="card">${salidas.map(rutina => filaDeRutina(state, month, rutina)).join('')}</div>` : ''}
-    ${sueltas.length ? `<div class="section-head"><h3 class="plan-sub">Días sueltos de este mes</h3></div><div class="card">${sueltas.map(item => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${esc(niceDate(item.date, { weekday: 'long', day: 'numeric', month: 'long' }))}</div><div class="list-row-sub">${esc(etiquetaDeMomento(item.slot))} · ${item.plan.kind === 'outside' ? 'fuera de casa' : 'pedido'}</div></div>${button('Quitar', 'mes-quitar-salida', 'btn-quiet btn-small', `data-id="${item.plan.id}"`)}</div>`).join('')}</div>` : ''}
+
+    ${reglas.length ? `<div class="section-head"><h3 class="plan-sub">Reglas guardadas</h3></div>
+      <div class="card">${reglas.map(rutina => filaDeRutina(state, month, rutina)).join('')}</div>` : ''}
+
+    ${sueltas.length ? `<div class="section-head"><h3 class="plan-sub">Días sueltos de este mes</h3></div>
+      <div class="card">${sueltas.map(plan => filaDeExcepcion(plan, button('Quitar', 'mes-quitar-salida', 'btn-quiet btn-small', `data-id="${plan.id}"`))).join('')}</div>` : ''}
+
+    <div class="section-head"><div><h3 class="plan-sub">Días que se cocina otra cosa</h3><p class="small muted">Las comidas de este mes que pusiste tú a mano, distintas de lo que dice la rutina.</p></div>${button('Abrir el calendario', 'mes-vista', 'btn-secondary btn-small', 'data-vista="calendario"')}</div>
+    <div class="card">${puntuales.length
+      ? puntuales.slice(0, 10).map(plan => filaDeExcepcion(plan, button('Abrir', 'open-meal', 'btn-quiet btn-small', `data-date="${plan.date}" data-slot="${plan.slot}"`))).join('') + (puntuales.length > 10 ? `<p class="small muted">Y ${puntuales.length - 10} más. Están todas en el calendario.</p>` : '')
+      : '<p class="muted">Todavía ninguno. Toca cualquier día del calendario para cambiar solo ese día; lo demás se queda como está.</p>'}</div>
+
+    ${bloqueAusencias(state, ausencias)}
     ${avisoDeApertura(ctx)}`;
 }
 
-const LETRAS_DE_MOMENTO = { desayuno: 'D', 'merienda-manana': 'M↑', almuerzo: 'A', 'merienda-tarde': 'M↓', cena: 'C' };
-const letraDeMomento = slot => LETRAS_DE_MOMENTO[slot] || String(slot).charAt(0).toUpperCase();
+function filaDeExcepcion(plan, acciones = '') {
+  const origen = origenDe(plan);
+  return `<div class="list-row">
+    <div class="list-row-main">
+      <div class="list-row-title">${esc(niceDate(plan.date, { weekday: 'long', day: 'numeric', month: 'long' }))} ${chipDeOrigen(origen)}</div>
+      <div class="list-row-sub">${esc(etiquetaDeMomento(plan.slot))} · ${esc(tituloDePlan(plan))}</div>
+    </div>${acciones}</div>`;
+}
 
-function pasoPendientes(ctx) {
+// Que alguien no coma en casa un día es una excepción de las personas, no de la
+// comida, y por eso vive aquí y no dentro del plato. Y anotarla no encoge la
+// olla: se cocina lo mismo y sobra, que es lo que pasa en una casa de verdad.
+function bloqueAusencias(state, ausencias) {
+  const nombre = personId => state.people.find(person => person.id === personId)?.name || 'Alguien';
+  return `<div class="section-head"><div><h3 class="plan-sub">Alguien que no come en casa</h3><p class="small muted">Se marca al abrir la comida de ese día. Queda anotado, y <strong>no cambia lo que se cocina</strong>: una olla de arroz no se achica porque un hijo avise a las seis.</p></div></div>
+    <div class="card">${ausencias.length
+      ? ausencias.slice(0, 10).map(item => `<div class="list-row">
+          <div class="list-row-main">
+            <div class="list-row-title">${esc(nombre(item.personId))}</div>
+            <div class="list-row-sub">${esc(niceDate(item.date, { weekday: 'long', day: 'numeric', month: 'long' }))} · ${esc(etiquetaDeMomento(item.slot))}</div>
+          </div>${button('Abrir ese día', 'mes-abrir-dia', 'btn-quiet btn-small', `data-date="${item.date}"`)}</div>`).join('') + (ausencias.length > 10 ? `<p class="small muted">Y ${ausencias.length - 10} más.</p>` : '')
+      : '<p class="muted">Nadie marcado fuera este mes.</p>'}</div>`;
+}
+
+/* ── Bloque 3: revisar y cerrar ────────────────────────────────────────── */
+
+function bloqueConfirmar(ctx) {
+  const { state, ui } = ctx;
+  const month = ui.mes.month;
+  const progreso = monthProgress(state, month);
+  const resumen = monthBasketSummary(state, month);
+  const cambios = resumen.cambiados + resumen.quitados + resumen.extras;
+
+  return `<p class="plan-bloque-texto">Esto es ${esc(monthName(month))} tal y como queda. Puedes cerrarlo aunque falten comidas por decidir: lo que dejes en blanco sigue estando ahí mañana.</p>
+
+    <div class="card plan-cabecera">
+      <div class="plan-cifra">
+        <div class="plan-porcentaje">${progreso.porcentaje}<span>%</span></div>
+        <div class="progress plan-progreso"><span style="width:${progreso.porcentaje}%"></span></div>
+        <p class="plan-resumen-texto">${resumenEnPalabras(progreso)}</p>
+      </div>
+    </div>
+    <ul class="plan-lista-final">
+      <li><strong>${progreso.encasa}</strong> comidas en casa</li>
+      ${progreso.fuera ? `<li><strong>${progreso.fuera}</strong> comidas fuera</li>` : ''}
+      ${progreso.pedido ? `<li><strong>${progreso.pedido}</strong> comidas pedidas</li>` : ''}
+      ${progreso.meriendas ? `<li><strong>${progreso.meriendas}</strong> ${progreso.meriendas === 1 ? 'merienda anotada' : 'meriendas anotadas'} <span class="muted">(${progreso.meriendas === 1 ? 'es opcional' : 'son opcionales'})</span></li>` : ''}
+      <li><strong>${progreso.pendientes}</strong> ${progreso.pendientes === 1 ? 'comida sin decidir' : 'comidas sin decidir'}</li>
+    </ul>
+
+    ${bloquePendientes(ctx, progreso)}
+    ${bloqueCanasta(ctx, resumen, cambios)}
+    ${bloqueCompra(ctx)}`;
+}
+
+// Los huecos son un aviso, nunca una puerta cerrada. Y solo cuentan las tres
+// comidas de todos los días: enseñar sesenta meriendas «sin decidir»
+// convertiría esta lista en una queja.
+function bloquePendientes(ctx, progreso) {
   const { state, ui } = ctx;
   const month = ui.mes.month;
   const { start, end } = monthBounds(month);
-  // Solo se cuentan como pendientes las tres de todos los días. Enseñar
-  // sesenta meriendas «sin decidir» convertiría esta lista en una queja.
   const pendientes = [];
   for (const date of dateRange(start, end)) for (const slot of SLOTS_PRINCIPALES) {
     const plan = planFor(state, date, slot);
     if (!plan || plan.kind === 'unplanned') pendientes.push({ date, slot });
   }
   if (!pendientes.length) {
-    return `<div class="card plan-ok"><span class="plan-ok-icono">✓</span><div><strong>No queda ningún hueco.</strong><span>Las ${SLOTS_PRINCIPALES.length * dateRange(start, end).length} comidas de ${esc(monthName(month))} están decididas. Las meriendas son aparte: se ponen cuando las hay.</span></div></div>`;
+    return `<div class="card plan-ok"><span class="plan-ok-icono">✓</span><div><strong>No queda ningún hueco.</strong><span>Las ${progreso.huecos} comidas de ${esc(monthName(month))} están decididas. Las meriendas van aparte: se ponen cuando las hay, y un día sin merienda está completo igual.</span></div></div>`;
   }
   const tope = ui.mes.verPendientes;
-  const mostrados = pendientes.slice(0, tope);
-  return `<p class="plan-paso-texto">Quedan <strong>${pendientes.length}</strong> comidas sin decidir. No hace falta llenarlas todas: lo que dejes en blanco sigue estando ahí mañana.</p>
-    <div class="card">${mostrados.map(item => `<div class="list-row plan-pendiente">
+  return `<div class="notice"><span>·</span><div><strong>Quedan ${pendientes.length} comida(s) sin decidir.</strong>No hace falta llenarlas para cerrar el mes. Las meriendas no cuentan: un día sin merienda está completo.</div></div>
+    <div class="card">${pendientes.slice(0, tope).map(item => `<div class="list-row plan-pendiente">
       <div class="list-row-main">
         <div class="list-row-title">${esc(niceDate(item.date, { weekday: 'long', day: 'numeric', month: 'short' }))}</div>
         <div class="list-row-sub">${esc(etiquetaDeMomento(item.slot))}</div>
@@ -426,31 +545,52 @@ function pasoPendientes(ctx) {
         ${button('Fuera', 'mes-marcar', 'btn-quiet btn-small', `data-date="${item.date}" data-slot="${item.slot}" data-kind="outside"`)}
       </div>
     </div>`).join('')}</div>
-    ${pendientes.length > tope ? `<div class="inline" style="margin-top:14px">${button(`Ver ${Math.min(12, pendientes.length - tope)} más`, 'mes-ver-mas-pendientes', 'btn-quiet')}</div>` : ''}
-    <div class="inline" style="margin-top:14px">${button('Marcar todos los huecos como «todavía no sabemos»', 'mes-dejar-pendientes', 'btn-quiet btn-small')}</div>`;
+    ${pendientes.length > tope ? `<div class="inline" style="margin-top:12px">${button(`Ver ${Math.min(12, pendientes.length - tope)} más`, 'mes-ver-mas-pendientes', 'btn-quiet btn-small')}</div>` : ''}`;
 }
 
-function pasoCanasta(ctx) {
+function bloqueCanasta(ctx, resumen, cambios) {
   const { state, ui } = ctx;
   const month = ui.mes.month;
-  const resumen = monthBasketSummary(state, month);
-  const lineas = effectiveBasket(state, month);
-  const cambiadas = lineas.filter(linea => linea.source !== 'habitual');
-  return `<p class="plan-paso-texto">Tu canasta habitual ya está aplicada a ${esc(monthName(month))}. Aquí solo se anota lo que este mes será diferente.</p>
+  const cambiadas = effectiveBasket(state, month).filter(linea => linea.source !== 'habitual');
+  return `<div class="section-head"><div><h3 class="plan-sub">Lo que cambia en la compra de este mes</h3><p class="small muted">Tu canasta habitual ya está aplicada. Aquí solo se anota lo que ${esc(monthName(month))} tendrá de diferente, y no toca los demás meses.</p></div>${button('Cambiar algo', 'navigate', 'btn-secondary btn-small', `data-page="canasta" data-month="${month}"`)}</div>
     <div class="card plan-canasta-cifras">
       <div><strong>${resumen.habituales}</strong><span>de siempre</span></div>
       <div><strong>${resumen.cambiados}</strong><span>con otra cantidad</span></div>
       <div><strong>${resumen.quitados}</strong><span>que no se compran</span></div>
-      <div><strong>${resumen.extras}</strong><span>extra de ${esc(monthName(month).split(' ')[0])}</span></div>
+      <div><strong>${resumen.extras}</strong><span>solo de ${esc(monthName(month).split(' ')[0])}</span></div>
     </div>
-    ${cambiadas.length ? `<div class="card">${cambiadas.map(linea => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${esc(nombreProducto(state, linea.productId))} <span class="pill warm">${linea.source === 'extra' ? 'solo este mes' : 'cantidad distinta'}</span></div><div class="list-row-sub">${linea.quantity === null ? 'cantidad pendiente' : esc(measure(linea.quantity, linea.unit))}</div></div></div>`).join('')}</div>` : ''}
-    <div class="inline" style="margin-top:14px">
-      ${button('Cambiar algo de este mes', 'navigate', 'btn-secondary', `data-page="canasta" data-month="${month}"`)}
-      ${button('Ver la compra', 'navigate', 'btn-quiet', 'data-page="compra"')}
-    </div>`;
+    ${cambios && cambiadas.length ? `<div class="card">${cambiadas.slice(0, 8).map(linea =>
+      `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${esc(nombreProducto(state, linea.productId))} <span class="pill warm">${linea.source === 'extra' ? 'solo este mes' : 'cantidad distinta'}</span></div><div class="list-row-sub">${linea.quantity === null ? 'cantidad pendiente' : esc(measure(linea.quantity, linea.unit))}</div></div></div>`).join('')}${cambiadas.length > 8 ? `<p class="small muted">Y ${cambiadas.length - 8} más.</p>` : ''}</div>` : ''}`;
+}
+
+// La lista sale de lo que ya está decidido, y se enseña aquí para que el mes no
+// se dé por organizado sin haber mirado lo que va a costar.
+function bloqueCompra(ctx) {
+  const { state, ui } = ctx;
+  const { start, end } = monthBounds(ui.mes.month);
+  let lista;
+  try { lista = shoppingList(state, start, end, 'casa'); }
+  catch (error) {
+    return `<div class="section-head"><h3 class="plan-sub">La compra</h3></div>
+      <div class="card"><p class="muted">No se pudo calcular la lista: ${esc(error.message)}</p></div>`;
+  }
+  const faltan = lista.lines.filter(linea => linea.shortfall > 0);
+  const abrir = `<div class="inline" style="margin-top:12px">${button('Abrir la compra de este mes', 'navigate', 'btn-primary', 'data-page="compra"')}</div>`;
+  if (!faltan.length) {
+    return `<div class="section-head"><h3 class="plan-sub">La compra</h3></div>
+      <div class="card plan-ok"><span class="plan-ok-icono">✓</span><div><strong>No falta nada.</strong><span>Con lo que hay en casa alcanza para ${esc(monthName(ui.mes.month))}.</span></div></div>${abrir}`;
+  }
+  return `<div class="section-head"><div><h3 class="plan-sub">La compra</h3><p class="small muted">Lo que haría falta comprar para todo ${esc(monthName(ui.mes.month))}, según tu canasta y lo que ya queda en casa.</p></div></div>
+    <div class="card">${faltan.slice(0, 12).map(linea => {
+      const item = state.products.find(row => row.id === linea.productId);
+      return `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${esc(item?.name || '')}</div></div><div class="compra-cantidad">${linea.purchaseQuantity === null ? '<span class="pill gray">falta una medida</span>' : `<strong>${esc(measure(linea.purchaseQuantity, linea.purchaseUnit))}</strong>`}</div></div>`;
+    }).join('')}${faltan.length > 12 ? `<p class="small muted">Y ${faltan.length - 12} alimento(s) más.</p>` : ''}</div>${abrir}`;
 }
 
 const nombreProducto = (state, id) => state.products.find(item => item.id === id)?.name || 'Alimento eliminado';
+
+const LETRAS_DE_MOMENTO = { desayuno: 'D', 'merienda-manana': 'M↑', almuerzo: 'A', 'merienda-tarde': 'M↓', cena: 'C' };
+const letraDeMomento = slot => LETRAS_DE_MOMENTO[slot] || String(slot).charAt(0).toUpperCase();
 
 // Los días del mes como fichas, con la inicial del día de la semana debajo: sin
 // ella, elegir «los tres viernes que viene mi mamá» obliga a mirar un calendario
@@ -464,21 +604,38 @@ function diasDelMes(month) {
   }));
 }
 
-function pasoListo(ctx) {
-  const { state, ui } = ctx;
-  const month = ui.mes.month;
-  const progreso = monthProgress(state, month);
-  const resumen = monthBasketSummary(state, month);
-  const cambios = resumen.cambiados + resumen.quitados + resumen.extras;
-  return `<div class="card plan-ok"><span class="plan-ok-icono">✓</span><div><strong>Tu mes está organizado.</strong><span>${esc(monthName(month))}</span></div></div>
-    <ul class="plan-lista-final">
-      <li><strong>${progreso.encasa}</strong> comidas en casa</li>
-      ${progreso.fuera ? `<li><strong>${progreso.fuera}</strong> comidas fuera</li>` : ''}
-      ${progreso.pedido ? `<li><strong>${progreso.pedido}</strong> comidas pedidas</li>` : ''}
-      <li><strong>${progreso.pendientes}</strong> ${progreso.pendientes === 1 ? 'comida pendiente' : 'comidas pendientes'}</li>
-      <li><strong>${cambios}</strong> ${cambios === 1 ? 'cambio' : 'cambios'} en la compra habitual</li>
-    </ul>
-    <div class="inline" style="margin-top:16px">${button('Ver la compra de este mes', 'navigate', 'btn-primary', 'data-page="compra"')}${button('Ver el calendario', 'mes-vista', 'btn-secondary', 'data-vista="calendario"')}</div>`;
+/* ── Un día entero ─────────────────────────────────────────────────────────
+
+   Desde el calendario se podía tocar una comida, pero no el día. Y hay cosas
+   que se deciden por días enteros —«el domingo 12 comemos donde mi mamá»— que
+   obligaban a repetir el mismo gesto tres veces, una por comida.
+
+   Esta ventana enseña el día completo, dice de dónde salió cada comida con
+   todas sus letras, y deja marcar el día entero de una vez. */
+
+export function modalDia(ctx, extras = {}) {
+  const { state } = ctx;
+  const date = extras.date;
+  const puestas = SLOTS.filter(slot => planFor(state, date, slot));
+  return modal(niceDate(date, { weekday: 'long', day: 'numeric', month: 'long' }), 'Toca una comida para cambiarla. Lo que hagas aquí vale solo para este día.',
+    `<div class="dia-momentos">${SLOTS.map(slot => {
+      const plan = planFor(state, date, slot);
+      const opcional = esOpcional(slot);
+      return `<button type="button" class="dia-momento ${plan ? '' : 'vacio'}" data-action="open-meal" data-date="${date}" data-slot="${slot}">
+        <span class="dia-momento-letra" aria-hidden="true">${esc(letraDeMomento(slot))}</span>
+        <span class="dia-momento-texto">
+          <strong>${esc(etiquetaDeMomento(slot))}</strong>
+          <span>${plan ? esc(tituloDePlan(plan)) : (opcional ? 'Sin merienda — es opcional' : 'Sin decidir')}</span>
+        </span>
+        ${plan ? chipDeOrigen(origenDe(plan)) : ''}
+      </button>`;
+    }).join('')}</div>
+    <div class="divider"></div>
+    <div class="inline">
+      ${button('Todo el día fuera de casa', 'mes-dia-fuera', 'btn-secondary btn-small', `data-date="${date}"`)}
+      ${puestas.length ? button('Vaciar el día', 'mes-dia-vaciar', 'btn-quiet btn-small', `data-date="${date}"`) : ''}
+    </div>
+    <p class="tiny muted" style="margin-top:10px">«Todo el día fuera» marca el desayuno, el almuerzo y la cena; las meriendas se quedan como estén, porque son opcionales.</p>`);
 }
 
 /* ── El formulario de una rutina ───────────────────────────────────────── */
@@ -493,7 +650,10 @@ export function modalRutina(ctx, extras = {}) {
   const dias = prefijo?.weekdays || [];
   const semanas = prefijo?.weeks || null;
   const tipo = extras.kind || (prefijo ? 'outside' : 'recipe');
-  return modal(prefijo ? prefijo.etiqueta : 'Una comida que se repite',
+  // «Fechas concretas» entra directamente por la pestaña de días sueltos: quien
+  // la eligió ya dijo que no quiere una costumbre, sino unos días.
+  const sueltos = Boolean(extras.sueltos);
+  return modal(prefijo ? prefijo.etiqueta : sueltos ? 'Fechas concretas' : 'Una comida que se repite',
     `En ${monthName(month)} y, si quieres, en los meses siguientes`,
     `<form data-form="rutina" data-month="${esc(month)}" class="modal-body rutina-form">
       <fieldset class="field-group"><legend>¿Qué comen?</legend>
@@ -513,11 +673,11 @@ export function modalRutina(ctx, extras = {}) {
 
       <fieldset class="field-group"><legend>¿Qué días?</legend>
         <div class="segmented segmented-ancho">
-          <button type="button" data-action="rutina-modo-dias" data-modo="semana" class="active">Días de la semana</button>
-          <button type="button" data-action="rutina-modo-dias" data-modo="sueltos">Días sueltos</button>
+          <button type="button" data-action="rutina-modo-dias" data-modo="semana" class="${sueltos ? '' : 'active'}">Días de la semana</button>
+          <button type="button" data-action="rutina-modo-dias" data-modo="sueltos" class="${sueltos ? 'active' : ''}">Días sueltos</button>
         </div>
 
-        <div data-dias-semana>
+        <div data-dias-semana ${sueltos ? 'hidden' : ''}>
           <div class="chips dias-semana">${WEEKDAYS.map((dia, indice) => `<label class="chip-check"><input type="checkbox" name="weekdays" value="${dia}" ${dias.includes(dia) ? 'checked' : ''}><span>${esc(WEEKDAY_SHORT[indice])}</span></label>`).join('')}</div>
           <p class="hint" style="margin-top:12px">¿Todos esos días, o solo algunos?</p>
           <div class="radio-fila" style="margin-top:8px">
@@ -532,14 +692,14 @@ export function modalRutina(ctx, extras = {}) {
           </label>
         </div>
 
-        <div data-dias-sueltos hidden>
+        <div data-dias-sueltos ${sueltos ? '' : 'hidden'}>
           <p class="hint" style="margin-bottom:10px">Marca los días de ${esc(monthName(month))} que quieras. Esto no crea una costumbre: pone esas comidas y ya.</p>
           <div class="chips dias-mes">${diasDelMes(month).map(({ date, numero, inicial }) =>
             `<label class="chip-check dia-suelto"><input type="checkbox" name="fechas" value="${date}"><span>${numero}<em>${esc(inicial)}</em></span></label>`).join('')}</div>
         </div>
       </fieldset>
 
-      <fieldset class="field-group" data-alcance-rutina><legend>¿Hasta cuándo?</legend>
+      <fieldset class="field-group" data-alcance-rutina ${sueltos ? 'hidden' : ''}><legend>¿Hasta cuándo?</legend>
         <div class="radio-fila">
           <label class="radio-pill"><input type="radio" name="scope" value="month" checked><span>Solo ${esc(monthName(month))}</span></label>
           <label class="radio-pill"><input type="radio" name="scope" value="permanent"><span>Desde ahora, todos los meses</span></label>
@@ -574,19 +734,90 @@ export const MES_ACTIONS = {
     abrirMesSiHaceFalta(ctx, ctx.ui.mes.month);
     ctx.commit('');
   },
-  'mes-vista': (el, ctx) => { ctx.ui.mes.vista = el.dataset.vista; ctx.render(); },
-  'mes-preparar': (el, ctx) => { ctx.ui.mes.paso = PASOS[0].id; ctx.ui.mes.verPendientes = 12; ctx.render(); },
-  'mes-salir-paso': (el, ctx) => { ctx.ui.mes.paso = null; ctx.render(); },
-  'mes-paso-siguiente': (el, ctx) => {
-    const indice = PASOS.findIndex(paso => paso.id === ctx.ui.mes.paso);
-    ctx.ui.mes.paso = PASOS[Math.min(PASOS.length - 1, indice + 1)].id;
+  'mes-vista': (el, ctx) => {
+    ctx.ui.mes.vista = el.dataset.vista;
+    // Salir al calendario es salir del recorrido: si el bloque se queda puesto,
+    // se vuelve a pintar él y el botón parece roto.
+    if (el.dataset.vista === 'calendario') ctx.ui.mes.bloque = null;
+    ctx.render();
+  },
+  'mes-preparar': (el, ctx) => { ctx.ui.mes.bloque = BLOQUES[0].id; ctx.ui.mes.verPendientes = 12; ctx.render(); },
+  'mes-salir-bloque': (el, ctx) => { ctx.ui.mes.bloque = null; ctx.render(); },
+  'mes-bloque-siguiente': (el, ctx) => {
+    const indice = BLOQUES.findIndex(bloque => bloque.id === ctx.ui.mes.bloque);
+    ctx.ui.mes.bloque = BLOQUES[Math.min(BLOQUES.length - 1, indice + 1)].id;
     ctx.ui.mes.verPendientes = 12;
     ctx.render();
   },
-  'mes-paso-atras': (el, ctx) => {
-    const indice = PASOS.findIndex(paso => paso.id === ctx.ui.mes.paso);
-    ctx.ui.mes.paso = PASOS[Math.max(0, indice - 1)].id;
+  'mes-bloque-atras': (el, ctx) => {
+    const indice = BLOQUES.findIndex(bloque => bloque.id === ctx.ui.mes.bloque);
+    ctx.ui.mes.bloque = BLOQUES[Math.max(0, indice - 1)].id;
     ctx.render();
+  },
+
+  // Cerrar el mes no cierra nada: deja escrito el día en que se dio por bueno.
+  // Los huecos que queden siguen ahí y se pueden llenar mañana, que es la razón
+  // por la que este botón no comprueba nada antes de dejarte terminar.
+  'mes-finalizar': (el, ctx) => {
+    const month = ctx.ui.mes.month;
+    const ficha = ctx.state.monthPlans?.[month];
+    if (ficha) ficha.preparedAt = todayISO();
+    ctx.ui.mes.bloque = null;
+    ctx.ui.mes.vista = 'resumen';
+    const pendientes = monthProgress(ctx.state, month).pendientes;
+    ctx.commit(pendientes
+      ? `${monthName(month)} queda organizado. Las ${pendientes} comida(s) sin decidir siguen ahí cuando quieras.`
+      : `${monthName(month)} queda organizado.`);
+  },
+
+  // «Dejarlo como está» no hace nada, y por eso mismo tiene que decir algo: sin
+  // respuesta, quien lo toca no sabe si lo tocó.
+  'mes-conservar': (el, ctx) => {
+    ctx.ui.mes.base = 'conservar';
+    ctx.toast('Este mes se queda con lo que ya tiene.');
+    ctx.render();
+  },
+
+  'mes-fechas-sueltas': (el, ctx) => ctx.openModal('rutina', { month: ctx.ui.mes.month, sueltos: true, kind: 'outside' }),
+  'mes-abrir-dia': (el, ctx) => ctx.openModal('dia', { date: el.dataset.date }),
+
+  // Un día entero fuera de casa son las tres de siempre. Las meriendas se
+  // quedan como estén: son opcionales, y borrar una que alguien puso a mano
+  // sería pasarle por encima.
+  'mes-dia-fuera': (el, ctx) => {
+    const date = el.dataset.date;
+    const antes = snapshot(ctx.state);
+    let puestas = 0;
+    for (const slot of SLOTS_PRINCIPALES) {
+      const existente = planFor(ctx.state, date, slot);
+      if (existente && (existente.kind === 'outside' || existente.kind === 'order')) continue;
+      try {
+        if (existente) deletePlan(ctx.state, existente.id, true);
+        setStatusPlan(ctx.state, date, slot, 'outside', null, 'excepcion');
+        puestas++;
+      } catch { /* una comida de la que cuelga otra reservada se queda donde está */ }
+    }
+    ctx.ui.mes.deshacer = puestas ? antes : null;
+    ctx.ui.mes.aviso = puestas ? {
+      tipo: 'rutina', month: ctx.ui.mes.month,
+      titulo: `${niceDate(date, { weekday: 'long', day: 'numeric', month: 'long' })}: todo el día fuera de casa.`,
+      detalle: `${puestas} comida(s) marcadas. Las meriendas se quedaron como estaban.`
+    } : null;
+    ctx.closeModal();
+    ctx.commit(puestas ? '' : 'Ese día ya estaba fuera de casa.');
+  },
+
+  'mes-dia-vaciar': (el, ctx) => {
+    const date = el.dataset.date;
+    const planes = SLOTS.map(slot => planFor(ctx.state, date, slot)).filter(Boolean);
+    if (!planes.length) return;
+    if (!window.confirm(`Se van a quitar ${planes.length} comida(s) del ${niceDate(date, { weekday: 'long', day: 'numeric', month: 'long' })}. ¿Continuar?`)) return;
+    const antes = snapshot(ctx.state);
+    for (const plan of planes) { try { deletePlan(ctx.state, plan.id, true); } catch { /* la reservada la sostiene otra comida */ } }
+    ctx.ui.mes.deshacer = antes;
+    ctx.ui.mes.aviso = null;
+    ctx.closeModal();
+    ctx.commit('Día vaciado.');
   },
   'mes-ver-mas-pendientes': (el, ctx) => { ctx.ui.mes.verPendientes += 12; ctx.render(); },
   'mes-nueva-rutina': (el, ctx) => ctx.openModal('rutina', { month: ctx.ui.mes.month }),
@@ -638,7 +869,7 @@ export const MES_ACTIONS = {
   'mes-marcar': (el, ctx) => {
     const existente = planFor(ctx.state, el.dataset.date, el.dataset.slot);
     if (existente) deletePlan(ctx.state, existente.id, true);
-    setStatusPlan(ctx.state, el.dataset.date, el.dataset.slot, el.dataset.kind);
+    setStatusPlan(ctx.state, el.dataset.date, el.dataset.slot, el.dataset.kind, null, 'excepcion');
     ctx.commit('Comida marcada fuera de casa.');
   },
 
@@ -647,21 +878,19 @@ export const MES_ACTIONS = {
     ctx.commit('Esa comida vuelve a estar pendiente.');
   },
 
-  'mes-dejar-pendientes': (el, ctx) => {
-    ctx.toast('Los huecos ya quedan así. Puedes volver cuando quieras.');
-    ctx.ui.mes.paso = 'canasta';
-    ctx.render();
-  },
-
   'mes-copiar-patron': (el, ctx) => {
     const destino = ctx.ui.mes.month;
     const origen = shiftMonth(destino, -1);
     const antes = snapshot(ctx.state);
     const resultado = copyPatternFromMonth(ctx.state, origen, destino);
     if (!resultado.creados.length) {
-      ctx.toast(`No hay nada que copiar de ${monthName(origen)}.`, true);
+      const ocupados = resultado.saltados.filter(item => item.motivo === 'ya tenía plan').length;
+      ctx.toast(ocupados
+        ? `Esos días ya tenían algo puesto: no se cambió nada. ${monthName(destino)} ya está tan lleno como ${monthName(origen)}.`
+        : `No hay ninguna preparación que copiar de ${monthName(origen)}.`, true);
       return;
     }
+    ctx.ui.mes.base = 'copiar';
     ctx.ui.mes.deshacer = antes;
     ctx.ui.mes.aviso = {
       tipo: 'rutina', month: destino,
@@ -694,8 +923,10 @@ function ponerEnFechas(ctx, { fechas, slots, kind, recipeId, modo, month }) {
     if (existente && modo !== 'reemplazar') { saltadas++; continue; }
     try {
       if (existente) deletePlan(state, existente.id, true);
-      if (kind === 'recipe') makeRecipePlan(state, recipeId, date, slot);
-      else setStatusPlan(state, date, slot, kind);
+      // Unas fechas concretas no describen ninguna costumbre: son la excepción
+      // de este mes, y así se marcan para que el calendario lo diga.
+      if (kind === 'recipe') makeRecipePlan(state, recipeId, date, slot, null, null, 'excepcion');
+      else setStatusPlan(state, date, slot, kind, null, 'excepcion');
       puestas++;
     } catch { saltadas++; }
   }
