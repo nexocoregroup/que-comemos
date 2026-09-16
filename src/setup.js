@@ -35,6 +35,7 @@ import { datesForRule, describeRule, monthProgress, routinesFor } from './routin
 import { normalizeName } from './text-parse.js';
 import { cancelarDictado } from './device.js';
 import { button, esc, monthName, notice, options } from './ui-kit.js';
+import { icono, iconoDeCategoria } from './icons.js';
 
 // Los pasos se llaman por su nombre y no por su número. Los números cambian
 // cada vez que se añade uno en medio, y un `setup.paso === 4` repartido por el
@@ -166,11 +167,25 @@ const parecidoA = (state, nombre) =>
 
 // Una promesa, un botón. La opción de ver un ejemplo va plegada debajo para que
 // se pueda mirar sin salir de aquí y sin competir con lo que hay que pulsar.
+// El número de pasos se cuenta, no se escribe a mano.
+//
+// Decía «Ocho pasos cortos» y era verdad cuando se escribió: entonces había
+// ocho, y uno de ellos era un paso propio para dictar los alimentos de corrido.
+// Ese paso se quitó después —dictar es ahora un enlace dentro del paso de los
+// alimentos, que es donde hace falta— y el texto se quedó como estaba. Encima,
+// el paso del reparto solo se le enseña a quien compra por quincenas. Así que
+// a quien compra una vez al mes se le prometían ocho pasos y veía seis.
+//
+// Escrito a mano vuelve a pasar la próxima vez que se toque un paso. Contado,
+// no. Hay una prueba que lo vigila.
+const EN_LETRA = ['cero', 'Un', 'Dos', 'Tres', 'Cuatro', 'Cinco', 'Seis', 'Siete', 'Ocho', 'Nueve'];
+
 function pantallaInicio(setup) {
   const llevaEmpezado = Boolean(setup?.elegidos?.length);
+  const cuantos = pasosDe(setup).length;
   return `<section class="setup setup-inicio">
     <p class="eyebrow">Organizar mi casa</p>
-    <p class="setup-camino">Ocho pasos cortos: quiénes comen aquí, lo que compras todos los meses, cuánto y cada cuánto, las comidas que se repiten, y el primer menú.</p>
+    <p class="setup-camino">${EN_LETRA[cuantos] || cuantos} pasos cortos: quiénes comen aquí, lo que compras todos los meses, cuánto y cada cuánto, las comidas que se repiten, y el primer menú.</p>
     <h2 class="setup-promesa">Ahora vamos a crear la canasta base de tu hogar. Selecciona los alimentos que normalmente compras todos los meses. Podrás agregar cualquier alimento que no aparezca.</h2>
     <div class="pantalla-acciones">${button(llevaEmpezado ? 'Seguir donde lo dejé' : 'Empezar', 'setup-empezar', 'btn-primary btn-grande')}</div>
     ${llevaEmpezado ? `<p class="small muted">Llevas ${setup.elegidos.length} alimento(s) marcados.</p>` : ''}
@@ -213,7 +228,7 @@ function pantallaDeRubro(setup) {
   const ultimo = setup.rubro >= RUBROS.length - 1;
 
   return `<p class="setup-rubro" role="status" aria-live="polite">
-      <span class="setup-rubro-emoji" aria-hidden="true">${rubro.emoji}</span>
+      <span class="setup-rubro-emoji">${iconoDeCategoria(rubro.id, { tamano: 22 })}</span>
       Categoría ${setup.rubro + 1} de ${RUBROS.length} — <strong>${esc(rubro.titulo)}</strong>
     </p>
     <div class="progress setup-rubro-progreso"><span style="width:${Math.round((setup.rubro + 1) / RUBROS.length * 100)}%"></span></div>
@@ -237,7 +252,7 @@ function pantallaDeRubro(setup) {
       ${setup.anadiendo
         ? ventanitaDeAnadir(setup, rubro)
         : `<button type="button" class="enlace" data-action="setup-falta">¿No encuentras un alimento? Añadirlo</button>
-           <button type="button" class="enlace" data-action="open-bulk" data-destino="habitual">🗣️ Decirlos de corrido</button>`}
+           <button type="button" class="enlace" data-action="open-bulk" data-destino="habitual">${icono('microfono', { tamano: 16 })}Decirlos de corrido</button>`}
     </div>
 
     <div class="modal-actions setup-actions">
@@ -340,7 +355,7 @@ function filaCantidad({ nombre = '', unidad = 'unidad', cantidad = '', origen = 
       <input name="cantidad" type="number" min="0" step="any" inputmode="decimal" value="${esc(cantidad)}" placeholder="Al mes" aria-label="Cantidad al mes de ${esc(nombre)}"></label>
     <label class="field"><span class="sr-only">Unidad de ${esc(nombre)}</span>
       <select name="unidad" aria-label="Unidad de ${esc(nombre)}">${unidades(unidad)}</select></label>
-    <button type="button" class="btn btn-quiet remove-item" data-action="setup-quitar-cantidad" aria-label="Quitar ${esc(nombre)}">✕</button>
+    <button type="button" class="btn btn-quiet remove-item" data-action="setup-quitar-cantidad" aria-label="Quitar ${esc(nombre)}">${icono('cerrar', { tamano: 17 })}</button>
   </div>`;
 }
 

@@ -59,7 +59,16 @@ android {
     signingConfigs {
         if (hayFirma) {
             publicacion {
-                storeFile file(datosFirma['storeFile'])
+                // `rootProject.file` y no `file`: dentro del módulo `app`, `file`
+                // resuelve desde `android/app/`, y la ruta del almacén se escribe
+                // —y se documenta en la plantilla— relativa a `android/`, que es
+                // donde está el archivo de propiedades que la trae. Con `file` a
+                // secas, Gradle buscaba el sello en `android/app/` y fallaba con
+                // un «keystore file not found» que suena a que no lo creaste.
+                //
+                // Solo se descubre al firmar de verdad: la compilación de
+                // depuración no pasa por aquí.
+                storeFile rootProject.file(datosFirma['storeFile'])
                 storePassword datosFirma['storePassword']
                 keyAlias datosFirma['keyAlias']
                 keyPassword datosFirma['keyPassword']

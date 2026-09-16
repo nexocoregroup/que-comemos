@@ -20,6 +20,7 @@ import {
 } from './model.js';
 import { clearAll, hasSavedState, loadStateDetailed, saveState } from './storage.js';
 import { BRAND_MARK } from './brand.js';
+import { icono } from './icons.js';
 import { TOUR_STEPS, WELCOME } from './onboarding.js';
 import { CATEGORIES } from './catalog-seed.js';
 import { SETUP_ACTIONS, SETUP_FORMS, aplicarReparto, avanceGuardado, emptySetup, renderSetup } from './setup.js';
@@ -375,21 +376,21 @@ const planTitle = plan => plan.kind === 'recipe' || plan.kind === 'linked'
   : ({ outside: 'Fuera de casa', order: 'Pedimos comida', unplanned: 'Sin decidir' }[plan.kind] || 'Sin decidir');
 
 const NAV = [
-  ['hoy', '☀️', 'Hoy'],
-  ['mes', '▦', 'Plan mensual'],
-  ['compra', '🧺', 'Compra'],
-  ['mas', '⋯', 'Más']
+  ['hoy', 'sol', 'Hoy'],
+  ['mes', 'calendario', 'Plan mensual'],
+  ['compra', 'canasta', 'Compra'],
+  ['mas', 'puntos', 'Más']
 ];
 
 // Cuatro acciones, no once. Las once seguían existiendo en un menú que nadie
 // leía entero: quien abre el «+» quiere anotar una cosa concreta, y tener que
 // escoger entre once formularios es peor que no tener el botón.
 const RAPIDAS = [
-  ['rapida-comida', '🍽️', 'Poner una comida', 'En un día, o en todos los lunes'],
-  ['open-recipe', '📖', 'Crear una preparación', 'Un plato que se repite en casa'],
-  ['open-chat', '💬', 'Hablar o dictar', 'Dile lo que pasó y ella lo anota'],
-  ['open-purchase', '🧺', 'Anotar una compra', 'Lo que trajiste del colmado'],
-  ['open-product', '🥬', 'Añadir un alimento', 'Uno nuevo, con su medida']
+  ['rapida-comida', 'plato', 'Poner una comida', 'En un día, o en todos los lunes'],
+  ['open-recipe', 'libro', 'Crear una preparación', 'Un plato que se repite en casa'],
+  ['open-chat', 'burbuja', 'Hablar o dictar', 'Dile lo que pasó y ella lo anota'],
+  ['open-purchase', 'canasta', 'Anotar una compra', 'Lo que trajiste del colmado'],
+  ['open-product', 'hoja', 'Añadir un alimento', 'Uno nuevo, con su medida']
 ];
 
 let toastTimer;
@@ -559,22 +560,22 @@ function pintar() {
   document.querySelector('#app').innerHTML = `<div class="shell ${ui.sidebarCollapsed ? 'sidebar-collapsed' : ''} ${ui.drawerOpen ? 'drawer-open' : ''}">
     <aside class="sidebar" id="app-sidebar" aria-label="Menú lateral">
       <div class="sidebar-head"><button type="button" class="icon-btn sidebar-close" data-action="close-sidebar" aria-label="Ocultar menú">‹</button><div class="brand"><span class="brand-mark">${BRAND_MARK}</span>¿Qué comemos?</div></div>
-      <nav class="nav" aria-label="Navegación principal">${NAV.map(([id, icon, label]) => `<button type="button" class="${activa(id)}" data-action="navigate" data-page="${id}"><span class="nav-icon">${icon}</span>${label}</button>`).join('')}</nav>
+      <nav class="nav" aria-label="Navegación principal">${NAV.map(([id, icon, label]) => `<button type="button" class="${activa(id)}" data-action="navigate" data-page="${id}"><span class="nav-icon">${icono(icon)}</span>${label}</button>`).join('')}</nav>
       <div class="side-foot">Tus datos están solo en este aparato. Guarda una copia de vez en cuando desde Más → Respaldo.</div>
     </aside>
     <button type="button" class="drawer-scrim" data-action="close-sidebar" aria-label="Cerrar menú lateral"></button>
     <main class="main">
-      <div class="mobile-brand"><button type="button" class="menu-toggle" data-action="toggle-sidebar" aria-label="${ui.drawerOpen ? 'Ocultar menú' : 'Abrir menú'}" aria-controls="app-sidebar" aria-expanded="${ui.drawerOpen}">☰</button><span class="brand-mark">${BRAND_MARK}</span><span>¿Qué comemos?</span></div>
-      <header class="topline"><div class="topline-heading"><button type="button" class="menu-toggle desktop-menu-toggle" data-action="toggle-sidebar" aria-label="${ui.sidebarCollapsed ? 'Abrir menú' : 'Ocultar menú'}" aria-controls="app-sidebar" aria-expanded="${!ui.sidebarCollapsed}">☰</button><div><p class="eyebrow">${esc(eyebrow())}</p><h1>${esc(pageTitle())}</h1></div></div></header>
+      <div class="mobile-brand"><button type="button" class="menu-toggle" data-action="toggle-sidebar" aria-label="${ui.drawerOpen ? 'Ocultar menú' : 'Abrir menú'}" aria-controls="app-sidebar" aria-expanded="${ui.drawerOpen}">${icono('menu', { tamano: 22 })}</button><span class="brand-mark">${BRAND_MARK}</span><span>¿Qué comemos?</span></div>
+      <header class="topline"><div class="topline-heading"><button type="button" class="menu-toggle desktop-menu-toggle" data-action="toggle-sidebar" aria-label="${ui.sidebarCollapsed ? 'Abrir menú' : 'Ocultar menú'}" aria-controls="app-sidebar" aria-expanded="${!ui.sidebarCollapsed}">${icono('menu', { tamano: 22 })}</button><div><p class="eyebrow">${esc(eyebrow())}</p><h1>${esc(pageTitle())}</h1></div></div></header>
       ${avisoDeSesion ? notice('Sobre tu cuenta', `${esc(avisoDeSesion)} <button type="button" class="enlace" data-action="navigate" data-page="cuenta">Ir a mi cuenta</button>`, 'warn') : ''}
       ${ui.avisoDeArranque ? notice('La vez anterior la aplicación se cerró sola', `${esc(ui.avisoDeArranque)} <button type="button" class="enlace" data-action="entendido-el-cierre">Entendido</button>`, 'warn') : ''}
       ${migratedFrom ? notice('Tus datos se actualizaron al formato nuevo.', 'La canasta que tenías es ahora <strong>tu canasta habitual</strong>, y lo que cambiaba en algún mes quedó guardado como cambio de ese mes. Nada se perdió, y lo anterior quedó a salvo por si acaso.') : ''}
       ${loadError ? notice('No se pudieron leer los datos guardados.', `${esc(loadError)} Trae una copia desde Más → Respaldo, o borra los datos para empezar de nuevo.`, 'error') : ''}
-      ${state.demo ? `<div class="demo-banner"><span>✦</span><div><strong>Estás viendo un ejemplo</strong>Las cantidades son inventadas para que veas cómo funciona; no son recomendaciones de alimentación.</div>${button('Borrar el ejemplo', 'clear-demo', 'btn-secondary btn-small')}</div>` : ''}
+      ${state.demo ? `<div class="demo-banner">${icono('chispa')}<div><strong>Estás viendo un ejemplo</strong>Las cantidades son inventadas para que veas cómo funciona; no son recomendaciones de alimentación.</div>${button('Borrar el ejemplo', 'clear-demo', 'btn-secondary btn-small')}</div>` : ''}
       ${cuerpo}
     </main>
-    ${ui.modal || ui.page === 'setup' || ui.page === 'hogar' || (ui.page === 'mes' && ui.mes?.bloque) ? '' : `<button type="button" class="fab" data-action="open-quick" aria-label="Anotar algo"><span aria-hidden="true">+</span></button>`}
-    <nav class="mobile-nav" aria-label="Navegación principal">${NAV.map(([id, icon, label]) => `<button type="button" class="${activa(id)}" data-action="navigate" data-page="${id}"><span>${icon}</span>${label}</button>`).join('')}</nav>
+    ${ui.modal || ui.page === 'setup' || ui.page === 'hogar' || (ui.page === 'mes' && ui.mes?.bloque) ? '' : `<button type="button" class="fab" data-action="open-quick" aria-label="Anotar algo">${icono('mas', { tamano: 26 })}</button>`}
+    <nav class="mobile-nav" aria-label="Navegación principal">${NAV.map(([id, icon, label]) => `<button type="button" class="${activa(id)}" data-action="navigate" data-page="${id}"><span class="nav-icon">${icono(icon, { tamano: 22 })}</span>${label}</button>`).join('')}</nav>
   </div>`;
   document.querySelector('#modal-root').innerHTML = ui.modal ? renderModal() : ui.tour === null ? '' : tourCard();
 }
@@ -626,8 +627,13 @@ function bloqueDeMeriendas(date) {
   const opcionales = SLOTS.filter(esOpcional);
   const puestas = opcionales.filter(slot => planFor(state, date, slot));
   if (!puestas.length) {
-    return `<p class="small muted meriendas-vacias">¿Hay merienda hoy? ${opcionales.map(slot =>
-      `<button type="button" class="enlace" data-action="open-meal" data-date="${date}" data-slot="${slot}">Anotar la ${esc(etiquetaDeMomento(slot).toLocaleLowerCase('es'))}</button>`).join(' · ')}</p>`;
+    // Sin el « · » entre medias y sin unirlos en una frase corrida: en un
+    // teléfono la línea se parte y los dos enlaces quedaban uno encima de otro,
+    // de 16 px de alto y sin un píxel de separación. Eran dos meriendas
+    // distintas a un error de dedo la una de la otra. Ahora la pregunta es
+    // pregunta y cada merienda es una ficha que se toca.
+    return `<p class="small muted meriendas-vacias"><span class="meriendas-pregunta">¿Hay merienda hoy?</span>${opcionales.map(slot =>
+      `<button type="button" class="enlace ficha-toque" data-action="open-meal" data-date="${date}" data-slot="${slot}">Anotar la ${esc(etiquetaDeMomento(slot).toLocaleLowerCase('es'))}</button>`).join('')}</p>`;
   }
   return `<div class="grid grid-2 meriendas">${opcionales.map(slot => {
     const plan = planFor(state, date, slot);
@@ -736,7 +742,7 @@ function itemRow(item = {}, type = 'ingredient') {
     <label class="field"><span>Cantidad</span><input name="quantity" type="number" min="0" step="any" inputmode="decimal" value="${item.quantity ?? ''}" placeholder="0"></label>
     <label class="field"><span>Unidad</span><select name="unit">${unitOptions(item.unit || defaultProduct?.[isPurchase ? 'purchaseUnit' : 'controlUnit'] || 'unidad')}</select></label>
     ${noPerson ? '<span></span>' : `<label class="field person-select"><span>Para quién</span><select name="personId">${personOptions(item.personId)}</select></label>`}
-    <button type="button" class="btn btn-quiet remove-item" data-action="remove-item" aria-label="Quitar alimento">✕</button></div>`;
+    <button type="button" class="btn btn-quiet remove-item" data-action="remove-item" aria-label="Quitar alimento">${icono('cerrar', { tamano: 18 })}</button></div>`;
 }
 
 // Quien está dado de baja no aparece aquí, salvo que ya estuviera marcado en
@@ -771,7 +777,7 @@ function avisoDeChoques(choques, { conSalidas = false } = {}) {
   const lineas = choques.map(choque =>
     `<li><strong>${esc(choque.persona)}</strong> ${esc(VERBO_DE_MOTIVO[choque.motivo] || 'evita')} <strong>${esc(choque.producto)}</strong>${choque.motivo ? '' : ' <span class="muted">(sin decir por qué)</span>'}</li>`).join('');
   return `<div class="choque ${TONO_DE_GRAVEDAD[peor] || 'choque-intolerancia'}" role="${peor === 3 ? 'alert' : 'status'}">
-    <div class="choque-cabeza"><span class="choque-marca" aria-hidden="true">${peor === 3 ? '⚠' : peor === 2 ? '!' : '·'}</span><strong>${esc(TITULO_DE_GRAVEDAD[peor] || 'Ojo')}</strong></div>
+    <div class="choque-cabeza"><span class="choque-marca" aria-hidden="true">${peor === 3 ? icono('aviso', { tamano: 17 }) : peor === 2 ? '!' : '·'}</span><strong>${esc(TITULO_DE_GRAVEDAD[peor] || 'Ojo')}</strong></div>
     <ul class="choque-lista">${lineas}</ul>
     ${conSalidas ? '<p class="tiny">Puedes cambiar la preparación, quitar a esa persona de esta comida, o dejarla como está si le vas a hacer otra cosa. La app no te lo impide.</p>' : ''}
   </div>`;
@@ -912,8 +918,8 @@ function renderModal() {
   const m = ui.modal;
 
   if (m.type === 'quick') {
-    return modal('Anotar algo', '', `<div class="quick-grid">${RAPIDAS.map(([action, icono, titulo, detalle]) =>
-      `<button type="button" class="quick-item" data-action="${action}"><span class="quick-icon" aria-hidden="true">${icono}</span><span class="quick-text"><strong>${esc(titulo)}</strong><span>${esc(detalle)}</span></span></button>`).join('')}</div>`);
+    return modal('Anotar algo', '', `<div class="quick-grid">${RAPIDAS.map(([action, dibujo, titulo, detalle]) =>
+      `<button type="button" class="quick-item" data-action="${action}"><span class="quick-icon">${icono(dibujo, { tamano: 24 })}</span><span class="quick-text"><strong>${esc(titulo)}</strong><span>${esc(detalle)}</span></span></button>`).join('')}</div>`);
   }
 
   if (m.type === 'rutina') return modalRutina(ctx(), m);
@@ -974,7 +980,7 @@ function renderModal() {
           <span>Alimentos principales y cantidades</span>
           <p class="small muted">Solo los que hacen falta para la compra. No hace falta anotar la sal, la pimienta, el agua, el aceite ni los condimentos: la app no les lleva la cuenta y pedírtelos sería trabajo para nada.</p>
           <div data-item-list="receta">${(recipe?.items || []).map(item => itemRow(item, 'receta')).join('')}</div>
-          <div class="inline">${button('+ Añadir alimento', 'add-item', 'btn-secondary btn-small', 'data-type="receta"')}${state.people.some(person => person.habitual?.length) ? button('↺ Traer las cantidades habituales', 'fill-habitual', 'btn-quiet btn-small') : ''}</div>
+          <div class="inline">${button('+ Añadir alimento', 'add-item', 'btn-secondary btn-small', 'data-type="receta"')}${state.people.some(person => person.habitual?.length) ? button(`${icono('deshacer', { tamano: 17 })}Traer las cantidades habituales`, 'fill-habitual', 'btn-quiet btn-small') : ''}</div>
         </div>
 
         <label class="field">
@@ -1082,7 +1088,7 @@ function renderModal() {
     const item = product(state, m.id);
     const parecidos = findSimilarProducts(state, item?.name || '', { limit: 6, threshold: 0.45, exclude: m.id });
     const compatibles = state.products.filter(other => other.id !== m.id && other.controlUnit === item?.controlUnit);
-    return modal('Unir con otro alimento', item?.name || '', `<div class="notice warn"><span>⚠</span><div><strong>Esto no se puede deshacer.</strong>Se suman las existencias y se junta todo el historial —compras, revisiones, preparaciones— bajo un solo alimento. El otro deja de existir.</div></div>
+    return modal('Unir con otro alimento', item?.name || '', `<div class="notice warn">${icono('aviso')}<div><strong>Esto no se puede deshacer.</strong>Se suman las existencias y se junta todo el historial —compras, revisiones, preparaciones— bajo un solo alimento. El otro deja de existir.</div></div>
       ${parecidos.length ? `<p class="small"><strong>Se parecen a este:</strong> ${parecidos.map(row => esc(row.product.name)).join(', ')}.</p>` : ''}
       <form data-form="merge" data-id="${m.id}" class="stack">
         <label class="field"><span>¿Con cuál se une?</span><select name="otro" required>${options(compatibles.map(other => [other.id, other.name]), parecidos[0]?.product.id, 'Elegir un alimento')}</select>
@@ -1218,7 +1224,7 @@ function modalComida(m) {
   return modal(plan.kind === 'linked' ? 'Comida apartada' : 'Esta comida', contexto,
     `${lineaDeOrigen(plan)}
      ${plan.routineId ? `<div class="hint">Esta comida viene de una rutina. Lo que cambies aquí afecta <strong>solo a este día</strong>; para cambiar la rutina entera, ve a Plan mensual.</div>` : '<div class="hint">Lo que cambies aquí afecta solo a este día.</div>'}
-     ${plan.kind === 'linked' ? cantidades(plan) : dependents(state, plan.id).length ? `<div class="notice warn"><span>↪</span><div><strong>De esta comida se aparta una parte para otro día.</strong>Si bajas las cantidades, deja suficiente.</div></div>` : ''}
+     ${plan.kind === 'linked' ? cantidades(plan) : dependents(state, plan.id).length ? `<div class="notice warn">${icono('aviso')}<div><strong>De esta comida se aparta una parte para otro día.</strong>Si bajas las cantidades, deja suficiente.</div></div>` : ''}
      <div data-choque>${avisoDeChoques(choquesDeLaComida(state, plan.items, plan.participants), { conSalidas: true })}</div>
      <form data-form="plan" data-id="${plan.id}">
       <div class="form-grid">
@@ -1298,7 +1304,7 @@ function modalProducto(m) {
       ${bloqueDeDestino(item, mensual)}
       <details class="more" ${item ? 'open' : ''}>
         <summary>Más opciones</summary>
-        <label class="field"><span>Categoría</span><select name="category">${options(CATEGORIES.map(cat => [cat.id, `${cat.emoji} ${cat.label}`]), item?.category || 'otros')}</select><small>Solo sirve para ordenar y buscar.</small></label>
+        <label class="field"><span>Categoría</span><select name="category">${options(CATEGORIES.map(cat => [cat.id, cat.label]), item?.category || 'otros')}</select><small>Solo sirve para ordenar y buscar.</small></label>
         ${item
           ? `<div class="field"><span>Lo que hay ahora</span><div class="hint" style="min-height:42px;display:flex;align-items:center">${stockText(stock, item)}</div><small>Cambia con una compra, una revisión o una corrección.</small></div>`
           : `<label class="field"><span>¿Cuánto tienes ahora mismo?</span><input name="opening" type="number" min="0" step="any" inputmode="decimal" value="0" placeholder="0"><small>Déjalo en 0 si no tienes nada.</small></label>`}

@@ -1,6 +1,11 @@
 node_modules/
 www/
 *.apk
+# El paquete que se sube a Play. Va firmado con la clave de la casa: quien lo
+# tenga tiene una versión publicable de la app a tu nombre.
+*.aab
+# Donde se dejan los paquetes listos para mandar. No es código.
+entrega/
 .DS_Store
 Thumbs.db
 

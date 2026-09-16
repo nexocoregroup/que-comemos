@@ -18,6 +18,7 @@
 
 import { effectiveBasket, etiquetaDeMomento, frecuenciaDe, lastStockReview, monthBounds, periodoCerrado, periodosDelMes, product, reabrirPeriodo, shoppingList, todayISO, ultimaCompra } from './model.js';
 import { button, cap, empty, esc, measure, monthName, niceDate, notice, shiftMonth } from './ui-kit.js';
+import { icono } from './icons.js';
 
 const hoy = todayISO();
 
@@ -110,9 +111,9 @@ function selectorDePeriodo(ctx, compra) {
     : monthName(compra.month);
   return `<div class="toolbar compra-periodo">
     <div class="inline">
-      ${button('‹', 'compra-mover', 'btn-secondary btn-small', 'data-delta="-1" aria-label="Mes anterior"')}
+      ${button(icono('izquierda', { tamano: 18 }), 'compra-mover', 'btn-secondary btn-small btn-flecha', 'data-delta="-1" aria-label="Mes anterior"')}
       <div class="strong compra-mes">${esc(rotulo)}</div>
-      ${button('›', 'compra-mover', 'btn-secondary btn-small', 'data-delta="1" aria-label="Mes siguiente"')}
+      ${button(icono('derecha', { tamano: 18 }), 'compra-mover', 'btn-secondary btn-small btn-flecha', 'data-delta="1" aria-label="Mes siguiente"')}
     </div>
     ${tramos.length > 1 ? `<div class="segmented">${tramos.map(([id, texto]) => `<button type="button" data-action="compra-tramo" data-tramo="${id}" class="${compra.tramo === id ? 'active' : ''}">${texto}</button>`).join('')}</div>` : ''}
   </div>
@@ -144,10 +145,10 @@ function listaPrincipal(ctx, faltan, origenes, lista) {
     const canastaVacia = ui.compra.base === 'casa' && !effectiveBasket(state, ui.compra.month).length;
     return `<div class="section-head"><div><h2>Lo que falta comprar</h2></div></div>
       ${canastaVacia
-        ? empty('🧺', 'Todavía no has dicho qué se compra en tu casa',
+        ? empty('canasta', 'Todavía no has dicho qué se compra en tu casa',
             'Se escribe una sola vez: los plátanos, el arroz, los huevos, el salami… Después, cada mes solo cambias lo diferente y la lista sale sola.',
             `${button('Organizar mi casa', 'setup-open', 'btn-primary')}${button('Escribirla a mano', 'navigate', 'btn-secondary', 'data-page="canasta"')}`)
-        : empty('✓', 'No falta nada', 'Con lo que hay en casa alcanza para este período. Si no cuadra, revisa cuánto queda de verdad.', button('Revisar lo que queda', 'open-new-review', 'btn-secondary'))}`;
+        : empty('visto', 'No falta nada', 'Con lo que hay en casa alcanza para este período. Si no cuadra, revisa cuánto queda de verdad.', button('Revisar lo que queda', 'open-new-review', 'btn-secondary'))}`;
   }
   return `<div class="section-head"><div><h2>Lo que falta comprar</h2><p>${esc(explicacionDeBase(ui.compra.base))}</p></div><span class="pill">${faltan.length} ${faltan.length === 1 ? 'alimento' : 'alimentos'}</span></div>
     <div class="card compra-lista">${faltan.map(linea => {
@@ -178,7 +179,7 @@ const explicacionDeBase = base => base === 'casa'
 // un paquete. Se pide aquí, cuando hace falta, y no en el primer día de uso.
 function avisoDeMedidas(state, lista) {
   const productos = [...new Set(lista.pending.map(item => item.productId))];
-  return `<div class="notice warn"><span>↔</span><div>
+  return `<div class="notice warn">${icono('aviso')}<div>
     <strong>${productos.length} ${productos.length === 1 ? 'alimento necesita' : 'alimentos necesitan'} una medida antes de poder calcularlos</strong>
     ${productos.slice(0, 4).map(id => {
       const item = product(state, id);
@@ -283,7 +284,7 @@ function bloqueDeCierre(ctx, compra, lista) {
 
   if (cierre) {
     const compradas = cierre.compras.reduce((suma, item) => suma + item.lines.length, 0);
-    return `<div class="notice cerrado"><span>🔒</span><div>
+    return `<div class="notice cerrado">${icono('candado')}<div>
       <strong>Este período está cerrado.</strong>
       Lo cerraste el ${esc(niceDate(cierre.closedAt, { day: 'numeric', month: 'long', year: 'numeric' }))} y lo que ves es <strong>exactamente lo que se calculó entonces</strong>: ${cierre.canasta.length} alimento(s) de canasta, ${cierre.excepciones.length} cambio(s) de ese mes, compra ${esc(cierre.frecuencia === 'quincenal' ? 'quincenal' : 'mensual')}, ${compradas} alimento(s) comprados. Cambiar tu canasta hoy no lo toca.
       <div class="inline" style="margin-top:10px">

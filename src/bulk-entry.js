@@ -28,6 +28,7 @@ import {
 } from './model.js';
 import { parseProductText } from './text-parse.js';
 import { button, esc, measure, monthName, notice, options, productDatalist, productField } from './ui-kit.js';
+import { icono } from './icons.js';
 
 // El dictado de una quincena cualquiera en una casa dominicana. Se usa de
 // marcador de posición y detrás del botón «Usar el ejemplo»: quien nunca ha
@@ -380,7 +381,7 @@ function bloqueDictado(ctx) {
   return `<div class="bulk-dictado">
     <button type="button" class="btn btn-secondary bulk-microfono" data-action="voz-abrir" data-destino="bulk"
       aria-label="Dictar o escribir lo que compraste">
-      <span aria-hidden="true">🎤</span><span>Dictar</span>
+      ${icono('microfono', { tamano: 18 })}<span>Dictar</span>
     </button>
     <p class="tiny muted">Dilo de corrido, con cantidades: «30 plátanos, 10 libras de arroz, 4 paquetes de salami». Puedes dictar en varias tandas: lo nuevo se añade a lo que ya está escrito.</p>
   </div>
@@ -458,7 +459,7 @@ function filaHTML(ctx, bulk, fila) {
     </td>
     <td class="bulk-celda-categoria">
       <label class="field"><span>Categoría</span>
-        <select name="categoria-${esc(fila.id)}" data-bulk-categoria>${options(CATEGORIES.map(item => [item.id, `${item.emoji} ${item.label}`]), fila.categoria)}</select>
+        <select name="categoria-${esc(fila.id)}" data-bulk-categoria>${options(CATEGORIES.map(item => [item.id, item.label]), fila.categoria)}</select>
       </label>
     </td>
     <td class="bulk-celda-accion">
