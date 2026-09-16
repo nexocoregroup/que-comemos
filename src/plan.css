@@ -195,6 +195,16 @@
 .radio-pill:has(input:checked) { background: var(--clay); border-color: var(--clay); color: #fff; }
 .radio-pill:has(input:focus-visible) { outline: 2px solid var(--clay-dark); outline-offset: 2px; }
 
+/* Una respuesta que no se elige porque no hay nada que elegir: unas fechas
+   sueltas solo pueden valer para su mes. Se enseña con la misma forma que las
+   demás para que se lea como una respuesta, y sin cursor de mano para que nadie
+   la toque esperando que cambie. */
+.radio-pill-fijo { cursor: default; margin: 0 0 10px; opacity: .85; }
+
+/* Las dos fechas de vigencia, lado a lado mientras quepan. */
+.rutina-vigencia { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+@media (max-width: 420px) { .rutina-vigencia { grid-template-columns: 1fr; } }
+
 /* La versión larga: cuando la opción necesita explicarse, la píldora no sirve. */
 .opcion-larga { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
 .radio-bloque {

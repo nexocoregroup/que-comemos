@@ -325,3 +325,48 @@ test('actualizar la app conserva los datos: es el mismo almacenamiento', () => {
   assert.equal(recuperado.manualItems.length, 2);
   assert.equal(inventoryNow(recuperado)['producto-1'], 4);
 });
+
+/* ── La vigencia de las rutinas ────────────────────────────────────────────
+
+   `desde` —desde qué día vale una regla— llegó después que las rutinas, así que
+   un respaldo de antes no lo trae. Leerlo como `undefined` funciona de
+   casualidad: es falsy y se comporta como «desde siempre». Descansar en una
+   casualidad es lo que hace que un día alguien escriba `rutina.desde.slice(0,7)`
+   y se caiga la pantalla, así que se escribe el `null` explícito. */
+
+const rutinaVieja = () => ({
+  version: SCHEMA_VERSION, seq: 3, demo: false,
+  products: [], people: [], recipes: [], plans: [], absences: [], opening: {},
+  purchases: [], reviews: [], corrections: [], manualItems: [],
+  habitualBasket: { lines: [], history: [], updatedAt: null },
+  closedPeriods: [],
+  mealRoutines: [
+    // Como se guardaba antes: sin `desde` en ninguna parte.
+    { id: 'rutina-1', kind: 'outside', recipeId: null, slots: ['cena'], weekdays: [5], weeks: null, scope: 'permanent', month: null, until: null, label: 'Viernes fuera', active: true },
+    // Y una escrita después, que sí lo trae.
+    { id: 'rutina-2', kind: 'outside', recipeId: null, slots: ['cena'], weekdays: [6], weeks: null, scope: 'permanent', month: null, desde: '2026-11-01', until: null, label: 'Sábados fuera', active: true }
+  ]
+});
+
+test('una rutina guardada antes de que existiera la vigencia sale con «desde» escrito', () => {
+  const salida = migrate(rutinaVieja());
+  assert.equal(salida.ok, true);
+  const [sin, con] = salida.state.mealRoutines;
+
+  assert.ok('desde' in sin, 'la que no lo traía tiene que salir con el campo escrito');
+  assert.equal(sin.desde, null, 'y en null, que es «desde siempre»');
+  assert.equal(con.desde, '2026-11-01', 'la que ya lo traía se queda como estaba');
+
+  // Y no se toca nada más de la regla: los días, el alcance y el nombre son
+  // decisiones de la casa y una migración no opina sobre ellas.
+  assert.deepEqual(sin.weekdays, [5]);
+  assert.equal(sin.scope, 'permanent');
+  assert.equal(sin.label, 'Viernes fuera');
+  assert.equal(sin.active, true);
+});
+
+test('convertir dos veces la misma rutina no la cambia la segunda vez', () => {
+  const una = migrate(rutinaVieja()).state;
+  const dos = migrate(una).state;
+  assert.deepEqual(dos.mealRoutines, una.mealRoutines);
+});

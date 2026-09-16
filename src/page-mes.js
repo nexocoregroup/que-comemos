@@ -675,6 +675,7 @@ export function modalRutina(ctx, extras = {}) {
   const tipo = editando?.kind || extras.kind || (receta ? 'recipe' : prefijo ? 'outside' : 'recipe');
   const hastaValor = editando?.until || '';
   const desdeValor = editando?.desde || '';
+  const sueloDeVigencia = [monthBounds(month).start, editando?.desde].filter(Boolean).sort()[0];
   // «Fechas concretas» entra directamente por la pestaña de días sueltos: quien
   // la eligió ya dijo que no quiere una costumbre, sino unos días. Editar una
   // rutina nunca entra por ahí: una rutina, por definición, no es días sueltos.
@@ -733,13 +734,17 @@ export function modalRutina(ctx, extras = {}) {
             <label class="radio-pill"><input type="radio" name="weeks" value="2,4" ${String(semanas) === '2,4' ? 'checked' : ''}><span>2.º y 4.º</span></label>
           </div>
           <p class="hint">«Primer y tercer domingo» son el primer y el tercer domingo que caen en el mes, sean las fechas que sean.</p>
+          ${/* El suelo de las dos fechas es el primer día del mes que se está
+               mirando, o el de la rutina si ya empezaba antes. Sin suelo se
+               podía escribir 2019 y guardar una regla que no hacía nada, y el
+               formulario se quedaba callado. */''}
           <div class="rutina-vigencia">
             <label class="field"><span>Desde el día (opcional)</span>
-              <input type="date" name="desde" value="${esc(desdeValor)}">
+              <input type="date" name="desde" value="${esc(desdeValor)}" min="${esc(sueloDeVigencia)}">
               <small>Para escribir hoy algo que empieza más adelante.</small>
             </label>
             <label class="field"><span>Hasta el día (opcional)</span>
-              <input type="date" name="hasta" value="${esc(hastaValor)}">
+              <input type="date" name="hasta" value="${esc(hastaValor)}" min="${esc(sueloDeVigencia)}">
               <small>Para «solo hasta que vuelva el niño de las vacaciones».</small>
             </label>
           </div>
@@ -752,10 +757,18 @@ export function modalRutina(ctx, extras = {}) {
         </div>
       </fieldset>
 
-      <fieldset class="field-group" data-alcance-rutina ${sueltos ? 'hidden' : ''}><legend>¿Hasta cuándo?</legend>
-        <div class="radio-fila">
+      <fieldset class="field-group"><legend>¿Hasta cuándo?</legend>
+        <div class="radio-fila" data-alcance-rutina ${sueltos ? 'hidden' : ''}>
           <label class="radio-pill"><input type="radio" name="scope" value="permanent" ${alcance === 'permanent' ? 'checked' : ''}><span>Desde ahora, todos los meses</span></label>
           <label class="radio-pill"><input type="radio" name="scope" value="month" ${alcance === 'month' ? 'checked' : ''}><span>Solo ${esc(monthName(month))}</span></label>
+        </div>
+        ${/* Antes este bloque entero desaparecía al elegir días sueltos, y una
+             pregunta que se esfuma deja pensando si se contestó sola o si se
+             perdió. Se queda, contestada y explicada, con el camino de vuelta a
+             la vista. */''}
+        <div data-alcance-sueltos ${sueltos ? '' : 'hidden'}>
+          <p class="radio-pill radio-pill-fijo"><span>Solo ${esc(monthName(month))}</span></p>
+          <p class="hint">Unas fechas concretas valen solo para este mes: el 4 y el 11 de ${esc(monthName(month).toLocaleLowerCase('es'))} no significan nada en el siguiente. Si lo que quieres es que se repita, vuelve a <strong>Días de la semana</strong>.</p>
         </div>
       </fieldset>
 
@@ -882,8 +895,10 @@ export const MES_ACTIONS = {
     form.querySelector('[data-dias-semana]').hidden = sueltos;
     form.querySelector('[data-dias-sueltos]').hidden = !sueltos;
     // Unas fechas concretas no pueden valer «todos los meses»: el 4 y el 11 de
-    // octubre no significan nada en noviembre.
+    // octubre no significan nada en noviembre. La pregunta no se esconde: se
+    // enseña ya contestada, con el porqué y el camino de vuelta.
     form.querySelector('[data-alcance-rutina]').hidden = sueltos;
+    form.querySelector('[data-alcance-sueltos]').hidden = !sueltos;
     for (const boton of el.parentElement.querySelectorAll('button')) boton.classList.toggle('active', boton === el);
   },
   'mes-salida-rapida': (el, ctx) => ctx.openModal('rutina', { month: ctx.ui.mes.month, atajo: el.dataset.atajo, kind: 'outside' }),
@@ -1119,7 +1134,13 @@ export const MES_FORMS = {
       tipo: 'rutina', month,
       titulo: `${describeRule(weekdays, weeks)}: ${tituloDeRutina(state, rutina).toLowerCase()}.`,
       detalle: [
-        `${resultado.creados.length} comida(s) ${editandoId ? 'al día' : 'puestas'} en ${monthName(month)}`,
+        // Editando se permite que el mes que se mira quede sin ninguna fecha
+        // —«los martes desde noviembre» es legítimo aunque octubre se quede
+        // vacío— pero no se puede dejar callado: un mes que no cambia nada
+        // después de guardar parece un guardado que falló.
+        !fechas.length
+          ? `En ${monthName(month)} no cae ningún día de esta regla${desde ? `, porque empieza el ${niceDate(desde, { day: 'numeric', month: 'long' })}` : ''}. La regla queda guardada y valdrá donde sí caiga`
+          : `${resultado.creados.length} comida(s) ${editandoId ? 'al día' : 'puestas'} en ${monthName(month)}`,
         resultado.saltados.length ? `${resultado.saltados.length} día(s) se dejaron como estaban` : '',
         liberadas ? `${liberadas} dejaron de seguir la rutina y se quedan donde estaban` : '',
         desde ? `Desde el ${niceDate(desde, { day: 'numeric', month: 'long' })}` : '',

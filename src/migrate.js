@@ -433,6 +433,17 @@ export function migrate(data) {
       return copia;
     });
   }
+  // Y una última por las rutinas. `desde` —desde qué día vale la regla— llegó
+  // después que ellas, así que las guardadas antes no lo traen. Leerlo como
+  // `undefined` funciona por casualidad, porque es falsy y se comporta como
+  // «desde siempre», pero descansar en una casualidad es lo que hace que un día
+  // alguien escriba `rutina.desde.slice(0, 7)` y se caiga la pantalla. Se
+  // escribe el `null` explícito, que es lo que la app guarda desde entonces.
+  if (Array.isArray(current.mealRoutines)) {
+    current.mealRoutines = current.mealRoutines.map(rutina => (
+      rutina && typeof rutina === 'object' && !('desde' in rutina) ? { ...rutina, desde: null } : rutina
+    ));
+  }
 
   return { ok: true, state: current, from, to: SCHEMA_VERSION, migrated: from < SCHEMA_VERSION, notes };
 }

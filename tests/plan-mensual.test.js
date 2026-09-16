@@ -477,3 +477,32 @@ test('editar sobre días ocupados pregunta antes, no después', () => {
   assert.ok(/modoEfectivo = window\.confirm\(/.test(codigo), 'la respuesta no decide el modo');
   assert.ok(/applyRoutine\(state, rutina\.id, month, \{ modo: modoEfectivo/.test(codigo), 'se pregunta y luego se aplica otro modo');
 });
+
+// El navegador esconde `[hidden]` con un `display:none` de su propia hoja, que
+// pierde contra cualquier regla nuestra que declare `display`. Un `.field`
+// (grid) o una `.radio-fila` (flex) con el atributo puesto se quedaba a la
+// vista, y con sus campos vivos: alguien podía marcar una opción que la
+// pantalla creía escondida y que sí llegaba al formulario.
+//
+// Pasó dos veces —el grosor de las ruedas y el alcance de una rutina de días
+// sueltos, que medía 96 píxeles con `hidden` puesto— y la segunda es la que
+// convierte un parche en una regla.
+test('«hidden» esconde de verdad, y no solo en las clases que se acordaron', () => {
+  const css = readFileSync(resolve(import.meta.dirname, '..', 'src', 'theme.css'), 'utf8');
+  assert.ok(/\[hidden\]\s*\{\s*display:\s*none\s*!important/.test(css),
+    'sin la regla general, cualquier clase con display propio vuelve a enseñar lo escondido');
+});
+
+// Y la pregunta del alcance ya no desaparece al elegir días sueltos: se queda
+// contestada y explicada. Una pregunta que se esfuma deja pensando si se
+// contestó sola o si se perdió.
+test('con días sueltos el alcance se enseña contestado, no se esconde entero', () => {
+  const codigo = readFileSync(resolve(import.meta.dirname, '..', 'src', 'page-mes.js'), 'utf8');
+  assert.ok(/data-alcance-sueltos/.test(codigo), 'falta el bloque que explica el alcance de unas fechas sueltas');
+  assert.ok(/form\.querySelector\('\[data-alcance-sueltos\]'\)\.hidden = !sueltos;/.test(codigo),
+    'el interruptor no enseña la explicación al cambiar de modo');
+  // Y las dos fechas de vigencia tienen suelo, para que nadie guarde una regla
+  // que no hace nada por haber escrito 2019.
+  assert.ok(/name="desde"[^>]*min="\$\{esc\(sueloDeVigencia\)\}"/.test(codigo), 'la fecha de inicio no tiene suelo');
+  assert.ok(/name="hasta"[^>]*min="\$\{esc\(sueloDeVigencia\)\}"/.test(codigo), 'la fecha final no tiene suelo');
+});

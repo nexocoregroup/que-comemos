@@ -55,11 +55,22 @@
 .more > summary:focus-visible { outline: 3px solid var(--clay); outline-offset: 2px; border-radius: 6px; }
 .more > p { margin: 0 0 12px; }
 
-/* El grosor de las ruedas aparece y desaparece según la unidad elegida, sin
-   volver a dibujar el formulario. Hace falta la regla porque .field declara
-   display grid, que gana por especificidad al display:none del atributo
-   hidden que trae el navegador. */
-.field[hidden] { display: none; }
+/* `hidden` tiene que esconder de verdad, siempre.
+   ────────────────────────────────────────────────────────────────────────────
+   El navegador esconde `[hidden]` con un `display:none` de su hoja de estilos,
+   que pierde contra cualquier regla nuestra que declare `display`. Así que un
+   `.field` (grid) o una `.radio-fila` (flex) con el atributo puesto se quedaba
+   a la vista —y, peor, con sus campos vivos: alguien podía marcar una opción
+   que la pantalla creía escondida y que sí llegaba al formulario—.
+
+   Esto pasó dos veces: primero con el grosor de las ruedas, que se parcheó con
+   una regla solo para `.field`, y después con el alcance de una rutina de días
+   sueltos, donde los radios seguían midiendo 96 píxeles con `hidden` puesto.
+   La segunda vez es la que convierte un parche en una regla.
+
+   Es de los pocos sitios donde `!important` está justificado: `hidden` no es
+   una sugerencia de estilo, es un hecho sobre el documento. */
+[hidden] { display: none !important; }
 .cut-option { display: grid; gap: 1px; line-height: 1.25; }
 .cut-option .tiny { white-space: nowrap; }
 
