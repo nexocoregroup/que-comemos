@@ -258,13 +258,5 @@
 .setup-persona.pendiente .list-row-title { color: var(--ink-muted); }
 .setup-persona.pendiente .list-row-sub { font-style: italic; }
 
-.setup-preparacion {
-  display: grid;
-  gap: 14px;
-  margin-bottom: 18px;
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: var(--surface);
-}
-.setup-preparacion .checks { gap: 8px; }
+.setup-preparaciones-anadir { display: flex; margin-bottom: 18px; }
+.setup-preparaciones-anadir .btn { width: 100%; }

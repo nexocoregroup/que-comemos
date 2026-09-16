@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 // Los dos pasos que le faltaban al asistente de entrada.
 //
@@ -54,11 +56,6 @@ const revisar = (html, donde) => {
   }
   assert.ok(!/\$\{/.test(html), `${donde} dejó una plantilla sin resolver`);
 };
-
-// Un formulario de mentira con las casillas que el paso de preparaciones lee.
-const formularioDeReceta = momentos => ({
-  querySelectorAll: selector => (selector === '[name="uses"]:checked' ? momentos.map(id => ({ value: id })) : [])
-});
 
 function almacenDeMentira() {
   const datos = new Map();
@@ -184,40 +181,61 @@ test('continuar desde las personas guarda el número tecleado, no solo el de los
 
 /* ── Paso 7: las comidas que se repiten ────────────────────────────────── */
 
-test('una preparación se escribe con el nombre y los momentos, y queda guardada de verdad', () => {
+test('el paso abre la ventana de siempre, no una versión recortada de ella', () => {
+  // El primer intento tenía aquí su propio formulario con el nombre y los
+  // momentos y nada más. Quien registraba su casa entera se quedaba sin poder
+  // decir qué lleva cada plato, cuánto rinde ni qué nota tiene para quien
+  // cocina —campos que sí salían al entrar por «Nueva preparación»—, y dos
+  // formularios de la misma cosa es una promesa rota justo donde más se nota.
   const ctx = contexto();
   ctx.ui.setup.paso = PASO.preparaciones;
-  SETUP_FORMS['setup-preparacion'](formularioDeReceta(['desayuno', 'cena']), new Map([['name', 'Mangú con salami']]), ctx);
-
-  assert.equal(ctx.state.recipes.length, 1);
-  assert.equal(ctx.state.recipes[0].name, 'Mangú con salami');
-  assert.deepEqual(ctx.state.recipes[0].uses, ['desayuno', 'cena']);
-  assert.deepEqual(ctx.state.recipes[0].items, [], 'los alimentos se añaden después, no aquí');
-  assert.ok(ctx.avisos.some(aviso => aviso.includes('Mangú con salami')));
-
   const html = renderSetup(ctx);
   revisar(html, 'paso de preparaciones');
-  assert.ok(html.includes('Mangú con salami'));
-  assert.ok(html.includes('Desayuno · Cena'), 'no dice en qué momentos se come');
+
+  assert.ok(html.includes('data-action="open-recipe"'), 'el paso no abre la ventana de siempre');
+  assert.ok(!/data-form="setup-preparacion"/.test(html), 'sigue habiendo un segundo formulario de preparación');
+  assert.equal(SETUP_FORMS['setup-preparacion'], undefined, 'quedó vivo el formulario recortado');
+  assert.ok(!html.includes('name="uses"'), 'el paso vuelve a pintar campos de la preparación por su cuenta');
 });
 
-test('sin nombre o sin momentos no se guarda nada, y se dice cuál de las dos falta', () => {
+test('la lista del paso enseña lo que la ventana completa deja escrito', () => {
   const ctx = contexto();
+  const arroz = addProduct(ctx.state, { name: 'Arroz', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
+  upsertRecipe(ctx.state, {
+    name: 'Locrio de pollo', uses: ['almuerzo', 'cena'],
+    items: [{ productId: arroz, quantity: 3, unit: 'lb' }], servings: 6, note: 'Dejar una parte para mañana'
+  });
+  upsertRecipe(ctx.state, { name: 'Mangú', uses: ['desayuno'], items: [], note: '' });
   ctx.ui.setup.paso = PASO.preparaciones;
+  const html = renderSetup(ctx);
+  revisar(html, 'paso con preparaciones');
 
-  SETUP_FORMS['setup-preparacion'](formularioDeReceta(['almuerzo']), new Map([['name', ' ']]), ctx);
-  assert.equal(ctx.state.recipes.length, 0);
-  assert.match(ctx.ui.setup.errorReceta, /nombre/i);
+  assert.ok(html.includes('Locrio de pollo'));
+  assert.ok(html.includes('Almuerzo · Cena'), 'no dice en qué momentos se come');
+  assert.ok(/1 alimento/.test(html), 'no dice cuántos alimentos lleva');
+  assert.ok(/rinde 6 porciones/.test(html), 'no dice cuánto rinde');
+  assert.ok(html.includes('con nota'), 'no dice que tiene nota para quien cocina');
+  // Y la que se quedó a medias lo dice, sin regañar: sirve igual para el
+  // calendario, lo único que no hace es sumar a la compra.
+  assert.ok(html.includes('sin alimentos todavía'));
+  assert.ok(/1 sin alimentos anotados/.test(html));
+  assert.ok(!/disabled/.test(html), 'nada puede quedar apagado por una preparación a medias');
+});
 
-  SETUP_FORMS['setup-preparacion'](formularioDeReceta([]), new Map([['name', 'Sancocho']]), ctx);
-  assert.equal(ctx.state.recipes.length, 0);
-  assert.match(ctx.ui.setup.errorReceta, /momentos/i);
-  assert.ok(ctx.ui.setup.errorReceta.includes('Sancocho'), 'el error no dice de cuál habla');
-
-  // Y con las dos cosas, entra.
-  SETUP_FORMS['setup-preparacion'](formularioDeReceta(['almuerzo']), new Map([['name', 'Sancocho']]), ctx);
-  assert.equal(ctx.state.recipes.length, 1);
-  assert.equal(ctx.ui.setup.errorReceta, '');
+test('la ventana de una preparación se puede encadenar para escribirlas de una sentada', () => {
+  // «Guardar y añadir otra»: la pantalla se comprueba aquí porque la ventana la
+  // dibuja app.js, que lee el documento al cargarse y no entra en las pruebas.
+  const codigo = readFileSync(resolve(import.meta.dirname, '..', 'src', 'app.js'), 'utf8');
+  assert.ok(/name="seguir" value="1"/.test(codigo), 'no hay forma de guardar y seguir escribiendo');
+  assert.ok(/Guardar y añadir otra/.test(codigo));
+  // Solo al crear una nueva: encadenar mientras se edita una que ya existe no
+  // significa nada.
+  assert.ok(/\$\{recipe \? '' : '<button class="btn btn-secondary" type="submit" name="seguir"/.test(codigo),
+    'el botón de encadenar sale también al editar una preparación que ya existe');
+  // Y al guardar, la ventana se queda abierta y en blanco.
+  assert.ok(/const seguir = data\.get\('seguir'\) === '1';/.test(codigo));
+  assert.ok(/ui\.modal = seguir \? \{ type: 'recipe', id: '' \} : null;/.test(codigo),
+    'guardar y seguir no deja la ventana abierta y vacía');
 });
 
 test('quitar una preparación pregunta antes, y avisa si está puesta en el calendario', () => {

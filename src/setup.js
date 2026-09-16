@@ -22,9 +22,9 @@
 
 import { RUBROS, SEED_PRODUCTS, categoriaDelRubro, rubroDeCategoria, rubroPorIndice, seedByRubro } from './catalog-seed.js';
 import {
-  FRECUENCIAS, MOMENTOS, UNITS, addProduct, deleteRecipe, etiquetaDeMomento, findSimilarProducts, frecuenciaDe, habitualLines,
+  FRECUENCIAS, UNITS, addProduct, deleteRecipe, etiquetaDeMomento, findSimilarProducts, frecuenciaDe, habitualLines,
   historialDeFrecuencia, personasActivas, ponerFrecuencia, ponerReparto, product, productByName, repartoDe,
-  setHabitualBasket, todayISO, upsertRecipe
+  setHabitualBasket, todayISO
 } from './model.js';
 // La ficha de una persona se dibuja en un solo sitio, y ese sitio es `hogar.js`.
 // Aquí solo se enseña el resumen de lo que ya está guardado y se abre esa misma
@@ -85,7 +85,6 @@ export const emptySetup = () => ({
   errorNuevo: '',
   frecuencia: null,   // 'mensual' | 'quincenal', se pregunta en el paso de la compra
   personas: null,     // cuántas comen en casa; null es «todavía no lo ha dicho»
-  errorReceta: '',
   guardados: 0
 });
 
@@ -129,7 +128,6 @@ export function avanceGuardado(state) {
   setup.anadiendo = false;
   setup.frecuencia = FRECUENCIAS.includes(setup.frecuencia) ? setup.frecuencia : null;
   setup.personas = Number(setup.personas) > 0 ? Math.min(20, Math.round(Number(setup.personas))) : null;
-  setup.errorReceta = '';
   return setup;
 }
 
@@ -592,11 +590,17 @@ function pasoPersonas(ctx, setup) {
    entrar ahí no había ninguna preparación que poner: el menú se pedía antes de
    que existiera nada con qué llenarlo. Es el orden al revés.
 
-   Aquí se escriben, y se escriben rápido: nombre y en qué momentos se comen. Lo
-   demás —los alimentos, las cantidades, la nota de quien cocina— se añade desde
-   «Editar», que abre la misma ventana de siempre. Con el nombre ya sirve para
-   llenar el calendario; sin alimentos lo único que no hace es aportar a la
-   compra, y eso lo dice la propia compra. */
+   Aquí se escriben. Y se escriben en la ventana de siempre —la misma que sale
+   desde «Nueva preparación»— y no en una versión recortada de ella: el primer
+   intento pedía solo el nombre y los momentos, y quien registraba su casa
+   entera se quedaba sin poder decir qué lleva cada plato, cuánto rinde ni qué
+   nota tiene para quien cocina. Dos formularios de la misma cosa es una
+   promesa rota en el sitio donde más se nota: cuando el segundo enseña campos
+   que el primero no tenía.
+
+   Encadenar es lo otro que hacía falta: «Guardar y añadir otra» deja la
+   ventana abierta y en blanco, para escribir las seis comidas de la casa de
+   una sentada. */
 
 function pasoPreparaciones(ctx, setup) {
   const { state } = ctx;
@@ -605,6 +609,9 @@ function pasoPreparaciones(ctx, setup) {
     <div class="list-row-main">
       <div class="list-row-title">${esc(receta.name)}</div>
       <div class="list-row-sub">${receta.uses.length ? esc(receta.uses.map(etiquetaDeMomento).join(' · ')) : 'Sin momentos: no saldrá en el calendario'}</div>
+      <div class="list-row-sub">${receta.items.length
+        ? `${receta.items.length} alimento${receta.items.length === 1 ? '' : 's'}`
+        : '<span class="muted">sin alimentos todavía</span>'}${receta.servings ? ` · rinde ${esc(String(receta.servings))} porcion${Number(receta.servings) === 1 ? '' : 'es'}` : ''}${receta.note ? ' · con nota' : ''}</div>
     </div>
     <div class="inline">
       ${button('Editar', 'open-recipe', 'btn-quiet btn-small', `data-id="${esc(receta.id)}"`)}
@@ -612,23 +619,16 @@ function pasoPreparaciones(ctx, setup) {
     </div>
   </div>`;
 
-  return `<p class="pantalla-intro">Escribe las comidas que se cocinan de costumbre en tu casa. Con el nombre y en qué momentos se comen ya basta: <strong>los alimentos y las cantidades se añaden después</strong>.</p>
+  const sinAlimentos = recetas.filter(receta => !receta.items.length).length;
+  return `<p class="pantalla-intro">Escribe las comidas que se cocinan de costumbre en tu casa: cómo se llama cada una, en qué momentos se come, qué lleva y en qué cantidades, cuánto rinde y la nota para quien cocina. <strong>Es la misma ventana de siempre</strong>, y con «Guardar y añadir otra» se escriben todas de una sentada.</p>
 
-    <form data-form="setup-preparacion" class="setup-preparacion">
-      <label class="field"><span>¿Cómo se llama?</span>
-        <input name="name" data-setup-receta required maxlength="60" autocomplete="off" placeholder="Ej. Mangú con salami"></label>
-      <div class="field">
-        <span>¿En cuáles momentos suelen comerla?</span>
-        <div class="checks">${MOMENTOS.map(momento =>
-          `<label class="check-chip"><input type="checkbox" name="uses" value="${momento.id}">${esc(momento.etiqueta)}</label>`).join('')}</div>
-      </div>
-      ${setup.errorReceta ? `<p class="hogar-error" role="alert">${esc(setup.errorReceta)}</p>` : ''}
-      <div class="inline"><button type="submit" class="btn btn-secondary">Añadir preparación</button></div>
-    </form>
+    <div class="setup-preparaciones-anadir">
+      ${button('+ Añadir una preparación', 'open-recipe', 'btn-primary btn-grande')}
+    </div>
 
     ${recetas.length
       ? `<div class="card">${recetas.map(fila).join('')}</div>
-         <p class="tiny muted">Una misma preparación puede estar en varios momentos: el mangú con salami suele ser desayuno y cena.</p>`
+         <p class="tiny muted">Una misma preparación puede estar en varios momentos: el mangú con salami suele ser desayuno y cena.${sinAlimentos ? ` Hay ${sinAlimentos} sin alimentos anotados: sirven igual para llenar el calendario, pero no suman a la compra hasta que digas qué llevan.` : ''}</p>`
       : notice('Todavía no has guardado ninguna.',
           'Sin preparaciones, el menú del mes empieza vacío y hay que escribir cada día a mano. Con dos o tres, el mes entero queda hecho.')}
 
@@ -1266,32 +1266,5 @@ export const SETUP_FORMS = {
     ctx.ui.setup.paso = saltarA(ctx.ui.setup, PASO.personas, 1);
     guardarAvance(ctx);
     ctx.render();
-  },
-
-  /* ── Paso 7: las comidas que se repiten ──────────────────────────────── */
-
-  // Nombre y momentos, y ya está guardada de verdad: no hay un borrador de
-  // preparaciones que pudiera perderse al salir. Los alimentos y las cantidades
-  // se añaden desde «Editar», que abre la ventana de siempre.
-  'setup-preparacion': (form, data, ctx) => {
-    const setup = ctx.ui.setup;
-    const nombre = String(data.get('name') || '').trim();
-    const momentos = [...form.querySelectorAll('[name="uses"]:checked')].map(input => input.value);
-    if (nombre.length < 2) {
-      setup.errorReceta = 'Escribe el nombre de la preparación.';
-      ctx.render();
-      document.querySelector('[data-setup-receta]')?.focus();
-      return;
-    }
-    if (!momentos.length) {
-      setup.errorReceta = `Marca en cuáles momentos se come «${nombre}».`;
-      ctx.render();
-      return;
-    }
-    setup.errorReceta = '';
-    upsertRecipe(ctx.state, { name: nombre, uses: momentos, items: [], note: '' });
-    guardarAvance(ctx);
-    ctx.commit(`«${nombre}» guardada. Puedes añadirle los alimentos cuando quieras.`);
-    document.querySelector('[data-setup-receta]')?.focus();
   }
 };

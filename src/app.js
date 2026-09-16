@@ -898,7 +898,10 @@ function renderModal() {
 
         <label class="field"><span>Nota para quien cocina (opcional)</span><textarea name="note" placeholder="Ej. guardar lo que sobre para el desayuno del día siguiente" autocapitalize="sentences" spellcheck="true" enterkeyhint="done">${esc(recipe?.note || '')}</textarea></label>
 
-        <div class="modal-actions"><button class="btn btn-primary" type="submit">Guardar</button></div>
+        <div class="modal-actions">
+          ${recipe ? '' : '<button class="btn btn-secondary" type="submit" name="seguir" value="1">Guardar y añadir otra</button>'}
+          <button class="btn btn-primary" type="submit">Guardar</button>
+        </div>
       </form>`, true);
   }
 
@@ -1701,11 +1704,16 @@ document.addEventListener('submit', async event => {
 
     if (kind === 'recipe') {
       const receta = upsertRecipe(state, { id: form.dataset.id, name: data.get('name'), uses: selected(form, 'uses'), servings: data.get('servings'), items: collectItems(form), note: data.get('note') });
-      ui.modal = null;
+      // «Guardar y añadir otra» deja la ventana abierta y en blanco. Quien está
+      // escribiendo de una sentada las seis comidas de su casa no quiere
+      // abrirla, cerrarla y volverla a abrir seis veces.
+      const seguir = data.get('seguir') === '1';
+      ui.modal = seguir ? { type: 'recipe', id: '' } : null;
       // Se guarda igual sin alimentos: la preparación ya sirve para llenar el
       // calendario. Lo único que no puede hacer es aportar a la compra, y eso
       // se dice en voz baja en vez de bloquear el guardado.
-      commit(receta.items.length ? 'Preparación guardada.' : 'Guardada. Cuando le añadas alimentos y cantidades podrá contar para la compra.');
+      const cola = seguir ? ' Escribe la siguiente.' : '';
+      commit((receta.items.length ? `«${receta.name}» guardada.` : `«${receta.name}» guardada. Cuando le añadas alimentos y cantidades podrá contar para la compra.`) + cola);
     }
     else if (kind === 'product') {
       const existente = product(state, form.dataset.id);
