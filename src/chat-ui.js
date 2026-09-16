@@ -492,10 +492,57 @@ function reconocerCambiarComida(texto, llano) {
   return { acciones: [{ action: 'cambiar_solo_esta_comida', arguments: { fecha: fechaEscrita(llano) || todayISO(), comida: encontrado[1] } }] };
 }
 
+/* ── Echarle algo a una preparación que ya existe ──────────────────────────
+
+   Dos formas, y las dos se oyen en una cocina:
+
+     «Al mangú con salami échale dos huevos.»
+     «Agrega dos huevos a la preparación mangú.»
+
+   La primera se reconoce por el orden —nombre, luego verbo con pronombre
+   pegado—, que en español no significa casi ninguna otra cosa. La segunda exige
+   la palabra «preparación», «receta» o «plato», porque sin ella «agrega dos
+   libras de arroz a mi canasta» entraría por aquí.
+
+   Va antes que el patrón de la canasta y por eso lleva la lista de palabras que
+   no puede tomar por el nombre de un plato. Sin esa lista, «a mi canasta
+   agrégale dos libras de arroz» se convertiría en una preparación llamada «mi
+   canasta», y el validador diría que no la encuentra en vez de hacer lo que se
+   pidió. */
+
+const NO_SON_PLATOS = /\b(?:canasta|lista|compra|mes|inventario|despensa|nevera)\b/;
+const VERBO_ECHAR = '(?:anade(?:le)?|agrega(?:le)?|echa(?:le)?|pon(?:le)?|sumale|ponerle)';
+
+function reconocerAgregarAPreparacion(texto, llano) {
+  const conNombreDelante = llano.match(new RegExp(`^(?:¿\\s*)?(?:a|al|a\\s+la)\\s+(?:la\\s+)?(?:preparacion|receta|plato)?\\s*(.+?)\\s+${VERBO_ECHAR}\\s+(.+)$`));
+  const conNombreDetras = llano.match(new RegExp(`^(?:¿\\s*)?${VERBO_ECHAR}\\s+(.+?)\\s+a\\s+(?:la\\s+|el\\s+)?(?:preparacion|receta|plato)\\s+(?:de\\s+)?(.+)$`));
+  const encontrado = conNombreDelante
+    ? { nombre: conNombreDelante[1], alimentos: conNombreDelante[2] }
+    : conNombreDetras ? { nombre: conNombreDetras[2], alimentos: conNombreDetras[1] } : null;
+  if (!encontrado) return null;
+  // El punto final de la frase se pega al nombre cuando el nombre va al final, y
+  // «mangu.» no encuentra a «Mangú».
+  encontrado.nombre = encontrado.nombre.replace(/[\s.,;:!?¡¿]+$/u, '');
+  if (!encontrado.nombre || NO_SON_PLATOS.test(encontrado.nombre)) return null;
+
+  // Sin cantidad también vale: «échale salami» es una frase entera. Lo que no
+  // vale es una fila sin nombre.
+  const alimentos = parseProductText(encontrado.alimentos).lines
+    .filter(fila => !fila.negated && fila.name.length > 1)
+    .map(fila => ({ producto: fila.name, cantidad: fila.quantity, unidad: fila.unit }));
+  if (!alimentos.length) return null;
+  // El nombre viaja sin tildes y da igual: quien resuelve la preparación
+  // compara por nombre normalizado, así que «mangu con salami» encuentra
+  // «Mangú con salami». Si no encuentra ninguna, lo dice y ofrece las que hay,
+  // que es lo que toca cuando no se está seguro.
+  return { acciones: [{ action: 'agregar_a_preparacion', arguments: { preparacion: encontrado.nombre, alimentos } }] };
+}
+
 const PATRONES = [
   reconocerMenu, reconocerExistencias, reconocerLista, reconocerAusencia, reconocerRestriccion,
   reconocerCopiarMes, reconocerCambiarComida, reconocerRutina,
-  reconocerRestante, reconocerQuitar, reconocerArchivar, reconocerCompra, reconocerCanasta
+  reconocerRestante, reconocerQuitar, reconocerArchivar, reconocerCompra,
+  reconocerAgregarAPreparacion, reconocerCanasta
 ];
 
 // Exportado por el panel a través de `enviar`: devuelve `{ acciones, duda }` o
@@ -601,7 +648,7 @@ function resumenLegible(acciones, resultado) {
 // el validador de acciones, no porque se le mande a nadie: ya no hay a quién.
 const CAMPOS = new Map(toolSchemas().map(herramienta => [herramienta.nombre, Object.keys(herramienta.parametros.properties)]));
 
-function ejecutar(ctx, acciones, requestId, confirmado = false) {
+function ejecutar(ctx, acciones, requestId, confirmado = false, texto = '') {
   const chat = chatDe(ctx);
   const seguras = acciones.filter(peticion => ACTION_NAMES.includes(peticion.action));
   if (!seguras.length) { decir(chat, 'app', 'Eso no es algo que esta app sepa hacer.'); ctx.render(); return; }
@@ -613,14 +660,14 @@ function ejecutar(ctx, acciones, requestId, confirmado = false) {
     // Lo sensible se enseña entero y en español antes de tocar nada. El mismo
     // requestId viaja con lo pendiente: es lo que impide que confirmar dos
     // veces registre la compra dos veces.
-    chat.pendiente = { tipo: 'confirmar', acciones: seguras, requestId, preview: resultado.preview || [], alcance: resultado.alcance || null };
+    chat.pendiente = { tipo: 'confirmar', acciones: seguras, requestId, texto, preview: resultado.preview || [], alcance: resultado.alcance || null };
     ctx.render();
     return;
   }
   const duda = resultado.questions?.[0];
   if (!resultado.ok && (duda || resultado.question)) {
     chat.pendiente = {
-      tipo: 'pregunta', acciones: seguras, requestId,
+      tipo: 'pregunta', acciones: seguras, requestId, texto,
       pregunta: duda?.pregunta || resultado.question,
       // Sin campo no hay forma de reintentar sola la respuesta, así que las
       // opciones se enseñan como texto y no como botones que no harían nada.
@@ -715,11 +762,11 @@ function enviar(ctx, texto, requestId) {
   const leido = interpretar(texto);
   if (leido) {
     if (leido.duda) {
-      chat.pendiente = { tipo: 'pregunta', acciones: leido.acciones, requestId, pregunta: leido.duda.pregunta, campo: leido.duda.campo, opciones: leido.duda.opciones };
+      chat.pendiente = { tipo: 'pregunta', acciones: leido.acciones, requestId, texto, pregunta: leido.duda.pregunta, campo: leido.duda.campo, opciones: leido.duda.opciones };
       ctx.render();
       return;
     }
-    ejecutar(ctx, leido.acciones, requestId);
+    ejecutar(ctx, leido.acciones, requestId, false, texto);
     return;
   }
   // No hay ningún sitio al que preguntar, y es a propósito: la app entiende lo
@@ -751,11 +798,16 @@ function dibujarMensaje(chat, mensaje, orden) {
 function dibujarPendiente(pendiente) {
   if (!pendiente) return '';
   if (pendiente.tipo === 'confirmar') {
+    // «Entendí lo siguiente» y no «¿lo hago?». La diferencia no es de cortesía:
+    // entre lo que alguien dice y lo que la app entendió hay un paso que nadie
+    // ve, y esta pantalla existe para enseñarlo. Lo que hay que revisar antes de
+    // decir que sí no es si quieres hacerlo, es si eso es lo que dijiste.
+    const cuantas = (pendiente.preview || []).length;
     return `<div class="chat-aparte chat-confirma">
-      <p class="chat-titulin">Esto cambia tus datos. ¿Lo hago?</p>
+      <p class="chat-titulin">Entendí lo siguiente${cuantas > 1 ? ` · ${cuantas} cosas` : ''}</p>
       ${dibujarAlcance(pendiente.alcance)}
       <ul class="chat-previa">${(pendiente.preview || []).map(linea => `<li>${esc(linea)}</li>`).join('')}</ul>
-      <div class="chat-botones">${button('Confirmar', 'chat-confirmar', 'btn-primary btn-small')}${button('Cancelar', 'chat-cancelar', 'btn-secondary btn-small')}</div></div>`;
+      <div class="chat-botones">${button('Confirmar', 'chat-confirmar', 'btn-primary btn-small')}${button('Corregir', 'chat-corregir', 'btn-secondary btn-small')}${button('Cancelar', 'chat-cancelar', 'btn-quiet btn-small')}</div></div>`;
   }
   const opciones = pendiente.opciones || [];
   // Una opción sirve para contestar si rellena un campo o si trae su propia
@@ -851,7 +903,22 @@ export const CHAT_ACTIONS = {
     if (pendiente?.tipo !== 'confirmar') return;
     guardarBorrador(ctx);
     chat.pendiente = null;
-    ejecutar(ctx, pendiente.acciones, pendiente.requestId, true);
+    ejecutar(ctx, pendiente.acciones, pendiente.requestId, true, pendiente.texto || '');
+  },
+  // Corregir no es cancelar. Cancelar es «no quería esto»; corregir es «casi, pero
+  // no». Devuelve la frase al campo tal como se dijo, para cambiarle lo que esté
+  // mal en vez de tener que dictarla entera otra vez. Quien dictó veinte palabras
+  // y vio una fecha equivocada no quiere volver a decir las veinte.
+  'chat-corregir': (el, ctx) => {
+    const chat = chatDe(ctx);
+    const pendiente = chat.pendiente;
+    if (pendiente?.tipo !== 'confirmar') return;
+    chat.pendiente = null;
+    chat.borrador = pendiente.texto || '';
+    decir(chat, 'app', pendiente.texto
+      ? 'No cambié nada. Te devolví la frase abajo: arréglale lo que haga falta y mándala otra vez.'
+      : 'No cambié nada. Escríbelo de nuevo con la corrección.');
+    ctx.render();
   },
   'chat-cancelar': (el, ctx) => {
     const chat = chatDe(ctx);
@@ -883,7 +950,7 @@ export const CHAT_ACTIONS = {
     decir(chat, 'persona', el.dataset.nombre || valor);
     // Se reutiliza el mismo requestId, pero sin dar por confirmado: una acción
     // sensible sigue teniendo que enseñarse antes de ejecutarse.
-    ejecutar(ctx, acciones, pendiente.requestId);
+    ejecutar(ctx, acciones, pendiente.requestId, false, pendiente.texto || '');
   },
   'chat-deshacer': (el, ctx) => {
     const chat = chatDe(ctx);
@@ -945,7 +1012,7 @@ export const CHAT_FORMS = {
       decir(chat, 'persona', texto);
       chat.pendiente = null;
       if (NIEGA.test(llano)) { decir(chat, 'app', 'Lo dejé como estaba: no cambié nada.'); ctx.render(); return; }
-      ejecutar(ctx, pendiente.acciones, pendiente.requestId, true);
+      ejecutar(ctx, pendiente.acciones, pendiente.requestId, true, pendiente.texto || '');
       return;
     }
     // Un mensaje nuevo reemplaza la duda anterior: dejarla viva confundiría

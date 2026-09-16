@@ -1556,6 +1556,16 @@ export const basisLabel = basis => ({ casa: 'mi canasta habitual', menu: 'el men
 
 export const PERIODOS_DE_CIERRE = ['mes', 'primera', 'segunda', 'fechas'];
 
+// El cierre que cubre una fecha, si lo hay.
+//
+// Un cierre guarda la fotografía de lo que pasó en ese período. Escribir dentro
+// de él después es cambiar el pasado sin que la fotografía se entere, y entonces
+// hay dos versiones del mismo mes y ninguna forma de saber cuál vale. Quien de
+// verdad necesite corregir algo de ahí puede reabrirlo; lo que no puede es
+// cambiarlo sin enterarse de que estaba cerrado.
+export const cierreQueCubre = (state, fecha) =>
+  (validDate(fecha) ? (state.closedPeriods || []).find(cierre => cierre.start <= fecha && fecha <= cierre.end) : null) || null;
+
 export const cierresDe = (state, month) =>
   (state.closedPeriods || []).filter(cierre => cierre.month === month).sort((a, b) => a.start.localeCompare(b.start));
 

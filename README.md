@@ -162,9 +162,13 @@ Planificar comidas no descuenta nada. La lista sugerida no cambia nada. Abrir un
 
 Es una comodidad, no un requisito: todo lo que hace se puede hacer a mano desde las pantallas. Entiende frases como «pon tortillas con jamón y queso todos los lunes, miércoles y viernes de desayuno», «este mes no comeremos en casa ningún domingo» o «quedan dos plátanos, diez huevos y media libra de queso».
 
-Antes de ejecutar **siempre** enseña lo que entendió, dice si el cambio es de una fecha, del mes o permanente, y muestra las fechas afectadas. Pide confirmación cuando el alcance es amplio, ejecuta solo acciones de una lista blanca, y ofrece **Deshacer**.
+Antes de tocar nada muestra una pantalla que dice **«Entendí lo siguiente»**: cada acción por separado, con sus cantidades, nombres y fechas reales, y una línea que dice hasta dónde llega —un día, un mes, o desde ahora y todos los meses— con los días concretos que toca. De ahí salen tres caminos: **Confirmar**, **Corregir** —que devuelve la frase al campo para arreglarle lo que esté mal, sin volver a dictarla entera— y **Cancelar**.
 
-Lo que no hace nunca: ejecutar código, escribir directamente en el almacenamiento, inventar alimentos o cantidades, cambiar rutinas permanentes en silencio, confundir «este mes» con «todos los meses», ni pisar comidas existentes sin confirmar.
+Se confirma **todo lo que cambia datos**, sin excepción. Antes se confirmaba solo lo amplio y el resto se hacía enseñando un «deshacer». Con el teclado delante eso casi funciona, porque quien escribe ve lo que escribió; dictando no, porque entre lo que alguien dice y lo que la app entendió hay un paso que nadie ve. Deshacer sirve para arrepentirse, no para enterarse. Consultar no cambia nada y por eso no se confirma.
+
+Lo que la frase no dijo se pregunta, y solo eso: «todos los viernes» no elige por su cuenta entre cuatro días y para siempre. Lo que la frase sí dijo no se vuelve a preguntar. Y las dudas que solo se descubren intentándolo —«ya tienes algo parecido», «no hay preparaciones de cena»— salen **antes** de la confirmación, porque descubrirlas después de que alguien diga que sí convierte la confirmación en un trámite que no significa nada.
+
+Lo que no hace nunca: ejecutar código, escribir directamente en el almacenamiento, inventar alimentos o cantidades, cambiar rutinas permanentes en silencio, confundir «este mes» con «todos los meses», pisar comidas existentes sin confirmar, ni **tocar un período ya cerrado** —eso se lee tal como quedó; para corregirlo hay que reabrirlo a mano desde Más → Historial—.
 
 ## Dictar: lo hace el teléfono
 

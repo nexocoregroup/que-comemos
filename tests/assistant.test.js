@@ -71,7 +71,7 @@ test('«solamente para octubre» habla de octubre y de nada más', () => {
   const peticion = leido.acciones[0];
   assert.match(peticion.arguments.mes, /-10$/, 'octubre, no el mes en curso');
   const mes = peticion.arguments.mes;
-  const result = runActions(state, leido.acciones);
+  const result = runActions(state, leido.acciones, { confirmed: true });
   assert.equal(result.ok, true);
   assert.equal(result.alcance.tipo, 'mes');
   // Lo que de verdad importa: la costumbre de la casa no se movió.
@@ -101,7 +101,7 @@ test('«desde ahora, todos los meses» entra en la canasta habitual y no deja un
 
 test('un cambio de octubre no aparece en noviembre', () => {
   const { state, arroz } = casa();
-  const result = pedir(state, 'cambiar_solo_este_mes', { mes: '2026-10', producto: 'Arroz', cantidad: 45, unidad: 'lb' });
+  const result = pedir(state, 'cambiar_solo_este_mes', { mes: '2026-10', producto: 'Arroz', cantidad: 45, unidad: 'lb' }, { confirmed: true });
   assert.equal(result.ok, true);
   assert.equal(effectiveBasket(state, '2026-10').find(line => line.productId === arroz).quantity, 45);
   assert.equal(effectiveBasket(state, '2026-11').find(line => line.productId === arroz).quantity, 30);
@@ -111,7 +111,7 @@ test('un cambio de octubre no aparece en noviembre', () => {
 
 test('quitar algo de un mes no se confunde con quitarlo de la costumbre', () => {
   const { state, atun } = casa();
-  const mes = pedir(state, 'quitar_solo_este_mes', { mes: '2026-10', producto: 'Atún' });
+  const mes = pedir(state, 'quitar_solo_este_mes', { mes: '2026-10', producto: 'Atún' }, { confirmed: true });
   assert.equal(mes.ok, true);
   assert.match(mes.summary, /Sigue en mi canasta habitual/);
   assert.ok(enHabitual(state, atun), 'sigue siendo parte del hábito');
@@ -234,7 +234,7 @@ test('«agrega ocho plátanos a la compra» propone la acción correcta y pide c
   const sinConfirmar = pedir(state, 'registrar_compra', { lineas: [{ producto: 'plátano maduro', cantidad: 8, unidad: 'unidad' }] });
   assert.equal(sinConfirmar.ok, false);
   assert.equal(sinConfirmar.needsConfirmation, true);
-  assert.match(sinConfirmar.preview[0], /8 unidad de Plátano maduro/);
+  assert.match(sinConfirmar.preview[0], /8 unidades de Plátano maduro/);
   assert.match(sinConfirmar.preview[0], /aumentará tus existencias/);
   assert.equal(inventoryNow(state)[platano], 8, 'mientras no se confirme, no se movió nada');
   const confirmado = pedir(state, 'registrar_compra', { lineas: [{ producto: 'plátano maduro', cantidad: 8, unidad: 'unidad' }] }, { confirmed: true });
@@ -346,13 +346,13 @@ test('crear un alimento que ya existe casi igual pregunta en vez de duplicarlo',
   assert.equal(result.options[0].nombre, 'Plátano maduro');
   assert.equal(state.products.length, 6, 'no se creó nada');
   // Uno que de verdad es nuevo sí entra.
-  assert.equal(pedir(state, 'crear_producto', { nombre: 'Yuca', unidad: 'lb' }).ok, true);
+  assert.equal(pedir(state, 'crear_producto', { nombre: 'Yuca', unidad: 'lb' }, { confirmed: true }).ok, true);
   assert.equal(state.products.length, 7);
 });
 
 test('una restricción de una persona no se bloquea porque el alimento aún no exista', () => {
   const { state } = casa();
-  const result = pedir(state, 'agregar_restriccion', { persona: 'Sofía', alimento: 'Maní' });
+  const result = pedir(state, 'agregar_restriccion', { persona: 'Sofía', alimento: 'Maní' }, { confirmed: true });
   assert.equal(result.ok, true);
   assert.equal(result.results[0].result.enlazado, false);
   assert.deepEqual(state.people[0].restricciones, [{ productId: null, texto: 'Maní', motivo: null }]);
