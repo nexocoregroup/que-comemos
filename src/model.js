@@ -332,23 +332,27 @@ export function setEquivalence(state, productId, unit, factor) {
 
 export function habitualLines(state) { return state.habitualBasket.lines; }
 
-/* ── Desde qué mes cuenta una línea de la canasta ──────────────────────────
+/* ── Lo que una línea hereda de la que ya estaba ───────────────────────────
 
-   Añadir cangrejo hoy quiere decir que esta casa come cangrejo desde hoy, no
-   que lo comiera en junio. Sin fecha, una línea nueva aparecía hacia atrás en
-   todos los meses ya pasados: junio, julio y agosto se ponían a comprar
-   cangrejo solos, y la compra de un mes que ya se hizo decía otra cosa de la
-   que dijo el día que se hizo.
+   La pantalla de la canasta solo pinta la cantidad y la unidad de cada
+   alimento. Al pulsar Guardar reenvía todas sus líneas —también las que nadie
+   ha tocado— sin fecha de vigencia y sin prioridad, y tomárselo al pie de la
+   letra borraba las dos cosas por haber corregido unas libras de arroz.
 
-   La regla es una y vale para los seis sitios desde los que algo entra en la
-   canasta —la pantalla de la canasta, la ficha del alimento, el dictado, el
-   asistente, el cambio del mes y el propio asistente de entrada—:
+   Así que lo que no venga escrito se hereda de la línea que ya estaba, y esta
+   es la única regla; vale para los seis sitios desde los que algo entra en la
+   canasta: la pantalla de la canasta, la ficha del alimento, el dictado, el
+   asistente, los cambios del mes y el asistente de entrada.
+
+   La fecha, además, decide qué meses ven el alimento. Añadir cangrejo hoy
+   quiere decir que esta casa come cangrejo desde hoy, no que lo comiera en
+   junio; sin fecha, una línea nueva aparecía hacia atrás en todos los meses ya
+   pasados, y la compra de un mes que ya se hizo decía otra cosa de la que dijo
+   el día que se hizo. Por eso:
 
     · La fecha escrita manda. Es alguien diciendo explícitamente desde cuándo,
       como hace «Añadir a mi canasta base».
     · Una línea que ya estaba conserva la suya, aunque sea «desde siempre».
-      Guardar la pantalla de la canasta reenvía todas las líneas sin fecha, y
-      volver a fecharlas hoy vaciaría de golpe cada mes anterior.
     · Una línea nueva nace fechada en el mes en curso.
 
    Las canastas escritas antes de esto siguen sin fecha, que es «desde siempre»,
@@ -357,10 +361,12 @@ export function habitualLines(state) { return state.habitualBasket.lines; }
 
 const mesEnCurso = () => todayISO().slice(0, 7);
 
-function vigenciaDe(state, productId, escrita) {
-  if (validMonth(escrita)) return escrita;
+function heredaDeLaCanasta(state, productId, { desde, priority }) {
   const anterior = state.habitualBasket.lines.find(line => line.productId === productId);
-  return anterior ? anterior.desde ?? null : mesEnCurso();
+  return {
+    desde: validMonth(desde) ? desde : (anterior ? anterior.desde ?? null : mesEnCurso()),
+    priority: PRIORITIES.includes(priority) ? priority : (anterior?.priority || 'frecuente')
+  };
 }
 
 function normalizeBasketLines(state, lines, { origin = 'canasta' } = {}) {
@@ -373,7 +379,7 @@ function normalizeBasketLines(state, lines, { origin = 'canasta' } = {}) {
       id: line.id, existing, name,
       quantity: optionalQuantity(line.quantity),
       unit: line.unit,
-      priority: PRIORITIES.includes(line.priority) ? line.priority : 'frecuente',
+      priority: line.priority,
       desde: line.desde
     };
   });
@@ -384,7 +390,7 @@ function normalizeBasketLines(state, lines, { origin = 'canasta' } = {}) {
     const key = normalizeName(row.name);
     const item = row.existing || nuevos.get(key) || addProduct(state, { name: row.name, controlUnit: row.unit, purchaseUnit: row.unit, origin });
     if (!row.existing && key) nuevos.set(key, item);
-    return { id: row.id || nextId(state, 'canasta'), productId: item.id, quantity: row.quantity, unit: row.unit, priority: row.priority, desde: vigenciaDe(state, item.id, row.desde) };
+    return { id: row.id || nextId(state, 'canasta'), productId: item.id, quantity: row.quantity, unit: row.unit, ...heredaDeLaCanasta(state, item.id, row) };
   });
 }
 
@@ -409,10 +415,9 @@ function writeHabitualLine(state, { productId, quantity: amount, unit, priority,
   const line = {
     id: index >= 0 ? lines[index].id : nextId(state, 'canasta'),
     productId, quantity: amount, unit,
-    priority: PRIORITIES.includes(priority) ? priority : lines[index]?.priority || 'frecuente',
     // Corregir la cantidad del arroz no puede cambiar desde cuándo se compra
-    // arroz en esta casa.
-    desde: vigenciaDe(state, productId, desde)
+    // arroz en esta casa, ni degradar lo que estaba marcado como obligatorio.
+    ...heredaDeLaCanasta(state, productId, { desde, priority })
   };
   if (index >= 0) lines[index] = line; else lines.push(line);
   state.habitualBasket.updatedAt = todayISO();
