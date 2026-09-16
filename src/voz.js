@@ -34,6 +34,7 @@
 
 import { abrirAjustesDelTelefono, avisoDeVoz, cancelarDictado, capacidad, comprobarDictado, dictar, pararDictado } from './device.js';
 import { button, esc } from './ui-kit.js';
+import { icono } from './icons.js';
 
 /* ── Lo que este teléfono ha demostrado ────────────────────────────────────
 
@@ -173,7 +174,7 @@ const trabajando = voz => voz.estado === 'preparando' || voz.estado === 'escucha
 export function botonDeVoz(ctx, destino, { etiqueta = 'Hablar o escribir' } = {}) {
   if (activo(ctx, destino)) return '';
   return `<button type="button" class="voz-abrir" data-action="voz-abrir" data-destino="${esc(destino)}"
-    aria-label="${esc(etiqueta)}" title="${esc(etiqueta)}">🎤</button>`;
+    aria-label="${esc(etiqueta)}" title="${esc(etiqueta)}">${icono('microfono', { tamano: 20 })}</button>`;
 }
 
 /* ── El panel ──────────────────────────────────────────────────────────────
@@ -265,7 +266,7 @@ function dibujarBotones(voz, motor, rendida) {
       ? button('Probar otra vez el micrófono de la app', 'voz-hablar', 'btn-quiet btn-small')
       : voz.estado === 'fallo'
         ? button('Intentar nuevamente', 'voz-hablar', 'btn-secondary')
-        : button('🎤 Hablar', 'voz-hablar', 'btn-secondary');
+        : button(`${icono('microfono', { tamano: 17 })}Hablar`, 'voz-hablar', 'btn-secondary');
 
   // Tras un fallo, «Escribir en su lugar» quita el recuadro rojo y deja el
   // cursor dentro del cuadro. No es el mismo botón de antes disfrazado: ahí

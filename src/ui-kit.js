@@ -6,6 +6,8 @@
 // dos versiones de `esc` es la forma más fácil de que a una se le olvide escapar
 // algo. Ninguna de estas funciones sabe nada del estado: reciben lo que pintan.
 
+import { icono } from './icons.js';
+
 export const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 export const fmt = value => new Intl.NumberFormat('es-DO', { maximumFractionDigits: 3 }).format(Number(value || 0));
 export const cap = value => String(value || '').charAt(0).toUpperCase() + String(value || '').slice(1);
@@ -22,9 +24,17 @@ export const unitText = (unit, amount) => (amount > 0 && amount <= 1 ? unit : PL
 export const measure = (amount, unit) => `${fmt(amount)} ${esc(unitText(unit, amount))}`;
 
 export const button = (label, action, cls = 'btn-secondary', attrs = '') => `<button type="button" class="btn ${cls}" data-action="${action}" ${attrs}>${label}</button>`;
-export const notice = (title, detail, tone = '') => `<div class="notice ${tone}"><span>✦</span><div><strong>${title}</strong>${detail ? `<span>${detail}</span>` : ''}</div></div>`;
-export const empty = (emoji, title, text, action = '') => `<div class="empty"><span class="emoji">${emoji}</span><h3>${title}</h3><p>${text}</p>${action}</div>`;
-export const modal = (title, subtitle, body, wide = false) => `<div class="modal-overlay" data-overlay><div class="modal ${wide ? 'modal-wide' : ''}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="modal-head"><div><h2>${esc(title)}</h2>${subtitle ? `<p>${esc(subtitle)}</p>` : ''}</div><button type="button" class="icon-btn" data-action="close-modal" aria-label="Cerrar">×</button></div>${body}</div></div>`;
+
+// El dibujo de un aviso depende de su tono. Antes los tres —el informativo, el
+// de cuidado y el de error— enseñaban la misma estrellita, que es lo mismo que
+// no enseñar nada: si el icono no cambia, no informa.
+const ICONO_DE_TONO = { warn: 'aviso', error: 'aviso' };
+export const notice = (title, detail, tone = '') => `<div class="notice ${tone}">${icono(ICONO_DE_TONO[tone] || 'chispa')}<div><strong>${title}</strong>${detail ? `<span>${detail}</span>` : ''}</div></div>`;
+
+// `dibujo` es el nombre de un icono de icons.js, no un emoji. Es grande porque
+// en una pantalla vacía el dibujo es lo único que hay antes del texto.
+export const empty = (dibujo, title, text, action = '') => `<div class="empty"><span class="empty-ico">${icono(dibujo, { tamano: 34 })}</span><h3>${title}</h3><p>${text}</p>${action}</div>`;
+export const modal = (title, subtitle, body, wide = false) => `<div class="modal-overlay" data-overlay><div class="modal ${wide ? 'modal-wide' : ''}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="modal-head"><div><h2>${esc(title)}</h2>${subtitle ? `<p>${esc(subtitle)}</p>` : ''}</div><button type="button" class="icon-btn" data-action="close-modal" aria-label="Cerrar">${icono('cerrar', { tamano: 18 })}</button></div>${body}</div></div>`;
 export const options = (values, selected, placeholder = '') => `${placeholder ? `<option value="">${placeholder}</option>` : ''}${values.map(([value, label]) => `<option value="${esc(value)}" ${String(value) === String(selected) ? 'selected' : ''}>${esc(label)}</option>`).join('')}`;
 
 // El buscador de alimentos. Un `input` con `datalist` en vez de un `select`

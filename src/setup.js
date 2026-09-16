@@ -35,6 +35,7 @@ import { datesForRule, describeRule, monthProgress, routinesFor } from './routin
 import { normalizeName } from './text-parse.js';
 import { cancelarDictado } from './device.js';
 import { button, esc, monthName, notice, options } from './ui-kit.js';
+import { icono, iconoDeCategoria } from './icons.js';
 
 // Los pasos se llaman por su nombre y no por su número. Los números cambian
 // cada vez que se añade uno en medio, y un `setup.paso === 4` repartido por el
@@ -213,7 +214,7 @@ function pantallaDeRubro(setup) {
   const ultimo = setup.rubro >= RUBROS.length - 1;
 
   return `<p class="setup-rubro" role="status" aria-live="polite">
-      <span class="setup-rubro-emoji" aria-hidden="true">${rubro.emoji}</span>
+      <span class="setup-rubro-emoji">${iconoDeCategoria(rubro.id, { tamano: 22 })}</span>
       Categoría ${setup.rubro + 1} de ${RUBROS.length} — <strong>${esc(rubro.titulo)}</strong>
     </p>
     <div class="progress setup-rubro-progreso"><span style="width:${Math.round((setup.rubro + 1) / RUBROS.length * 100)}%"></span></div>
@@ -237,7 +238,7 @@ function pantallaDeRubro(setup) {
       ${setup.anadiendo
         ? ventanitaDeAnadir(setup, rubro)
         : `<button type="button" class="enlace" data-action="setup-falta">¿No encuentras un alimento? Añadirlo</button>
-           <button type="button" class="enlace" data-action="open-bulk" data-destino="habitual">🗣️ Decirlos de corrido</button>`}
+           <button type="button" class="enlace" data-action="open-bulk" data-destino="habitual">${icono('microfono', { tamano: 16 })}Decirlos de corrido</button>`}
     </div>
 
     <div class="modal-actions setup-actions">

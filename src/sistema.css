@@ -1,0 +1,380 @@
+/* El sistema: medidas, aire y las correcciones de alineación.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Esta hoja se carga la última y hace tres cosas, en este orden:
+ *
+ *   1. Declara las medidas del sistema —aire, curvas, sombras, tamaño de los
+ *      iconos— como variables. Antes cada archivo escribía sus propios números
+ *      a mano: hay tarjetas de 20 px de curva y otras de 14, botones con 11 px
+ *      de aire arriba y otros con 15, y nueve sombras distintas que nadie
+ *      eligió, solo se fueron escribiendo. Los colores ya vivían así en
+ *      theme.css y eso funcionó bien; esto hace lo mismo con lo demás.
+ *
+ *   2. Da estilo base a los iconos de icons.js.
+ *
+ *   3. Corrige lo que estaba mal medido. Cada corrección lleva escrito qué
+ *      pasaba, porque un número suelto no explica por qué no puede volver.
+ *
+ * Por qué una hoja aparte y no editar las otras:
+ * ────────────────────────────────────────────────────────────────────────────
+ * styles.css está minificada en una sola línea y todavía trae la paleta verde
+ * anterior; theme.css la repinta encima. Ese reparto —estructura abajo,
+ * identidad encima— ya existía y funciona. Meter mano dentro de una línea de
+ * catorce mil caracteres para cambiar un `padding` es donde se rompen las
+ * cosas sin que nadie se entere. Así que la estructura se queda donde está y
+ * las medidas viven aquí, que es donde se pueden leer.
+ *
+ * Regla para quien siga: las correcciones de abajo son específicas a propósito
+ * —`#app > .cuenta`, no `.cuenta`— para no pisar de rebote pantallas que ya
+ * estaban bien. Si algo necesita una regla general, va en el bloque de medidas,
+ * no aquí abajo. */
+
+:root {
+  /* ── Aire ────────────────────────────────────────────────────────────────
+     Escala de 4 en 4. No es decoración: cuando todas las separaciones salen de
+     la misma escala, las pantallas se alinean solas aunque las haya escrito
+     gente distinta en meses distintos. */
+  --aire-1: 4px;
+  --aire-2: 8px;
+  --aire-3: 12px;
+  --aire-4: 16px;
+  --aire-5: 20px;
+  --aire-6: 24px;
+  --aire-7: 32px;
+  --aire-8: 40px;
+  --aire-9: 56px;
+
+  /* El margen lateral de una pantalla. Es el que decide si la aplicación se ve
+     apretada o no, así que tiene nombre propio en vez de repetirse a mano. */
+  --margen-pantalla: 20px;
+
+  /* ── Curvas ──────────────────────────────────────────────────────────────
+     Cuatro, no nueve. La regla es que la curva crece con el tamaño de la caja:
+     un control pequeño con la curva de una tarjeta parece una pastilla. */
+  --curva-1: 10px;   /* controles menudos: etiquetas, fichas */
+  --curva-2: 13px;   /* botones y campos */
+  --curva-3: 18px;   /* tarjetas en el teléfono */
+  --curva-4: 22px;   /* tarjetas en pantalla grande, modales */
+  --curva-llena: 999px;
+
+  /* ── Sombras ─────────────────────────────────────────────────────────────
+     Cuatro alturas, y todas en el marrón de la marca en vez de negro. Una
+     sombra negra sobre un fondo crema se ve gris sucio; con el marrón de la
+     tinta, la sombra parece parte del mismo papel.
+     Cada una lleva dos capas: una corta y cerrada que asienta el objeto, y una
+     larga y suave que lo levanta. Con una sola capa el borde se ve duro. */
+  --sombra-1: 0 1px 2px #3d2d1d0d, 0 2px 8px #3d2d1d0a;
+  --sombra-2: 0 2px 4px #3d2d1d0f, 0 8px 22px #3d2d1d14;
+  --sombra-3: 0 4px 10px #3d2d1d14, 0 16px 38px #3d2d1d1f;
+  --sombra-4: 0 10px 26px #30241c1f, 0 32px 74px #30241c38;
+
+  /* ── Lo que se toca ──────────────────────────────────────────────────────
+     44 px es la medida de referencia; 40 es el mínimo que admitimos en filas
+     densas, donde subir a 44 parte la cuadrícula. Por debajo de 40 no hay
+     ningún caso: un botón de 35 px en un teléfono se falla al tocarlo, y
+     fallar un botón en una lista de compra es tocar el de al lado. */
+  --toque: 44px;
+  --toque-chico: 40px;
+
+  /* ── Iconos ──────────────────────────────────────────────────────────── */
+  --ico-1: 16px;
+  --ico-2: 20px;
+  --ico-3: 24px;
+}
+
+/* ── Los iconos ───────────────────────────────────────────────────────────
+   `display: block` no es cosmético: un SVG en línea se sienta sobre la línea
+   base del texto como si fuera una letra, y deja tres o cuatro píxeles de aire
+   muerto debajo que descuadran cualquier fila. `flex-shrink: 0` evita que una
+   fila estrecha aplaste el dibujo a un óvalo. */
+.ico {
+  display: block;
+  flex-shrink: 0;
+  /* El trazo no engorda cuando el icono se pide más grande. */
+  vector-effect: non-scaling-stroke;
+}
+
+/* Un icono dentro de un botón se alinea con la palabra, no con la caja. */
+.btn .ico { margin-block: -2px; }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CORRECCIONES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. La portada de la cuenta no tenía margen lateral ───────────────────
+   Era el fallo más visible de la aplicación y tiene una causa concreta.
+   Todas las pantallas a pantalla completa traen su propio margen: `.main` pone
+   16 px en el teléfono y `.welcome-screen` pone 20. La portada de la cuenta no
+   pasa por ninguna de las dos —se pinta directamente dentro de `#app`, porque
+   no es una página de la aplicación sino la puerta de antes— y su única regla
+   decía `padding: 8px 0 40px`. Ese `0` del medio es todo el fallo: en un
+   teléfono de 375 px, con `max-width: 420px` sin llegar a aplicarse nunca, los
+   botones salían de borde a borde pegados al cristal.
+
+   El selector es `#app > .cuenta` y no `.cuenta` a secas a propósito: la misma
+   clase se usa dentro de la aplicación, ya con sesión, y ahí vive dentro de
+   `.main`, que ya pone su margen. Con `.cuenta` a secas esa pantalla acabaría
+   con el margen dos veces. */
+#app > .cuenta {
+  width: 100%;
+  padding: var(--aire-6) var(--margen-pantalla)
+           calc(var(--aire-8) + env(safe-area-inset-bottom));
+  gap: var(--aire-5);
+
+  /* Y ya que es una pantalla entera, que se centre en ella.
+     `align-content: center` con `min-height` es seguro: la caja nunca es más
+     baja que su contenido, así que cuando el formulario es largo simplemente no
+     sobra sitio que repartir y todo queda arriba, como debe. No hay forma de
+     que el centrado empuje el principio del formulario fuera de la pantalla. */
+  min-height: 100vh;
+  min-height: 100dvh;
+  align-content: center;
+}
+
+/* Los botones de la portada, más separados entre sí y con cuerpo de botón
+   principal. Cuatro botones seguidos a 10 px se leen como una lista; a 12 y con
+   52 px de alto se leen como cuatro decisiones. */
+#app > .cuenta .cuenta-acciones { gap: var(--aire-3); }
+#app > .cuenta .cuenta-acciones .btn { min-height: 52px; border-radius: var(--curva-2); }
+
+/* El botón sin cuenta no es un botón menor escondido: es la salida legítima de
+   quien no quiere registrarse, y tenía 16 px de alto. */
+#app > .cuenta .cuenta-sin .btn {
+  min-height: var(--toque);
+  padding-inline: var(--aire-4);
+  border-radius: var(--curva-2);
+}
+#app > .cuenta .cuenta-sin { padding-top: var(--aire-6); gap: var(--aire-3); }
+#app > .cuenta .cuenta-marca { padding-block: var(--aire-2) var(--aire-4); gap: var(--aire-3); }
+
+
+/* ── 2. Lo que se toca era demasiado pequeño ──────────────────────────────
+   `.btn-small` medía 35 px de alto. Está por debajo de lo que recomienda
+   cualquier guía —44 en iOS, 48 en Android— y se nota justo donde peor cae:
+   «Quitar» al lado de «Aplicar» en las rutinas, y «Editar» al lado de
+   «Aplicar». Fallar ahí no es un fastidio, es aplicar una rutina que no
+   querías. Subirlo a 40 los separa sin descuadrar las filas densas, que es lo
+   que pasaba al subirlo a 44. */
+.btn-small {
+  min-height: var(--toque-chico);
+  padding: var(--aire-2) var(--aire-3);
+  border-radius: var(--curva-1);
+}
+
+/* El botón de menú del teléfono medía 36×36. */
+.mobile-brand .menu-toggle { width: var(--toque); height: var(--toque); border-radius: var(--curva-2); }
+
+/* Los enlaces dentro de una frase medían 16 px de alto: la altura de la letra.
+   No se pueden agrandar sin romper el renglón —son botones que viven dentro de
+   un párrafo y tienen que seguir leyéndose como parte de la frase—, así que lo
+   que crece es la zona que responde al dedo, no la caja que ocupa. Seis píxeles
+   arriba y abajo lo dejan en 28, y el texto no se mueve ni un píxel.
+
+   Seis y no diez porque hay sitios donde dos de estos enlaces van en renglones
+   seguidos, a 14 px el uno del otro: con diez, las dos zonas se solapaban en el
+   medio y el de abajo se quedaba con los toques del de arriba. Un botón que
+   hace otra cosa es peor que un botón pequeño. Con seis queda siempre una
+   franja muerta entre los dos, que es lo correcto. */
+.enlace { position: relative; }
+.enlace::after {
+  content: "";
+  position: absolute;
+  inset: -6px -6px;
+}
+
+
+/* ── 3. El botón + tapaba lo que había debajo ─────────────────────────────
+   El «+» flota sobre el contenido, que es lo que tiene que hacer. El problema
+   era que no se leía como que flotaba: un círculo terracota sobre una tarjeta
+   blanca, con una sombra suave, parece un botón chocando con otro y no un botón
+   por encima. El anillo del color del fondo lo despega. */
+.fab {
+  box-shadow: 0 0 0 4px var(--canvas), var(--sombra-3);
+}
+.fab:focus-visible { outline-offset: 5px; }
+
+/* Y la última fila de una lista nunca queda debajo de él. La barra de abajo
+   mide 66, el botón llega hasta 130 contando su hueco: 150 deja aire de sobra
+   por debajo de lo último que se puede tocar. */
+@media (max-width: 700px) {
+  .main { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
+}
+
+
+/* ── 4. Aire ──────────────────────────────────────────────────────────────
+   El margen lateral del teléfono era 16 px. A 20 la aplicación deja de verse
+   apretada contra el cristal, y sigue habiendo 335 px de contenido en el
+   teléfono más estrecho que soportamos. */
+@media (max-width: 700px) {
+  .main { padding-left: var(--margen-pantalla); padding-right: var(--margen-pantalla); }
+
+  /* Los calendarios se salen del margen a propósito para poder deslizarse de
+     lado; si cambia el margen, tiene que cambiar su compensación o aparece una
+     franja en blanco a la derecha. */
+  .calendar-week, .calendar-month {
+    margin-right: calc(var(--margen-pantalla) * -1);
+    padding-right: var(--margen-pantalla);
+  }
+
+  /* Las tarjetas respiran un punto más y la curva sube con ellas. */
+  .card { padding: var(--aire-5); border-radius: var(--curva-3); }
+  .topline { margin-bottom: var(--aire-6); }
+}
+
+/* Las filas del menú «Más» estaban a 15 px del borde de su tarjeta mientras el
+   texto de al lado estaba a 20: se veía descolgado. */
+.mas-lista { padding: var(--aire-1); }
+.mas-item { padding: var(--aire-4) var(--aire-3); gap: var(--aire-3); border-radius: var(--curva-2); }
+.mas-icono { width: var(--ico-3); display: grid; place-items: center; color: var(--clay); }
+
+/* Los atajos del «+»: el icono en terracota, separado del texto. */
+.quick-icon { width: var(--ico-3); display: grid; place-items: center; color: var(--clay); }
+.quick-item { border-radius: var(--curva-2); gap: var(--aire-3); }
+
+
+/* ── 5. Sombras y curvas, de la escala ────────────────────────────────────
+   Las mismas cajas que antes, con las alturas del sistema. Cambia poco de una
+   en una y cambia bastante todo junto: es la diferencia entre una pantalla que
+   parece dibujada de una vez y una que parece ensamblada. */
+.card { box-shadow: var(--sombra-1); }
+.modal { box-shadow: var(--sombra-4); border-radius: var(--curva-4); }
+.hero { box-shadow: var(--sombra-2); }
+#toast { box-shadow: var(--sombra-3); border-radius: var(--curva-2); }
+.btn { border-radius: var(--curva-2); }
+.btn-primary { box-shadow: 0 2px 8px #7539161f; }
+.field input, .field select, .field textarea,
+input.text, select.text, textarea.text { border-radius: var(--curva-2); }
+.icon-btn { border-radius: var(--curva-1); width: var(--toque-chico); height: var(--toque-chico); }
+
+@media (max-width: 700px) {
+  .modal { border-radius: var(--curva-4) var(--curva-4) 0 0; }
+}
+
+
+/* ── 6. Los huecos donde antes iba un emoji ───────────────────────────────
+   Un emoji es texto: se centraba solo con `text-align` y se medía con
+   `font-size`. Un SVG no. Cada sitio que tenía un emoji necesita ahora decir
+   cuánto mide su hueco y cómo se centra dentro. */
+
+.nav-icon {
+  display: grid;
+  place-items: center;
+  width: var(--ico-3);
+  height: var(--ico-3);
+}
+
+/* En la barra de abajo el dibujo va un punto más grande que en el menú
+   lateral: es el único sitio donde se toca con el pulgar sin mirar. */
+.mobile-nav button .nav-icon { width: 22px; height: 22px; }
+
+/* La pantalla vacía. El dibujo es lo primero que se ve, así que va en
+   terracota y con aire debajo. */
+.empty-ico {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  margin: 0 auto var(--aire-3);
+  color: var(--clay);
+}
+
+/* El icono de un aviso se alinea con la primera línea del texto, no con el
+   centro del bloque: un aviso de cuatro líneas con el dibujo a media altura
+   parece descolgado. */
+.notice .ico, .demo-banner .ico { margin-top: 2px; }
+
+/* Las flechas de «entrar aquí» y de «desplegar». Se apagan a propósito: dicen
+   hacia dónde, no piden que las toques. */
+.mas-flecha, .recetas-flecha {
+  display: grid;
+  place-items: center;
+  color: var(--ink-muted);
+}
+
+/* Un icono dentro de una línea de texto corrida. `vertical-align` y no flex:
+   la línea tiene que seguir fluyendo como texto. */
+.ico-linea, .enlace .ico {
+  display: inline-block;
+  vertical-align: -3px;
+  margin-right: 5px;
+}
+.ico-linea { color: var(--clay); }
+
+.setup-rubro-emoji { display: grid; place-items: center; color: var(--clay); }
+
+/* El «+» flotante y los botones redondos de cerrar. */
+.fab { font-size: 0; }
+.icon-btn { color: var(--clay-dark); }
+
+
+/* ── 7. Los dos que quedaban por debajo de la medida ──────────────────────
+   Las flechas de mes medían 31 px de ancho —el alto ya estaba bien— y el
+   interruptor de quincena medía 35 de alto. Los dos son controles que se tocan
+   de pasada, con una mano, mirando otra cosa. */
+.btn-flecha { min-width: var(--toque-chico); padding-inline: var(--aire-2); }
+.segmented button { min-height: var(--toque-chico); padding: var(--aire-2) var(--aire-4); border-radius: var(--curva-1); }
+.segmented { border-radius: var(--curva-2); }
+
+
+/* ── 8. Enlaces que se apilaban unos sobre otros ──────────────────────────
+   «¿Hay merienda hoy? Anotar la merienda de mañana · Anotar la de tarde» es
+   una frase, y como frase se escribió. En una pantalla ancha se lee de corrido
+   y funciona. En un teléfono de 375 px la línea se parte, y las dos meriendas
+   quedaban una pegada a la otra —16 px de alto cada una, cero de separación—.
+   Dos comidas distintas a un error de dedo la una de la otra.
+
+   Una ficha, no un renglón: separación propia, borde, y alto de dedo. */
+.meriendas-vacias {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--aire-2) var(--aire-2);
+  margin-top: var(--aire-4);
+}
+.meriendas-pregunta { margin-right: var(--aire-1); }
+
+.ficha-toque {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--toque-chico);
+  padding: var(--aire-2) var(--aire-3);
+  border: 1px solid var(--clay-line);
+  border-radius: var(--curva-1);
+  background: var(--surface);
+  color: var(--clay-dark);
+  text-decoration: none;
+  font-weight: 650;
+}
+.ficha-toque:hover { background: var(--clay-light); }
+/* Una ficha ya es suficientemente grande: la zona ampliada de `.enlace` sobra,
+   y es justo lo que hacía que una robara los toques de la de al lado. */
+.ficha-toque::after { content: none; }
+
+
+/* ── 9. Los títulos del menú se partían en dos líneas ─────────────────────
+   La fila es [dibujo] [título + explicación] [pista] [flecha], los cuatro en
+   una línea. En pantalla ancha caben. En 375 px, después de descontar el
+   dibujo, la flecha y una pista como «última: 16 sept», al título le quedaban
+   136 px para una palabra que necesita 150, y «Mi canasta habitual» se partía
+   en dos renglones. Todas las filas quedaban de alturas distintas y la lista se
+   veía desigual.
+
+   La pista baja a su propia línea y se alinea bajo el texto, no bajo el dibujo.
+   El título recupera 100 px y ya no se parte. */
+@media (max-width: 700px) {
+  .mas-item { flex-wrap: wrap; }
+  .mas-flecha { order: 2; }
+  .mas-pista {
+    order: 3;
+    flex-basis: 100%;
+    margin-left: calc(var(--ico-3) + var(--aire-3));
+    margin-top: 2px;
+  }
+}
+
+/* La escala de gravedad de las restricciones es una escala tipográfica —«!»,
+   «·», «?»— y solo el primer escalón era un emoji: el ⚠ que Android dibuja
+   amarillo, rompiendo la paleta justo en el aviso más serio. Ahora es nuestro,
+   y se alinea con los otros tres, que siguen siendo letra. */
+.choque-marca, .restriccion-marca { display: inline-flex; align-items: center; justify-content: center; }
+.choque-marca .ico, .restriccion-marca .ico { display: block; }

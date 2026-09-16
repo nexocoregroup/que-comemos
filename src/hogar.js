@@ -24,6 +24,7 @@
 
 import { CLASES_DE_PERSONA, MOTIVOS_DE_RESTRICCION, activeProducts, esActiva, personasActivas, product, restriccionesDe, setPersonActive, upsertPerson } from './model.js';
 import { button, esc, notice, productDatalist } from './ui-kit.js';
+import { icono } from './icons.js';
 
 /* ── Vocabulario ───────────────────────────────────────────────────────── */
 
@@ -41,7 +42,7 @@ export const claseDe = id => CLASES.find(item => item.id === id) || CLASES[0];
 // `peso` ordena las restricciones en la tarjeta: lo que puede hacer daño va
 // primero. `tono` es la clase de CSS, y es lo único que cambia de aspecto.
 export const MOTIVOS = [
-  { id: 'alergia', etiqueta: 'Alergia', corto: 'Alergia', marca: '⚠', tono: 'alergia', peso: 3, ayuda: 'Le hace daño. La app lo avisa en grande.' },
+  { id: 'alergia', etiqueta: 'Alergia', corto: 'Alergia', marca: icono('aviso', { tamano: 16 }), tono: 'alergia', peso: 3, ayuda: 'Le hace daño. La app lo avisa en grande.' },
   { id: 'intolerancia', etiqueta: 'Intolerancia', corto: 'Intolerancia', marca: '!', tono: 'intolerancia', peso: 2, ayuda: 'Le sienta mal, aunque no sea peligroso.' },
   { id: 'preferencia', etiqueta: 'Prefiere evitarlo', corto: 'Lo evita', marca: '·', tono: 'preferencia', peso: 1, ayuda: 'No le gusta o ha decidido no comerlo.' }
 ];

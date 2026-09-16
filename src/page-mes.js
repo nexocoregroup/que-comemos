@@ -23,6 +23,7 @@
 import { MOMENTOS, ORIGENES, SLOTS, SLOTS_PRINCIPALES, dateRange, deletePlan, effectiveBasket, esOpcional, etiquetaDeMomento, etiquetaDeOrigen, makeRecipePlan, momentoDe, monthBasketSummary, monthBounds, origenDe, planFor, restore, setStatusPlan, shoppingList, snapshot, todayISO } from './model.js';
 import { WEEKDAY_SHORT, WEEKDAYS, addRoutine, applyRoutine, applyRoutines, copyPatternFromMonth, datesForRule, deleteRoutine, describeRule, extenderAMesesAbiertos, monthProgress, ocupadasEnMesesAbiertos, openMonth, routinesFor, updateRoutine } from './routines.js';
 import { button, cap, empty, esc, measure, modal, monthName, niceDate, notice, options, shiftMonth } from './ui-kit.js';
+import { icono } from './icons.js';
 
 const hoy = todayISO();
 
@@ -64,9 +65,9 @@ export function renderMes(ctx) {
 function barraDeMes(ctx, extra = '') {
   const { ui } = ctx;
   return `<div class="toolbar plan-barra"><div class="inline">
-    ${button('‹', 'mes-mover', 'btn-secondary btn-small', 'data-delta="-1" aria-label="Mes anterior"')}
+    ${button(icono('izquierda', { tamano: 18 }), 'mes-mover', 'btn-secondary btn-small btn-flecha', 'data-delta="-1" aria-label="Mes anterior"')}
     <div class="strong plan-mes-nombre">${esc(monthName(ui.mes.month))}</div>
-    ${button('›', 'mes-mover', 'btn-secondary btn-small', 'data-delta="1" aria-label="Mes siguiente"')}
+    ${button(icono('derecha', { tamano: 18 }), 'mes-mover', 'btn-secondary btn-small btn-flecha', 'data-delta="1" aria-label="Mes siguiente"')}
     ${ui.mes.month === hoy.slice(0, 7) ? '' : button('Este mes', 'mes-hoy', 'btn-quiet btn-small')}
   </div>${extra}</div>`;
 }
@@ -122,7 +123,7 @@ function renderResumen(ctx) {
 
   if (sinNada) {
     return `${barraDeMes(ctx)}${avisoDeApertura(ctx)}${cabecera}
-      ${empty('▦', 'Todavía no has creado una rutina de comidas',
+      ${empty('calendario', 'Todavía no has creado una rutina de comidas',
         'Guarda una preparación y elige qué días suele comerse; nosotros llenamos el calendario. Con dos o tres rutinas, el mes entero queda hecho.',
         `${button('Crear mi primera rutina', 'mes-nueva-rutina', 'btn-primary')}${button('Ver calendario', 'mes-vista', 'btn-secondary', 'data-vista="calendario"')}`)}`;
   }
@@ -158,7 +159,7 @@ function seccionRutinas(ctx, rutinas) {
   const { state, ui } = ctx;
   if (!rutinas.length) {
     return `<div class="section-head"><div><h2>Lo que se repite</h2><p>Guarda una comida y los días que suele prepararse; el calendario se llena solo.</p></div>${button('+ Nueva rutina', 'mes-nueva-rutina', 'btn-primary btn-small')}</div>
-      ${empty('🔁', 'Sin rutinas todavía', 'Una rutina es algo como «tortillas con jamón y queso, los lunes, miércoles y viernes de desayuno». Se guarda una vez y vale para todos los meses.', button('Crear mi primera rutina', 'mes-nueva-rutina', 'btn-primary'))}`;
+      ${empty('repetir', 'Sin rutinas todavía', 'Una rutina es algo como «tortillas con jamón y queso, los lunes, miércoles y viernes de desayuno». Se guarda una vez y vale para todos los meses.', button('Crear mi primera rutina', 'mes-nueva-rutina', 'btn-primary'))}`;
   }
   return `<div class="section-head"><div><h2>Lo que se repite</h2><p>Se guardan una vez y llenan el calendario de cada mes.</p></div>${button('+ Nueva rutina', 'mes-nueva-rutina', 'btn-primary btn-small')}</div>
     <div class="card">${rutinas.map(rutina => filaDeRutina(state, ui.mes.month, rutina)).join('')}</div>`;
@@ -205,7 +206,7 @@ function seccionCanasta(ctx) {
   const cambios = resumen.cambiados + resumen.quitados + resumen.extras;
   if (!resumen.habituales && !cambios) {
     return `<div class="section-head"><div><h2>La compra de este mes</h2></div></div>
-      ${empty('🧺', 'Todavía no has dicho qué se compra en tu casa', 'Se escribe una vez y vale para todos los meses. Después, cada mes solo cambias lo diferente.', button('Escribir mi canasta habitual', 'navigate', 'btn-primary', 'data-page="canasta"'))}`;
+      ${empty('canasta', 'Todavía no has dicho qué se compra en tu casa', 'Se escribe una vez y vale para todos los meses. Después, cada mes solo cambias lo diferente.', button('Escribir mi canasta habitual', 'navigate', 'btn-primary', 'data-page="canasta"'))}`;
   }
   return `<div class="section-head"><div><h2>La compra de este mes</h2><p>${resumen.habituales} alimento(s) habituales.</p></div>${button('Cambios de este mes', 'navigate', 'btn-secondary btn-small', `data-page="canasta" data-month="${month}"`)}</div>
     <div class="card">${cambios
@@ -367,7 +368,7 @@ function bloqueBase(ctx) {
       ? `<div class="card">${rutinas.map(rutina => filaDeRutina(state, month, rutina)).join('')}</div>
          <div class="inline" style="margin-top:12px">${button('Aplicarlas todas a este mes', 'mes-aplicar-todas', 'btn-secondary btn-small')}</div>
          ${permanentes.length ? '' : '<p class="small muted">Ninguna es permanente todavía: todas valen solo para este mes. Al crearlas puedes marcar «desde ahora, todos los meses» y entonces cada mes nuevo se abre ya con ellas.</p>'}`
-      : empty('🔁', 'Todavía no hay ninguna', 'Una rutina es algo como «mangú con salami, los martes y jueves de desayuno». Con dos o tres, el mes entero queda hecho.', button('Crear mi primera rutina', 'mes-nueva-rutina', 'btn-primary'))}
+      : empty('repetir', 'Todavía no hay ninguna', 'Una rutina es algo como «mangú con salami, los martes y jueves de desayuno». Con dos o tres, el mes entero queda hecho.', button('Crear mi primera rutina', 'mes-nueva-rutina', 'btn-primary'))}
 
     ${bloqueMesAnterior(ctx, anterior, seOrganizoAntes)}
     ${avisoDeApertura(ctx)}`;

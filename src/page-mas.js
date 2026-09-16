@@ -20,6 +20,7 @@ import { filaDeReparto } from './setup.js';
 import { claseDe, hogarDe, resumenDeRestricciones } from './hogar.js';
 import { WEEKDAY_LABELS, WEEKDAYS } from './routines.js';
 import { button, cap, empty, esc, fmt, measure, monthName, niceDate, notice, options, shiftMonth, unitText } from './ui-kit.js';
+import { icono, iconoDeCategoria } from './icons.js';
 import { avisoDeVoz, capacidad, comprobarDictado } from './device.js';
 import { panelDeVoz } from './voz.js';
 // El intérprete de frases vive en el asistente, y entiende «quedan dos plátanos,
@@ -49,21 +50,21 @@ const hoy = todayISO();
 
 export const GRUPOS_MAS = [
   ['Lo de cada semana', [
-    ['canasta', '🧺', 'Mi canasta habitual', 'Lo que se compra todos los meses'],
-    ['preparaciones', '📖', 'Preparaciones', 'Las comidas que se repiten en casa'],
-    ['revision', '✓', 'Revisar lo que queda', 'Un repaso a la nevera y la despensa']
+    ['canasta', 'canasta', 'Mi canasta habitual', 'Lo que se compra todos los meses'],
+    ['preparaciones', 'libro', 'Preparaciones', 'Las comidas que se repiten en casa'],
+    ['revision', 'visto', 'Revisar lo que queda', 'Un repaso a la nevera y la despensa']
   ]],
   ['Mi casa', [
-    ['familia', '👨‍👩‍👧‍👦', 'Familia y restricciones', 'Quién come y qué evita cada quien'],
-    ['alimentos', '🥬', 'Alimentos de la casa', 'La ficha de cada uno: medidas y existencias']
+    ['familia', 'personas', 'Familia y restricciones', 'Quién come y qué evita cada quien'],
+    ['alimentos', 'hoja', 'Alimentos de la casa', 'La ficha de cada uno: medidas y existencias']
   ]],
   ['Mis datos', [
-    ['historial', '🕘', 'Historial', 'Compras, revisiones y correcciones'],
-    ['respaldo', '💾', 'Respaldo', 'Guardar una copia o traerla de vuelta'],
-    ['cuenta', '👤', 'Mi cuenta', 'Entrar, sincronizar o cerrar sesión']
+    ['historial', 'reloj', 'Historial', 'Compras, revisiones y correcciones'],
+    ['respaldo', 'descargar', 'Respaldo', 'Guardar una copia o traerla de vuelta'],
+    ['cuenta', 'persona', 'Mi cuenta', 'Entrar, sincronizar o cerrar sesión']
   ]],
   ['', [
-    ['ajustes', '⚙️', 'Ajustes', 'Compra, micrófono, funciones avanzadas y ayuda']
+    ['ajustes', 'ajustes', 'Ajustes', 'Compra, micrófono, funciones avanzadas y ayuda']
   ]]
 ];
 
@@ -72,7 +73,7 @@ export const GRUPOS_MAS = [
 // página de Más como las demás.
 export const ENTRADAS_MAS = [
   ...GRUPOS_MAS.flatMap(([, filas]) => filas),
-  ['avanzado', '🔧', 'Funciones avanzadas', 'Medidas, correcciones y uniones']
+  ['avanzado', 'chip', 'Funciones avanzadas', 'Medidas, correcciones y uniones']
 ];
 
 // «legal» no sale en el índice —se llega desde Ajustes— pero es una página de
@@ -137,25 +138,31 @@ function volver(titulo) {
 
 function renderInicio(ctx) {
   const { state } = ctx;
+  // «12 alimento(s)» y, en preparaciones, un «7» a secas. El paréntesis es una
+  // forma de no decidir el plural, y un número solo no dice de qué. Al borde de
+  // la fila casi no se leían; desde que la pista baja a su propia línea en el
+  // teléfono son una frase corta que alguien lee, y una frase corta se escribe
+  // entera.
+  const cuenta = (n, singular, plural) => `${n} ${n === 1 ? singular : plural}`;
   const pistas = {
-    canasta: `${habitualLines(state).length} alimento(s)`,
-    preparaciones: `${state.recipes.length}`,
-    familia: `${personasActivas(state).length} persona(s)`,
-    alimentos: `${state.products.filter(item => !item.archived).length}`,
+    canasta: cuenta(habitualLines(state).length, 'alimento', 'alimentos'),
+    preparaciones: cuenta(state.recipes.length, 'preparación', 'preparaciones'),
+    familia: cuenta(personasActivas(state).length, 'persona', 'personas'),
+    alimentos: cuenta(state.products.filter(item => !item.archived).length, 'alimento', 'alimentos'),
     revision: lastStockReview(state) ? `última: ${niceDate(lastStockReview(state), { day: 'numeric', month: 'short' })}` : 'nunca',
-    historial: `${state.purchases.length} compra(s)`,
+    historial: cuenta(state.purchases.length, 'compra', 'compras'),
     respaldo: pistaDeCopia(state),
     ajustes: ''
   };
   const copia = estadoDeLaCopia(state);
-  const fila = ([id, icono, titulo, detalle]) => `
+  const fila = ([id, dibujo, titulo, detalle]) => `
     <button type="button" class="mas-item" data-action="navigate" data-page="${id}">
-      <span class="mas-icono" aria-hidden="true">${icono}</span>
+      <span class="mas-icono">${icono(dibujo, { tamano: 22 })}</span>
       <span class="mas-texto"><strong>${esc(titulo)}</strong><span>${esc(detalle)}</span></span>
       ${pistas[id] ? `<span class="mas-pista ${id === 'respaldo' && copia.urgente ? 'alerta' : ''}">${esc(pistas[id])}</span>` : ''}
-      <span class="mas-flecha" aria-hidden="true">›</span>
+      <span class="mas-flecha">${icono('derecha', { tamano: 17 })}</span>
     </button>`;
-  return `${copia.urgente ? `<div class="notice warn"><span>!</span><div><strong>${copia.ultima ? `Hace ${copia.dias} días que no guardas una copia.` : 'Todavía no has guardado ninguna copia.'}</strong>Todo lo que has escrito existe solo en este teléfono. <button type="button" class="enlace" data-action="navigate" data-page="respaldo">Guardar una ahora</button></div></div>` : ''}
+  return `${copia.urgente ? `<div class="notice warn">${icono('aviso')}<div><strong>${copia.ultima ? `Hace ${copia.dias} días que no guardas una copia.` : 'Todavía no has guardado ninguna copia.'}</strong>Todo lo que has escrito existe solo en este teléfono. <button type="button" class="enlace" data-action="navigate" data-page="respaldo">Guardar una ahora</button></div></div>` : ''}
     ${GRUPOS_MAS.map(([rotulo, filas]) => `${rotulo ? `<h3 class="mas-grupo">${esc(rotulo)}</h3>` : ''}<div class="card mas-lista">${filas.map(fila).join('')}</div>`).join('')}
     <div class="card soft mas-pie">
       <h3>¿Cómo funciona?</h3>
@@ -188,9 +195,9 @@ function vistaHabitual(ctx) {
   const { state } = ctx;
   const lineas = habitualLines(state);
   if (!lineas.length) {
-    return empty('🧺', 'Todavía no has escrito tu canasta',
+    return empty('canasta', 'Todavía no has escrito tu canasta',
       'Es la lista de lo que se compra en tu casa todos los meses: los plátanos, el arroz, los huevos, el salami. Se escribe una vez y vale para siempre; después solo cambias lo diferente de cada mes.',
-      `${button('Marcarla de una lista', 'setup-open', 'btn-primary')}${button('🗣️ Dictarla de corrido', 'open-bulk', 'btn-secondary', 'data-destino="habitual"')}`);
+      `${button('Marcarla de una lista', 'setup-open', 'btn-primary')}${button(`${icono('microfono', { tamano: 17 })}Dictarla de corrido`, 'open-bulk', 'btn-secondary', 'data-destino="habitual"')}`);
   }
   const porCategoria = new Map();
   for (const linea of lineas) {
@@ -217,7 +224,7 @@ function vistaHabitual(ctx) {
       <p class="small muted">Deja una cantidad en blanco si todavía no la sabes: el alimento sigue en la lista y la compra lo avisará.</p>
       <div class="pantalla-acciones">
         ${button('+ Añadir alimento', 'open-product', 'btn-secondary')}
-        ${button('🗣️ Añadir varios de corrido', 'open-bulk', 'btn-quiet', 'data-destino="habitual"')}
+        ${button(`${icono('microfono', { tamano: 17 })}Añadir varios de corrido`, 'open-bulk', 'btn-quiet', 'data-destino="habitual"')}
         <button type="submit" class="btn btn-primary">Guardar</button>
       </div>
     </form>`;
@@ -304,10 +311,10 @@ function vistaCambios(ctx, mes, resumen) {
     </div>
     <p class="small muted">«Añadir a mi canasta base» lo pasa a lo de todos los meses, y te pregunta <strong>desde qué mes</strong> entra en vigencia. Los meses anteriores a esa fecha no se tocan: seguirán diciendo lo que dijeron.</p>
     <p class="tiny muted">Un período que hayas cerrado tampoco cambia, porque no se vuelve a calcular: se lee la fotografía que se guardó al cerrarlo. Los meses abiertos sí se recalculan con tu canasta de hoy, que es lo que se quiere mientras todavía no han pasado.</p>`
-    : empty('✓', `${monthName(mes)} es un mes normal`, 'No hay nada diferente. Si este mes van a comprar algo especial —un cangrejo para una cena, o menos arroz porque estarán de viaje—, anótalo aquí.', '')}
+    : empty('visto', `${monthName(mes)} es un mes normal`, 'No hay nada diferente. Si este mes van a comprar algo especial —un cangrejo para una cena, o menos arroz porque estarán de viaje—, anótalo aquí.', '')}
     <div class="pantalla-acciones">
       ${button('+ Añadir algo solo para este mes', 'canasta-nuevo-cambio', 'btn-primary', `data-month="${mes}"`)}
-      ${button('🗣️ Dictar varios', 'open-bulk', 'btn-quiet', `data-destino="mes" data-month="${mes}"`)}
+      ${button(`${icono('microfono', { tamano: 17 })}Dictar varios`, 'open-bulk', 'btn-quiet', `data-destino="mes" data-month="${mes}"`)}
     </div>`;
 }
 
@@ -337,7 +344,7 @@ function renderPreparaciones(ctx) {
 
   if (!state.recipes.length) {
     return `${volver('Preparaciones')}
-      ${empty('📖', 'Todavía no hay ninguna',
+      ${empty('libro', 'Todavía no hay ninguna',
         'Una preparación es algo como «mangú con salami» o «arroz con pollo»: el nombre, en cuáles momentos suele comerse y, si quieres, los alimentos principales. No hace falta anotar la sal ni el aceite.',
         button('Crear la primera', 'open-recipe', 'btn-primary'))}`;
   }
@@ -363,7 +370,7 @@ function renderPreparaciones(ctx) {
       const abierto = !plegados.has(momento.id);
       return `<section class="recetas-bloque">
         <button type="button" class="recetas-cabecera" data-action="receta-plegar" data-momento="${momento.id}" aria-expanded="${abierto}">
-          <span class="recetas-flecha" aria-hidden="true">${abierto ? '⌄' : '›'}</span>
+          <span class="recetas-flecha">${icono(abierto ? 'desplegar' : 'derecha', { tamano: 18 })}</span>
           <span class="recetas-titulo">${esc(momento.plural)}</span>
           <span class="badge-count">${delMomento.length}</span>
         </button>
@@ -440,7 +447,7 @@ function renderFamilia(ctx) {
     ${sinMotivo ? notice('Hay alimentos anotados sin decir por qué', `${sinMotivo} alimento(s) están marcados como «sin decir»: se anotaron antes de que la app preguntara si era alergia, intolerancia o preferencia. La app avisa de ellos igual que siempre. Si entras a editar a la persona puedes decir cuál es cada uno.`, 'warn') : ''}
     ${enCasa.length
       ? `<div class="grid grid-2">${enCasa.map(persona => tarjeta(persona, true)).join('')}</div>`
-      : empty('👨‍👩‍👧‍👦', 'Todavía no hay nadie', 'Anotar quién come en casa sirve para dos cosas: avisar de alergias y saber para cuántos se cocina. Son dos preguntas por persona.', button('Configurar mi hogar', 'hogar-open', 'btn-primary'))}
+      : empty('personas', 'Todavía no hay nadie', 'Anotar quién come en casa sirve para dos cosas: avisar de alergias y saber para cuántos se cocina. Son dos preguntas por persona.', button('Configurar mi hogar', 'hogar-open', 'btn-primary'))}
     ${fuera.length ? `<div class="section-head"><h3 class="plan-sub">Ya no viven aquí</h3></div>
       <p class="small muted">Siguen apareciendo en las comidas de antes, porque las comieron. No cuentan para las comidas nuevas.</p>
       <div class="grid grid-2 familia-baja">${fuera.map(persona => tarjeta(persona, false)).join('')}</div>` : ''}
@@ -460,7 +467,7 @@ function renderRevision(ctx) {
   const ultima = lastStockReview(state);
   if (!abierta) {
     return `${volver('Revisar lo que queda')}
-      ${empty('✓', ultima ? `Última revisión: ${niceDate(ultima, { day: 'numeric', month: 'long' })}` : 'Todavía no has revisado nada',
+      ${empty('visto', ultima ? `Última revisión: ${niceDate(ultima, { day: 'numeric', month: 'long' })}` : 'Todavía no has revisado nada',
         'Abre la nevera y la despensa y escribe lo que ves. La app calcula sola lo que se consumió y afina la lista de la compra.',
         button('Empezar una revisión', 'open-new-review', 'btn-primary'))}
       ${state.reviews.filter(item => item.status === 'confirmed').length ? `<div class="section-head"><h3 class="plan-sub">Revisiones anteriores</h3></div><div class="card">${[...state.reviews].filter(item => item.status === 'confirmed').reverse().slice(0, 8).map(item => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${esc(niceDate(item.date, { day: 'numeric', month: 'long', year: 'numeric' }))}</div><div class="list-row-sub">${item.productIds.filter(id => item.consumed[id] !== undefined).length} de ${item.productIds.length} alimentos</div></div>${button('Ver', 'select-review', 'btn-quiet btn-small', `data-id="${item.id}"`)}</div>`).join('')}</div>` : ''}`;
@@ -474,7 +481,7 @@ function tablaDeRevision(ctx, revision) {
   const editando = revision.status === 'draft' || ui.correctingReview;
   const queda = (revision.mode || 'restante') === 'restante';
   if (!revision.productIds.length) {
-    return empty('🧺', 'No hay nada que revisar', 'Todavía no hay alimentos con existencias anotadas. Anota una compra primero.', button('Ir a la compra', 'navigate', 'btn-secondary', 'data-page="compra"'));
+    return empty('canasta', 'No hay nada que revisar', 'Todavía no hay alimentos con existencias anotadas. Anota una compra primero.', button('Ir a la compra', 'navigate', 'btn-secondary', 'data-page="compra"'));
   }
   // Revisar treinta alimentos de corrido es donde se abandona la revisión. Por
   // eso hay tres salidas: buscar el que se tiene en la mano, esconder los que ya
@@ -593,7 +600,7 @@ function herramientasDeRevision(ctx, revision, faltan, queda) {
     </label>
     <div class="inline">
       <button type="button" class="chip ${ui.mas.revisionSoloFaltan ? 'activa' : ''}" data-action="revision-solo-faltan" aria-pressed="${ui.mas.revisionSoloFaltan}">Solo lo que falta · ${faltan}</button>
-      ${motor.ok ? `<button type="button" class="btn btn-secondary btn-small" data-action="voz-abrir" data-destino="revision" aria-label="Dictar o escribir lo que queda">🎤 Dictar</button>` : ''}
+      ${motor.ok ? `<button type="button" class="btn btn-secondary btn-small" data-action="voz-abrir" data-destino="revision" aria-label="Dictar o escribir lo que queda">${icono('microfono', { tamano: 17 })}Dictar</button>` : ''}
     </div>
     ${panelDeVoz(ctx, 'revision')}
     ${ui.mas.revisionAviso ? `<p class="small revision-aviso">${esc(ui.mas.revisionAviso)}</p>` : ''}
@@ -620,13 +627,13 @@ function renderAlimentos(ctx) {
   const archivados = state.products.filter(item => item.archived).length;
   return `${volver('Alimentos de la casa')}
     <p class="pantalla-intro">La ficha de cada alimento: cómo se cuenta, cómo se compra y cuánto hay. Normalmente no hace falta entrar aquí; la app rellena esto sola cuando marcas o dictas alimentos.</p>
-    <div class="pantalla-acciones">${button('+ Añadir alimento', 'open-product', 'btn-primary')}${button('🗣️ Dictar varios', 'open-bulk', 'btn-secondary')}</div>
+    <div class="pantalla-acciones">${button('+ Añadir alimento', 'open-product', 'btn-primary')}${button(`${icono('microfono', { tamano: 17 })}Dictar varios`, 'open-bulk', 'btn-secondary')}</div>
     ${state.products.length ? `<div class="toolbar">
       <label class="field" style="flex:1"><span class="sr-only">Buscar</span><input type="search" id="alimento-filtro" value="${esc(ui.mas.filtroAlimento)}" placeholder="Buscar entre ${state.products.length} alimentos…" aria-label="Buscar un alimento"></label>
       ${archivados ? button(ui.mas.verArchivados ? 'Ocultar archivados' : `Ver ${archivados} archivados`, 'alimentos-archivados', 'btn-quiet btn-small') : ''}
     </div>
     <div class="card">${visibles.map(item => filaDeAlimento(state, item, existencias)).join('') || '<p class="muted">Nada coincide con esa búsqueda.</p>'}</div>`
-      : empty('🥬', 'Todavía no hay alimentos', 'Lo más rápido es marcarlos de una lista: se registran solos, con su categoría y su unidad.', `${button('Marcarlos de una lista', 'setup-open', 'btn-primary')}${button('Añadir uno a mano', 'open-product', 'btn-secondary')}`)}`;
+      : empty('hoja', 'Todavía no hay alimentos', 'Lo más rápido es marcarlos de una lista: se registran solos, con su categoría y su unidad.', `${button('Marcarlos de una lista', 'setup-open', 'btn-primary')}${button('Añadir uno a mano', 'open-product', 'btn-secondary')}`)}`;
 }
 
 function filaDeAlimento(state, item, existencias) {
@@ -637,11 +644,11 @@ function filaDeAlimento(state, item, existencias) {
   return `<div class="list-row ${item.archived ? 'archived' : ''}">
     <div class="list-row-main">
       <div class="list-row-title">${esc(item.name)} ${item.archived ? '<span class="pill gray">archivado</span>' : linea ? `<span class="pill">${linea.quantity === null ? 'cantidad pendiente' : `${esc(measure(linea.quantity, linea.unit))} al mes`}</span>` : '<span class="pill gray">no está en la canasta</span>'}</div>
-      <div class="list-row-sub">${categoria ? `${categoria.emoji} ${esc(categoria.label)} · ` : ''}Se cuenta en ${esc(unitText(item.controlUnit, 2))}${equivalencias.length ? ` · 1 ${esc(item.purchaseUnit)} = ${equivalencias.map(([, factor]) => esc(measure(factor, item.controlUnit))).join(' / ')}` : item.purchaseUnit !== item.controlUnit ? ` · se compra en ${esc(unitText(item.purchaseUnit, 2))} <span class="pill gray">falta la medida</span>` : ''} · hay ${esc(measure(hay, item.controlUnit))}</div>
+      <div class="list-row-sub">${categoria ? `${iconoDeCategoria(categoria.id, { tamano: 15, clase: 'ico-linea' })}${esc(categoria.label)} · ` : ''}Se cuenta en ${esc(unitText(item.controlUnit, 2))}${equivalencias.length ? ` · 1 ${esc(item.purchaseUnit)} = ${equivalencias.map(([, factor]) => esc(measure(factor, item.controlUnit))).join(' / ')}` : item.purchaseUnit !== item.controlUnit ? ` · se compra en ${esc(unitText(item.purchaseUnit, 2))} <span class="pill gray">falta la medida</span>` : ''} · hay ${esc(measure(hay, item.controlUnit))}</div>
     </div>
     <div class="inline">${item.archived
       ? button('Reactivar', 'restore-product', 'btn-secondary btn-small', `data-id="${item.id}"`)
-      : `${button('Editar', 'open-product', 'btn-secondary btn-small', `data-id="${item.id}"`)}${button('⋯', 'open-avanzado-producto', 'btn-quiet btn-small', `data-id="${item.id}" aria-label="Más opciones de ${esc(item.name)}"`)}`}</div>
+      : `${button('Editar', 'open-product', 'btn-secondary btn-small', `data-id="${item.id}"`)}${button(icono('puntos', { tamano: 18 }), 'open-avanzado-producto', 'btn-quiet btn-small btn-flecha', `data-id="${item.id}" aria-label="Más opciones de ${esc(item.name)}"`)}`}</div>
   </div>`;
 }
 
@@ -664,7 +671,7 @@ function renderHistorial(ctx) {
       </div>
       ${evento.tipo === 'revision' ? button('Ver', 'select-review', 'btn-quiet btn-small', `data-id="${evento.item.id}"`) : ''}
     </div>`).join('')}</div>${eventos.length > 60 ? `<p class="small muted">Se muestran los 60 más recientes de ${eventos.length}.</p>` : ''}`
-      : empty('🕘', 'Todavía no hay nada', 'Aquí aparecerán las compras que anotes y las revisiones que hagas.', '')}`;
+      : empty('reloj', 'Todavía no hay nada', 'Aquí aparecerán las compras que anotes y las revisiones que hagas.', '')}`;
 }
 
 function detalleDeEvento(state, evento) {
@@ -804,10 +811,10 @@ function avisoDeCopia(state) {
   const copia = estadoDeLaCopia(state);
   if (!copia.hayDatos) return '';
   if (!copia.ultima) {
-    return `<div class="notice warn"><span>!</span><div><strong>Todavía no has guardado ninguna copia.</strong>Ahora mismo, todo lo que has escrito existe en un solo sitio: este teléfono.</div></div>`;
+    return `<div class="notice warn">${icono('aviso')}<div><strong>Todavía no has guardado ninguna copia.</strong>Ahora mismo, todo lo que has escrito existe en un solo sitio: este teléfono.</div></div>`;
   }
   if (copia.urgente) {
-    return `<div class="notice warn"><span>!</span><div><strong>La última copia es de hace ${copia.dias} días.</strong>Desde entonces has anotado compras y revisiones que no están en ningún otro lado.</div></div>`;
+    return `<div class="notice warn">${icono('aviso')}<div><strong>La última copia es de hace ${copia.dias} días.</strong>Desde entonces has anotado compras y revisiones que no están en ningún otro lado.</div></div>`;
   }
   return `<div class="notice"><span>✓</span><div><strong>Última copia: ${esc(niceDate(copia.ultima, { day: 'numeric', month: 'long', year: 'numeric' }))}.</strong>${copia.dias === 0 ? 'Hoy mismo.' : `Hace ${copia.dias} ${copia.dias === 1 ? 'día' : 'días'}.`}</div></div>`;
 }
