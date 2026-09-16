@@ -389,6 +389,24 @@ NexoCore, República Dominicana.
 | **Seis capturas de teléfono** | `tienda/capturas/` | **Listas.** Las genera `npm run capturas`: conduce un Chrome sin perfil por las seis pantallas, con el ejemplo de la propia app y nunca con datos de nadie. 1080×1920, 24 bits sin alfa. |
 | Original de la marca | `identidad visual/isotipo.png` y `logotipo.png` (1080×1350) | Es la fuente para todo lo demás. |
 
+### Las huellas del certificado
+
+Las pide Google Cloud Console al configurar «Entrar con Google», y las enseña la Play Console cuando la app está publicada. **No son secretas**: identifican la clave, no la contienen. Lo secreto es el `.jks` y su contraseña.
+
+```
+SHA-1    DA:8F:9B:9C:50:31:E7:78:B4:EC:B0:59:5E:90:8D:11:EC:B3:92:88
+SHA-256  48:7F:F7:2A:F9:52:5F:B9:2A:D6:5C:03:C8:B8:5C:BF:C5:6D:72:96:64:9E:B3:FE:BE:D0:33:8D:39:64:71:5C
+```
+
+Se vuelven a sacar en cualquier momento con:
+
+```powershell
+$bt = Get-ChildItem "$env:LOCALAPPDATA\Android\Sdk\build-tools" -Directory | Sort-Object Name -Descending | Select-Object -First 1
+& "$($bt.FullName)\apksigner.bat" verify --print-certs entrega\que-comemos-1.0-release.apk
+```
+
+> Si activas **la firma de aplicaciones de Play** —que es lo recomendado—, Google genera su propia clave final y la huella que ven los servicios de Google es la de **ellos**, no esta. La de aquí pasa a ser la «clave de subida». Cuando configures «Entrar con Google», copia la huella que te enseñe la Play Console en *Configuración → Integridad de la aplicación*, no esta, o el inicio de sesión fallará sin decir por qué.
+
 ### Lo que hay que crear
 
 **1. Las seis capturas, y por qué esas.** Las genera `npm run capturas`; el orden es el del archivo y cada una tiene una idea sola:
