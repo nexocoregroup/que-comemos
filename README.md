@@ -66,7 +66,16 @@ Editar dentro de *Mi canasta habitual* es permanente. Editar dentro de un mes va
 
 **Por dentro, un mes guarda diferencias, no una copia.** En la versión anterior cada mes guardaba su lista completa, y eso tenía dos consecuencias malas: abrir un mes escribía datos sin que nadie lo pidiera, y un extra de octubre podía acabar pareciendo parte del hábito. Ahora abrir un mes no escribe ninguna canasta, y un producto añadido solo para octubre **no** vuelve a aparecer en noviembre. Su identidad sí se conserva, porque puede estar atada a compras, revisiones e inventario: para el usuario aparece como **«extra de octubre»**, no como una entrada de un catálogo global.
 
-Pasar un cambio a habitual es siempre **explícito y por alimento**. Es lo que separa «este mes compré más pollo» de «en esta casa ahora se come más pollo». Los meses ya cerrados no cambian retroactivamente.
+Pasar un cambio a habitual es siempre **explícito y por alimento**. Es lo que separa «este mes compré más pollo» de «en esta casa ahora se come más pollo».
+
+**Cada línea de la canasta guarda su historia, no una cantidad.** «Noventa tazas de arroz desde julio, ciento veinte desde septiembre» son dos tramos de la misma línea, y cada mes lee el que le tocaba. Antes había una sola cantidad: corregirla hoy cambiaba también lo que la app decía de julio, y julio ya se compró. Con eso, la pantalla que existe para acordarte de lo que hiciste distinto —«Y en la compra cambia esto»— era precisamente la que no podía verlo, porque al recalcular el mes anterior con la cantidad de hoy los dos meses salían iguales.
+
+En la práctica:
+
+- Corregir una cantidad **vale desde el mes en curso**. Los meses que ya pasaron se quedan con lo que se compró entonces.
+- Si lo que pasó es que estaba **mal escrito**, la app lo ofrece justo después de guardar: «corregir también los meses anteriores». Alcanza hasta donde empezó el dato equivocado, y ni un mes más.
+- Se puede fechar hacia adelante: «desde noviembre son 120». Este mes no cambia, y la canasta lo enseña como lo que viene.
+- **Quitar algo también lleva fecha.** Dejar de comprar pollo desde hoy no borra los meses en que sí se compró.
 
 ## Rutinas: la idea central
 

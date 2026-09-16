@@ -283,7 +283,8 @@ test('corregir la cantidad de una línea no cambia desde cuándo se compra', () 
   setHabitualLine(state, cangrejo, 5, 'lb');
   const tiene = mes => effectiveBasket(state, mes).some(fila => fila.productId === cangrejo);
   assert.equal(tiene('2026-05'), false, 'corregir la cantidad lo adelantó dos meses');
-  assert.equal(effectiveBasket(state, '2026-06').find(fila => fila.productId === cangrejo).quantity, 5);
+  assert.equal(effectiveBasket(state, '2026-06').find(fila => fila.productId === cangrejo).quantity, 3, 'junio se quedó con la cantidad que se dijo para junio');
+  assert.equal(effectiveBasket(state, todayISO().slice(0, 7)).find(fila => fila.productId === cangrejo).quantity, 5, 'y la corrección vale desde este mes');
 });
 
 /* ── Una línea nueva nace con su fecha ─────────────────────────────────────
@@ -341,7 +342,8 @@ test('guardar la canasta entera no vuelve a fechar lo que ya estaba', () => {
   // por haber corregido una cantidad.
   setHabitualBasket(state, [{ productId: arroz, quantity: 25, unit: 'lb' }]);
   assert.equal(habitualLines(state)[0].desde, '2025-01', 'guardar la canasta vació todos los meses anteriores');
-  assert.equal(effectiveBasket(state, '2025-06').find(fila => fila.productId === arroz).quantity, 25);
+  assert.equal(effectiveBasket(state, '2025-06').find(fila => fila.productId === arroz).quantity, 20, 'junio de 2025 se compró con 20 libras, y así tiene que quedarse');
+  assert.equal(habitualLines(state)[0].quantity, 25, 'y desde este mes son 25');
 });
 
 test('guardar la canasta entera tampoco rebaja lo que estaba en obligatorio', () => {

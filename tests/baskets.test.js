@@ -149,9 +149,14 @@ test('un extra de octubre se convierte en costumbre y deja de ser excepción', (
   setMonthChange(state, '2026-10', pollo, { quantity: 4, unit: 'lb', priority: 'frecuente' });
   setMonthChange(state, '2026-10', arroz, { quantity: 45, unit: 'lb' });
   assert.equal(promoteToHabitual(state, '2026-10', [pollo, arroz]), 2);
-  assert.equal(habitualLines(state).length, 3);
+  assert.equal(habitualLines(state).length, 3, 'lo que empieza en octubre ya cuenta como parte de la canasta');
   assert.equal(habitualLines(state).find(line => line.productId === pollo).quantity, 4);
-  assert.equal(habitualLines(state).find(line => line.productId === arroz).quantity, 45);
+  // El arroz ya estaba a 30 y el cambio dice 45 desde octubre. Septiembre se
+  // queda con lo que se compró en septiembre: ascender no reescribe el pasado.
+  const enArroz = habitualLines(state).find(line => line.productId === arroz);
+  assert.equal(enArroz.quantity, 30, 'ascender un cambio de octubre reescribió septiembre');
+  assert.equal(enArroz.proximo.quantity, 45, 'la pantalla no tendría cómo avisar de que en octubre sube');
+  assert.equal(cantidad(effectiveBasket(state, '2026-10'), arroz), 45, 'y octubre tiene que traerlo ya');
   // Ya es la norma: deja de contarse como excepción de octubre.
   assert.deepEqual(monthChanges(state, '2026-10').changes, []);
   assert.ok(effectiveBasket(state, '2026-10').every(line => line.source === 'habitual'));

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { addDays, addProduct, choquesDeLaComida, deletePlan, product, setSlice, setHabitualBasket, setHabitualLine, addPurchase, balances, convert, correctReview, createEmptyState, createReview, exportState, importState, inventoryNow, linkPlan, makeRecipePlan, repeatWeek, saveReview, setAbsence, setEquivalence, shoppingList, todayISO, updatePlan, upsertPerson, upsertRecipe, weekStart } from '../src/model.js';
+import { addDays, addProduct, habitualLines, choquesDeLaComida, deletePlan, product, setSlice, setHabitualBasket, setHabitualLine, addPurchase, balances, convert, correctReview, createEmptyState, createReview, exportState, importState, inventoryNow, linkPlan, makeRecipePlan, repeatWeek, saveReview, setAbsence, setEquivalence, shoppingList, todayISO, updatePlan, upsertPerson, upsertRecipe, weekStart } from '../src/model.js';
 import { loadState, saveState, STORAGE_KEY } from '../src/storage.js';
 
 function setup() {
@@ -232,10 +232,12 @@ test('la canasta crea los alimentos que no existen, sin registrarlos aparte', ()
     { name: 'Huevo', quantity: 60, unit: 'unidad' },
     { name: 'huevos', quantity: 12, unit: 'unidad' }
   ]);
-  const lineas = state.habitualBasket.lines;
+  const lineas = habitualLines(state);
   assert.equal(state.products.length, 2, 'solo se crea el huevo, y una sola vez');
   assert.equal(lineas[0].productId, arroz, 'un nombre que ya existe no duplica el alimento');
-  assert.equal(lineas[1].productId, lineas[2].productId, 'singular y plural son el mismo alimento');
+  // Singular y plural son el mismo alimento, y por eso son también la misma
+  // línea: dos líneas de huevo lo pedirían dos veces en la misma compra.
+  assert.equal(lineas.length, 2, 'huevo y huevos quedaron como dos líneas distintas');
   const huevo = product(state, lineas[1].productId);
   assert.equal(huevo.name, 'Huevo');
   assert.equal(huevo.controlUnit, 'unidad', 'toma la unidad de su propia línea');
@@ -244,28 +246,28 @@ test('la canasta crea los alimentos que no existen, sin registrarlos aparte', ()
   // Una línea mal escrita no puede dejar media canasta registrada.
   assert.throws(() => setHabitualBasket(state, [{ name: 'Sal', quantity: 2, unit: 'lb' }, { name: 'Aceite', quantity: 2, unit: 'inventada' }]), /unidad/);
   assert.equal(state.products.length, 2, 'no se creó nada a medias');
-  assert.equal(state.habitualBasket.lines.length, 3, 'la canasta anterior queda intacta');
+  assert.equal(habitualLines(state).length, 2, 'la canasta anterior queda intacta');
 });
 
 test('la canasta y la ficha del producto escriben la misma línea', () => {
   const state = createEmptyState();
   const arroz = addProduct(state, { name: 'Arroz', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
   setHabitualLine(state, arroz, 30, 'lb');
-  assert.equal(state.habitualBasket.lines.length, 1);
-  const id = state.habitualBasket.lines[0].id;
+  assert.equal(habitualLines(state).length, 1);
+  const id = habitualLines(state)[0].id;
   // Volver a escribirlo corrige la línea que ya existe, no añade otra.
   setHabitualLine(state, arroz, 25, 'lb');
-  assert.equal(state.habitualBasket.lines.length, 1);
-  assert.equal(state.habitualBasket.lines[0].quantity, 25);
-  assert.equal(state.habitualBasket.lines[0].id, id, 'conserva su identidad al corregirla');
+  assert.equal(habitualLines(state).length, 1);
+  assert.equal(habitualLines(state)[0].quantity, 25);
+  assert.equal(habitualLines(state)[0].id, id, 'conserva su identidad al corregirla');
   // Y lo escrito en la ficha es lo que lee la compra por canasta.
   assert.equal(shoppingList(state, '2026-09-01', '2026-09-30', 'casa').lines[0].need, 25);
   // Vacío o cero la quita: un consumo de cero no significa nada.
   setHabitualLine(state, arroz, '', 'lb');
-  assert.equal(state.habitualBasket.lines.length, 0);
+  assert.equal(habitualLines(state).length, 0);
   setHabitualLine(state, arroz, 10, 'lb');
   setHabitualLine(state, arroz, 0, 'lb');
-  assert.equal(state.habitualBasket.lines.length, 0);
+  assert.equal(habitualLines(state).length, 0);
   assert.throws(() => setHabitualLine(state, 'producto-inventado', 5, 'lb'), /producto/);
 });
 
@@ -275,8 +277,8 @@ test('una cantidad que todavía no se sabe se guarda pendiente en vez de perder 
     { name: 'Arroz', quantity: 30, unit: 'lb' },
     { name: 'Detergente', quantity: '', unit: 'paquete' }
   ]);
-  assert.equal(state.habitualBasket.lines.length, 2, 'el alimento sin cantidad se conserva');
-  assert.equal(state.habitualBasket.lines[1].quantity, null);
+  assert.equal(habitualLines(state).length, 2, 'el alimento sin cantidad se conserva');
+  assert.equal(habitualLines(state)[1].quantity, null);
   const lista = shoppingList(state, '2026-09-01', '2026-09-30', 'casa');
   assert.equal(lista.lines.length, 1, 'una línea sin cantidad no se puede calcular…');
   assert.ok(lista.pending.some(item => item.reason === 'cantidad'), '…pero se avisa de que está pendiente');
