@@ -21,7 +21,7 @@
 // atreverse a cambiarla.
 
 import { MOMENTOS, ORIGENES, SLOTS, SLOTS_PRINCIPALES, dateRange, deletePlan, effectiveBasket, esOpcional, etiquetaDeMomento, etiquetaDeOrigen, makeRecipePlan, momentoDe, monthBasketSummary, monthBounds, origenDe, planFor, restore, setStatusPlan, shoppingList, snapshot, todayISO } from './model.js';
-import { WEEKDAY_SHORT, WEEKDAYS, addRoutine, applyRoutine, applyRoutines, copyPatternFromMonth, datesForRule, deleteRoutine, describeRule, monthProgress, openMonth, routinesFor } from './routines.js';
+import { WEEKDAY_SHORT, WEEKDAYS, addRoutine, applyRoutine, applyRoutines, copyPatternFromMonth, datesForRule, deleteRoutine, describeRule, extenderAMesesAbiertos, monthProgress, ocupadasEnMesesAbiertos, openMonth, routinesFor, updateRoutine } from './routines.js';
 import { button, cap, empty, esc, measure, modal, monthName, niceDate, notice, options, shiftMonth } from './ui-kit.js';
 
 const hoy = todayISO();
@@ -171,12 +171,19 @@ function filaDeRutina(state, month, rutina) {
   const alcance = rutina.scope === 'permanent'
     ? '<span class="pill">todos los meses</span>'
     : `<span class="pill warm">solo ${esc(monthName(rutina.month))}</span>`;
+  // La vigencia se dice cuando la hay. Una rutina que empieza en dos semanas y
+  // aquí se ve igual que las demás es una rutina que parece rota.
+  const vigencia = [
+    rutina.desde ? `desde el ${niceDate(rutina.desde, { day: 'numeric', month: 'short' })}` : '',
+    rutina.until ? `hasta el ${niceDate(rutina.until, { day: 'numeric', month: 'short' })}` : ''
+  ].filter(Boolean).join(' ');
   return `<div class="list-row">
     <div class="list-row-main">
       <div class="list-row-title">${esc(tituloDeRutina(state, rutina))} ${alcance}</div>
-      <div class="list-row-sub">${esc(comidas)} · ${esc(cuando)} · ${fechas.length} día(s) en ${esc(monthName(month))}</div>
+      <div class="list-row-sub">${esc(comidas)} · ${esc(cuando)} · ${fechas.length} día(s) en ${esc(monthName(month))}${vigencia ? ` · ${esc(vigencia)}` : ''}</div>
     </div>
     <div class="inline">
+      ${button('Editar', 'open-routine', 'btn-secondary btn-small', `data-id="${rutina.id}"`)}
       ${button('Aplicar', 'mes-aplicar-rutina', 'btn-secondary btn-small', `data-id="${rutina.id}"`)}
       ${button('Quitar', 'mes-borrar-rutina', 'btn-quiet btn-small', `data-id="${rutina.id}"`)}
     </div>
@@ -646,16 +653,53 @@ export function modalDia(ctx, extras = {}) {
 export function modalRutina(ctx, extras = {}) {
   const { state } = ctx;
   const month = extras.month;
+  const editando = extras.id ? (state.mealRoutines || []).find(item => item.id === extras.id) : null;
   const prefijo = extras.atajo ? ATAJOS_SALIDA.find(item => item.id === extras.atajo) : null;
-  const dias = prefijo?.weekdays || [];
-  const semanas = prefijo?.weeks || null;
-  const tipo = extras.kind || (prefijo ? 'outside' : 'recipe');
+
+  /* ── Lo que ya se sabe no se vuelve a preguntar ──────────────────────────
+
+     Tres puertas llevan aquí y cada una trae algo en la mano: editar una rutina
+     que ya existe, «ponerla en el calendario» desde una preparación —que trae
+     la preparación—, y «hacerla rutina» desde una comida del calendario —que
+     trae la preparación y el momento—. Antes esas dos últimas mandaban el dato
+     y el formulario no lo miraba: se abría en blanco y había que volver a
+     elegir lo que se acababa de elegir.
+
+     El orden de precedencia es el natural: lo que se está editando manda sobre
+     lo que llega de la puerta, y eso manda sobre el valor por defecto. */
+
+  const dias = editando?.weekdays || prefijo?.weekdays || [];
+  const semanas = editando?.weeks || prefijo?.weeks || null;
+  const receta = editando?.recipeId || extras.receta || '';
+  const momentos = editando?.slots || (extras.slot ? [extras.slot] : []);
+  const tipo = editando?.kind || extras.kind || (receta ? 'recipe' : prefijo ? 'outside' : 'recipe');
+  const hastaValor = editando?.until || '';
+  const desdeValor = editando?.desde || '';
   // «Fechas concretas» entra directamente por la pestaña de días sueltos: quien
-  // la eligió ya dijo que no quiere una costumbre, sino unos días.
-  const sueltos = Boolean(extras.sueltos);
-  return modal(prefijo ? prefijo.etiqueta : sueltos ? 'Fechas concretas' : 'Una comida que se repite',
-    `En ${monthName(month)} y, si quieres, en los meses siguientes`,
-    `<form data-form="rutina" data-month="${esc(month)}" class="modal-body rutina-form">
+  // la eligió ya dijo que no quiere una costumbre, sino unos días. Editar una
+  // rutina nunca entra por ahí: una rutina, por definición, no es días sueltos.
+  const sueltos = Boolean(extras.sueltos) && !editando;
+
+  /* ── El alcance por defecto ──────────────────────────────────────────────
+
+     «Desde ahora, todos los meses», porque una rutina es una costumbre: quien
+     abre este formulario está diciendo lo que se hace en su casa, no lo que va
+     a pasar en octubre. «Solo este mes» queda para la excepción, que es lo que
+     de verdad se marca de vez en cuando.
+
+     Las fechas sueltas son la excepción de la excepción y se quedan en el mes:
+     «el 4 y el 19» no describe ninguna costumbre. */
+  const alcance = editando?.scope || (sueltos ? 'month' : 'permanent');
+
+  // Sin una sola preparación escrita, el desplegable decía «Todavía no hay
+  // preparaciones» y ahí se acababa el camino. Ahora se sale por donde había que
+  // salir: se escribe la preparación y se vuelve aquí con ella ya elegida.
+  const sinPreparaciones = !state.recipes.length;
+
+  return modal(editando ? 'Editar la rutina' : prefijo ? prefijo.etiqueta : sueltos ? 'Fechas concretas' : 'Una comida que se repite',
+    editando ? `${describeRule(editando.weekdays, editando.weeks)} · lo que cambies aquí vale para la regla entera`
+      : `En ${monthName(month)} y, si quieres, en los meses siguientes`,
+    `<form data-form="rutina" data-month="${esc(month)}" data-id="${esc(editando?.id || '')}" class="modal-body rutina-form">
       <fieldset class="field-group"><legend>¿Qué comen?</legend>
         <div class="radio-fila">
           <label class="radio-pill"><input type="radio" name="kind" value="recipe" ${tipo === 'recipe' ? 'checked' : ''}><span>Una preparación</span></label>
@@ -663,19 +707,22 @@ export function modalRutina(ctx, extras = {}) {
           <label class="radio-pill"><input type="radio" name="kind" value="order" ${tipo === 'order' ? 'checked' : ''}><span>Pedimos comida</span></label>
         </div>
         <label class="field" data-rutina-receta ${tipo === 'recipe' ? '' : 'hidden'}><span>¿Cuál?</span>
-          <select name="recipeId">${options(state.recipes.map(item => [item.id, item.name]), '', state.recipes.length ? 'Elegir una preparación' : 'Todavía no hay preparaciones')}</select>
+          <select name="recipeId">${options(state.recipes.map(item => [item.id, item.name]), receta, state.recipes.length ? 'Elegir una preparación' : 'Todavía no hay preparaciones')}</select>
+          ${sinPreparaciones
+            ? `<small>Aún no has escrito ninguna. <button type="button" class="enlace" data-action="rutina-primera-preparacion" data-month="${esc(month)}">Escribir la primera</button> y vuelves aquí.</small>`
+            : ''}
         </label>
       </fieldset>
 
       <fieldset class="field-group"><legend>¿En qué comida?</legend>
-        <div class="chips">${MOMENTOS.map(momento => `<label class="chip-check"><input type="checkbox" name="slots" value="${momento.id}"><span>${esc(momento.etiqueta)}</span></label>`).join('')}</div>
+        <div class="chips">${MOMENTOS.map(momento => `<label class="chip-check"><input type="checkbox" name="slots" value="${momento.id}" ${momentos.includes(momento.id) ? 'checked' : ''}><span>${esc(momento.etiqueta)}</span></label>`).join('')}</div>
       </fieldset>
 
       <fieldset class="field-group"><legend>¿Qué días?</legend>
-        <div class="segmented segmented-ancho">
+        ${editando ? '' : `<div class="segmented segmented-ancho">
           <button type="button" data-action="rutina-modo-dias" data-modo="semana" class="${sueltos ? '' : 'active'}">Días de la semana</button>
           <button type="button" data-action="rutina-modo-dias" data-modo="sueltos" class="${sueltos ? 'active' : ''}">Días sueltos</button>
-        </div>
+        </div>`}
 
         <div data-dias-semana ${sueltos ? 'hidden' : ''}>
           <div class="chips dias-semana">${WEEKDAYS.map((dia, indice) => `<label class="chip-check"><input type="checkbox" name="weekdays" value="${dia}" ${dias.includes(dia) ? 'checked' : ''}><span>${esc(WEEKDAY_SHORT[indice])}</span></label>`).join('')}</div>
@@ -686,10 +733,16 @@ export function modalRutina(ctx, extras = {}) {
             <label class="radio-pill"><input type="radio" name="weeks" value="2,4" ${String(semanas) === '2,4' ? 'checked' : ''}><span>2.º y 4.º</span></label>
           </div>
           <p class="hint">«Primer y tercer domingo» son el primer y el tercer domingo que caen en el mes, sean las fechas que sean.</p>
-          <label class="field" style="margin-top:14px"><span>Hasta el día (opcional)</span>
-            <input type="date" name="hasta" min="${esc(monthBounds(month).start)}" max="${esc(monthBounds(month).end)}">
-            <small>Déjalo vacío para todo el mes. Sirve para «solo hasta que vuelva el niño de las vacaciones».</small>
-          </label>
+          <div class="rutina-vigencia">
+            <label class="field"><span>Desde el día (opcional)</span>
+              <input type="date" name="desde" value="${esc(desdeValor)}">
+              <small>Para escribir hoy algo que empieza más adelante.</small>
+            </label>
+            <label class="field"><span>Hasta el día (opcional)</span>
+              <input type="date" name="hasta" value="${esc(hastaValor)}">
+              <small>Para «solo hasta que vuelva el niño de las vacaciones».</small>
+            </label>
+          </div>
         </div>
 
         <div data-dias-sueltos ${sueltos ? '' : 'hidden'}>
@@ -701,8 +754,8 @@ export function modalRutina(ctx, extras = {}) {
 
       <fieldset class="field-group" data-alcance-rutina ${sueltos ? 'hidden' : ''}><legend>¿Hasta cuándo?</legend>
         <div class="radio-fila">
-          <label class="radio-pill"><input type="radio" name="scope" value="month" checked><span>Solo ${esc(monthName(month))}</span></label>
-          <label class="radio-pill"><input type="radio" name="scope" value="permanent"><span>Desde ahora, todos los meses</span></label>
+          <label class="radio-pill"><input type="radio" name="scope" value="permanent" ${alcance === 'permanent' ? 'checked' : ''}><span>Desde ahora, todos los meses</span></label>
+          <label class="radio-pill"><input type="radio" name="scope" value="month" ${alcance === 'month' ? 'checked' : ''}><span>Solo ${esc(monthName(month))}</span></label>
         </div>
       </fieldset>
 
@@ -715,7 +768,7 @@ export function modalRutina(ctx, extras = {}) {
 
       <div class="modal-actions">
         ${button('Cancelar', 'close-modal', 'btn-secondary')}
-        <button type="submit" class="btn btn-primary">Guardar y aplicar</button>
+        <button type="submit" class="btn btn-primary">${editando ? 'Guardar los cambios' : 'Guardar y aplicar'}</button>
       </div>
     </form>`, true);
 }
@@ -855,14 +908,22 @@ export const MES_ACTIONS = {
     // Quitar la rutina sin tocar las comidas ya puestas es casi siempre lo que
     // se quiere: «ya no comemos esto los lunes» no significa «borra el lunes
     // pasado». Por eso se pregunta en vez de decidirlo nosotros.
-    const borrarComidas = planes.length
-      ? window.confirm(`«${tituloDeRutina(ctx.state, rutina)}» está puesta en ${planes.length} comida(s). ¿Quitar también esas comidas del calendario?\n\nAceptar: se quitan.\nCancelar: se quedan, pero dejan de repetirse.`)
+    // Y de las que se quitan, solo las que están por venir. Borrar el lunes
+    // pasado no deshace ninguna cena: la casa ya comió eso, y el historial de la
+    // compra cuenta con ello.
+    const porVenir = planes.filter(plan => plan.date >= hoy);
+    const borrarComidas = porVenir.length
+      ? window.confirm(`«${tituloDeRutina(ctx.state, rutina)}» está puesta en ${planes.length} comida(s), ${porVenir.length} de hoy en adelante.\n\nAceptar: se quitan las que están por venir.\nCancelar: se quedan todas, pero dejan de repetirse.\n\nLas que ya pasaron no se tocan en ningún caso.`)
       : false;
     const antes = snapshot(ctx.state);
-    if (borrarComidas) for (const plan of [...planes]) deletePlan(ctx.state, plan.id, true);
-    deleteRoutine(ctx.state, el.dataset.id);
+    const salida = deleteRoutine(ctx.state, el.dataset.id, { comidas: borrarComidas ? 'quitar' : 'conservar', desde: hoy });
     ctx.ui.mes.deshacer = antes;
-    ctx.ui.mes.aviso = { tipo: 'rutina', month: ctx.ui.mes.month, titulo: 'Rutina quitada.', detalle: borrarComidas ? `${planes.length} comida(s) salieron del calendario.` : 'Las comidas ya puestas se quedan donde estaban.' };
+    ctx.ui.mes.aviso = {
+      tipo: 'rutina', month: ctx.ui.mes.month, titulo: 'Rutina quitada.',
+      detalle: salida.quitadas
+        ? `${salida.quitadas} comida(s) salieron del calendario. Las ${salida.conservadas} que ya habían pasado se quedan donde estaban.`
+        : 'Las comidas ya puestas se quedan donde estaban; solo dejan de repetirse.'
+    };
     ctx.commit('');
   },
 
@@ -983,29 +1044,75 @@ export const MES_FORMS = {
     const weeks = !semanasCrudas || semanasCrudas === 'todas' ? null : semanasCrudas.split(',').map(Number);
     const scope = data.get('scope') === 'permanent' ? 'permanent' : 'month';
     const hasta = String(data.get('hasta') || '') || null;
+    const desde = String(data.get('desde') || '') || null;
     if (!weekdays.length) throw new Error('Marca al menos un día de la semana.');
 
-    const fechas = datesForRule(month, weekdays, weeks).filter(date => !hasta || date <= hasta);
-    if (!fechas.length) throw new Error('Con esos días y esa fecha final no queda ningún día del mes.');
+    const fechas = datesForRule(month, weekdays, weeks).filter(date => (!hasta || date <= hasta) && (!desde || date >= desde));
+    const editandoId = form.dataset.id || '';
+    // Editando se permite que el mes que se está mirando quede sin ninguna
+    // fecha: cambiar la regla a «los martes desde noviembre» es legítimo aunque
+    // octubre se quede vacío. Creando no, porque no se vería pasar nada.
+    if (!fechas.length && !editandoId) throw new Error('Con esos días y esas fechas no queda ningún día del mes.');
     if (modo === 'reemplazar') {
       const ocupadas = fechas.flatMap(date => slots.filter(slot => planFor(state, date, slot))).length;
       if (ocupadas && !window.confirm(`Esto va a reemplazar ${ocupadas} comida(s) que ya estaban puestas en ${monthName(month)}. ¿Continuar?`)) return;
     }
 
     const antes = snapshot(state);
-    const rutina = addRoutine(state, {
+    const campos = {
       kind,
       recipeId: kind === 'recipe' ? data.get('recipeId') : null,
-      slots, weekdays, weeks, scope, until: hasta,
+      slots, weekdays, weeks, scope, desde, until: hasta,
       month: scope === 'month' ? month : null
-    });
-    const resultado = applyRoutine(state, rutina.id, month, { modo, hasta });
+    };
+
+    /* ── Editar cambia la regla, y la regla manda sobre lo ya puesto ────────
+
+       Antes «editar toda la rutina» solo reescribía las comidas que ya estaban
+       en el calendario: los días nuevos no aparecían y los que dejaban de tocar
+       se quedaban ahí. La regla y lo que se veía se iban separando cada vez que
+       alguien la tocaba.
+
+       Ahora se suelta lo que la regla ya no cubre —soltar y no borrar, porque
+       una comida escrita es una decisión de alguien— y se vuelve a aplicar. */
+    const rutina = editandoId ? updateRoutine(state, editandoId, campos) : addRoutine(state, campos);
+    let liberadas = 0;
+    if (editandoId) {
+      const vigentes = new Set(fechas.flatMap(date => slots.map(slot => `${date}|${slot}`)));
+      for (const plan of state.plans) {
+        if (plan.routineId !== rutina.id) continue;
+        if (plan.date.slice(0, 7) !== month) continue;
+        if (vigentes.has(`${plan.date}|${plan.slot}`)) continue;
+        plan.routineId = null;
+        liberadas++;
+      }
+    }
+    const resultado = applyRoutine(state, rutina.id, month, { modo, hasta, desde });
+
+    // Y los meses futuros que ya estaban abiertos. Sin esto, quien preparó
+    // noviembre en octubre escribía una costumbre que noviembre no llegaba a
+    // oír: su único momento de escuchar fue el día en que se abrió.
+    let futuros = { meses: [], creados: [] };
+    if (scope === 'permanent') {
+      const pisaria = ocupadasEnMesesAbiertos(state, rutina.id, month);
+      const permiso = !pisaria.length || modo !== 'reemplazar'
+        || window.confirm(`En los meses que ya tienes preparados hay ${pisaria.length} comida(s) puestas en esos mismos días. ¿Reemplazarlas también?`);
+      futuros = extenderAMesesAbiertos(state, rutina.id, month, { modo: permiso ? modo : 'vacios' });
+    }
 
     ui.mes.deshacer = antes;
     ui.mes.aviso = {
       tipo: 'rutina', month,
       titulo: `${describeRule(weekdays, weeks)}: ${tituloDeRutina(state, rutina).toLowerCase()}.`,
-      detalle: `${resultado.creados.length} comida(s) puestas en ${monthName(month)}${resultado.saltados.length ? `, ${resultado.saltados.length} día(s) se dejaron como estaban` : ''}.${hasta ? ` Hasta el ${niceDate(hasta, { day: 'numeric', month: 'long' })}.` : ''} ${scope === 'permanent' ? 'Se repetirá en los meses siguientes.' : `Vale solo para ${monthName(month)}.`}`
+      detalle: [
+        `${resultado.creados.length} comida(s) ${editandoId ? 'al día' : 'puestas'} en ${monthName(month)}`,
+        resultado.saltados.length ? `${resultado.saltados.length} día(s) se dejaron como estaban` : '',
+        liberadas ? `${liberadas} dejaron de seguir la rutina y se quedan donde estaban` : '',
+        desde ? `Desde el ${niceDate(desde, { day: 'numeric', month: 'long' })}` : '',
+        hasta ? `hasta el ${niceDate(hasta, { day: 'numeric', month: 'long' })}` : '',
+        futuros.meses.length ? `Y ${futuros.creados.length} en ${futuros.meses.map(mes => monthName(mes)).join(' y ')}, que ya tenías preparados` : '',
+        scope === 'permanent' ? 'Se repetirá en los meses siguientes.' : `Vale solo para ${monthName(month)}.`
+      ].filter(Boolean).join('. ').replace(/\.\./g, '.')
     };
     ctx.closeModal();
     ctx.commit('');

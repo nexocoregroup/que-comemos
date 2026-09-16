@@ -240,8 +240,13 @@ test('la ventana de una preparación se puede encadenar para escribirlas de una 
     'el botón de encadenar sale también al editar una preparación que ya existe');
   // Y al guardar, la ventana se queda abierta y en blanco.
   assert.ok(/const seguir = data\.get\('seguir'\) === '1';/.test(codigo));
-  assert.ok(/ui\.modal = seguir \? \{ type: 'recipe', id: '' \} : null;/.test(codigo),
+  assert.ok(/ui\.modal = seguir \? \{ type: 'recipe', id: '' \}/.test(codigo),
     'guardar y seguir no deja la ventana abierta y vacía');
+  // Y quien llegó aquí desde una rutina porque no tenía ninguna preparación
+  // vuelve a la rutina con la recién escrita ya elegida, en vez de quedarse en
+  // una pantalla que no es la suya.
+  assert.ok(/volverARutina \? \{ type: 'rutina', month: volverARutina, receta: receta\.id/.test(codigo),
+    'escribir la primera preparación desde una rutina no devuelve a la rutina');
 });
 
 test('quitar una preparación pregunta antes, y avisa si está puesta en el calendario', () => {

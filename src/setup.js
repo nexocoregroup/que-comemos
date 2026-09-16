@@ -236,7 +236,8 @@ function pantallaDeRubro(setup) {
     <div class="setup-falta">
       ${setup.anadiendo
         ? ventanitaDeAnadir(setup, rubro)
-        : `<button type="button" class="enlace" data-action="setup-falta">¿No encuentras un alimento? Añadirlo</button>`}
+        : `<button type="button" class="enlace" data-action="setup-falta">¿No encuentras un alimento? Añadirlo</button>
+           <button type="button" class="enlace" data-action="open-bulk" data-destino="habitual">🗣️ Decirlos de corrido</button>`}
     </div>
 
     <div class="modal-actions setup-actions">

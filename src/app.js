@@ -934,7 +934,10 @@ function renderModal() {
             ['siguientes', 'Esta y todas las siguientes', 'Las anteriores no se tocan.'],
             ['todas', 'Toda la rutina', 'Incluidas las que ya pasaron este mes.']].map(([valor, titulo, detalle]) =>
            `<button type="button" class="radio-bloque" data-action="alcance-elegido" data-id="${plan.id}" data-alcance="${valor}"><span><strong>${esc(titulo)}</strong>${esc(detalle)}</span></button>`).join('')}
-       </div>`);
+       </div>
+       ${rutina ? `<p class="small muted" style="margin-top:16px">Las tres cambian comidas ya puestas. Para cambiar <strong>la regla</strong> —qué días, en qué comida, desde cuándo, si es de todos los meses— hay que editarla:
+         <button type="button" class="enlace" data-action="open-routine" data-id="${esc(rutina.id)}">Editar la regla completa</button>.
+         Eso sí llega a los meses que vengan.</p>` : ''}`);
   }
 
   /* ── Una preparación ──────────────────────────────────────────────────────
@@ -956,7 +959,7 @@ function renderModal() {
     const enCasa = personasActivas(state).length;
     return modal(recipe ? 'Editar preparación' : 'Nueva preparación',
       'Con el nombre y cuándo se come ya basta. Lo demás se puede añadir después.',
-      `<form data-form="recipe" data-id="${recipe?.id || ''}" class="receta-form">
+      `<form data-form="recipe" data-id="${recipe?.id || ''}" data-volver-rutina="${esc(m.volverRutina || '')}" class="receta-form">
         <label class="field"><span>¿Cómo se llama?</span><input name="name" required value="${esc(recipe?.name || '')}" placeholder="Ej. Mangú con salami"></label>
 
         <div class="field">
@@ -1511,7 +1514,9 @@ document.addEventListener('click', event => {
     // Los dos destinos a los que manda la asistente cuando no entiende una
     // frase de canasta o de rutina: el sitio donde eso se escribe a mano.
     else if (action === 'open-basket') { ui.page = 'canasta'; ui.mas.canastaVista = 'habitual'; ui.modal = null; render(); }
-    else if (action === 'open-routine') openModal('rutina', { month: ui.mes.month });
+    else if (action === 'open-routine') openModal('rutina', { month: ui.mes.month, id: el.dataset.id || '' });
+    // Salir del callejón: se escribe la primera preparación y se vuelve aquí.
+    else if (action === 'rutina-primera-preparacion') openModal('recipe', { id: '', volverRutina: el.dataset.month || ui.mes.month });
     else if (action === 'open-new-review') openModal('new-review');
     else if (action === 'open-correction') openModal('correction', { id: el.dataset.id });
     else if (action === 'open-absence') openModal('absence');
@@ -1830,7 +1835,14 @@ document.addEventListener('submit', async event => {
       // Los días que se repite: si se marcaron, la comida queda puesta en el
       // calendario sin salir de aquí.
       const repeticion = aplicarDiasDeLaReceta(form, data, receta);
-      ui.modal = seguir ? { type: 'recipe', id: '' } : null;
+      // Quien llegó aquí desde el formulario de una rutina porque no tenía
+      // ninguna preparación escrita vuelve por donde vino, y vuelve con la que
+      // acaba de escribir ya elegida. El registro inicial no puede terminar en
+      // una ventana que se cierra y te deja donde no estabas.
+      const volverARutina = form.dataset.volverRutina || '';
+      ui.modal = seguir ? { type: 'recipe', id: '' }
+        : volverARutina ? { type: 'rutina', month: volverARutina, receta: receta.id, kind: 'recipe' }
+        : null;
       // Se guarda igual sin alimentos: la preparación ya sirve para llenar el
       // calendario. Lo único que no puede hacer es aportar a la compra, y eso
       // se dice en voz baja en vez de bloquear el guardado.
