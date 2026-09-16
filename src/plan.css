@@ -530,3 +530,60 @@
   margin: 0;
 }
 .receta-momentos .check-chip { align-items: center; }
+
+/* ── Cinco momentos: tres que se cuentan y dos que no ──────────────────────
+
+   Las meriendas se ven menos que las comidas a propósito. No son menos
+   importantes cuando existen; lo que no pueden es parecer un hueco cuando no
+   existen, porque hay casas que no meriendan y no les falta nada. */
+
+.plan-slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+.plan-slot-opcional { opacity: .88; border-style: dashed; }
+
+.meriendas { margin-top: 16px; }
+.merienda-card { padding: 15px; }
+.merienda-card .slot { color: var(--ink-muted); font-weight: 800; font-size: .72rem; text-transform: uppercase; letter-spacing: .12em; margin-bottom: 8px; }
+.merienda-card .meal-title { font-weight: 800; letter-spacing: -.02em; margin-bottom: 8px; }
+.merienda-card.vacia { border-style: dashed; }
+.meriendas-vacias { margin: 16px 0 0; }
+.meriendas-vacias .enlace { font-size: .85rem; }
+
+/* En el calendario, la merienda va más fina y en gris: la casilla de un día
+   tiene que seguir leyéndose de un vistazo con cinco cosas dentro. */
+.month-meal-opcional { background: #f7f4ef; color: #7a6c60; font-size: .64rem; }
+.month-meal-merienda {
+  border: 1px dashed #dbcfc0; background: transparent; color: #9a8878;
+  display: block; width: 100%; text-align: left; border-radius: 6px;
+  padding: 3px 5px; margin-top: 5px; font-size: .63rem; line-height: 1.2;
+}
+.month-meal-merienda:hover { background: #f6f1ea; color: var(--clay-dark); }
+
+/* ── Avisos por gravedad ───────────────────────────────────────────────────
+
+   Tres niveles con tres aspectos. Ninguno impide guardar: las tres salidas
+   —cambiar la preparación, cambiar quién come, dejarla porque se hará otra
+   cosa— son controles que ya están en la pantalla. */
+
+.choque { border-radius: 14px; padding: 13px 15px; margin: 4px 0 0; line-height: 1.45; }
+.choque-cabeza { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.choque-marca { font-weight: 900; font-size: 1rem; line-height: 1; }
+.choque-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: .88rem; }
+.choque p { margin: 8px 0 0; opacity: .85; }
+
+.choque-alergia { background: #fdece8; border: 2px solid #d99a8e; color: #7d2c22; }
+.choque-alergia .choque-marca { color: #9d3a2e; font-size: 1.15rem; }
+.choque-alergia .choque-cabeza strong { font-size: 1rem; }
+
+.choque-intolerancia { background: #fff2dd; border: 1px solid #e6cb9c; color: #6d4f1c; }
+.choque-intolerancia .choque-marca { color: #8a6220; }
+
+.choque-preferencia { background: var(--surface-soft); border: 1px solid var(--line); color: var(--ink-muted); font-size: .85rem; }
+.choque-preferencia .choque-cabeza strong { font-weight: 700; }
+
+.quien-come .enlace { font-size: .86rem; margin-top: 2px; }
+.quien-come p { margin: 0 0 4px; }
+
+@media (max-width: 700px) {
+  .meriendas { grid-template-columns: 1fr; }
+  .plan-slots { grid-template-columns: 1fr 1fr; }
+}

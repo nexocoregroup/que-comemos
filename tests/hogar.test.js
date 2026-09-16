@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 
 import { migrate, SCHEMA_VERSION } from '../src/migrate.js';
 import {
-  addProduct, alimentosProhibidos, createEmptyState, effectiveParticipants, esActiva,
+  addProduct, alimentosProhibidos, choquesDeLaComida, createEmptyState, effectiveParticipants, esActiva,
   exportState, importState, incompatibleItems, makeRecipePlan, personasActivas, product,
   restriccionesDe, setPersonActive, todayISO, upsertPerson, upsertRecipe
 } from '../src/model.js';
@@ -599,11 +599,15 @@ test('un día cualquiera con todo esto puesto no rompe el cálculo de siempre', 
   const { state, arroz } = casa();
   const sofia = upsertPerson(state, { name: 'Sofía', restricciones: [{ productId: arroz, texto: '', motivo: 'alergia' }], habitual: [] });
   const luis = upsertPerson(state, { name: 'Luis', restricciones: [], habitual: [] });
-  const receta = upsertRecipe(state, { name: 'Arroz', uses: ['cena'], items: [{ productId: arroz, quantity: 2, unit: 'lb' }], covers: [], note: '' });
-  // Con Sofía en casa, esa cena no se puede guardar: lleva lo que ella no come.
-  assert.throws(() => makeRecipePlan(state, receta.id, todayISO(), 'cena'), /incompatible/);
-  // Para Luis solo, sí.
-  const plan = makeRecipePlan(state, receta.id, todayISO(), 'cena', [luis.id]);
-  assert.deepEqual(plan.participants, [luis.id]);
+  const receta = upsertRecipe(state, { name: 'Arroz', uses: ['cena'], items: [{ productId: arroz, quantity: 2, unit: 'lb' }], note: '' });
+  // Con Sofía en casa, esa cena se guarda igual y la app avisa: se le hará otra
+  // cosa a ella. Lo que no hace es decidirlo por la casa.
+  const plan = makeRecipePlan(state, receta.id, todayISO(), 'cena');
+  assert.ok(plan.participants.includes(sofia.id));
+  const choques = choquesDeLaComida(state, plan.items, plan.participants);
+  assert.equal(choques.length, 1);
+  assert.equal(choques[0].motivo, 'alergia');
+  assert.equal(choques[0].gravedad, 3);
   assert.equal(restriccionesDe(sofia).length, 1);
+  assert.ok(luis);
 });

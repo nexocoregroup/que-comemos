@@ -11,7 +11,7 @@
 // forma cómoda de escribir comidas, no una parte del motor de inventario.
 
 import {
-  SLOTS, dateRange, deletePlan, makeRecipePlan, monthBounds, monthChanges, nextId,
+  SLOTS, SLOTS_PRINCIPALES, dateRange, deletePlan, makeRecipePlan, monthBounds, monthChanges, nextId,
   planFor, setStatusPlan, todayISO, validDate, validMonth, copyPlan
 } from './model.js';
 
@@ -269,17 +269,23 @@ export function monthProgress(state, month) {
   const { start, end } = monthBounds(month);
   const fechas = dateRange(start, end);
   const dias = fechas.length;
-  const huecos = dias * SLOTS.length;
-  let encasa = 0, fuera = 0, pedido = 0, pendientes = 0;
+  // El progreso cuenta lo que una casa espera resolver todos los días. Las
+  // meriendas suman cuando están puestas, pero no restan cuando no lo están:
+  // un mes sin ninguna merienda anotada está al cien por cien, porque hay casas
+  // que no meriendan y no les falta nada.
+  const huecos = dias * SLOTS_PRINCIPALES.length;
+  let encasa = 0, fuera = 0, pedido = 0, pendientes = 0, meriendas = 0;
   for (const date of fechas) for (const slot of SLOTS) {
     const plan = planFor(state, date, slot);
-    if (!plan || plan.kind === 'unplanned') { pendientes += 1; continue; }
+    const opcional = !SLOTS_PRINCIPALES.includes(slot);
+    if (!plan || plan.kind === 'unplanned') { if (!opcional) pendientes += 1; continue; }
+    if (opcional) { meriendas += 1; continue; }
     if (plan.kind === 'outside') { fuera += 1; continue; }
     if (plan.kind === 'order') { pedido += 1; continue; }
     encasa += 1;
   }
   return {
-    month, dias, huecos, encasa, fuera, pedido, pendientes,
+    month, dias, huecos, encasa, fuera, pedido, pendientes, meriendas,
     porcentaje: huecos ? Math.round(((huecos - pendientes) / huecos) * 100) : 0,
     cambiosCanasta: monthChanges(state, month).changes.length
   };

@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 // siga siendo UN registro. Dos bloques enseñando lo mismo es fácil; dos bloques
 // enseñando dos copias que se desincronizan es el error que hay que impedir.
 
-import { MOMENTOS, MOMENTOS_IDS, SLOTS, addProduct, createEmptyState, effectiveParticipants, makeRecipePlan, upsertPerson, upsertRecipe } from '../src/model.js';
+import { MOMENTOS, MOMENTOS_IDS, SLOTS, SLOTS_PRINCIPALES, addProduct, createEmptyState, effectiveParticipants, makeRecipePlan, upsertPerson, upsertRecipe } from '../src/model.js';
 import { migrate, SCHEMA_VERSION } from '../src/migrate.js';
 import { emptyMas, renderMas, MAS_ACTIONS } from '../src/page-mas.js';
 
@@ -49,12 +49,12 @@ test('son cinco momentos, en el orden del día', () => {
   ]);
 });
 
-test('el calendario sigue teniendo tres comidas al día, y salen de los momentos', () => {
-  // Las dos listas no pueden separarse por olvido: `SLOTS` se deriva de
-  // `MOMENTOS`. Si algún día el calendario tiene meriendas, se cambia en un
-  // sitio y no en veinte.
-  assert.deepEqual(SLOTS, ['desayuno', 'almuerzo', 'cena']);
-  assert.deepEqual(SLOTS, MOMENTOS.filter(item => item.enElDia).map(item => item.id));
+test('el calendario tiene los cinco momentos, y los principales son tres', () => {
+  assert.deepEqual(SLOTS, ['desayuno', 'merienda-manana', 'almuerzo', 'merienda-tarde', 'cena']);
+  assert.deepEqual(SLOTS, MOMENTOS.map(item => item.id));
+  // Las meriendas son opcionales: están en el día, pero no cuentan como hueco.
+  assert.deepEqual(SLOTS_PRINCIPALES, ['desayuno', 'almuerzo', 'cena']);
+  assert.deepEqual(SLOTS_PRINCIPALES, MOMENTOS.filter(item => !item.opcional).map(item => item.id));
 });
 
 test('mangú con salami se guarda para desayuno y cena, en una sola preparación', () => {

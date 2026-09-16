@@ -16,7 +16,7 @@
 // Las dos cuentas nunca se suman. Sumarlas contaría dos veces el mismo arroz:
 // una por estar en la canasta y otra por estar dentro de una preparación.
 
-import { effectiveBasket, frecuenciaDe, lastStockReview, monthBounds, periodosDelMes, product, shoppingList, todayISO } from './model.js';
+import { effectiveBasket, etiquetaDeMomento, frecuenciaDe, lastStockReview, monthBounds, periodosDelMes, product, shoppingList, todayISO } from './model.js';
 import { button, cap, empty, esc, measure, monthName, niceDate, notice, shiftMonth } from './ui-kit.js';
 
 const hoy = todayISO();
@@ -229,7 +229,7 @@ function avisosPrevios(ctx, lista) {
       'La lista no las descuenta sola: comer fuera un domingo no hace que la casa gaste menos arroz el resto del mes. Si este mes van a consumir menos de algo, anótalo en los cambios del mes.'));
   }
   if (ui.compra.base === 'menu' && lista.missing?.length) {
-    trozos.push(notice(`${lista.missing.length} comida(s) sin planificar`, `Calculando desde el menú, lo que no esté planificado no entra en la lista. ${lista.missing.slice(0, 4).map(item => `${cap(item.slot)} ${niceDate(item.date, { day: 'numeric', month: 'short' })}`).join(', ')}${lista.missing.length > 4 ? '…' : ''}`, 'warn'));
+    trozos.push(notice(`${lista.missing.length} comida(s) sin planificar`, `Calculando desde el menú, lo que no esté planificado no entra en la lista. ${lista.missing.slice(0, 4).map(item => `${etiquetaDeMomento(item.slot)} ${niceDate(item.date, { day: 'numeric', month: 'short' })}`).join(', ')}${lista.missing.length > 4 ? '…' : ''}`, 'warn'));
   }
   return trozos.join('');
 }

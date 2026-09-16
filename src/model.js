@@ -20,17 +20,25 @@ export { normalizeName, SCHEMA_VERSION, CLASES_DE_PERSONA, MOTIVOS_DE_RESTRICCIO
    `SLOTS` se deriva de `MOMENTOS` para que no puedan separarse por olvido. */
 
 export const MOMENTOS = [
-  { id: 'desayuno',        etiqueta: 'Desayuno',           plural: 'Desayunos',           enElDia: true },
-  { id: 'merienda-manana', etiqueta: 'Merienda de mañana', plural: 'Meriendas de mañana', enElDia: false },
-  { id: 'almuerzo',        etiqueta: 'Almuerzo',           plural: 'Almuerzos',           enElDia: true },
-  { id: 'merienda-tarde',  etiqueta: 'Merienda de tarde',  plural: 'Meriendas de tarde',  enElDia: false },
-  { id: 'cena',            etiqueta: 'Cena',               plural: 'Cenas',               enElDia: true }
+  { id: 'desayuno',        etiqueta: 'Desayuno',           corto: 'Desayuno',  plural: 'Desayunos',           opcional: false },
+  { id: 'merienda-manana', etiqueta: 'Merienda de mañana', corto: 'Merienda',  plural: 'Meriendas de mañana', opcional: true },
+  { id: 'almuerzo',        etiqueta: 'Almuerzo',           corto: 'Almuerzo',  plural: 'Almuerzos',           opcional: false },
+  { id: 'merienda-tarde',  etiqueta: 'Merienda de tarde',  corto: 'Merienda',  plural: 'Meriendas de tarde',  opcional: true },
+  { id: 'cena',            etiqueta: 'Cena',               corto: 'Cena',      plural: 'Cenas',               opcional: false }
 ];
 export const MOMENTOS_IDS = MOMENTOS.map(item => item.id);
 export const momentoDe = id => MOMENTOS.find(item => item.id === id) || null;
 export const etiquetaDeMomento = id => momentoDe(id)?.etiqueta || id;
+export const esOpcional = id => Boolean(momentoDe(id)?.opcional);
 
-export const SLOTS = MOMENTOS.filter(item => item.enElDia).map(item => item.id);
+export const SLOTS = MOMENTOS.map(item => item.id);
+
+// Los tres momentos que una casa espera resolver todos los días. Las meriendas
+// no están: hay casas que no meriendan, y contar un día como incompleto porque
+// nadie anotó la merienda de las diez es reprocharle a la gente algo que no
+// hace. Se usan para todo lo que cuenta huecos —el progreso de Hoy, el del mes,
+// los avisos de la compra por menú— y nunca para limitar lo que se puede poner.
+export const SLOTS_PRINCIPALES = MOMENTOS.filter(item => !item.opcional).map(item => item.id);
 export const UNITS = ['unidad', 'lb', 'taza', 'lata', 'paquete', 'rueda', 'rebanada'];
 // Una «rueda» no mide lo mismo en dos casas: quien corta fino saca el doble de
 // ruedas del mismo salami. El grosor no convierte nada por sí solo —para eso
@@ -644,22 +652,20 @@ export function linkPendingRestrictions(state, person) {
   person.restricciones = filas;
   return person;
 }
+/* Marcar que alguien no come en casa no cambia lo que se cocina.
+
+   Antes sí: quitaba a la persona de la comida, borraba los alimentos que
+   llevaran su nombre y, si se quedaba sin nadie, convertía la comida en «fuera
+   de casa» o la borraba del todo. Una olla de arroz no se encoge porque un hijo
+   avise a las seis de que come fuera, y desde luego la cena de la casa no se
+   cancela por eso.
+
+   Así que aquí solo se anota la ausencia. Sirve para no marcar a esa persona en
+   las comidas que se creen después, y para decirlo en la pantalla del día. Lo
+   que ya estaba puesto se queda exactamente como estaba. */
 export function setAbsence(state, date, slot, personId, absent) {
   state.absences = state.absences.filter(item => !(item.date === date && item.slot === slot && item.personId === personId));
-  if (absent) {
-    state.absences.push({ date, slot, personId });
-    const plan = planFor(state, date, slot);
-    if (plan) {
-      plan.participants = plan.participants.filter(id => id !== personId);
-      plan.items = plan.items.filter(item => {
-        if (item.personId !== personId) return true;
-        if (reservedQuantity(state, plan.id, item.id) > 0) { item.personId = null; return true; }
-        return false;
-      });
-      if (!plan.participants.length && plan.kind === 'linked') state.plans = state.plans.filter(item => item.id !== plan.id);
-      else if (!plan.participants.length && plan.kind === 'recipe' && !dependents(state, plan.id).length) { plan.kind = 'outside'; plan.items = []; }
-    }
-  }
+  if (absent) state.absences.push({ date, slot, personId });
 }
 export const isAbsent = (state, date, slot, personId) => state.absences.some(item => item.date === date && item.slot === slot && item.personId === personId);
 export function upsertRecipe(state, fields) {
@@ -731,6 +737,54 @@ export function incompatibleItems(state, items, participants) {
     return Boolean(person) && alimentosProhibidos(person).has(item.productId) && (!item.personId || item.personId === id);
   }));
 }
+
+/* ── Avisar, no prohibir ───────────────────────────────────────────────────
+
+   Antes, poner una comida con un alimento que alguien evita lanzaba un error y
+   no se guardaba. Eso está mal por dos motivos.
+
+   El primero es que la app no sabe lo suficiente para prohibir: en una casa
+   real se cocina el mismo arroz con leche y a la niña se le hace otra cosa, y
+   eso es exactamente lo que estaba pasando cuando la app decía que no.
+
+   El segundo es que prohibirlo todo por igual borra la diferencia que importa.
+   Un maní que manda al hospital y una berenjena que no gusta no son el mismo
+   aviso, y cuando las dos cosas bloquean igual, la gente aprende a esquivar el
+   bloqueo y deja de leer los dos.
+
+   Así que ahora se avisa, con la gravedad que toca, y se deja decidir. Quien
+   mira el aviso tiene las tres salidas: cambiar la preparación, cambiar quién
+   come, o guardarla igual porque va a cocinar otra cosa para esa persona. */
+
+export const GRAVEDADES = { alergia: 3, intolerancia: 2, preferencia: 1 };
+export const gravedadDe = motivo => GRAVEDADES[motivo] ?? 2;
+
+// Los choques de una comida, uno por cada pareja de alimento y persona, con el
+// motivo que esa persona tenía anotado. Ordenados por gravedad: lo que puede
+// hacer daño se lee primero.
+export function choquesDeLaComida(state, items, participants) {
+  const choques = [];
+  for (const item of items) {
+    for (const id of participants) {
+      const person = state.people.find(p => p.id === id);
+      if (!person || !alimentosProhibidos(person).has(item.productId)) continue;
+      if (item.personId && item.personId !== id) continue;
+      const fila = restriccionDe(person, item.productId);
+      choques.push({
+        productId: item.productId,
+        producto: product(state, item.productId)?.name || 'Alimento eliminado',
+        personId: id,
+        persona: person.name,
+        motivo: fila?.motivo ?? null,
+        gravedad: gravedadDe(fila?.motivo)
+      });
+    }
+  }
+  return choques.sort((a, b) => b.gravedad - a.gravedad || a.persona.localeCompare(b.persona));
+}
+
+// La gravedad de la comida entera: la del peor de sus choques.
+export const gravedadDeLaComida = choques => choques.reduce((peor, choque) => Math.max(peor, choque.gravedad), 0);
 // `routineId` deja escrito que esta comida la puso una rutina y no una persona.
 // Sin esa marca no se podría deshacer «los domingos fuera» sin borrar también
 // los domingos que alguien decidió a mano.
@@ -741,7 +795,8 @@ export function makeRecipePlan(state, recipeId, date, slot, selected, routineId 
   const participants = effectiveParticipants(state, recipe, date, slot, selected);
   if (personasActivas(state).length && !participants.length) throw new Error('Selecciona al menos una persona que comerá en casa.');
   const rawItems = recipe.items.filter(item => !item.personId || participants.includes(item.personId));
-  if (incompatibleItems(state, rawItems, participants).length) throw new Error('La preparación incluye un alimento incompatible con una de las personas seleccionadas.');
+  // Un alimento que alguien evita ya no impide guardar la comida: se avisa en
+  // la pantalla, con la gravedad que toca, y decide quien cocina.
   const plan = { id: nextId(state, 'comida'), date, slot, kind: 'recipe', recipeId, routineId: routineId || null, title: recipe.name, note: recipe.note, servings: recipe.servings, participants, items: rawItems.map(item => ({ ...item, id: nextId(state, 'alimento') })) };
   state.plans.push(plan);
   return plan;
@@ -775,7 +830,7 @@ export function linkPlan(state, sourceId, date, slot, allocation, extraItems = [
     if (!product(state, item.productId) || !UNITS.includes(item.unit)) throw new Error('Selecciona alimentos y unidades válidas.');
     return { ...item, id: nextId(state, 'alimento'), quantity: quantity(item.quantity) };
   });
-  if (incompatibleItems(state, items, participants).length) throw new Error('Hay un alimento adicional incompatible con una persona seleccionada.');
+
   const plan = { id: nextId(state, 'comida'), date, slot, kind: 'linked', sourceId, routineId: null, title: source.title, participants, reservedItems, items, note: '' };
   state.plans.push(plan);
   return plan;
@@ -794,7 +849,7 @@ export function updatePlan(state, planId, fields) {
   }
   const participants = fields.participants || plan.participants;
   if (participants.some(id => isAbsent(state, plan.date, plan.slot, id))) throw new Error('Una de las personas seleccionadas está marcada fuera de casa.');
-  if (incompatibleItems(state, items, participants).length) throw new Error('Hay un alimento incompatible con una persona seleccionada.');
+
   plan.items = items;
   plan.participants = participants;
   plan.note = String(fields.note || '').trim();
@@ -828,7 +883,7 @@ export function copyPlan(state, id, date, slot) {
   copy.participants = copy.participants.filter(personId => !isAbsent(state, date, slot, personId));
   if (personasActivas(state).length && source.participants.length && !copy.participants.length) throw new Error('No hay participantes disponibles para esa comida.');
   copy.items = copy.items.filter(item => !item.personId || copy.participants.includes(item.personId)).map(item => ({ ...item, id: nextId(state, 'alimento') }));
-  if (incompatibleItems(state, copy.items, copy.participants).length) throw new Error('La copia incluye un alimento incompatible con una persona.');
+
   state.plans.push(copy);
   return copy;
 }
@@ -868,7 +923,9 @@ export function repeatWeek(state, start, targetMonth = start.slice(0, 7)) {
 export function generateMonth(state, month) {
   const { start, end } = monthBounds(month);
   let count = 0; const unavailable = [];
-  for (const date of dateRange(start, end)) for (const slot of SLOTS) {
+  // Rellenar automáticamente llena lo que una casa espera resolver todos los
+  // días. Las meriendas se ponen a mano, cuando las hay.
+  for (const date of dateRange(start, end)) for (const slot of SLOTS_PRINCIPALES) {
     if (planFor(state, date, slot)) continue;
     const options = state.recipes.filter(recipe => {
       if (!recipe.uses.includes(slot)) return false;
@@ -1075,7 +1132,10 @@ export function shoppingList(state, start, end, basis = 'casa') {
   }).sort((a, b) => product(state, a.productId).name.localeCompare(product(state, b.productId).name));
   // Comprando por canasta el menú no hace falta, así que avisar de comidas sin
   // planificar sería un reproche por algo que no se pidió.
-  const missing = resolved !== 'menu' ? [] : dateRange(start, end).flatMap(date => SLOTS.filter(slot => !planFor(state, date, slot) || planFor(state, date, slot).kind === 'unplanned').map(slot => ({ date, slot })));
+  // Las meriendas no cuentan como hueco: quien no merienda no tiene nada que
+  // decidir a las diez de la mañana, y avisarle de que le «falta» algo sería
+  // reprocharle una costumbre que no tiene.
+  const missing = resolved !== 'menu' ? [] : dateRange(start, end).flatMap(date => SLOTS_PRINCIPALES.filter(slot => !planFor(state, date, slot) || planFor(state, date, slot).kind === 'unplanned').map(slot => ({ date, slot })));
   const share = resolved === 'menu' ? {} : basketShare(start, end);
   // Comprando por canasta, las comidas fuera no descuentan nada: rebajar el
   // detergente del mes porque la familia almorzó fuera un domingo no tiene

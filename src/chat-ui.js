@@ -22,7 +22,7 @@
 import { ACTION_NAMES, isQuery, runActions, toolSchemas, undoTo } from './assistant.js';
 import { cancelarDictado, capacidad } from './device.js';
 import { botonDeVoz, panelDeVoz } from './voz.js';
-import { SLOTS, addDays, monthBounds, todayISO, weekStart } from './model.js';
+import { SLOTS, addDays, etiquetaDeMomento, monthBounds, todayISO, weekStart } from './model.js';
 import { parseLine, parseProductText, parseQuantity } from './text-parse.js';
 import { button, cap, esc, fmt, monthName, niceDate, notice, unitText } from './ui-kit.js';
 
@@ -259,7 +259,7 @@ function reconocerLista(texto, llano) {
   return { acciones: [{ action: 'calcular_lista', arguments: { desde: periodo.desde, hasta: periodo.hasta, ...(base ? { base } : {}) } }] };
 }
 
-const VERBO_COMIDA = { cenar: 'cena', cena: 'cena', almorzar: 'almuerzo', almuerza: 'almuerzo', desayunar: 'desayuno', desayuna: 'desayuno' };
+const VERBO_COMIDA = { cenar: 'cena', cena: 'cena', almorzar: 'almuerzo', almuerza: 'almuerzo', desayunar: 'desayuno', desayuna: 'desayuno', merendar: 'merienda-tarde', merienda: 'merienda-tarde' };
 function reconocerAusencia(texto, llano) {
   const encontrado = llano.match(/^((?:¿\s*)?)(.{2,40}?)\s+no\s+(?:va\s+a\s+|van\s+a\s+)?(cenar|cena|almorzar|almuerza|desayunar|desayuna|come|comen|comera|comeran)\b(.*)$/);
   if (!encontrado) return null;
@@ -268,7 +268,7 @@ function reconocerAusencia(texto, llano) {
   // «no come arroz» es una restricción, no una ausencia. Para que sea ausencia
   // la frase tiene que decir dónde o cuándo: «en casa», o un día.
   if (!/\ben\s+casa\b/.test(resto) && !fecha) return null;
-  const nombrado = resto.match(/\b(desayuno|almuerzo|cena)\b/);
+  const nombrado = momentoNombrado(resto);
   const comida = VERBO_COMIDA[encontrado[3]] || (nombrado ? nombrado[1] : null);
   const persona = recorte(texto, encontrado[1].length, encontrado[2].length);
   const argumentos = { persona, fecha: fecha || todayISO(), ...(comida ? { comida } : {}) };
@@ -276,7 +276,7 @@ function reconocerAusencia(texto, llano) {
   // «no come en casa mañana» no dice qué comida, y las tres no son lo mismo:
   // se pregunta en vez de elegir una.
   if (comida) return { acciones: [accion] };
-  return { acciones: [accion], duda: { pregunta: `¿En qué comida no come ${persona} en casa?`, campo: 'comida', opciones: SLOTS.map(slot => ({ id: slot, nombre: cap(slot) })) } };
+  return { acciones: [accion], duda: { pregunta: `¿En qué comida no come ${persona} en casa?`, campo: 'comida', opciones: SLOTS.map(slot => ({ id: slot, nombre: etiquetaDeMomento(slot) })) } };
 }
 
 function reconocerRestriccion(texto, llano) {
@@ -424,7 +424,21 @@ const ORDINALES_DICHOS = { primer: 1, primero: 1, primera: 1, segundo: 2, segund
 // Lo que puede venir pegado delante del día y forma parte de la regla, no del
 // nombre de la comida: «todos los lunes», «ningún domingo», «cada viernes».
 const ANTES_DEL_DIA = '(?:todos\\s+los\\s+|todas\\s+las\\s+|cada\\s+|ningun\\s+|ningunos\\s+|los\\s+|las\\s+|el\\s+|la\\s+)?';
-const VERBO_SLOT = [['desayuno', /\bdesayun/], ['almuerzo', /\balmuerz|\balmorz/], ['cena', /\bcena\b|\bcenas\b|\bcenar|\bcenaremos\b|\bcenamos\b/]];
+const VERBO_SLOT = [
+  ['desayuno', /\bdesayun/],
+  ['merienda-manana', /\bmerienda\s+de\s+(?:la\s+)?ma(?:n|ñ)ana\b|\bmerienda\s+matutina\b/],
+  ['almuerzo', /\balmuerz|\balmorz/],
+  // Sin decir cuál, «la merienda» es la de la tarde: es la que una casa
+  // dominicana llama así a secas.
+  ['merienda-tarde', /\bmerienda\b|\bmerend/],
+  ['cena', /\bcena\b|\bcenas\b|\bcenar|\bcenaremos\b|\bcenamos\b/]
+];
+
+// El momento nombrado dentro de una frase, por su nombre o por el de la casa.
+const momentoNombrado = texto => {
+  for (const [slot, patron] of VERBO_SLOT) if (patron.test(texto)) return [texto, slot];
+  return null;
+};
 
 function reconocerRutina(texto, llano) {
   const dias = [...llano.matchAll(new RegExp(`\\b(${DIA_SUELTO})\\b`, 'g'))].map(fila => DIAS_DICHOS[fila[1]]);

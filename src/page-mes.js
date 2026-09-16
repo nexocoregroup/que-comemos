@@ -14,7 +14,7 @@
 // permanentes y deja el calendario montado; lo que el usuario hace entonces no
 // es construir el mes, es revisar en qué se va a diferenciar.
 
-import { SLOTS, dateRange, deletePlan, effectiveBasket, makeRecipePlan, monthBasketSummary, monthBounds, planFor, restore, setStatusPlan, shoppingList, snapshot, todayISO } from './model.js';
+import { MOMENTOS, SLOTS, SLOTS_PRINCIPALES, dateRange, deletePlan, effectiveBasket, esOpcional, etiquetaDeMomento, makeRecipePlan, momentoDe, monthBasketSummary, monthBounds, planFor, restore, setStatusPlan, shoppingList, snapshot, todayISO } from './model.js';
 import { WEEKDAY_SHORT, WEEKDAYS, addRoutine, applyRoutine, applyRoutines, copyPatternFromMonth, datesForRule, deleteRoutine, describeRule, monthProgress, openMonth, routinesFor } from './routines.js';
 import { button, cap, empty, esc, measure, modal, monthName, niceDate, notice, options, shiftMonth } from './ui-kit.js';
 
@@ -111,12 +111,14 @@ function renderResumen(ctx) {
     </div>
   </section>`;
 
-  const desglose = `<div class="grid grid-3 plan-slots">${SLOTS.map(slot => {
-    const cuenta = contarSlot(state, month, slot);
-    return `<div class="card soft plan-slot">
-      <div class="between"><span class="pill warm">${cap(slot)}</span><span class="small muted">${cuenta.total} días</span></div>
+  const desglose = `<div class="plan-slots">${MOMENTOS.map(momento => {
+    const cuenta = contarSlot(state, month, momento.id);
+    return `<div class="card soft plan-slot ${momento.opcional ? 'plan-slot-opcional' : ''}">
+      <div class="between"><span class="pill ${momento.opcional ? 'gray' : 'warm'}">${esc(momento.etiqueta)}</span><span class="small muted">${cuenta.total} días</span></div>
       <div class="plan-slot-cifra">${cuenta.resueltos}<span class="muted"> / ${cuenta.total}</span></div>
-      <p class="small muted">${cuenta.pendientes ? `${cuenta.pendientes} sin decidir` : 'Todo decidido'}</p>
+      <p class="small muted">${momento.opcional
+        ? (cuenta.resueltos ? `${cuenta.resueltos} puesta(s) · es opcional` : 'Opcional: puede quedar vacía')
+        : (cuenta.pendientes ? `${cuenta.pendientes} sin decidir` : 'Todo decidido')}</p>
     </div>`;
   }).join('')}</div>`;
 
@@ -221,9 +223,15 @@ function renderCalendario(ctx) {
       <div class="number">${Number(date.slice(8))}</div>
       ${SLOTS.map(slot => {
         const plan = planFor(state, date, slot);
+        // Una merienda vacía no ocupa sitio en la casilla del día. Están las
+        // que alguien puso, y el resto se añade desde la comida de al lado.
+        if (!plan && esOpcional(slot)) return '';
         const estado = !plan || plan.kind === 'unplanned' ? 'missing' : plan.kind === 'outside' || plan.kind === 'order' ? 'fuera' : '';
-        return `<button type="button" class="month-meal ${estado}" data-action="open-meal" data-date="${date}" data-slot="${slot}" aria-label="${cap(slot)} del ${esc(niceDate(date, { day: 'numeric', month: 'long' }))}"><span>${slot[0].toUpperCase()}</span> ${esc(plan ? tituloDePlan(plan) : 'Agregar')}</button>`;
+        return `<button type="button" class="month-meal ${estado} ${esOpcional(slot) ? 'month-meal-opcional' : ''}" data-action="open-meal" data-date="${date}" data-slot="${slot}" aria-label="${esc(etiquetaDeMomento(slot))} del ${esc(niceDate(date, { day: 'numeric', month: 'long' }))}"><span>${esc(letraDeMomento(slot))}</span> ${esc(plan ? tituloDePlan(plan) : 'Agregar')}</button>`;
       }).join('')}
+      ${SLOTS.filter(esOpcional).every(slot => planFor(state, date, slot))
+        ? ''
+        : `<button type="button" class="month-meal month-meal-merienda" data-action="open-meal" data-date="${date}" data-slot="${SLOTS.filter(esOpcional).find(slot => !planFor(state, date, slot))}" aria-label="Añadir una merienda al ${esc(niceDate(date, { day: 'numeric', month: 'long' }))}">+ merienda</button>`}
     </div>`;
   }).join('');
   return `${barraDeMes(ctx, `<div class="inline">${button('Volver al resumen', 'mes-vista', 'btn-secondary btn-small', 'data-vista="resumen"')}</div>`)}
@@ -376,6 +384,7 @@ function pasoSalidas(ctx) {
     const plan = planFor(state, date, slot);
     if (plan && (plan.kind === 'outside' || plan.kind === 'order') && !plan.routineId) sueltas.push({ date, slot, plan });
   }
+  sueltas.sort((a, b) => a.date.localeCompare(b.date) || SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot));
   return `<p class="plan-paso-texto">Marcar una comida fuera de casa la deja resuelta: no aparece como pendiente y no gasta alimentos del menú.</p>
     <div class="card">
       <h3 class="plan-sub">Lo más común</h3>
@@ -383,21 +392,26 @@ function pasoSalidas(ctx) {
       <p class="small muted" style="margin-top:12px">Te preguntamos qué comida y si vale solo para ${esc(monthName(month))} o desde ahora siempre.</p>
     </div>
     ${salidas.length ? `<div class="section-head"><h3 class="plan-sub">Reglas guardadas</h3></div><div class="card">${salidas.map(rutina => filaDeRutina(state, month, rutina)).join('')}</div>` : ''}
-    ${sueltas.length ? `<div class="section-head"><h3 class="plan-sub">Días sueltos de este mes</h3></div><div class="card">${sueltas.map(item => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${esc(niceDate(item.date, { weekday: 'long', day: 'numeric', month: 'long' }))}</div><div class="list-row-sub">${cap(item.slot)} · ${item.plan.kind === 'outside' ? 'fuera de casa' : 'pedido'}</div></div>${button('Quitar', 'mes-quitar-salida', 'btn-quiet btn-small', `data-id="${item.plan.id}"`)}</div>`).join('')}</div>` : ''}
+    ${sueltas.length ? `<div class="section-head"><h3 class="plan-sub">Días sueltos de este mes</h3></div><div class="card">${sueltas.map(item => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${esc(niceDate(item.date, { weekday: 'long', day: 'numeric', month: 'long' }))}</div><div class="list-row-sub">${esc(etiquetaDeMomento(item.slot))} · ${item.plan.kind === 'outside' ? 'fuera de casa' : 'pedido'}</div></div>${button('Quitar', 'mes-quitar-salida', 'btn-quiet btn-small', `data-id="${item.plan.id}"`)}</div>`).join('')}</div>` : ''}
     ${avisoDeApertura(ctx)}`;
 }
+
+const LETRAS_DE_MOMENTO = { desayuno: 'D', 'merienda-manana': 'M↑', almuerzo: 'A', 'merienda-tarde': 'M↓', cena: 'C' };
+const letraDeMomento = slot => LETRAS_DE_MOMENTO[slot] || String(slot).charAt(0).toUpperCase();
 
 function pasoPendientes(ctx) {
   const { state, ui } = ctx;
   const month = ui.mes.month;
   const { start, end } = monthBounds(month);
+  // Solo se cuentan como pendientes las tres de todos los días. Enseñar
+  // sesenta meriendas «sin decidir» convertiría esta lista en una queja.
   const pendientes = [];
-  for (const date of dateRange(start, end)) for (const slot of SLOTS) {
+  for (const date of dateRange(start, end)) for (const slot of SLOTS_PRINCIPALES) {
     const plan = planFor(state, date, slot);
     if (!plan || plan.kind === 'unplanned') pendientes.push({ date, slot });
   }
   if (!pendientes.length) {
-    return `<div class="card plan-ok"><span class="plan-ok-icono">✓</span><div><strong>No queda ningún hueco.</strong><span>Las ${SLOTS.length * dateRange(start, end).length} comidas de ${esc(monthName(month))} están decididas.</span></div></div>`;
+    return `<div class="card plan-ok"><span class="plan-ok-icono">✓</span><div><strong>No queda ningún hueco.</strong><span>Las ${SLOTS_PRINCIPALES.length * dateRange(start, end).length} comidas de ${esc(monthName(month))} están decididas. Las meriendas son aparte: se ponen cuando las hay.</span></div></div>`;
   }
   const tope = ui.mes.verPendientes;
   const mostrados = pendientes.slice(0, tope);
@@ -405,7 +419,7 @@ function pasoPendientes(ctx) {
     <div class="card">${mostrados.map(item => `<div class="list-row plan-pendiente">
       <div class="list-row-main">
         <div class="list-row-title">${esc(niceDate(item.date, { weekday: 'long', day: 'numeric', month: 'short' }))}</div>
-        <div class="list-row-sub">${cap(item.slot)}</div>
+        <div class="list-row-sub">${esc(etiquetaDeMomento(item.slot))}</div>
       </div>
       <div class="inline">
         ${button('Elegir comida', 'open-meal', 'btn-secondary btn-small', `data-date="${item.date}" data-slot="${item.slot}"`)}
@@ -494,7 +508,7 @@ export function modalRutina(ctx, extras = {}) {
       </fieldset>
 
       <fieldset class="field-group"><legend>¿En qué comida?</legend>
-        <div class="chips">${SLOTS.map(slot => `<label class="chip-check"><input type="checkbox" name="slots" value="${slot}"><span>${cap(slot)}</span></label>`).join('')}</div>
+        <div class="chips">${MOMENTOS.map(momento => `<label class="chip-check"><input type="checkbox" name="slots" value="${momento.id}"><span>${esc(momento.etiqueta)}</span></label>`).join('')}</div>
       </fieldset>
 
       <fieldset class="field-group"><legend>¿Qué días?</legend>

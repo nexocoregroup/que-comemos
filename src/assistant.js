@@ -26,9 +26,9 @@
 // fechas a la vista. Nunca enseñando el JSON.
 
 import {
-  BASES, MOTIVOS_DE_RESTRICCION, PRIORITIES, SLOTS, UNITS, addProduct, addPurchase, archiveProduct, basisLabel,
+  BASES, MOTIVOS_DE_RESTRICCION, PRIORITIES, SLOTS, SLOTS_PRINCIPALES, UNITS, addProduct, addPurchase, archiveProduct, basisLabel,
   copyPlan, correctStock, createReview, deletePlan, deleteRecipe, duplicateRecipe, effectiveBasket,
-  findSimilarProducts, generateMonth, habitualLines, inventoryNow, linkPendingRestrictions, makeRecipePlan, mergeProducts,
+  etiquetaDeMomento, findSimilarProducts, generateMonth, habitualLines, inventoryNow, linkPendingRestrictions, makeRecipePlan, mergeProducts,
   monthBasketSummary, monthChanges, movePlan, planFor, product, productByName, promoteToHabitual,
   removeHabitualLine, removeMonthChange, repeatWeek, restore, restoreProduct, restriccionesDe, saveReview, setAbsence,
   setEquivalence, setHabitualLine, setMonthChange, setStatusPlan, shoppingList, snapshot, todayISO,
@@ -118,7 +118,7 @@ const TYPES = {
   fecha: value => validDate(value) ? { ok: true, value } : { ok: false, error: `«${value}» no es una fecha válida (usa 2026-09-15).` },
   mes: value => validMonth(value) ? { ok: true, value } : { ok: false, error: `«${value}» no es un mes válido (usa 2026-09).` },
   unidad: value => UNITS.includes(value) ? { ok: true, value } : { ok: false, error: `«${value}» no es una unidad. Usa: ${UNITS.join(', ')}.` },
-  comida: value => SLOTS.includes(value) ? { ok: true, value } : { ok: false, error: `«${value}» no es una comida. Usa: ${SLOTS.join(', ')}.` },
+  comida: value => SLOTS.includes(value) ? { ok: true, value } : { ok: false, error: `«${value}» no es un momento del día. Usa: ${SLOTS.map(etiquetaDeMomento).join(', ')}.` },
   prioridad: value => PRIORITIES.includes(value) ? { ok: true, value } : { ok: false, error: `«${value}» no es una prioridad válida.` },
   base: value => BASES.includes(value) ? { ok: true, value } : { ok: false, error: `La compra se calcula con ${BASES.join(' o ')}.` },
   lista: value => Array.isArray(value) ? { ok: true, value } : { ok: false, error: 'Se esperaba una lista.' },
@@ -130,7 +130,8 @@ const TYPES = {
   rutina: (value, state) => resolveEntity(state.mealRoutines, value, 'una rutina', 'label'),
   comidas: value => {
     const list = listaDe(value, SLOTS);
-    return list.length ? { ok: true, value: list } : { ok: false, error: `Dime en qué comidas: ${SLOTS.join(', ')}.` };
+    return list.length ? { ok: true, value: list } : { ok: false, error: `Dime en qué momentos: ${SLOTS.map(etiquetaDeMomento).join(', ')}.` };
+
   },
   // ISO: 1 lunes … 7 domingo, como en routines.js. Un solo sitio decide qué
   // número es cada día y aquí solo se comprueba que esté dentro.
@@ -725,7 +726,11 @@ export const ACTIONS = {
 const ESTADO_DICHO = { outside: 'comer fuera de casa', order: 'pedir comida', unplanned: 'dejarla sin planificar' };
 const archivarResumen = item => ({ id: item.id, nombre: item.name, archivado: item.archived });
 const queHaceLaRutina = a => (a.tipo === 'preparacion' ? `«${a.preparacion.name}»` : a.tipo === 'pedido' ? 'pedir comida' : 'comer fuera de casa');
-const comidasTexto = comidas => (comidas.length === SLOTS.length ? 'las tres comidas' : comidas.map(slot => `${slot === 'cena' ? 'la' : 'el'} ${slot}`).join(' y '));
+const comidasTexto = comidas => {
+  if (comidas.length === SLOTS.length) return 'los cinco momentos del día';
+  if (comidas.length === SLOTS_PRINCIPALES.length && SLOTS_PRINCIPALES.every(slot => comidas.includes(slot))) return 'las tres comidas';
+  return comidas.map(slot => `${slot.startsWith('merienda') || slot === 'cena' ? 'la' : 'el'} ${etiquetaDeMomento(slot).toLocaleLowerCase('es')}`).join(' y ');
+};
 
 // Las dos únicas respuestas posibles a «¿este mes o siempre?», escritas como se
 // dicen. Se ofrecen como botones: una pregunta de alcance no se contesta
