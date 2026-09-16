@@ -1,11 +1,15 @@
-// «Organizar mi casa»: cuatro pasos y se acabó.
+// «Organizar mi casa»: un camino, de principio a fin.
 //
 // El asistente anterior ofrecía cuatro formas distintas de empezar antes de
 // dejar marcar un solo alimento. Elegir entre cuatro caminos no es avanzar: es
 // una pregunta más que responder antes de haber entendido para qué sirve la
-// app. Aquí hay un camino, y los cuatro pasos son los cuatro que el usuario
-// pidió: marcar lo habitual, añadir lo suyo, decir cuánto, y preparar el primer
-// menú del mes.
+// app. Aquí hay un camino y se recorre entero: quién come en esta casa, qué se
+// compra, cuánto, cada cuánto, qué se cocina de costumbre, y el primer menú.
+//
+// Los dos extremos son nuevos y los dos arreglan el mismo agujero: el asistente
+// terminaba ofreciendo «preparar mi primer menú mensual» a una casa sin nadie
+// registrado y sin una sola preparación guardada, así que al llegar allí no
+// había nada con qué llenar el calendario ni a quién avisarle de una alergia.
 //
 // Dos reglas gobiernan el archivo:
 //
@@ -18,27 +22,44 @@
 
 import { RUBROS, SEED_PRODUCTS, categoriaDelRubro, rubroDeCategoria, rubroPorIndice, seedByRubro } from './catalog-seed.js';
 import {
-  FRECUENCIAS, UNITS, addProduct, findSimilarProducts, frecuenciaDe, habitualLines, historialDeFrecuencia, ponerFrecuencia,
-  ponerReparto, product, productByName, repartoDe, setHabitualBasket, todayISO
+  FRECUENCIAS, MOMENTOS, UNITS, addProduct, deleteRecipe, etiquetaDeMomento, findSimilarProducts, frecuenciaDe, habitualLines,
+  historialDeFrecuencia, personasActivas, ponerFrecuencia, ponerReparto, product, productByName, repartoDe,
+  setHabitualBasket, todayISO, upsertRecipe
 } from './model.js';
+// La ficha de una persona se dibuja en un solo sitio, y ese sitio es `hogar.js`.
+// Aquí solo se enseña el resumen de lo que ya está guardado y se abre esa misma
+// ventana: dos formularios de persona serían dos sitios donde olvidarse de
+// preguntar si un alimento es alergia o manía.
+import { claseDe, resumenDeRestricciones } from './hogar.js';
 import { normalizeName, parseProductText } from './text-parse.js';
 import { cancelarDictado, capacidad } from './device.js';
 import { panelDeVoz } from './voz.js';
 import { button, esc, notice, options } from './ui-kit.js';
 
+// Los pasos se llaman por su nombre y no por su número. Los números cambian
+// cada vez que se añade uno en medio, y un `setup.paso === 4` repartido por el
+// archivo es la forma más rápida de que al insertar un paso se rompa otro sin
+// que salte ninguna prueba.
+export const PASO = {
+  personas: 1, alimentos: 2, dictar: 3, compra: 4,
+  cantidades: 5, reparto: 6, preparaciones: 7, mes: 8
+};
+
 export const PASOS = [
-  { id: 1, titulo: 'La canasta base de tu hogar', corto: 'Alimentos' },
-  { id: 2, titulo: '¿Falta algo por dictar o escribir de corrido?', corto: 'Dictar' },
-  { id: 3, titulo: '¿Cada cuánto hacen la compra principal en tu hogar?', corto: 'Compra' },
-  { id: 4, titulo: '¿Cuánto se compra normalmente al mes?', corto: 'Cantidades' },
-  { id: 5, titulo: 'Cómo se reparte entre las dos quincenas', corto: 'Reparto' },
-  { id: 6, titulo: 'Preparar mi primer menú mensual', corto: 'El mes' }
+  { id: PASO.personas, titulo: '¿Quiénes comen en tu casa?', corto: 'Personas' },
+  { id: PASO.alimentos, titulo: 'La canasta base de tu hogar', corto: 'Alimentos' },
+  { id: PASO.dictar, titulo: '¿Falta algo por dictar o escribir de corrido?', corto: 'Dictar' },
+  { id: PASO.compra, titulo: '¿Cada cuánto hacen la compra principal en tu hogar?', corto: 'Compra' },
+  { id: PASO.cantidades, titulo: '¿Cuánto se compra normalmente al mes?', corto: 'Cantidades' },
+  { id: PASO.reparto, titulo: 'Cómo se reparte entre las dos quincenas', corto: 'Reparto' },
+  { id: PASO.preparaciones, titulo: 'Las comidas que se repiten en tu casa', corto: 'Preparaciones' },
+  { id: PASO.mes, titulo: 'Preparar mi primer menú mensual', corto: 'El mes' }
 ];
 
 // El paso del reparto solo existe para quien compra por quincenas. A quien
 // compra una vez al mes no se le enseña un paso que no tiene nada que decidir,
-// ni se le cuenta en «paso 4 de 6» un paso por el que no va a pasar.
-export const pasosDe = setup => PASOS.filter(paso => paso.id !== 5 || setup?.frecuencia === 'quincenal');
+// ni se le cuenta en «paso 5 de 8» un paso por el que no va a pasar.
+export const pasosDe = setup => PASOS.filter(paso => paso.id !== PASO.reparto || setup?.frecuencia === 'quincenal');
 const posicionDe = (setup, paso) => pasosDe(setup).findIndex(item => item.id === paso);
 const saltarA = (setup, desde, direccion) => {
   const visibles = pasosDe(setup);
@@ -62,7 +83,9 @@ export const emptySetup = () => ({
   anadiendo: false,    // ¿está abierta la ventanita de «añadir un alimento»?
   nombreNuevo: '',
   errorNuevo: '',
-  frecuencia: null,   // 'mensual' | 'quincenal', se pregunta en el paso 3
+  frecuencia: null,   // 'mensual' | 'quincenal', se pregunta en el paso de la compra
+  personas: null,     // cuántas comen en casa; null es «todavía no lo ha dicho»
+  errorReceta: '',
   guardados: 0
 });
 
@@ -78,7 +101,7 @@ export const emptySetup = () => ({
    guardan los campos que costó rellenar y ninguno más: lo que está a medio
    buscar o la ventanita abierta no hacen falta mañana. */
 
-const CAMPOS_GUARDADOS = ['paso', 'precargado', 'rubro', 'elegidos', 'propios', 'cantidades', 'texto', 'frecuencia', 'guardados'];
+const CAMPOS_GUARDADOS = ['paso', 'precargado', 'rubro', 'elegidos', 'propios', 'cantidades', 'texto', 'frecuencia', 'personas', 'guardados'];
 
 export function guardarAvance(ctx) {
   const setup = ctx.ui.setup;
@@ -105,6 +128,8 @@ export function avanceGuardado(state) {
   setup.filas = null;
   setup.anadiendo = false;
   setup.frecuencia = FRECUENCIAS.includes(setup.frecuencia) ? setup.frecuencia : null;
+  setup.personas = Number(setup.personas) > 0 ? Math.min(20, Math.round(Number(setup.personas))) : null;
+  setup.errorReceta = '';
   return setup;
 }
 
@@ -144,7 +169,8 @@ const parecidoA = (state, nombre) =>
 function pantallaInicio(setup) {
   const llevaEmpezado = Boolean(setup?.elegidos?.length);
   return `<section class="setup setup-inicio">
-    <p class="eyebrow">Tu canasta base</p>
+    <p class="eyebrow">Organizar mi casa</p>
+    <p class="setup-camino">Ocho pasos cortos: quiénes comen aquí, lo que compras todos los meses, cuánto y cada cuánto, las comidas que se repiten, y el primer menú.</p>
     <h2 class="setup-promesa">Ahora vamos a crear la canasta base de tu hogar. Selecciona los alimentos que normalmente compras todos los meses. Podrás agregar cualquier alimento que no aparezca.</h2>
     <div class="pantalla-acciones">${button(llevaEmpezado ? 'Seguir donde lo dejé' : 'Empezar', 'setup-empezar', 'btn-primary btn-grande')}</div>
     ${llevaEmpezado ? `<p class="small muted">Llevas ${setup.elegidos.length} alimento(s) marcados.</p>` : ''}
@@ -478,20 +504,139 @@ const fmtNumero = valor => String(Math.round((Number(valor) || 0) * 1000) / 1000
 
 /* ── Paso 6: el primer menú del mes ────────────────────────────────────── */
 
-function pasoMenu(setup) {
+function pasoMenu(ctx, setup) {
+  const recetas = ctx.state.recipes.length;
+  const gente = personasActivas(ctx.state).length;
   return `<div class="setup-hecho">
     <span class="setup-hecho-marca" aria-hidden="true">✓</span>
-    <h3>Tu canasta habitual está guardada</h3>
-    <p class="muted">${setup.guardados} alimento${setup.guardados === 1 ? '' : 's'} escritos una sola vez. Desde ahora, todos los meses parten de ahí y solo anotas lo diferente.</p>
+    <h3>Tu casa ya está escrita</h3>
+    <p class="muted">${gente} persona${gente === 1 ? '' : 's'} en casa, ${setup.guardados} alimento${setup.guardados === 1 ? '' : 's'} en la canasta base y ${recetas} preparaci${recetas === 1 ? 'ón' : 'ones'}. Escrito una sola vez: desde ahora todos los meses parten de ahí y solo anotas lo diferente.</p>
   </div>
 
-  <p class="pantalla-intro">Guarda las comidas que se repiten en tu casa y elige qué días suelen prepararse. La aplicación llenará automáticamente el calendario real del mes.</p>
+  <p class="pantalla-intro">Ahora dile qué días se prepara cada comida y la aplicación llenará el calendario real del mes.</p>
+  ${recetas ? '' : notice('No hay ninguna preparación guardada.', 'El menú del mes va a empezar vacío. Puedes volver atrás y escribir dos o tres: con eso, el mes entero queda hecho.')}
 
   <div class="modal-actions setup-actions">
     <span class="tour-spacer"></span>
     ${button('Ahora no', 'setup-ahora-no', 'btn-secondary')}
     ${button('Preparar mi primer menú mensual', 'setup-menu', 'btn-primary btn-grande')}
   </div>`;
+}
+
+/* ── Paso 1: quiénes comen en esta casa ────────────────────────────────────
+
+   Esto no se preguntaba aquí, y hacía falta: la app avisa de alergias, reparte
+   porciones y cuenta cuánta gente come, y sin nadie registrado no puede hacer
+   ninguna de las tres. Quien entraba sin cuenta llegaba al final del asistente
+   con la casa vacía.
+
+   No se escribe un segundo formulario de personas. La ficha —nombre, qué es de
+   la casa, qué debe evitar y por qué— es exactamente la misma que la del
+   asistente del hogar y la de Familia: se abre con `hogar-editar` y la dibuja
+   `cuerpoDeFicha`. Un solo sitio donde se edita una persona significa un solo
+   sitio donde acordarse de preguntar el motivo de una alergia. */
+
+function pasoPersonas(ctx, setup) {
+  const { state } = ctx;
+  const gente = personasActivas(state);
+  const total = Math.min(20, Math.max(1, Number(setup.personas) || gente.length || 1));
+  const filas = Math.max(total, gente.length);
+  const faltan = Math.max(0, total - gente.length);
+
+  const fila = (indice) => {
+    const persona = gente[indice];
+    if (!persona) {
+      return `<div class="list-row setup-persona pendiente">
+        <div class="list-row-main">
+          <div class="list-row-title">Persona ${indice + 1}</div>
+          <div class="list-row-sub">Sin llenar</div>
+        </div>
+        ${button('Llenar', 'hogar-editar', 'btn-secondary btn-small', 'data-id=""')}
+      </div>`;
+    }
+    return `<div class="list-row setup-persona">
+      <div class="list-row-main">
+        <div class="list-row-title">${esc(persona.name)} <span class="pill gray">${esc(claseDe(persona.kind).etiqueta)}</span></div>
+        ${resumenDeRestricciones(state, persona)}
+      </div>
+      ${button('Editar', 'hogar-editar', 'btn-quiet btn-small', `data-id="${esc(persona.id)}"`)}
+    </div>`;
+  };
+
+  return `<p class="pantalla-intro">Cuéntate a ti también. Con el nombre basta para empezar, y si alguien debe evitar algún alimento se anota aquí mismo.</p>
+
+    <form data-form="setup-personas" class="hogar-contador">
+      ${button('−', 'setup-personas-menos', 'hogar-paso', 'aria-label="Una persona menos"')}
+      <label class="hogar-numero"><span class="sr-only">Personas que comen en casa</span>
+        <input name="total" data-setup-personas type="number" inputmode="numeric" min="1" max="20" value="${total}" required></label>
+      ${button('+', 'setup-personas-mas', 'hogar-paso', 'aria-label="Una persona más"')}
+    </form>
+
+    <div class="card setup-personas">${Array.from({ length: filas }, (unused, i) => fila(i)).join('')}</div>
+
+    ${faltan
+      ? notice(`${faltan === 1 ? 'Falta una persona' : `Faltan ${faltan} personas`} por llenar.`, 'Puedes seguir igual y anotarlas después desde Más → Familia y restricciones. Mientras no estén, la app no sabrá avisarte de lo que esa persona debe evitar.')
+      : ''}
+
+    <p class="tiny muted setup-nota">No te preguntamos el peso, ni la fecha de nacimiento, ni nada médico: la app no lo usa para nada.</p>
+
+    <div class="modal-actions setup-actions">
+      <span class="tour-spacer"></span>
+      ${button('Continuar', 'setup-siguiente', 'btn-primary')}
+    </div>`;
+}
+
+/* ── Paso 7: las comidas que se repiten ────────────────────────────────────
+
+   El asistente terminaba ofreciendo «Preparar mi primer menú mensual», y al
+   entrar ahí no había ninguna preparación que poner: el menú se pedía antes de
+   que existiera nada con qué llenarlo. Es el orden al revés.
+
+   Aquí se escriben, y se escriben rápido: nombre y en qué momentos se comen. Lo
+   demás —los alimentos, las cantidades, la nota de quien cocina— se añade desde
+   «Editar», que abre la misma ventana de siempre. Con el nombre ya sirve para
+   llenar el calendario; sin alimentos lo único que no hace es aportar a la
+   compra, y eso lo dice la propia compra. */
+
+function pasoPreparaciones(ctx, setup) {
+  const { state } = ctx;
+  const recetas = state.recipes;
+  const fila = receta => `<div class="list-row">
+    <div class="list-row-main">
+      <div class="list-row-title">${esc(receta.name)}</div>
+      <div class="list-row-sub">${receta.uses.length ? esc(receta.uses.map(etiquetaDeMomento).join(' · ')) : 'Sin momentos: no saldrá en el calendario'}</div>
+    </div>
+    <div class="inline">
+      ${button('Editar', 'open-recipe', 'btn-quiet btn-small', `data-id="${esc(receta.id)}"`)}
+      ${button('Quitar', 'setup-quitar-preparacion', 'btn-quiet btn-small', `data-id="${esc(receta.id)}"`)}
+    </div>
+  </div>`;
+
+  return `<p class="pantalla-intro">Escribe las comidas que se cocinan de costumbre en tu casa. Con el nombre y en qué momentos se comen ya basta: <strong>los alimentos y las cantidades se añaden después</strong>.</p>
+
+    <form data-form="setup-preparacion" class="setup-preparacion">
+      <label class="field"><span>¿Cómo se llama?</span>
+        <input name="name" data-setup-receta required maxlength="60" autocomplete="off" placeholder="Ej. Mangú con salami"></label>
+      <div class="field">
+        <span>¿En cuáles momentos suelen comerla?</span>
+        <div class="checks">${MOMENTOS.map(momento =>
+          `<label class="check-chip"><input type="checkbox" name="uses" value="${momento.id}">${esc(momento.etiqueta)}</label>`).join('')}</div>
+      </div>
+      ${setup.errorReceta ? `<p class="hogar-error" role="alert">${esc(setup.errorReceta)}</p>` : ''}
+      <div class="inline"><button type="submit" class="btn btn-secondary">Añadir preparación</button></div>
+    </form>
+
+    ${recetas.length
+      ? `<div class="card">${recetas.map(fila).join('')}</div>
+         <p class="tiny muted">Una misma preparación puede estar en varios momentos: el mangú con salami suele ser desayuno y cena.</p>`
+      : notice('Todavía no has guardado ninguna.',
+          'Sin preparaciones, el menú del mes empieza vacío y hay que escribir cada día a mano. Con dos o tres, el mes entero queda hecho.')}
+
+    <div class="modal-actions setup-actions">
+      ${button('Atrás', 'setup-atras', 'btn-quiet')}
+      <span class="tour-spacer"></span>
+      ${button('Continuar', 'setup-siguiente', 'btn-primary')}
+    </div>`;
 }
 
 /* ── Armazón ───────────────────────────────────────────────────────────── */
@@ -509,12 +654,14 @@ export function renderSetup(ctx) {
   const setup = ctx.ui.setup;
   if (!setup || setup.paso === 0) return pantallaInicio(setup);
 
-  const cuerpo = setup.paso === 1 ? pantallaDeRubro(setup)
-    : setup.paso === 2 ? pasoPropios(setup, ctx)
-    : setup.paso === 3 ? pasoFrecuencia(ctx, setup)
-    : setup.paso === 4 ? pasoCantidades(setup)
-    : setup.paso === 5 ? pasoReparto(ctx, setup)
-    : pasoMenu(setup);
+  const cuerpo = setup.paso === PASO.personas ? pasoPersonas(ctx, setup)
+    : setup.paso === PASO.alimentos ? pantallaDeRubro(setup)
+    : setup.paso === PASO.dictar ? pasoPropios(setup, ctx)
+    : setup.paso === PASO.compra ? pasoFrecuencia(ctx, setup)
+    : setup.paso === PASO.cantidades ? pasoCantidades(setup)
+    : setup.paso === PASO.reparto ? pasoReparto(ctx, setup)
+    : setup.paso === PASO.preparaciones ? pasoPreparaciones(ctx, setup)
+    : pasoMenu(ctx, setup);
 
   const visibles = pasosDe(setup);
   const posicion = posicionDe(setup, setup.paso);
@@ -523,7 +670,7 @@ export function renderSetup(ctx) {
   return `<section class="setup">
     <div class="setup-head">
       <div><p class="eyebrow">Paso ${posicion + 1} de ${visibles.length}</p><h2>${esc(actual.titulo)}</h2></div>
-      ${setup.paso < PASOS.length ? button('Salir', 'setup-salir', 'btn-quiet btn-small') : ''}
+      ${setup.paso === PASO.mes ? '' : button('Salir', 'setup-salir', 'btn-quiet btn-small')}
     </div>
     ${barra(setup)}
     <div class="setup-body">${cuerpo}</div>
@@ -673,6 +820,32 @@ export function aplicarReparto(ctx, campo) {
 // `cancelarDictado` es asíncrona: sin recoger el rechazo, un micrófono que falla
 // al cerrarse tumbaría la salida de la pantalla. Cerrarlo nunca puede impedir
 // irse.
+// Lo que esté escrito en la pantalla que se deja, sea cual sea. Antes esto era
+// un par de `if (paso === 2)` repetidos en tres acciones, y cada paso nuevo
+// obligaba a acordarse de los tres.
+function recordarLoEscrito(ctx) {
+  const paso = ctx.ui.setup?.paso;
+  if (paso === PASO.personas) recordarPersonas(ctx);
+  if (paso === PASO.dictar) recordarTexto(ctx);
+  if (paso === PASO.cantidades) recordarCantidades(ctx);
+}
+
+// El número que se esté viendo, venga de los botones o de haberlo tecleado.
+function recordarPersonas(ctx) {
+  const escrito = document.querySelector('[data-setup-personas]')?.value;
+  const total = Math.round(Number(escrito));
+  if (Number.isFinite(total) && total > 0) ctx.ui.setup.personas = Math.min(20, total);
+}
+
+function ajustarPersonas(ctx, delta) {
+  const setup = ctx.ui.setup;
+  recordarPersonas(ctx);
+  const actual = Number(setup.personas) || personasActivas(ctx.state).length || 1;
+  setup.personas = Math.min(20, Math.max(1, actual + delta));
+  guardarAvance(ctx);
+  ctx.render();
+}
+
 function soltarMicrofono(ctx) {
   const voz = ctx?.ui?.voz;
   // El panel de dictado es compartido: si el que estaba abierto era el de esta
@@ -743,14 +916,13 @@ export const SETUP_ACTIONS = {
   'setup-empezar': (el, ctx) => {
     ctx.ui.setup = ctx.ui.setup || emptySetup();
     precargar(ctx);
-    ctx.ui.setup.paso = 1;
+    ctx.ui.setup.paso = PASOS[0].id;
     guardarAvance(ctx);
     ctx.render();
   },
   'setup-salir': (el, ctx) => {
     const setup = ctx.ui.setup;
-    if (setup.paso === 2) recordarTexto(ctx);
-    if (setup.paso === 4) recordarCantidades(ctx);
+    recordarLoEscrito(ctx);
     soltarMicrofono(ctx);
     // Salir no descarta nada: el avance se queda escrito donde estaba.
     guardarAvance(ctx);
@@ -760,19 +932,18 @@ export const SETUP_ACTIONS = {
   },
   'setup-atras': (el, ctx) => {
     const setup = ctx.ui.setup;
-    if (setup.paso === 2) recordarTexto(ctx);
-    if (setup.paso === 4) recordarCantidades(ctx);
+    recordarLoEscrito(ctx);
     soltarMicrofono(ctx);
-    // Volver del paso 2 al 1 devuelve el último rubro, no el primero: es donde
-    // estaba quien pulsó «Atrás».
+    // Volver al paso de los alimentos devuelve el último rubro, no el primero:
+    // es donde estaba quien pulsó «Atrás».
     setup.paso = saltarA(setup, setup.paso, -1);
-    if (setup.paso === 1) setup.rubro = RUBROS.length - 1;
+    if (setup.paso === PASO.alimentos) setup.rubro = RUBROS.length - 1;
     guardarAvance(ctx);
     ctx.render();
   },
   'setup-siguiente': (el, ctx) => {
     const setup = ctx.ui.setup;
-    if (setup.paso === 4) recordarCantidades(ctx);
+    recordarLoEscrito(ctx);
     setup.paso = saltarA(setup, setup.paso, 1);
     guardarAvance(ctx);
     ctx.render();
@@ -814,7 +985,7 @@ export const SETUP_ACTIONS = {
   'setup-rubro-seguir': (el, ctx) => {
     const setup = ctx.ui.setup;
     Object.assign(setup, { busqueda: '', anadiendo: false, nombreNuevo: '', errorNuevo: '' });
-    if (setup.rubro >= RUBROS.length - 1) setup.paso = 2;
+    if (setup.rubro >= RUBROS.length - 1) setup.paso = PASO.dictar;
     else setup.rubro += 1;
     guardarAvance(ctx);
     ctx.render();
@@ -900,6 +1071,27 @@ export const SETUP_ACTIONS = {
   },
 
   // Paso 4
+  /* ── Paso 1: cuántas personas comen en casa ──────────────────────────── */
+
+  'setup-personas-mas': (el, ctx) => ajustarPersonas(ctx, 1),
+  'setup-personas-menos': (el, ctx) => ajustarPersonas(ctx, -1),
+
+  /* ── Paso 7: quitar una preparación recién escrita ───────────────────── */
+
+  // Quitar aquí es quitar del todo, y se pregunta: la preparación puede llevar
+  // diez minutos escrita o llevar puesta en veinte días del calendario.
+  'setup-quitar-preparacion': (el, ctx) => {
+    const receta = ctx.state.recipes.find(item => item.id === el.dataset.id);
+    if (!receta) return;
+    const puestas = ctx.state.plans.filter(plan => plan.recipeId === receta.id).length;
+    const aviso = puestas
+      ? `«${receta.name}» está puesta en ${puestas} comida(s) del calendario. Quitarla de aquí no las borra, pero dejarán de poder repetirse. ¿Quitarla?`
+      : `¿Quitar «${receta.name}»?`;
+    if (!window.confirm(aviso)) return;
+    deleteRecipe(ctx.state, receta.id);
+    ctx.commit(`«${receta.name}» quitada.`);
+  },
+
   'setup-menu': (el, ctx) => {
     const mes = todayISO().slice(0, 7);
     olvidarAvance(ctx.state);
@@ -1052,18 +1244,54 @@ export const SETUP_FORMS = {
     setup.propios = [...previos, ...propios];
     setup.texto = '';
     setup.filas = null;
-    setup.paso = 3;
+    setup.paso = PASO.compra;
     guardarAvance(ctx);
     ctx.render();
   },
 
   'setup-cantidades': (form, data, ctx) => {
     const guardados = guardarLoEscrito(ctx);
-    ctx.ui.setup.paso = saltarA(ctx.ui.setup, 4, 1);
-    // La canasta ya está escrita donde vive de verdad: el borrador del
-    // asistente deja de hacer falta y se borra, para que volver a entrar no
-    // enseñe un avance a medias de algo que ya está hecho.
-    olvidarAvance(ctx.state);
+    ctx.ui.setup.paso = saltarA(ctx.ui.setup, PASO.cantidades, 1);
+    // El borrador no se borra aquí, aunque la canasta ya esté escrita donde vive
+    // de verdad: detrás quedan dos pasos, y sin borrador cerrar la app en medio
+    // devolvería al principio del asistente. Se borra al terminar.
+    guardarAvance(ctx);
     ctx.commit(`${guardados} alimento(s) en tu canasta base.`);
+  },
+
+  /* ── Paso 1: quiénes comen en casa ───────────────────────────────────── */
+
+  'setup-personas': (form, data, ctx) => {
+    recordarPersonas(ctx);
+    ctx.ui.setup.paso = saltarA(ctx.ui.setup, PASO.personas, 1);
+    guardarAvance(ctx);
+    ctx.render();
+  },
+
+  /* ── Paso 7: las comidas que se repiten ──────────────────────────────── */
+
+  // Nombre y momentos, y ya está guardada de verdad: no hay un borrador de
+  // preparaciones que pudiera perderse al salir. Los alimentos y las cantidades
+  // se añaden desde «Editar», que abre la ventana de siempre.
+  'setup-preparacion': (form, data, ctx) => {
+    const setup = ctx.ui.setup;
+    const nombre = String(data.get('name') || '').trim();
+    const momentos = [...form.querySelectorAll('[name="uses"]:checked')].map(input => input.value);
+    if (nombre.length < 2) {
+      setup.errorReceta = 'Escribe el nombre de la preparación.';
+      ctx.render();
+      document.querySelector('[data-setup-receta]')?.focus();
+      return;
+    }
+    if (!momentos.length) {
+      setup.errorReceta = `Marca en cuáles momentos se come «${nombre}».`;
+      ctx.render();
+      return;
+    }
+    setup.errorReceta = '';
+    upsertRecipe(ctx.state, { name: nombre, uses: momentos, items: [], note: '' });
+    guardarAvance(ctx);
+    ctx.commit(`«${nombre}» guardada. Puedes añadirle los alimentos cuando quieras.`);
+    document.querySelector('[data-setup-receta]')?.focus();
   }
 };

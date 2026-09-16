@@ -16,7 +16,7 @@ import {
   quincenaDe, repartoDe, saveReview, setHabitualBasket, shoppingList
 } from '../src/model.js';
 import { loadState, saveState } from '../src/storage.js';
-import { PASOS, SETUP_ACTIONS, SETUP_FORMS, avanceGuardado, emptySetup, pasosDe, renderSetup } from '../src/setup.js';
+import { PASO, PASOS, SETUP_ACTIONS, SETUP_FORMS, avanceGuardado, emptySetup, pasosDe, renderSetup } from '../src/setup.js';
 import { PAGINAS_MAS, TITULOS_MAS, emptyMas, renderMas } from '../src/page-mas.js';
 import { emptyCompra, renderCompra } from '../src/page-compra.js';
 
@@ -351,7 +351,7 @@ test('el mes de antes del cambio se calcula con la frecuencia que tenía', () =>
 
 test('el asistente pregunta la frecuencia con las palabras que se pidieron', () => {
   const ctx = contexto();
-  ctx.ui.setup.paso = 3;
+  ctx.ui.setup.paso = PASO.compra;
   const html = renderSetup(ctx);
   revisar(html, 'paso de frecuencia');
   assert.ok(html.includes('¿Cada cuánto hacen la compra principal en tu hogar?'));
@@ -362,7 +362,7 @@ test('el asistente pregunta la frecuencia con las palabras que se pidieron', () 
 test('el paso de las cantidades dice lo que se pidió y no obliga a rellenarlas', () => {
   const { state } = casa();
   const ctx = contexto(state);
-  ctx.ui.setup.paso = 4;
+  ctx.ui.setup.paso = PASO.cantidades;
   ctx.ui.setup.elegidos = ['Arroz', 'Huevo'];
   const html = renderSetup(ctx);
   revisar(html, 'paso de cantidades');
@@ -373,29 +373,29 @@ test('el paso de las cantidades dice lo que se pidió y no obliga a rellenarlas'
 test('el paso del reparto solo existe para quien compra por quincenas', () => {
   const mensual = { ...emptySetup(), frecuencia: 'mensual' };
   const quincenal = { ...emptySetup(), frecuencia: 'quincenal' };
-  assert.equal(pasosDe(mensual).length, 5);
-  assert.equal(pasosDe(quincenal).length, 6);
-  assert.ok(!pasosDe(mensual).some(paso => paso.id === 5), 'a la casa mensual no se le enseña el reparto');
-  assert.ok(pasosDe(quincenal).some(paso => paso.id === 5));
+  assert.equal(pasosDe(quincenal).length, PASOS.length);
+  assert.equal(pasosDe(mensual).length, PASOS.length - 1);
+  assert.ok(!pasosDe(mensual).some(paso => paso.id === PASO.reparto), 'a la casa mensual no se le enseña el reparto');
+  assert.ok(pasosDe(quincenal).some(paso => paso.id === PASO.reparto));
 });
 
 test('elegir mensual salta el reparto y elegir quincenal pasa por él', () => {
   const ctx = contexto(casa().state);
-  ctx.ui.setup.paso = 4;
+  ctx.ui.setup.paso = PASO.cantidades;
 
   ctx.ui.setup.frecuencia = 'mensual';
   SETUP_ACTIONS['setup-siguiente'](null, ctx);
-  assert.equal(ctx.ui.setup.paso, 6, 'la casa mensual va directa al menú del mes');
+  assert.equal(ctx.ui.setup.paso, PASO.preparaciones, 'la casa mensual se salta el reparto');
 
-  ctx.ui.setup.paso = 4;
+  ctx.ui.setup.paso = PASO.cantidades;
   ctx.ui.setup.frecuencia = 'quincenal';
   SETUP_ACTIONS['setup-siguiente'](null, ctx);
-  assert.equal(ctx.ui.setup.paso, 5, 'la quincenal pasa por el reparto');
+  assert.equal(ctx.ui.setup.paso, PASO.reparto, 'la quincenal pasa por el reparto');
 });
 
 test('elegir la frecuencia en el asistente la deja escrita desde este mes', () => {
   const ctx = contexto(casa().state);
-  ctx.ui.setup.paso = 3;
+  ctx.ui.setup.paso = PASO.compra;
   SETUP_ACTIONS['setup-frecuencia']({ dataset: { frecuencia: 'quincenal' } }, ctx);
   assert.equal(ctx.ui.setup.frecuencia, 'quincenal');
   assert.equal(historialDeFrecuencia(ctx.state).length, 1);
@@ -409,7 +409,7 @@ test('la pantalla del reparto se dibuja con las dos partes de cada alimento', ()
   ponerFrecuencia(state, 'quincenal', '2026-01');
   ponerReparto(state, arroz, 'todo');
   const ctx = contexto(state);
-  ctx.ui.setup.paso = 5;
+  ctx.ui.setup.paso = PASO.reparto;
   ctx.ui.setup.frecuencia = 'quincenal';
   const html = renderSetup(ctx);
   revisar(html, 'paso del reparto');
@@ -488,7 +488,7 @@ test('cambiar de mes no deja abierto un tramo que ese mes no tiene', () => {
   assert.equal(ctx.ui.compra.tramo, 'mes');
 });
 
-test('los seis pasos del asistente se dibujan sin huecos', () => {
+test('los ocho pasos del asistente se dibujan sin huecos', () => {
   const { state } = casa();
   const ctx = contexto(state);
   ctx.ui.setup.frecuencia = 'quincenal';
@@ -503,7 +503,7 @@ test('la pregunta no viene contestada de antemano', () => {
   // Pintar «Mensual» ya marcada sería contestar por el usuario la pregunta que
   // acabamos de hacerle, y dejarle pulsar Continuar sin haber decidido nada.
   const ctx = contexto(casa().state);
-  ctx.ui.setup.paso = 3;
+  ctx.ui.setup.paso = PASO.compra;
   const virgen = renderSetup(ctx);
   assert.ok(!virgen.includes('setup-opcion activa'), 'ninguna opción viene marcada');
   assert.ok(/data-action="setup-siguiente"[^>]*disabled/.test(virgen), 'no se puede continuar sin contestar');
@@ -518,7 +518,7 @@ test('quien vuelve a pasar por el asistente encuentra marcada la que ya tenía',
   const { state } = casa();
   ponerFrecuencia(state, 'quincenal', '2026-01');
   const ctx = contexto(state);
-  ctx.ui.setup.paso = 3;
+  ctx.ui.setup.paso = PASO.compra;
   const html = renderSetup(ctx);
   assert.ok(html.includes('data-frecuencia="quincenal" aria-pressed="true"'));
   assert.ok(html.includes('data-frecuencia="mensual" aria-pressed="false"'));

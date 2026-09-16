@@ -236,3 +236,35 @@
   .setup-reparto-partes { align-items: center; }
   .setup-reparto-segunda { padding-bottom: 0; }
 }
+
+/* ── Quiénes comen aquí, y qué se cocina de costumbre ──────────────────────
+
+   Los dos pasos que faltaban. El primero abre la ficha de siempre —la de
+   `hogar.js`— para cada persona; el segundo escribe preparaciones con lo
+   mínimo: nombre y momentos. Ninguno de los dos estilos inventa un componente
+   nuevo: las filas son `.list-row` y los chips de restricción los pone
+   `hogar.css`, que es donde viven. */
+
+.setup-camino {
+  margin: 0 0 14px;
+  font-size: .86rem;
+  line-height: 1.6;
+  color: var(--ink-muted);
+  max-width: 52ch;
+}
+.setup-personas { padding: 4px 14px; }
+.setup-persona .list-row-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.setup-persona .restricciones { margin-top: 6px; }
+.setup-persona.pendiente .list-row-title { color: var(--ink-muted); }
+.setup-persona.pendiente .list-row-sub { font-style: italic; }
+
+.setup-preparacion {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.setup-preparacion .checks { gap: 8px; }

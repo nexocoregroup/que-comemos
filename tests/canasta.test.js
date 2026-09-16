@@ -17,7 +17,7 @@ import { CATEGORIES, RUBROS, SEED_PRODUCTS, categoriaDelRubro, rubroDeCategoria,
 import { createEmptyState, habitualLines, product, productByName } from '../src/model.js';
 import { loadState, saveState } from '../src/storage.js';
 import {
-  PASOS, SETUP_ACTIONS, SETUP_FORMS, avanceGuardado, emptySetup,
+  PASO, PASOS, SETUP_ACTIONS, SETUP_FORMS, avanceGuardado, emptySetup,
   guardarEnLaCanasta, olvidarAvance, renderSetup
 } from '../src/setup.js';
 
@@ -60,9 +60,18 @@ const revisar = (html, donde) => {
   assert.ok(!/\$\{/.test(html), `${donde} dejó una plantilla sin resolver`);
 };
 
+// Empezar el asistente y llegar al primer rubro. El primer paso pregunta
+// quiénes comen en casa; estas pruebas van a la canasta, así que lo pasan
+// continuando, que es lo que hace quien ya contestó o lo deja para después.
+function empezar(ctx) {
+  SETUP_ACTIONS['setup-empezar'](null, ctx);
+  SETUP_ACTIONS['setup-siguiente'](null, ctx);
+  return ctx.ui.setup;
+}
+
 // Recorrer el asistente hasta el rubro N, marcando por el camino lo que se pida.
 function irAlRubro(ctx, indice) {
-  SETUP_ACTIONS['setup-empezar'](null, ctx);
+  empezar(ctx);
   for (let i = 0; i < indice; i++) SETUP_ACTIONS['setup-rubro-seguir'](null, ctx);
   return ctx.ui.setup;
 }
@@ -114,7 +123,7 @@ test('la pantalla de entrada dice lo que se pidió, palabra por palabra', () => 
 
 test('cada uno de los ocho rubros se dibuja y dice por dónde va', () => {
   const ctx = contexto();
-  SETUP_ACTIONS['setup-empezar'](null, ctx);
+  empezar(ctx);
   for (let i = 0; i < RUBROS.length; i++) {
     const html = renderSetup(ctx);
     revisar(html, `rubro ${i + 1}`);
@@ -133,7 +142,7 @@ test('«Categoría 2 de 8 — Arroz, granos y pastas» es literalmente lo que sa
 
 test('ya no hay tira de categorías que arrastrar de lado', () => {
   const ctx = contexto();
-  SETUP_ACTIONS['setup-empezar'](null, ctx);
+  empezar(ctx);
   for (let i = 0; i < RUBROS.length; i++) {
     const html = renderSetup(ctx);
     assert.ok(!html.includes('setup-cats'), `el rubro ${i + 1} todavía pinta la tira de categorías`);
@@ -145,7 +154,7 @@ test('ya no hay tira de categorías que arrastrar de lado', () => {
 
 test('no queda ni un texto que imponga cuántos alimentos marcar', () => {
   const ctx = contexto();
-  SETUP_ACTIONS['setup-empezar'](null, ctx);
+  empezar(ctx);
   const prohibidos = [/Selecciona\s+(cinco|cuatro|tres|\d)/i, /Marca\s+los\s+\S+\s+más\s+habituales/i, /más habituales/i, /al menos \d/i];
   for (let i = 0; i < RUBROS.length; i++) {
     const html = renderSetup(ctx);
@@ -164,18 +173,18 @@ test('se puede continuar sin marcar nada, los ocho rubros seguidos', () => {
   // limpieza en el colmado. Obligarlas a marcar algo para pasar sería pedirles
   // que mientan para poder seguir.
   const ctx = contexto();
-  SETUP_ACTIONS['setup-empezar'](null, ctx);
+  empezar(ctx);
   for (let i = 0; i < RUBROS.length; i++) {
     assert.equal(ctx.ui.setup.rubro, i);
     SETUP_ACTIONS['setup-rubro-seguir'](null, ctx);
   }
-  assert.equal(ctx.ui.setup.paso, 2, 'el último rubro pasa al paso siguiente');
+  assert.equal(ctx.ui.setup.paso, PASO.dictar, 'el último rubro pasa al paso siguiente');
   assert.deepEqual(ctx.ui.setup.elegidos, [], 'no se marcó nada y no pasó nada');
 });
 
 test('el botón de continuar nunca está apagado', () => {
   const ctx = contexto();
-  SETUP_ACTIONS['setup-empezar'](null, ctx);
+  empezar(ctx);
   for (let i = 0; i < RUBROS.length; i++) {
     const html = renderSetup(ctx);
     const boton = html.slice(html.indexOf('data-setup-seguir') - 200, html.indexOf('data-setup-seguir') + 40);
@@ -186,7 +195,7 @@ test('el botón de continuar nunca está apagado', () => {
 
 test('retroceder no pierde lo marcado', () => {
   const ctx = contexto();
-  SETUP_ACTIONS['setup-empezar'](null, ctx);
+  empezar(ctx);
   SETUP_ACTIONS['setup-marcar'](casilla('Arroz', true), ctx);
   SETUP_ACTIONS['setup-marcar'](casilla('Yuca', true), ctx);
 
@@ -205,7 +214,7 @@ test('retroceder no pierde lo marcado', () => {
 
 test('en el primer rubro el botón de la izquierda es Salir, y después es Atrás', () => {
   const ctx = contexto();
-  SETUP_ACTIONS['setup-empezar'](null, ctx);
+  empezar(ctx);
   assert.ok(renderSetup(ctx).includes('>Salir<'));
   SETUP_ACTIONS['setup-rubro-seguir'](null, ctx);
   const html = renderSetup(ctx);
@@ -228,7 +237,7 @@ function almacenDeMentira() {
 
 test('cerrar la app a mitad de los rubros no tira nada', () => {
   const ctx = contexto();
-  SETUP_ACTIONS['setup-empezar'](null, ctx);
+  empezar(ctx);
   SETUP_ACTIONS['setup-marcar'](casilla('Arroz', true), ctx);
   SETUP_ACTIONS['setup-rubro-seguir'](null, ctx);
   SETUP_ACTIONS['setup-rubro-seguir'](null, ctx);
@@ -241,14 +250,14 @@ test('cerrar la app a mitad de los rubros no tira nada', () => {
   const setup = avanceGuardado(vuelto);
 
   assert.ok(setup, 'no se guardó ningún avance');
-  assert.equal(setup.paso, 1);
+  assert.equal(setup.paso, PASO.alimentos);
   assert.equal(setup.rubro, 2, 'se vuelve por «Carnes y proteínas»');
   assert.deepEqual([...setup.elegidos].sort(), ['Arroz', 'Pollo']);
 });
 
 test('desmarcar también queda guardado', () => {
   const ctx = contexto();
-  SETUP_ACTIONS['setup-empezar'](null, ctx);
+  empezar(ctx);
   SETUP_ACTIONS['setup-marcar'](casilla('Arroz', true), ctx);
   SETUP_ACTIONS['setup-marcar'](casilla('Arroz', false), ctx);
   assert.deepEqual(avanceGuardado(ctx.state).elegidos, []);
@@ -269,7 +278,7 @@ test('un avance escrito con basura no rompe la pantalla', () => {
 
 test('olvidar el avance lo borra del estado', () => {
   const ctx = contexto();
-  SETUP_ACTIONS['setup-empezar'](null, ctx);
+  empezar(ctx);
   assert.ok(ctx.state.settings.canasta);
   olvidarAvance(ctx.state);
   assert.equal(avanceGuardado(ctx.state), null);
@@ -415,7 +424,7 @@ test('lo que ya estaba en la canasta no se pierde al volver a guardar otra cosa'
 
 test('lo marcado en los ocho rubros llega entero al paso de las cantidades', () => {
   const ctx = contexto();
-  SETUP_ACTIONS['setup-empezar'](null, ctx);
+  empezar(ctx);
   SETUP_ACTIONS['setup-marcar'](casilla('Yuca', true), ctx);
   SETUP_ACTIONS['setup-rubro-seguir'](null, ctx);
   SETUP_ACTIONS['setup-marcar'](casilla('Arroz', true), ctx);
@@ -423,7 +432,7 @@ test('lo marcado en los ocho rubros llega entero al paso de las cantidades', () 
   SETUP_ACTIONS['setup-falta'](null, ctx);
   SETUP_FORMS['setup-nuevo'](null, new Map([['nombre', 'Fresa']]), ctx);
 
-  ctx.ui.setup.paso = 4;   // las cantidades
+  ctx.ui.setup.paso = PASO.cantidades;
   const html = renderSetup(ctx);
   revisar(html, 'paso de cantidades');
   for (const nombre of ['Yuca', 'Arroz', 'Fresa']) {
@@ -444,12 +453,12 @@ test('un alimento desmarcado después de escribirlo no llega a la canasta', () =
   SETUP_FORMS['setup-nuevo'](null, new Map([['nombre', 'Fresa']]), ctx);
   SETUP_ACTIONS['setup-marcar'](casilla('Fresa', false), ctx);
 
-  ctx.ui.setup.paso = 4;   // las cantidades
+  ctx.ui.setup.paso = PASO.cantidades;
   const html = renderSetup(ctx);
   assert.ok(!html.includes('value="Fresa"'), 'la fresa desmarcada no debería estar en las cantidades');
   // Pero sigue en la lista de su rubro, por si se quiere volver a marcar sin
   // escribirla otra vez.
-  ctx.ui.setup.paso = 1;
+  ctx.ui.setup.paso = PASO.alimentos;
   assert.ok(renderSetup(ctx).includes('data-nombre="Fresa"'));
 });
 
@@ -457,7 +466,7 @@ test('un alimento desmarcado después de escribirlo no llega a la canasta', () =
 
 test('un avance restaurado abre por su rubro, no por la pantalla de entrada', () => {
   const ctx = contexto();
-  SETUP_ACTIONS['setup-empezar'](null, ctx);
+  empezar(ctx);
   SETUP_ACTIONS['setup-rubro-seguir'](null, ctx);
   SETUP_ACTIONS['setup-rubro-seguir'](null, ctx);
   SETUP_ACTIONS['setup-marcar'](casilla('Pollo', true), ctx);
