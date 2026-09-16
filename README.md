@@ -243,6 +243,22 @@ El archivo queda en `android/app/build/outputs/apk/debug/app-debug.apk`.
 
 La primera compilación tarda bastante más, porque Gradle baja las bibliotecas de voz. Las siguientes van rápido.
 
+#### Si Gradle falla con «Unable to establish loopback connection»
+
+No es Gradle ni es el proyecto: es la carpeta temporal de Windows. Java abre su canal interno con un **socket de dominio Unix** creado en `%TEMP%`, y en algunas máquinas ese `connect` devuelve `Invalid argument` aunque el controlador `afunix` esté activo y el socket se cree bien. El síntoma engaña, porque `gradlew --version` funciona —no necesita ese canal— y solo falla al compilar de verdad.
+
+Se comprueba en diez segundos: si `Selector.open()` revienta con el temporal por defecto y funciona apuntando a otra carpeta, es esto. La solución es decirle a Java dónde poner ese socket:
+
+```powershell
+mkdir C:\gtmp
+$env:GRADLE_OPTS = '-Djdk.net.unixdomain.tmpdir=C:\gtmp'
+.\gradlew assembleDebug
+```
+
+Cambiar `TEMP` y `TMP` a una ruta corta también sirve. Lo que **no** sirve es `java.io.tmpdir`: esa propiedad no controla dónde se crea ese socket, y es el primer sitio donde uno mira.
+
+Para no repetirlo en cada sesión, ponlo en las variables de entorno del usuario, o en `android/gradle.properties` con `org.gradle.jvmargs` —pero ojo, esa ruta es de tu máquina y no debería viajar en el repositorio.
+
 El APK bajó de golpe al quitar la lectura de facturas: los modelos de OCR de ML Kit pesaban unos 10 MB por arquitectura y ya no viajan dentro.
 
 `npm run android` copia el casco web a `www/` y lo lleva al proyecto de Android. **Hay que ejecutarlo después de cada cambio**: el APK no se actualiza solo. Está firmado con la clave de depuración; para Play Store hacen falta una clave propia y `assembleRelease`.
