@@ -224,7 +224,11 @@ test('la aplicación sale a la red por una sola puerta, y solo a ella', () => {
     // «https://» sueltos que aparecen dentro de las frases que se le enseñan a
     // quien tiene que configurar el proyecto.
     for (const url of sinComentarios(archivo).match(/https?:\/\/(?:\*\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}/gi) || []) {
-      if (/^https:\/\/(\*\.)?supabase\.co/i.test(url)) continue;
+      // El proyecto de cada instalación es un subdominio distinto de
+      // `supabase.co` —el identificador que Supabase le pone—, así que se
+      // admite cualquiera de ellos y nada más. Un `https://otracosa.com`
+      // colado en cualquier módulo pone esto en rojo.
+      if (/^https:\/\/(\*\.|[a-z0-9-]+\.)?supabase\.co(\/|$)/i.test(url)) continue;
       if (/^https:\/\/localhost/i.test(url)) continue;
       ajenas.push(`${archivo}: ${url}`);
     }

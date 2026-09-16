@@ -32,10 +32,11 @@
 // iniciar sesión, y lo dice.
 
 export const NUBE = {
-  // Ej. 'https://abcdefghijklm.supabase.co'
-  url: '',
+  // El proyecto de NexoCore. El subdominio es el «Project ID» que sale en
+  // Project Settings → General.
+  url: 'https://vriwrbincbrmwvgfwqmo.supabase.co',
   // La clave anónima. Es larga y empieza por 'eyJ' o por 'sb_publishable_'.
-  clave: ''
+  clave: 'sb_publishable_v-s9K4V0La05MqEDfTTGSw_PxST2s0N'
 };
 
 // El esquema del enlace con el que Google devuelve a la aplicación después de
