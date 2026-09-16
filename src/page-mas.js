@@ -210,7 +210,7 @@ function vistaHabitual(ctx) {
             <label class="canasta-nombre" for="cant-${linea.productId}">${esc(item.name)}</label>
             <input id="cant-${linea.productId}" class="text canasta-cantidad" type="number" min="0" step="any" inputmode="decimal"
                    name="cantidad-${linea.productId}" value="${linea.quantity ?? ''}" placeholder="—" aria-label="Cantidad al mes de ${esc(item.name)}">
-            <select class="canasta-unidad" name="unidad-${linea.productId}" aria-label="Unidad de ${esc(item.name)}">${options(UNITS.map(unidad => [unidad, unidad]), linea.unit)}</select>
+            <select class="text canasta-unidad" name="unidad-${linea.productId}" aria-label="Unidad de ${esc(item.name)}">${options(UNITS.map(unidad => [unidad, unidad]), linea.unit)}</select>
             <button type="button" class="btn btn-quiet btn-small" data-action="canasta-quitar" data-id="${linea.productId}" aria-label="Quitar ${esc(item.name)} de la canasta">✕</button>
             ${historiaDeLaLinea(linea)}
           </div>`).join('')}</div>`).join('')}
