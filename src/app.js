@@ -26,8 +26,10 @@ import { CHAT_ACTIONS, CHAT_FORMS, emptyChat, renderChat } from './chat-ui.js';
 import { BULK_ACTIONS, BULK_FORMS, emptyBulk, renderBulk } from './bulk-entry.js';
 import { MES_ACTIONS, MES_FORMS, abrirMesSiHaceFalta, emptyMes, modalRutina, renderMes } from './page-mes.js';
 import { COMPRA_ACTIONS, COMPRA_FORMS, emptyCompra, periodoDeCompra, renderCompra } from './page-compra.js';
-import { MAS_ACTIONS, PAGINAS_MAS, TITULOS_MAS, emptyMas, renderMas } from './page-mas.js';
-import { avisoDeVoz, cancelarDictado, capacidad, diagnostico } from './device.js';
+import { MAS_ACTIONS, PAGINAS_MAS, TITULOS_MAS, aplicarDictado, emptyMas, renderMas } from './page-mas.js';
+import { avisoDeVoz, cancelarDictado, capacidad, diagnostico, falloAnterior, olvidarFalloAnterior } from './device.js';
+import { VOZ_ACTIONS, comprobarSiElDictadoMatoLaApp, emptyVoz, fallosDeVoz, seRindio } from './voz.js';
+import { anotar, fallosRecientes, instalarRed, protegida } from './fallos.js';
 import { button, cap, empty, esc, fmt, measure, modal, monthName, niceDate, notice, options, productDatalist, unitText } from './ui-kit.js';
 
 const firstRun = !hasSavedState();
@@ -47,8 +49,12 @@ const ui = {
   compra: emptyCompra(mesActual),
   mas: emptyMas(),
   reviewId: null, correctingReview: false,
+  voz: emptyVoz(),
   sidebarCollapsed: sidebarInitiallyCollapsed, drawerOpen: false,
-  welcome: firstRun, tour: null, justStarted: false
+  welcome: firstRun, tour: null, justStarted: false,
+  // Lo que hay que contarle a la persona nada más abrir: que la vez anterior la
+  // aplicación se cerró sola mientras dictaba. Se llena en el arranque.
+  avisoDeArranque: ''
 };
 
 /* ── Atajos de lectura ─────────────────────────────────────────────────── */
@@ -108,6 +114,21 @@ function ctx() {
   };
 }
 
+// El panel de dictado sirve a cuatro pantallas, así que necesita ver los cuatro
+// trozos de interfaz donde puede acabar el texto. `alUsarLaVoz` es la puerta por
+// la que una pantalla hace algo más que guardar lo dicho: la revisión lo reparte
+// entre las casillas de los alimentos en vez de dejarlo en un campo.
+function ctxConVoz() {
+  return {
+    ...ctx(),
+    chat: ui.chat,
+    bulk: ui.bulk,
+    alUsarLaVoz: (destino, texto) => {
+      if (destino === 'revision' && texto.trim()) aplicarDictado(ctx(), texto);
+    }
+  };
+}
+
 const TITULOS = { hoy: 'Hoy en casa', mes: 'Plan mensual', compra: 'La compra', mas: 'Más', setup: 'Organizar mi casa', legal: 'Privacidad y condiciones', ...TITULOS_MAS };
 function pageTitle() { return TITULOS[ui.page] || '¿Qué comemos?'; }
 
@@ -148,7 +169,46 @@ const PAGINAS = {
 };
 const esPaginaDeMas = pagina => pagina === 'mas' || PAGINAS_MAS.includes(pagina);
 
+/* Pintar tampoco puede tumbar la aplicación.
+ *
+ * `render()` reescribe `#app` entero en cada cambio. Si el módulo de una
+ * pantalla lanza a mitad de escribir su HTML, antes pasaba esto: la asignación a
+ * `innerHTML` no llegaba a ocurrir, la excepción subía hasta quien hubiera
+ * llamado a `render()` —a menudo un `catch` que solo enseñaba un `toast`— y la
+ * persona se quedaba con la pantalla anterior congelada, tocando botones que ya
+ * no respondían porque el estado sí había cambiado.
+ *
+ * Ahora una pantalla rota se queda en pantalla rota, dicho con esas palabras y
+ * con una salida. El resto de la aplicación sigue en pie. */
+
 function render() {
+  try {
+    pintar();
+  } catch (error) {
+    const fila = anotar('pintar', error, { pagina: ui.page });
+    try { pintarLoRoto(fila); } catch { /* Si ni eso se puede, no hay nada más que hacer desde aquí. */ }
+  }
+}
+
+// El último recurso: HTML mínimo, sin llamar a ningún módulo de pantalla —que
+// es de donde acaba de venir el fallo— y con una salida que siempre funciona.
+function pintarLoRoto(fila) {
+  const salida = document.querySelector('#app');
+  if (!salida) return;
+  document.querySelector('#modal-root').innerHTML = '';
+  ui.modal = null;
+  salida.innerHTML = `<div class="shell"><main class="main"><div class="card" style="margin:24px auto;max-width:560px">
+    <h2>Esta pantalla no se pudo dibujar</h2>
+    <p>Tus datos están a salvo: esto se rompió al enseñar la pantalla, no al guardar nada.</p>
+    <p class="muted small">Detalle técnico: ${esc(fila?.clase || 'Error')} — ${esc(fila?.mensaje || 'sin mensaje')}</p>
+    <div class="inline">
+      ${button('Volver a Hoy', 'volver-a-hoy', 'btn-primary')}
+      ${button('Ver el detalle técnico', 'navigate', 'btn-quiet', 'data-page="ajustes"')}
+    </div>
+  </div></main></div>`;
+}
+
+function pintar() {
   document.body.classList.toggle('menu-open', ui.drawerOpen);
   document.body.classList.toggle('tour-open', ui.tour !== null);
   document.body.classList.toggle('tour-fab', ui.tour !== null && TOUR_STEPS[ui.tour].highlight === 'fab');
@@ -169,6 +229,7 @@ function render() {
     <main class="main">
       <div class="mobile-brand"><button type="button" class="menu-toggle" data-action="toggle-sidebar" aria-label="${ui.drawerOpen ? 'Ocultar menú' : 'Abrir menú'}" aria-controls="app-sidebar" aria-expanded="${ui.drawerOpen}">☰</button><span class="brand-mark">${BRAND_MARK}</span><span>¿Qué comemos?</span></div>
       <header class="topline"><div class="topline-heading"><button type="button" class="menu-toggle desktop-menu-toggle" data-action="toggle-sidebar" aria-label="${ui.sidebarCollapsed ? 'Abrir menú' : 'Ocultar menú'}" aria-controls="app-sidebar" aria-expanded="${!ui.sidebarCollapsed}">☰</button><div><p class="eyebrow">${esc(eyebrow())}</p><h1>${esc(pageTitle())}</h1></div></div></header>
+      ${ui.avisoDeArranque ? notice('La vez anterior la aplicación se cerró sola', `${esc(ui.avisoDeArranque)} <button type="button" class="enlace" data-action="entendido-el-cierre">Entendido</button>`, 'warn') : ''}
       ${migratedFrom ? notice('Tus datos se actualizaron al formato nuevo.', 'La canasta que tenías es ahora <strong>tu canasta habitual</strong>, y lo que cambiaba en algún mes quedó guardado como cambio de ese mes. Nada se perdió, y lo anterior quedó a salvo por si acaso.') : ''}
       ${loadError ? notice('No se pudieron leer los datos guardados.', `${esc(loadError)} Trae una copia desde Más → Respaldo, o borra los datos para empezar de nuevo.`, 'error') : ''}
       ${state.demo ? `<div class="demo-banner"><span>✦</span><div><strong>Estás viendo un ejemplo</strong>Las cantidades son inventadas para que veas cómo funciona; no son recomendaciones de alimentación.</div>${button('Borrar el ejemplo', 'clear-demo', 'btn-secondary btn-small')}</div>` : ''}
@@ -353,7 +414,7 @@ function renderModal() {
         <label class="field"><span>¿Cómo se llama?</span><input name="name" required value="${esc(recipe?.name || '')}" placeholder="Ej. Mangú con salami"></label>
         <div class="field" style="margin-top:14px"><span>¿En qué comida?</span><div class="checks">${SLOTS.map(slot => `<label class="check-chip"><input type="checkbox" name="uses" value="${slot}" ${recipe?.uses.includes(slot) ? 'checked' : ''}>${cap(slot)}</label>`).join('')}</div></div>
         <div class="field" style="margin-top:14px"><span>¿Quiénes la comen normalmente?</span>${checkPeople('covers', recipe?.covers || [])}<small>Si no marcas a nadie, vale para quien coma ese día.</small></div>
-        <label class="field" style="margin-top:14px"><span>Nota para quien cocina (opcional)</span><textarea name="note" placeholder="Ej. dejar una parte para la cena">${esc(recipe?.note || '')}</textarea></label>
+        <label class="field" style="margin-top:14px"><span>Nota para quien cocina (opcional)</span><textarea name="note" placeholder="Ej. dejar una parte para la cena" autocapitalize="sentences" spellcheck="true" enterkeyhint="done">${esc(recipe?.note || '')}</textarea></label>
         <details class="more" style="margin-top:17px" ${recipe?.items.length ? 'open' : ''}>
           <summary>Más opciones: alimentos y raciones</summary>
           <p class="small muted">Solo los alimentos principales. No hace falta anotar la sal, el aceite, el ajo ni los condimentos: la app no les lleva la cuenta y pedírtelos sería trabajo para nada.</p>
@@ -563,7 +624,7 @@ function modalComida(m) {
         <label class="field"><span>Nombre</span><input name="title" value="${esc(plan.title)}" required></label>
         ${state.people.length ? `<div class="field"><span>¿Quiénes comen?</span>${checkPeople('participants', plan.participants, plan.date, plan.slot)}</div>` : '<span></span>'}
       </div>
-      <label class="field" style="margin-top:14px"><span>Nota para quien cocina</span><textarea name="note" placeholder="Ej. dejar una parte para mañana">${esc(plan.note || '')}</textarea></label>
+      <label class="field" style="margin-top:14px"><span>Nota para quien cocina</span><textarea name="note" placeholder="Ej. dejar una parte para mañana" autocapitalize="sentences" spellcheck="true" enterkeyhint="done">${esc(plan.note || '')}</textarea></label>
       <details class="more" style="margin-top:16px" ${plan.items.length ? 'open' : ''}>
         <summary>${plan.kind === 'linked' ? 'Alimentos que hay que preparar además' : 'Cantidades'}</summary>
         <div data-item-list="ingredient">${plan.items.map(item => itemRow(item)).join('')}</div>
@@ -639,10 +700,31 @@ function modalDiagnostico() {
       <table class="data-table"><tbody>
         <tr><td>Dónde corre</td><td class="num">${esc(d.plataforma)}</td></tr>
         ${Object.entries(d.complementos || {}).map(([nombre, hay]) => `<tr><td>${esc(nombre)}</td><td class="num ${hay ? 'good' : 'pending'}">${hay ? 'presente' : 'ausente'}</td></tr>`).join('')}
-        ${d.voz?.ultimoError ? `<tr><td>Último fallo</td><td class="num pending">${esc(d.voz.ultimoError.mensaje || d.voz.ultimoError.codigo || 'sin detalle')}</td></tr>` : ''}
+        ${d.voz?.ultimoError ? `<tr><td>Último fallo del micrófono</td><td class="num pending">${esc(d.voz.ultimoError.codigo || 'sin código')}</td></tr>` : ''}
+        <tr><td>Fallos del micrófono seguidos</td><td class="num ${seRindio() ? 'pending' : 'good'}">${fallosDeVoz()}${seRindio() ? ' · dejé de abrirlo solo' : ''}</td></tr>
       </tbody></table>
+      ${listaDeFallos()}
     </details>
     ${notice('Esta app no habla con ningún servidor.', 'No hay dirección que configurar ni clave que guardar: lo que la asistente entiende, lo entiende aquí dentro, y lo que no entiende lo dice en vez de mandarlo fuera.')}`, true);
+}
+
+// Lo que la red global lleva recogido desde que se abrió la aplicación.
+//
+// Está aquí y no escondido en un archivo de registro porque el único que puede
+// contar qué pasó es quien lo tiene en la mano, y «se me cerró» no es un informe
+// que nadie pueda seguir. Con esto, la respuesta cabe en una captura de
+// pantalla: la clase del error, el mensaje y de dónde salió.
+//
+// Se enseña dentro de un `<details>` que ya estaba plegado: quien no tenga un
+// problema no tiene por qué ver esto nunca.
+function listaDeFallos() {
+  const filas = fallosRecientes();
+  if (!filas.length) return '<p class="small muted">No se ha roto nada desde que abriste la aplicación.</p>';
+  return `<p class="small muted" style="margin-top:14px">Lo que se ha roto desde que abriste la aplicación. No sale de este teléfono; enséñalo si hace falta explicar un fallo.</p>
+    <table class="data-table"><tbody>${filas.map(fila => `<tr>
+      <td>${esc(fila.donde)}<div class="small muted">${esc(String(fila.cuando).slice(11, 19))}</div></td>
+      <td class="num pending">${esc(fila.clase)}: ${esc(fila.mensaje || 'sin mensaje')}</td>
+    </tr>`).join('')}</tbody></table>`;
 }
 
 /* ── Utilidades de formulario ──────────────────────────────────────────── */
@@ -665,9 +747,24 @@ const selected = (form, name) => [...form.querySelectorAll(`[name="${name}"]:che
 function closeModal() {
   // Cerrar la ventana mientras el micrófono escucha tiene que apagarlo: si no,
   // el motor sigue vivo detrás y el siguiente dictado arranca sobre el anterior.
-  if (['bulk', 'chat'].includes(ui.modal?.type)) cancelarDictado();
+  cerrarLaVoz();
   ui.modal = null;
   render();
+}
+
+// Un solo sitio donde se apaga el micrófono al irse de donde estaba abierto.
+//
+// Antes había uno por pantalla, y cada uno miraba su propia bandera: la de la
+// revisión comprobaba `ui.mas.revisionEscuchando`, que dejó de existir al pasar
+// el dictado a `voz.js`, así que salir de la revisión con el micrófono abierto
+// lo habría dejado escuchando detrás. Ahora la bandera es una sola y esto la
+// mira siempre, venga de donde venga.
+function cerrarLaVoz() {
+  if (!ui.voz?.destino) return;
+  ui.voz.sesion += 1;
+  ui.voz.destino = '';
+  ui.voz.estado = 'quieto';
+  Promise.resolve(cancelarDictado()).catch(error => anotar('cerrar-la-voz', error));
 }
 function openModal(type, extras = {}) { ui.modal = { type, ...extras }; render(); }
 function sidebarOnMobile() { return window.matchMedia('(max-width: 700px)').matches; }
@@ -700,34 +797,50 @@ function proximaComidaLibre() {
 
 /* ── Reparto de clics ──────────────────────────────────────────────────── */
 
+// Las acciones de las pantallas son la mitad `async` —todo lo que toca el
+// micrófono lo es—, y una función `async` que falla no cae dentro del `try` que
+// la llamó: su promesa se rechaza después, cuando ese `try` ya terminó. Así se
+// escapaban los fallos del dictado. `protegida` engancha los dos casos.
+const llamarAccion = (nombre, fn, el, contexto) =>
+  protegida(`accion:${nombre}`, fn, fila => toast(mensajeDeFallo(fila), true))(el, contexto);
+
+// Lo que se le dice a la persona cuando algo se rompe por dentro. Nunca se le
+// enseña una pila ni un nombre de archivo: eso vive en el detalle técnico.
+const mensajeDeFallo = fila =>
+  `Algo se rompió al hacer eso y lo dejé como estaba. Puedes seguir usando la app.${fila?.clase ? ` (${fila.clase})` : ''}`;
+
 document.addEventListener('click', event => {
   if (event.target.matches('[data-overlay]')) { closeModal(); return; }
   const el = event.target.closest('[data-action]'); if (!el) return;
   const action = el.dataset.action;
   try {
+    // El panel de dictado va primero y es el mismo para las cuatro pantallas
+    // desde donde se puede dictar.
+    if (VOZ_ACTIONS[action]) { llamarAccion(action, VOZ_ACTIONS[action], el, ctxConVoz()); return; }
+
     // Las pantallas que viven en su propio archivo traen sus propias acciones.
     if (SETUP_ACTIONS[action]) {
-      SETUP_ACTIONS[action](el, ctx());
+      llamarAccion(action, SETUP_ACTIONS[action], el, ctx());
       // Salir del onboarding hacia el plan del mes tiene que abrirlo igual que
       // entrar por la barra de abajo; si no, el mes queda sin estrenar y el
       // aviso de «ya está preparado» aparecería más tarde y fuera de sitio.
       if (ui.page === 'mes' && abrirMesSiHaceFalta(ctx(), ui.mes.month)) commit('');
       return;
     }
-    if (CHAT_ACTIONS[action]) { CHAT_ACTIONS[action](el, { ...ctx(), chat: ui.chat }); return; }
-    if (BULK_ACTIONS[action]) { BULK_ACTIONS[action](el, { ...ctx(), bulk: ui.bulk }); return; }
-    if (MES_ACTIONS[action]) { MES_ACTIONS[action](el, ctx()); return; }
-    if (COMPRA_ACTIONS[action]) { COMPRA_ACTIONS[action](el, ctx()); return; }
-    if (MAS_ACTIONS[action]) { MAS_ACTIONS[action](el, ctx()); return; }
+    if (CHAT_ACTIONS[action]) { llamarAccion(action, CHAT_ACTIONS[action], el, { ...ctx(), chat: ui.chat }); return; }
+    if (BULK_ACTIONS[action]) { llamarAccion(action, BULK_ACTIONS[action], el, { ...ctx(), bulk: ui.bulk }); return; }
+    if (MES_ACTIONS[action]) { llamarAccion(action, MES_ACTIONS[action], el, ctx()); return; }
+    if (COMPRA_ACTIONS[action]) { llamarAccion(action, COMPRA_ACTIONS[action], el, ctx()); return; }
+    if (MAS_ACTIONS[action]) { llamarAccion(action, MAS_ACTIONS[action], el, ctx()); return; }
 
     // Un atajo puede pedir que la app se sitúe antes en la pantalla donde se
     // verá el resultado de lo que se está por escribir.
     if (el.dataset.goto) { ui.page = el.dataset.goto; if (ui.page === 'mes') abrirMesSiHaceFalta(ctx(), ui.mes.month); }
 
     if (action === 'navigate') {
-      // Salir de la revisión con el micrófono abierto lo dejaría escuchando
+      // Cambiar de pantalla con el micrófono abierto lo dejaría escuchando
       // detrás de una pantalla que ya no se ve.
-      if (ui.page === 'revision' && ui.mas.revisionEscuchando) { cancelarDictado(); ui.mas.revisionEscuchando = false; }
+      cerrarLaVoz();
       ui.page = el.dataset.page;
       if (el.dataset.month) { ui.mas.canastaMes = el.dataset.month; ui.mas.canastaVista = 'cambios'; }
       if (ui.page === 'mes') abrirMesSiHaceFalta(ctx(), ui.mes.month);
@@ -855,7 +968,16 @@ document.addEventListener('click', event => {
     else if (action === 'remove-absence') { setAbsence(state, el.dataset.date, el.dataset.slot, el.dataset.id, false); commit('Ausencia quitada.'); }
     else if (action === 'toggle-manual') { const item = state.manualItems.find(row => row.id === el.dataset.id); item.done = el.checked; commit(''); }
     else if (action === 'delete-manual') { state.manualItems = state.manualItems.filter(row => row.id !== el.dataset.id); commit('Quitado de la lista.'); }
-  } catch (error) { toast(error.message, true); }
+    // Las dos salidas de una pantalla que se rompió al dibujarse.
+    else if (action === 'volver-a-hoy') { ui.page = 'hoy'; ui.modal = null; ui.drawerOpen = false; render(); }
+    else if (action === 'entendido-el-cierre') { ui.avisoDeArranque = ''; render(); }
+  } catch (error) {
+    // El mensaje sigue saliendo como siempre —es lo que la persona necesita—,
+    // pero ahora además queda apuntado: sin esto, un fallo que se enseña cuatro
+    // segundos y desaparece es un fallo que nadie puede arreglar después.
+    anotar(`accion:${action}`, error);
+    toast(error.message || mensajeDeFallo(null), true);
+  }
 });
 
 // `deletePlan` vive en model.js; esto solo centraliza el borrado en cascada para
@@ -1180,10 +1302,50 @@ document.addEventListener('submit', async event => {
       ui.mes = emptyMes(mesActual); ui.compra = emptyCompra(mesActual); ui.mas = emptyMas();
       commit('Copia traída.');
     }
-  } catch (error) { toast(error.message, true); }
+  } catch (error) {
+    anotar(`formulario:${form?.dataset?.form || 'desconocido'}`, error);
+    toast(error.message || mensajeDeFallo(null), true);
+  }
 });
 
 /* ── Arranque ──────────────────────────────────────────────────────────── */
+
+// La red, antes que nada: un fallo durante el propio arranque también tiene que
+// quedar apuntado, y para eso hay que llegar primero.
+instalarRed({
+  alFallar: fila => {
+    // Un fallo global no interrumpe lo que la persona esté haciendo: se dice y
+    // se sigue. Interrumpir sería convertir un tropiezo en un muro.
+    try { toast(mensajeDeFallo(fila), true); } catch { /* Sin `#toast` todavía no hay dónde decirlo. */ }
+  }
+});
+
+// ¿Se cerró la aplicación sola la última vez que alguien dictó?
+//
+// Se pregunta por dos vías, porque cada una ve lo que la otra no. La marca de
+// JavaScript detecta el cierre venga de donde venga, incluso si la red nativa
+// no llegó a instalarse; el apunte nativo trae además la causa técnica, que es
+// lo que sirve para arreglarlo.
+try {
+  const cierre = comprobarSiElDictadoMatoLaApp();
+  if (cierre) {
+    ui.avisoDeArranque = cierre.texto;
+    anotar('cierre-al-dictar', new Error('La aplicación se cerró mientras dictaba.'), { fallos: cierre.fallos });
+  }
+} catch (error) { anotar('arranque:cierre', error); }
+
+falloAnterior()
+  .then(fallo => {
+    if (!fallo) return;
+    // Se apunta en el cuaderno para que salga en el detalle técnico, y se olvida
+    // en el teléfono: enseñar el mismo fallo en cada arranque para siempre es
+    // ruido, no información.
+    anotar('nativo', new Error(`${fallo.clase}: ${fallo.mensaje}`), {
+      hilo: fallo.hilo, principal: fallo.principal, pila: fallo.pila
+    });
+    return olvidarFalloAnterior();
+  })
+  .catch(error => anotar('arranque:fallo-nativo', error));
 
 // El mes corriente se abre en cuanto arranca la app, no cuando alguien entra en
 // Plan mensual: así la pantalla de Hoy ya encuentra las comidas puestas.

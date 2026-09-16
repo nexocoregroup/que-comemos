@@ -20,7 +20,8 @@
 // CHAT_ACTIONS y los envíos de CHAT_FORMS, y guarda el estado en `ui.chat`.
 
 import { ACTION_NAMES, isQuery, runActions, toolSchemas, undoTo } from './assistant.js';
-import { avisoDeVoz, cancelarDictado, capacidad, comprobarDictado, dictar, pararDictado } from './device.js';
+import { cancelarDictado, capacidad } from './device.js';
+import { botonDeVoz, panelDeVoz } from './voz.js';
 import { SLOTS, addDays, monthBounds, todayISO, weekStart } from './model.js';
 import { parseLine, parseProductText, parseQuantity } from './text-parse.js';
 import { button, cap, esc, fmt, monthName, niceDate, notice, unitText } from './ui-kit.js';
@@ -28,7 +29,7 @@ import { button, cap, esc, fmt, monthName, niceDate, notice, unitText } from './
 /* ── Estado del panel ──────────────────────────────────────────────────── */
 
 export function emptyChat() {
-  return { mensajes: [], pendiente: null, deshacer: null, escuchando: false, oyendo: '', enviando: false, error: '', errorTitulo: '', pista: '' };
+  return { mensajes: [], pendiente: null, deshacer: null, enviando: false, error: '', errorTitulo: '', pista: '' };
 }
 
 // `pendiente` es siempre lo mismo —algo que espera una decisión de la persona—
@@ -39,15 +40,6 @@ export function emptyChat() {
 // El permiso de envío vive en el módulo y no en `ui.chat` a propósito: es «la
 // primera vez de cada sesión», así que tiene que morir al recargar la app y no
 // viajar dentro del estado del panel.
-// Lo mismo, pero para el aviso del dictado: cuando quien escucha es el motor del
-// navegador, la voz sale hacia sus servidores y eso hay que decirlo. Se dice una
-// vez por sesión —repetirlo en cada frase sería ruido— y con el motor del
-// teléfono no se dice nunca, porque ahí no sale nada del aparato.
-let avisadoDeVozAjena = false;
-// Cada dictado lleva su número. Si empieza otro, el anterior deja de escribir en
-// el campo aunque su promesa se resuelva tarde: dos dictados pisándose dejarían
-// un texto que nadie dijo.
-let dictadoActual = 0;
 let contador = 0;
 
 // crypto.randomUUID no existe en contextos sin https ni en WebViews viejos. El
@@ -87,7 +79,6 @@ function guardarBorrador(ctx) {
 
 // Lo dictado se añade a lo que ya hubiera: se dicta en tandas («ah, y también
 // dos latas de atún»), y empezar de cero en cada tanda obligaría a repetirlo todo.
-const juntar = (...trozos) => trozos.map(trozo => String(trozo ?? '').trim()).filter(Boolean).join(' ');
 
 const valorDe = (data, nombre, form) => {
   if (data && typeof data.get === 'function') return data.get(nombre);
@@ -504,12 +495,6 @@ export function interpretar(texto) {
 /* ── Enseñar el resultado en español ───────────────────────────────────── */
 
 const ESTADO_COMIDA = { outside: 'fuera de casa', order: 'pedir comida', unplanned: 'sin planificar', 'sin plan': 'todavía sin decidir' };
-// Los cuatro estados que manda `dictar` por `onEstado`, dichos en español.
-const ESTADO_DEL_DICTADO = {
-  preparando: 'Abriendo el micrófono… espera a que diga «escuchando».',
-  escuchando: 'Escuchando… habla y después revisa lo que quedó escrito.',
-  procesando: 'Terminando de entender lo que dijiste…'
-};
 const cantidadTexto = (valor, unidad) => `${fmt(valor)} ${unitText(unidad, Number(valor))}`;
 const lista = filas => filas.join('\n');
 
@@ -781,16 +766,6 @@ function dibujarAlcance(alcance) {
 
 function dibujarEstado(chat) {
   const partes = [];
-  if (chat.escuchando) {
-    // Lo que se enseña lo dice el motor, no este archivo: «Escuchando…» antes de
-    // que el micrófono esté abierto hace que la gente empiece a hablar sola y
-    // pierda la primera palabra.
-    const dicho = ESTADO_DEL_DICTADO[chat.oyendo] || ESTADO_DEL_DICTADO.escuchando;
-    // `role="status"` para que quien navega escuchando se entere de que el
-    // micrófono está abierto: sin eso, el indicador solo existe para quien mira.
-    partes.push(`<div class="chat-aparte chat-estado escuchando" role="status" aria-live="polite"><span class="chat-onda" aria-hidden="true"></span>
-      <span>${esc(dicho)}</span>${chat.oyendo === 'procesando' ? '' : button('Parar', 'chat-parar', 'btn-quiet btn-small')}</div>`);
-  }
   if (chat.enviando) {
     partes.push(`<div class="chat-aparte chat-estado pensando"><span class="chat-puntos" aria-hidden="true"><i></i><i></i><i></i></span><span>Pensando…</span></div>`);
   }
@@ -810,16 +785,11 @@ export function renderChat(ctx) {
   </div>`;
   // El pie va con el orden más bajo para quedar siempre debajo del último
   // mensaje, sin importar cuántos haya.
-  const pie = `<div class="chat-pie" style="order:-9999">${dibujarPendiente(chat.pendiente)}${dibujarEstado(chat)}</div>`;
-  // Quién puede escuchar lo decide device.js, que ya elige entre el motor del
-  // teléfono y el del navegador. Aquí solo se pregunta si hay alguno: repetir
-  // esa decisión sería tener dos versiones de la misma verdad.
-  const motor = capacidad('dictar');
-  const dictado = motor.ok
-    ? (chat.escuchando
-      ? `<button type="button" class="chat-icono escuchando" data-action="chat-parar" aria-label="Dejar de escuchar">■</button>`
-      : `<button type="button" class="chat-icono" data-action="chat-escuchar" aria-label="Dictar el mensaje">🎤</button>`)
-    : '';
+  const pie = `<div class="chat-pie" style="order:-9999">${dibujarPendiente(chat.pendiente)}${dibujarEstado(chat)}${panelDeVoz(ctx, 'chat')}</div>`;
+  // El botón abre el panel de dictado; no abre el micrófono. Esa distinción es
+  // la que evita que un fallo del reconocimiento se lleve la aplicación por
+  // delante: el primer toque siempre lleva a un cuadro donde se puede escribir.
+  const dictado = botonDeVoz(ctx, 'chat', { etiqueta: 'Dictar o escribir el mensaje' });
   return `<div class="chat-scrim" data-overlay data-action="chat-cerrar" aria-hidden="true"></div>
   <aside class="chat-panel" role="dialog" aria-modal="true" aria-label="Asistente de la casa">
     <header class="chat-head">
@@ -834,7 +804,7 @@ export function renderChat(ctx) {
       ${dictado}
       <button type="submit" class="chat-icono chat-enviar" aria-label="Enviar el mensaje">↑</button>
     </form>
-    ${motor.ok ? '' : `<p class="chat-pista">${esc(motor.detalle)} Tócalo y habla: escribe en este campo igual que el teclado.</p>`}
+    ${capacidad('dictar').ok ? '' : `<p class="chat-pista">Este aparato no trae dictado dentro de la aplicación. Toca el campo y usa el 🎤 de tu teclado: escribe aquí igual.</p>`}
   </aside>`;
 }
 
@@ -847,7 +817,7 @@ export function renderChat(ctx) {
 export const CHAT_ACTIONS = {
   // Cerrar el panel cierra también el micrófono: dejarlo abierto detrás de una
   // pantalla cerrada es lo último que debe hacer una app con el micrófono.
-  'chat-cerrar': (el, ctx) => { guardarBorrador(ctx); callarMicrofono(chatDe(ctx)); ctx.closeModal?.(); },
+  'chat-cerrar': (el, ctx) => { guardarBorrador(ctx); callarMicrofono(ctx); ctx.closeModal?.(); },
   'chat-limpiar': (el, ctx) => {
     const chat = chatDe(ctx);
     guardarBorrador(ctx);
@@ -906,98 +876,28 @@ export const CHAT_ACTIONS = {
     decir(chat, 'app', 'Listo, lo dejé como estaba antes.');
     ctx.commit('Se deshizo el último cambio.');
   },
-  'chat-escuchar': async (el, ctx) => {
-    const chat = chatDe(ctx);
-    guardarBorrador(ctx);
-    const motor = capacidad('dictar');
-    if (!motor.ok) { avisarDeVoz(chat, 'No se puede dictar aquí', motor.detalle); ctx.render(); return; }
-    // device.js es el único que sabe si este teléfono entiende la voz sin
-    // conexión; mirar solo el motor dejaba sin aviso a los Android que mandan
-    // el audio a Google por no tener el idioma descargado.
-    await comprobarDictado({ idioma: 'es-DO' });
-    const aviso = avisoDeVoz();
-    if (aviso && !avisadoDeVozAjena) { avisadoDeVozAjena = true; decir(chat, 'app', 'Aviso: ' + aviso); }
-    // Lo que ya estuviera escrito es el punto de partida, no algo que se pisa.
-    const base = chat.borrador || '';
-    const sesion = ++dictadoActual;
-    chat.escuchando = true;
-    chat.oyendo = 'preparando';
-    chat.error = '';
-    chat.errorTitulo = '';
-    chat.pista = '';
-    ctx.render();
-    const oido = await dictar({
-      onParcial: trozo => {
-        if (sesion !== dictadoActual) return;
-        chat.borrador = juntar(base, trozo);
-        // El parcial se escribe en el campo vivo en vez de redibujar el panel
-        // entero: un redibujo por palabra parpadea y le roba el foco al campo.
-        const campo = campoDelChat();
-        if (campo) campo.value = chat.borrador;
-      },
-      // El motor dice en qué va: preparando, escuchando, procesando. Antes esto
-      // se inventaba desde fuera y se ponía «Escuchando…» antes de que el
-      // micrófono estuviera abierto, así que la gente empezaba a hablar sola.
-      onEstado: estado => {
-        if (sesion !== dictadoActual || estado === 'listo') return;
-        chat.oyendo = estado;
-        ctx.render();
-      }
-    });
-    if (sesion !== dictadoActual) return;
-    chat.escuchando = false;
-    chat.oyendo = '';
-    if (oido.ok) {
-      chat.borrador = juntar(base, oido.texto);
-      // `parcial` es lo que alcanzó a oír antes de cortarse. Se usa igual —tirarlo
-      // obligaría a repetir la frase entera— pero se dice que quedó a medias.
-      // Y si además vino un `aviso`, se dice ese, que explica por qué se cortó:
-      // perderlo obliga a repetir la frase entera sin saber qué pasó.
-      chat.pista = oido.aviso || (oido.parcial ? 'Eso fue lo que alcancé a oír antes de que se cortara: míralo antes de enviarlo.' : '');
-    } else {
-      // Un fallo del micrófono no borra nada: lo que se oyó a medias sigue en el
-      // campo, y el motivo viene de device.js ya escrito en español.
-      avisarDeVoz(chat, 'No se pudo dictar', oido.error);
-    }
-    // Y termina aquí a propósito: no se envía ni se ejecuta nada. El texto queda
-    // en el campo para leerlo y corregirlo, porque un «compré diez» oído como
-    // «compré cien» movería el inventario sin que nadie lo hubiera visto.
-    ctx.render();
-    const campo = campoDelChat();
-    // El foco vuelve al campo con el cursor al final: lo siguiente que toca es
-    // repasar lo dictado, y así se corrige sin buscar dónde tocar.
-    if (campo) { campo.focus(); campo.setSelectionRange(campo.value.length, campo.value.length); }
-  },
-  'chat-parar': (el, ctx) => {
-    const chat = chatDe(ctx);
-    // Parar solo cierra el micrófono. Lo que se oyó hasta ahí lo devuelve
-    // `dictar` al resolverse y se queda escrito: parar no es cancelar.
-    guardarBorrador(ctx);
-    pararDictado();
-    chat.oyendo = 'procesando';
-    ctx.render();
-  }
+  // Dictar ya no vive aquí. El asistente, la configuración inicial, la entrada
+  // rápida y la revisión tenían cada uno su propia versión de lo mismo, y por
+  // eso el arreglo de un fallo llegaba a unos y no a otros. Ahora las cuatro
+  // usan `voz.js`: `voz-abrir` abre el panel y este archivo solo dice, en el
+  // registro de destinos, que lo dictado va a parar al borrador del chat.
+  'chat-guardar-antes-de-dictar': (el, ctx) => guardarBorrador(ctx)
 };
 
-function avisarDeVoz(chat, titulo, detalle) {
-  chat.errorTitulo = titulo;
-  chat.error = detalle;
-  chat.escuchando = false;
-  chat.oyendo = '';
-}
-
-// Cierra el micrófono y da por vencido el dictado en curso: lo que llegue
-// después ya no tiene dónde escribirse sin pisar lo que la persona hizo luego.
+// Cierra el micrófono si estaba abierto. Se llama al cerrar el panel del
+// asistente: dejar el micrófono escuchando detrás de una pantalla cerrada es lo
+// último que debe hacer una aplicación con el micrófono de nadie.
 //
 // Se cancela, no se para. `pararDictado` cierra el micrófono pero deja puestos
 // los oyentes del motor, y dos dictados seguidos los iban acumulando: al
 // tercero, cada palabra llegaba tres veces. `cancelarDictado` los retira.
-function callarMicrofono(chat) {
-  if (!chat.escuchando) return;
-  dictadoActual += 1;
-  cancelarDictado();
-  chat.escuchando = false;
-  chat.oyendo = '';
+function callarMicrofono(ctx) {
+  const voz = ctx.ui?.voz;
+  if (!voz || voz.destino !== 'chat') return;
+  voz.sesion += 1;
+  voz.destino = '';
+  voz.estado = 'quieto';
+  Promise.resolve(cancelarDictado()).catch(() => { /* Cerrar el micrófono no puede fallar hacia fuera. */ });
 }
 
 /* ── Envío del formulario ──────────────────────────────────────────────── */
@@ -1011,7 +911,7 @@ export const CHAT_FORMS = {
     const texto = String(valorDe(data, 'mensaje', form) ?? '').trim();
     // Enviar cierra el micrófono: lo que llegara tarde volvería a llenar un
     // campo que la persona acaba de vaciar al enviar.
-    callarMicrofono(chat);
+    callarMicrofono(ctx);
     chat.error = '';
     chat.errorTitulo = '';
     chat.pista = '';

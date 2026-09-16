@@ -79,6 +79,48 @@ const TOPE_SIN_VOZ_MS = 12000;
 // pasado ese plazo se devuelve lo que hubiera, porque quien pulsó parar no puede
 // quedarse colgado esperando a un motor que no piensa contestar.
 const GRACIA_AL_PARAR_MS = 1500;
+// Lo que se le concede al teléfono para contestar a una pregunta antes de
+// abrir el micrófono: si hay servicio, si hay permiso, si entiende sin conexión.
+// Son preguntas instantáneas cuando el teléfono está sano.
+const TOPE_PREGUNTA_MS = 6000;
+// Pedir el permiso es distinto: ahí contesta una persona, mirando un cartel del
+// sistema. Minuto y medio es tiempo de sobra para leerlo y decidir, y a la vez
+// impide que un cartel que nunca apareció deje la app esperando para siempre.
+const TOPE_PERMISO_MS = 90000;
+
+/* ── Nada se espera para siempre ───────────────────────────────────────────
+
+   Este fue uno de los dos fallos que dejaban la app inservible al dictar, y el
+   único de los dos que era nuestro.
+
+   Cada una de las llamadas de abajo cruza el puente de Capacitor hacia código
+   nativo que puede no contestar nunca. El caso concreto:
+   `isOnDeviceRecognitionAvailable()` solo resuelve su promesa desde dentro de un
+   `RecognitionSupportCallback`, y un teléfono cuyo servicio de voz está roto o
+   ausente —que es precisamente el teléfono que hay que sobrevivir— no llama a
+   ese callback jamás. La promesa se quedaba colgada y, con ella, la persona:
+   «Abriendo el micrófono…» para siempre, sin un botón que tocar, porque parar
+   tampoco hacía nada estando el micrófono aún sin abrir.
+
+   `preguntar()` convierte «no contesta» en una respuesta como cualquier otra.
+   Nunca lanza y nunca se queda colgada: devuelve `{ ok, valor, motivo }`, donde
+   `motivo` es `'sin-respuesta'` o `'fallo'` cuando la cosa salió mal. */
+
+async function preguntar(queEs, hacer, ms = TOPE_PREGUNTA_MS) {
+  let id = null;
+  const tope = new Promise(resolver => {
+    id = reloj(() => resolver({ ok: false, motivo: 'sin-respuesta' }), ms);
+  });
+  const intento = Promise.resolve()
+    .then(hacer)
+    .then(valor => ({ ok: true, valor }), error => ({ ok: false, motivo: 'fallo', error }));
+
+  const salida = await Promise.race([intento, tope]);
+  clearTimeout(id);
+  if (salida.motivo === 'sin-respuesta') apuntarError('telefono', `SIN_RESPUESTA_${queEs}`, `El teléfono no contestó a ${queEs} en ${ms} ms.`);
+  if (salida.motivo === 'fallo') apuntarError('telefono', queEs, salida.error);
+  return salida;
+}
 
 /* ── Traducción de los códigos del motor ───────────────────────────────────
    El complemento devuelve cosas como `SPEECH_TIMEOUT` o `NO_MATCH`. Eso no se
@@ -265,23 +307,30 @@ export async function permisoDeVoz() {
   if (!voz) {
     return { ok: Boolean(VozDelNavegador()), motivo: 'navegador', detalle: 'El navegador pide el permiso al empezar a escuchar.' };
   }
-  let estado = null;
-  try {
-    estado = (await voz.checkPermissions())?.speechRecognition || null;
-  } catch (error) {
-    apuntarError('telefono', 'CHECK_PERMISSIONS', error);
-    return { ok: false, motivo: 'error', detalle: 'No se pudo consultar el permiso del micrófono. Prueba a cerrar y abrir la aplicación, o escríbelo a mano.' };
-  }
-  if (estado === 'granted') return { ok: true, motivo: 'concedido' };
 
-  let pedido = null;
-  try {
-    pedido = (await voz.requestPermissions())?.speechRecognition || null;
-  } catch (error) {
-    apuntarError('telefono', 'REQUEST_PERMISSIONS', error);
-    return { ok: false, motivo: 'error', detalle: 'No se pudo pedir el permiso del micrófono. Prueba a cerrar y abrir la aplicación, o escríbelo a mano.' };
+  const mirado = await preguntar('CHECK_PERMISSIONS', () => voz.checkPermissions());
+  if (!mirado.ok) {
+    return {
+      ok: false,
+      motivo: 'error',
+      detalle: mirado.motivo === 'sin-respuesta'
+        ? 'El teléfono no contestó al preguntarle por el permiso del micrófono. Prueba otra vez, o escríbelo a mano.'
+        : 'No se pudo consultar el permiso del micrófono. Prueba a cerrar y abrir la aplicación, o escríbelo a mano.'
+    };
   }
-  if (pedido === 'granted') return { ok: true, motivo: 'concedido' };
+  if (mirado.valor?.speechRecognition === 'granted') return { ok: true, motivo: 'concedido' };
+
+  const pedido = await preguntar('REQUEST_PERMISSIONS', () => voz.requestPermissions(), TOPE_PERMISO_MS);
+  if (!pedido.ok) {
+    return {
+      ok: false,
+      motivo: 'error',
+      detalle: pedido.motivo === 'sin-respuesta'
+        ? 'El cartel del permiso no llegó a aparecer. Puedes dárselo desde los ajustes del teléfono, o escribirlo a mano.'
+        : 'No se pudo pedir el permiso del micrófono. Prueba a cerrar y abrir la aplicación, o escríbelo a mano.'
+    };
+  }
+  if (pedido.valor?.speechRecognition === 'granted') return { ok: true, motivo: 'concedido' };
   return { ok: false, motivo: 'denegado', detalle: FALTA_PERMISO };
 }
 
@@ -289,35 +338,80 @@ async function estadoDelPermiso(voz) {
   // Aquí solo se mira, no se pide: preguntar por el permiso en una pantalla de
   // diagnóstico le saldría a la persona como un cartel del sistema sin venir a
   // cuento.
-  try { return (await voz.checkPermissions())?.speechRecognition || null; }
-  catch (error) { apuntarError('telefono', 'CHECK_PERMISSIONS', error); return null; }
+  const mirado = await preguntar('CHECK_PERMISSIONS', () => voz.checkPermissions());
+  return mirado.ok ? mirado.valor?.speechRecognition || null : null;
 }
 
 async function hayServicio(voz) {
-  try {
-    const respuesta = await voz.available();
-    // Solo un `false` explícito cierra la puerta. Que la respuesta venga rara no
-    // prueba que el motor no esté, y negarse a intentarlo por eso sería peor que
-    // intentarlo y fallar con un aviso claro.
-    return respuesta?.available === false ? false : true;
-  } catch (error) {
-    apuntarError('telefono', 'AVAILABLE', error);
-    return true;
-  }
+  const mirado = await preguntar('AVAILABLE', () => voz.available());
+  // Solo un `false` explícito cierra la puerta. Que la respuesta venga rara, o
+  // que no venga, no prueba que el motor no esté, y negarse a intentarlo por eso
+  // sería peor que intentarlo y fallar con un aviso claro.
+  if (!mirado.ok) return true;
+  return mirado.valor?.available === false ? false : true;
 }
 
 async function reconocimientoLocal(voz, idioma) {
   if (typeof voz?.isOnDeviceRecognitionAvailable !== 'function') return null;
-  try {
-    const respuesta = await voz.isOnDeviceRecognitionAvailable({ language: idioma });
-    reconocimientoLocalConocido = Boolean(respuesta?.available);
-    return reconocimientoLocalConocido;
-  } catch (error) {
-    apuntarError('telefono', 'ON_DEVICE_CHECK', error);
-    // No se sabe: ni se promete que sí ni se descarta. Se pedirá el modo normal,
-    // que funciona en los dos casos.
-    return null;
-  }
+  // Esta es la que se colgaba. Con tope, un teléfono que no contesta deja la
+  // respuesta en «no se sabe» y el dictado sigue por la ruta normal, que
+  // funciona igual; sin tope, no seguía nada.
+  const mirado = await preguntar('ON_DEVICE_CHECK', () => voz.isOnDeviceRecognitionAvailable({ language: idioma }));
+  if (!mirado.ok) return null;
+  reconocimientoLocalConocido = Boolean(mirado.valor?.available);
+  return reconocimientoLocalConocido;
+}
+
+/* ── La ficha de la aplicación en los ajustes del teléfono ─────────────────
+
+   Cuando alguien dice «no» al permiso del micrófono, Android no lo vuelve a
+   preguntar: a partir de ahí, `requestPermissions()` contesta «denegado» sin
+   enseñar nada. El único camino que queda es la ficha de la app en los ajustes,
+   y sin un botón que lleve hasta ahí el consejo se convierte en «búscalo tú»,
+   que es donde la gente abandona.
+
+   Lo abre `Aparato`, el complemento de cuarenta líneas que vive en el proyecto
+   de Android. Si no está —en el navegador no está— se dice que no se pudo, y
+   quien llama enseña el camino a mano. */
+
+export async function sePuedenAbrirLosAjustes() {
+  return Boolean(nativo() && plugin('Aparato'));
+}
+
+export async function abrirAjustesDelTelefono() {
+  const aparato = plugin('Aparato');
+  if (!aparato?.abrirAjustes) return { ok: false, motivo: 'no-disponible' };
+  const abierto = await preguntar('ABRIR_AJUSTES', () => aparato.abrirAjustes());
+  if (!abierto.ok) return { ok: false, motivo: abierto.motivo };
+  return { ok: Boolean(abierto.valor?.abierto), motivo: abierto.valor?.motivo || '' };
+}
+
+/* ── El fallo que mató a la aplicación la vez anterior ─────────────────────
+
+   Un fallo nativo no se puede contar desde dentro del proceso que ha matado.
+   `GuardiaDeFallos` lo deja apuntado en el teléfono; esto lo lee al arrancar el
+   siguiente. Es la única forma de que «se me cerró la app» deje de ser un
+   informe imposible de seguir. */
+
+export async function falloAnterior() {
+  const aparato = plugin('Aparato');
+  if (!aparato?.ultimoFallo) return null;
+  const leido = await preguntar('ULTIMO_FALLO', () => aparato.ultimoFallo());
+  if (!leido.ok || !leido.valor?.hay) return null;
+  return {
+    cuando: Number(leido.valor.cuando) || 0,
+    clase: String(leido.valor.clase || ''),
+    mensaje: String(leido.valor.mensaje || ''),
+    hilo: String(leido.valor.hilo || ''),
+    principal: Boolean(leido.valor.principal),
+    pila: String(leido.valor.pila || '')
+  };
+}
+
+export async function olvidarFalloAnterior() {
+  const aparato = plugin('Aparato');
+  if (!aparato?.olvidarFallo) return;
+  await preguntar('OLVIDAR_FALLO', () => aparato.olvidarFallo());
 }
 
 /* ── Dictar ────────────────────────────────────────────────────────────────
@@ -372,6 +466,9 @@ export async function pararDictado() {
 // escribiendo en una pantalla que ya no existe, y el siguiente dictado heredaría
 // los oyentes del anterior.
 export async function cancelarDictado() {
+  // Lo primero, y antes de cualquier espera: mover el número corta en seco un
+  // dictado que todavía esté haciendo preguntas y no haya abierto el micrófono.
+  generacionDePreparacion += 1;
   const nativa = sesionNativa;
   const navegador = sesionNavegador;
   if (nativa) await finalizar(nativa, { motivo: 'cancelado' });
@@ -402,20 +499,38 @@ export async function cancelarDictado() {
 
 let sesionNativa = null;
 
+/* Antes de abrir el micrófono hay tres preguntas que hacerle al teléfono —si hay
+   servicio, si hay permiso, si entiende sin conexión— y las tres tardan. Durante
+   ese rato no existe todavía ninguna sesión que cancelar, así que «cancelar» no
+   tenía a qué agarrarse: quien tocaba Cancelar mientras salía el cartel del
+   permiso veía abrirse el micrófono igual un segundo después.
+
+   Este número es el agarre. Cada dictado se queda con el suyo al empezar, y
+   `cancelarDictado()` lo mueve; el dictado que descubre que su número ya no es
+   el de la casa se retira antes de tocar el micrófono. */
+let generacionDePreparacion = 0;
+const cancelada = mia => mia !== generacionDePreparacion;
+const RETIRADA = { ok: false, origen: 'telefono', cancelado: true, texto: '', error: 'Se cerró el dictado antes de empezar.' };
+
 async function dictarNativo(onParcial, onEstado, idioma) {
   const voz = plugin('SpeechRecognition');
   // Dos dictados a la vez se pelearían por el mismo motor y por los mismos
   // oyentes. El anterior se cierra antes de abrir el siguiente.
   if (sesionNativa) await cancelarDictado();
+  const mia = ++generacionDePreparacion;
 
   if ((await hayServicio(voz)) === false) {
     apuntarError('telefono', 'NOT_AVAILABLE', 'available() devolvió false');
     return { ok: false, origen: 'telefono', error: MENSAJES.NOT_AVAILABLE };
   }
+  if (cancelada(mia)) return RETIRADA;
+
   const permiso = await permisoDeVoz();
+  if (cancelada(mia)) return RETIRADA;
   if (!permiso.ok) return { ok: false, origen: 'telefono', error: permiso.detalle, motivo: permiso.motivo };
 
   const local = await reconocimientoLocal(voz, idioma);
+  if (cancelada(mia)) return RETIRADA;
   ultimoMotor = { cuando: new Date().toISOString(), origen: 'telefono', idioma, local };
 
   const sesion = {
@@ -700,6 +815,37 @@ function reloj(fn, ms) {
 function limpiarRelojes(sesion) {
   for (const id of sesion.relojes || []) clearTimeout(id);
   sesion.relojes = [];
+}
+
+// ¿Hay ahora mismo un micrófono abierto? La interfaz lo necesita para volver en
+// sí después de que la app haya estado en segundo plano.
+export function estaEscuchando() {
+  return Boolean(sesionNativa || sesionNavegador);
+}
+
+/* ── El micrófono no se queda abierto por detrás ───────────────────────────
+
+   El complemento de voz no implementa `handleOnPause`: si la app pasa a segundo
+   plano mientras escucha —una llamada, el botón de inicio, otra aplicación—, el
+   reconocedor se queda con el micrófono abierto y gastando batería, y el usuario
+   no tiene ni forma de saberlo ni forma de pararlo.
+
+   Peor todavía: cuando el motor contesta desde su propio hilo y la Activity ya
+   no está, el complemento hace `bridge.getActivity().runOnUiThread(...)` sobre
+   un `null`. Eso es una excepción en un hilo que nadie vigila, y un hilo sin
+   vigilancia se lleva el proceso entero por delante. Es uno de los caminos por
+   los que la aplicación se cerraba sola.
+
+   Así que se cierra al irse. Lo que se hubiera oído hasta ese momento se
+   devuelve por la vía normal y no se pierde. */
+
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'hidden' || !estaEscuchando()) return;
+    // No se espera: irse a segundo plano no admite esperas, y `cancelarDictado`
+    // ya se protege sola de cualquier fallo del complemento.
+    Promise.resolve(cancelarDictado()).catch(() => { /* Cerrar el micrófono no puede fallar hacia fuera. */ });
+  });
 }
 
 // El complemento rechaza con mensajes en inglés, no con códigos. Se reconocen

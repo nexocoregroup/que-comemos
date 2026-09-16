@@ -16,7 +16,8 @@ import {
 } from './model.js';
 import { WEEKDAY_LABELS, WEEKDAYS } from './routines.js';
 import { button, cap, empty, esc, fmt, measure, monthName, niceDate, options, shiftMonth, unitText } from './ui-kit.js';
-import { avisoDeVoz, cancelarDictado, capacidad, comprobarDictado, dictar, pararDictado } from './device.js';
+import { avisoDeVoz, capacidad, comprobarDictado } from './device.js';
+import { panelDeVoz } from './voz.js';
 // El intérprete de frases vive en el asistente, y entiende «quedan dos plátanos,
 // diez huevos y media libra de queso» desde hace tiempo. Escribir aquí un
 // segundo intérprete sería tener dos gramáticas que se van separando con los
@@ -50,7 +51,7 @@ export const TITULOS_MAS = Object.fromEntries(ENTRADAS_MAS.map(([id, , titulo]) 
 export function emptyMas() {
   return {
     canastaVista: 'habitual', canastaMes: hoy.slice(0, 7), filtroAlimento: '', verArchivados: false,
-    revisionFiltro: '', revisionSoloFaltan: false, revisionEscuchando: false, revisionAviso: '',
+    revisionFiltro: '', revisionSoloFaltan: false, revisionAviso: '',
     documento: 'privacidad'
   };
 }
@@ -358,17 +359,13 @@ function herramientasDeRevision(ctx, revision, faltan, queda) {
   const motor = capacidad('dictar');
   return `<div class="revision-herramientas">
     <label class="field revision-buscar"><span class="sr-only">Buscar un alimento de esta revisión</span>
-      <input type="search" id="revision-filtro" value="${esc(ui.mas.revisionFiltro)}" placeholder="Buscar un alimento…" aria-label="Buscar un alimento de esta revisión">
+      <input type="search" id="revision-filtro" data-revision-buscar value="${esc(ui.mas.revisionFiltro)}" placeholder="Buscar un alimento…" aria-label="Buscar un alimento de esta revisión">
     </label>
     <div class="inline">
       <button type="button" class="chip ${ui.mas.revisionSoloFaltan ? 'activa' : ''}" data-action="revision-solo-faltan" aria-pressed="${ui.mas.revisionSoloFaltan}">Solo lo que falta · ${faltan}</button>
-      ${motor.ok
-        ? (ui.mas.revisionEscuchando
-            ? button('■ Parar', 'revision-parar', 'btn-primary btn-small')
-            : button('🎤 Dictar', 'revision-dictar', 'btn-secondary btn-small'))
-        : ''}
+      ${motor.ok ? `<button type="button" class="btn btn-secondary btn-small" data-action="voz-abrir" data-destino="revision" aria-label="Dictar o escribir lo que queda">🎤 Dictar</button>` : ''}
     </div>
-    ${ui.mas.revisionEscuchando ? `<p class="small muted">Escuchando… Di por ejemplo: «${queda ? 'quedan dos plátanos, diez huevos y media libra de queso' : 'se consumieron seis plátanos y cuatro huevos'}».</p>` : ''}
+    ${panelDeVoz(ctx, 'revision')}
     ${ui.mas.revisionAviso ? `<p class="small revision-aviso">${esc(ui.mas.revisionAviso)}</p>` : ''}
   </div>`;
 }
@@ -635,7 +632,7 @@ function paresParecidos(state) {
 // no directamente en el estado. Parece un rodeo y no lo es: así lo que la persona
 // ya había tecleado a mano viaja en el mismo envío y no se pierde al repintar.
 // Guardar por un lado y repintar por otro habría borrado media revisión.
-function aplicarDictado(ctx, texto) {
+export function aplicarDictado(ctx, texto) {
   const { state, ui } = ctx;
   const revision = state.reviews.find(item => item.id === ui.reviewId) || [...state.reviews].reverse().find(item => item.status === 'draft');
   const form = document.querySelector('[data-form="review"]');
@@ -671,26 +668,9 @@ function aplicarDictado(ctx, texto) {
 
 export const MAS_ACTIONS = {
   'revision-solo-faltan': (el, ctx) => { ctx.ui.mas.revisionSoloFaltan = !ctx.ui.mas.revisionSoloFaltan; ctx.render(); },
-  'revision-parar': (el, ctx) => { pararDictado(); },
-  'revision-dictar': async (el, ctx) => {
-    const { ui } = ctx;
-    const motor = capacidad('dictar');
-    if (!motor.ok) { ui.mas.revisionAviso = motor.detalle; ctx.render(); return; }
-    ui.mas.revisionEscuchando = true;
-    ui.mas.revisionAviso = '';
-    ctx.render();
-    let oido;
-    try { oido = await dictar({ idioma: 'es-DO' }); }
-    catch { oido = { ok: false, error: 'No se pudo escuchar. Escríbelo a mano.' }; }
-    ui.mas.revisionEscuchando = false;
-    if (!oido.ok) {
-      // Cancelar no es un fallo: es una decisión, y no merece un aviso rojo.
-      ui.mas.revisionAviso = oido.cancelado ? '' : oido.error;
-      ctx.render();
-      return;
-    }
-    aplicarDictado(ctx, oido.texto);
-  },
+  // Dictar ya no vive aquí: lo lleva `voz.js`, el mismo panel que usan el
+  // asistente, la configuración inicial y la entrada rápida. Cuando la persona
+  // toca «Usar este texto», app.js llama a `aplicarDictado` con lo dictado.
   'legal-ver': (el, ctx) => { ctx.ui.mas.documento = el.dataset.doc; ctx.render(); },
   'canasta-vista': (el, ctx) => { ctx.ui.mas.canastaVista = el.dataset.vista; ctx.render(); },
   'canasta-mes': (el, ctx) => { ctx.ui.mas.canastaMes = shiftMonth(ctx.ui.mas.canastaMes, Number(el.dataset.delta)); ctx.render(); },

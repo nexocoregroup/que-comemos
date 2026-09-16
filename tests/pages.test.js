@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 // Las pantallas se pueden probar, y hasta ahora no se probaban.
 //
@@ -234,8 +235,17 @@ test('la app avisa de la copia cuando toca, y calla cuando no', () => {
   assert.equal(hoyMismo.urgente, false, 'recién guardada no debería avisar');
 
   // Un mes es el umbral: lo que se perdería ya duele.
-  const hace40 = new Date(Date.now() - 40 * 86400000).toISOString().slice(0, 10);
-  conDatos.settings.lastBackupAt = hace40;
+  //
+  // La fecha se cuenta hacia atrás desde `todayISO()`, que es el día del
+  // calendario local, y no desde `Date.now()`. Restando milisegundos a `Date.now()`
+  // y pasando el resultado por `toISOString()` se mezclaban dos husos: con el
+  // reloj local en UTC-4 y pasadas las ocho de la noche, el día UTC ya era el
+  // siguiente y la resta daba 39. La prueba fallaba por la hora a la que se
+  // ejecutara, que es lo peor que le puede pasar a una prueba.
+  const hace40 = new Date(`${todayISO()}T12:00:00`);
+  hace40.setDate(hace40.getDate() - 40);
+  const hace40ISO = `${hace40.getFullYear()}-${String(hace40.getMonth() + 1).padStart(2, '0')}-${String(hace40.getDate()).padStart(2, '0')}`;
+  conDatos.settings.lastBackupAt = hace40ISO;
   const vieja = estadoDeLaCopia(conDatos);
   assert.equal(vieja.dias, 40);
   assert.equal(vieja.urgente, true, 'una copia de hace cuarenta días debería avisar');
@@ -251,4 +261,62 @@ test('el plan mensual describe una rutina en palabras, no en números', () => {
   assert.ok(/domingo/i.test(html), 'la regla debería decir «domingo», no un número de día');
   assert.ok(!html.includes('weekdays') && !html.includes('[7]'), 'se está enseñando la estructura interna');
   revisar(html, 'renderMes con una rutina de domingos');
+});
+
+
+/* ── Que el micrófono del teclado pueda escribir en los campos ─────────────
+
+   El micrófono del teclado es la alternativa que sigue funcionando cuando el de
+   la aplicación falla, y es además la que no puede llevarse la app por delante:
+   corre dentro del proceso del teclado, no dentro de este. Por eso importa que
+   los campos lo admitan, y por eso se comprueba aquí en vez de confiar en que
+   nadie añada mañana un `readonly` sin pensarlo.
+
+   Lo que de verdad apaga la tecla del micrófono en un WebView de Android:
+
+     · `readonly` y `disabled` — no hay dónde escribir, así que no hay teclado.
+     · `inputmode="none"` — le dice al sistema que no saque teclado ninguno.
+
+   Aparte queda un caso que no es un fallo y conviene no confundir: en un campo
+   `type="number"` el teclado que sale es el numérico, y el numérico no trae
+   tecla de micrófono. Eso lo decide Android, no esta aplicación. La respuesta a
+   eso es el panel de dictado, que oye una frase entera —«quedan dos libras de
+   arroz»— y la reparte entre las casillas; no es quitarle el `type="number"` a
+   un campo donde solo caben números. */
+
+test('ningún campo de texto apaga el micrófono del teclado', () => {
+  const state = createDemoState();
+  const ctx = contexto(state);
+  const pantallas = [['mes', () => renderMes(ctx)], ['compra', () => renderCompra(ctx)]];
+  for (const pagina of ['mas', ...PAGINAS_MAS]) pantallas.push([pagina, () => { ctx.ui.page = pagina; return renderMas(ctx); }]);
+
+  const culpables = [];
+  for (const [nombre, dibujar] of pantallas) {
+    const html = dibujar();
+    // Los campos donde se escriben palabras: texto libre, búsqueda y áreas.
+    const campos = html.match(/<(?:input|textarea)\b[^>]*>/g) || [];
+    for (const campo of campos) {
+      const tipo = (campo.match(/type="([^"]*)"/) || [])[1] || (campo.startsWith('<textarea') ? 'textarea' : 'text');
+      if (!['text', 'search', 'textarea'].includes(tipo)) continue;
+      if (/\breadonly\b/.test(campo)) culpables.push(`${nombre}: readonly en ${tipo}`);
+      if (/\bdisabled\b/.test(campo)) culpables.push(`${nombre}: disabled en ${tipo}`);
+      if (/inputmode="none"/.test(campo)) culpables.push(`${nombre}: inputmode="none" en ${tipo}`);
+    }
+  }
+  assert.deepEqual(culpables, [], 'campos donde el micrófono del teclado no podría escribir');
+});
+
+test('los cuadros de texto libre vienen preparados para dictar de corrido', () => {
+  // `autocapitalize="sentences"` hace que lo dictado empiece en mayúscula como
+  // una frase y no como un grito; `spellcheck` es lo que subraya la palabra que
+  // el reconocimiento oyó mal, que es exactamente lo que hay que repasar.
+  const fuentes = ['src/voz.js', 'src/bulk-entry.js', 'src/setup.js', 'src/app.js'];
+  const sinPreparar = [];
+  for (const archivo of fuentes) {
+    const codigo = readFileSync(archivo, 'utf8');
+    for (const etiqueta of codigo.match(/<textarea\b[^>]*>/g) || []) {
+      if (!/autocapitalize=/.test(etiqueta)) sinPreparar.push(`${archivo}: textarea sin autocapitalize`);
+    }
+  }
+  assert.deepEqual(sinPreparar, [], 'cuadros de texto sin preparar para el dictado');
 });

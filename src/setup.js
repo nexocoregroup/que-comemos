@@ -19,7 +19,8 @@
 import { CATEGORIES, SEED_PRODUCTS, seedByCategory } from './catalog-seed.js';
 import { UNITS, addProduct, findSimilarProducts, habitualLines, product, productByName, setHabitualBasket, todayISO } from './model.js';
 import { normalizeName, parseProductText } from './text-parse.js';
-import { cancelarDictado, capacidad, dictar, pararDictado } from './device.js';
+import { cancelarDictado, capacidad } from './device.js';
+import { panelDeVoz } from './voz.js';
 import { button, esc, notice, options } from './ui-kit.js';
 
 export const PASOS = [
@@ -41,10 +42,6 @@ export const emptySetup = () => ({
   filas: null,         // las filas separadas del texto, antes de aceptarlas
   categoria: CATEGORIES[0].id,
   busqueda: '',
-  escuchando: false,
-  avisoVoz: '',
-  pistaVoz: '',
-  errorVoz: '',
   guardados: 0
 });
 
@@ -72,8 +69,6 @@ const parecidoA = (state, nombre) =>
   findSimilarProducts(state, nombre, { limit: 1 })[0]?.product?.name
   || findSimilarProducts(CATALOGO_COMO_CASA, nombre, { limit: 1 })[0]?.product?.name
   || '';
-
-const AVISO_VOZ_AJENA = 'Este aparato no trae reconocimiento de voz propio, así que lo dictado viaja a los servidores del navegador para convertirse en texto. Si prefieres que no salga de aquí, escríbelo.';
 
 /* ── Pantalla inicial ──────────────────────────────────────────────────── */
 
@@ -147,19 +142,17 @@ function fichaAlimento(item, marcado) {
 
 /* ── Paso 2: lo propio de cada casa ────────────────────────────────────── */
 
-function pasoPropios(setup) {
+function pasoPropios(setup, ctx) {
   const motor = capacidad('dictar');
   return `<p class="pantalla-intro">Añade aquí los alimentos que no encontraste en la lista. Puedes escribir varios de corrido.</p>
 
     <form data-form="setup-propios" class="stack">
       <label class="field"><span class="sr-only">Alimentos que faltan</span>
-        <textarea name="texto" rows="3" data-setup-texto placeholder="Tortillas de maíz, queso gouda, jamón de pavo y yogurt de fresa." aria-label="Alimentos que faltan">${esc(setup.texto)}</textarea>
+        <textarea name="texto" rows="3" data-setup-texto placeholder="Tortillas de maíz, queso gouda, jamón de pavo y yogurt de fresa." aria-label="Alimentos que faltan" autocapitalize="sentences" spellcheck="true" enterkeyhint="done">${esc(setup.texto)}</textarea>
       </label>
 
-      ${motor.ok ? bloqueDictado(setup) : `<p class="hint">${esc(motor.detalle)} Escríbelos en el cuadro, separados por comas.</p>`}
-      ${setup.avisoVoz ? notice('Tu voz sale de este aparato', esc(setup.avisoVoz), 'warn') : ''}
-      ${setup.pistaVoz ? `<p class="tiny muted">${esc(setup.pistaVoz)}</p>` : ''}
-      ${setup.errorVoz ? notice('No se pudo dictar', esc(setup.errorVoz), 'error') : ''}
+      ${bloqueDictado(ctx, motor)}
+      ${panelDeVoz(ctx, 'setup')}
 
       <div class="inline">${button('Separar en filas', 'setup-separar', 'btn-secondary')}</div>
 
@@ -177,16 +170,18 @@ function pasoPropios(setup) {
     </form>`;
 }
 
-function bloqueDictado(setup) {
+// El botón abre el panel de dictado; no abre el micrófono. Todo lo que pasa
+// después —los estados, parar, cancelar, reintentar, escribir en su lugar— lo
+// lleva `voz.js`, que es el mismo en las cuatro pantallas desde donde se dicta.
+function bloqueDictado(ctx, motor) {
+  if (!motor.ok) return `<p class="hint">Este aparato no trae dictado dentro de la aplicación. Escríbelos en el cuadro separados por comas, o toca el 🎤 de tu teclado.</p>`;
   return `<div class="setup-dictado">
-    <button type="button" class="btn btn-secondary setup-microfono ${setup.escuchando ? 'escuchando' : ''}"
-      data-action="${setup.escuchando ? 'setup-parar' : 'setup-dictar'}"
-      aria-label="${setup.escuchando ? 'Dejar de escuchar' : 'Dictar los alimentos que faltan'}">
-      <span aria-hidden="true">${setup.escuchando ? '■' : '🎤'}</span><span>${setup.escuchando ? 'Escuchando… toca para parar' : 'Dictar'}</span>
+    <button type="button" class="btn btn-secondary setup-microfono" data-action="voz-abrir" data-destino="setup"
+      aria-label="Dictar o escribir los alimentos que faltan">
+      <span aria-hidden="true">🎤</span><span>Dictar</span>
     </button>
     <p class="tiny muted">Dilos de corrido, separados como los dirías en voz alta. Aquí solo hace falta el nombre: cuánto se consume se pregunta en el paso siguiente.</p>
-  </div>
-  ${setup.escuchando ? `<p role="status" aria-live="polite" class="tiny muted">Escuchando… después lee lo que quedó en el cuadro. Nada se guarda ni avanza solo.</p>` : ''}`;
+  </div>`;
 }
 
 // Nombre y, cuando de verdad haga falta, unidad. Si el alimento ya existe en el
@@ -297,7 +292,7 @@ export function renderSetup(ctx) {
   if (!setup || setup.paso === 0) return pantallaInicio();
 
   const cuerpo = setup.paso === 1 ? pasoHabituales(setup)
-    : setup.paso === 2 ? pasoPropios(setup)
+    : setup.paso === 2 ? pasoPropios(setup, ctx)
     : setup.paso === 3 ? pasoCantidades(setup)
     : pasoMenu(setup);
 
@@ -407,8 +402,11 @@ function recordarCantidades(ctx) {
 // `cancelarDictado` es asíncrona: sin recoger el rechazo, un micrófono que falla
 // al cerrarse tumbaría la salida de la pantalla. Cerrarlo nunca puede impedir
 // irse.
-function soltarMicrofono(setup) {
-  if (setup) setup.escuchando = false;
+function soltarMicrofono(ctx) {
+  const voz = ctx?.ui?.voz;
+  // El panel de dictado es compartido: si el que estaba abierto era el de esta
+  // pantalla, se cierra con ella. Si era el de otra, no se toca.
+  if (voz?.destino === 'setup') { voz.sesion += 1; voz.destino = ''; voz.estado = 'quieto'; }
   try { Promise.resolve(cancelarDictado()).catch(() => {}); } catch { /* Ya estaba cerrado. */ }
 }
 
@@ -483,7 +481,7 @@ export const SETUP_ACTIONS = {
     const setup = ctx.ui.setup;
     if (setup.paso === 2) recordarTexto(ctx);
     if (setup.paso === 3) recordarCantidades(ctx);
-    soltarMicrofono(setup);
+    soltarMicrofono(ctx);
     ctx.ui.page = 'hoy';
     ctx.render();
     ctx.toast('Puedes retomarlo cuando quieras desde Más.');
@@ -492,7 +490,7 @@ export const SETUP_ACTIONS = {
     const setup = ctx.ui.setup;
     if (setup.paso === 2) recordarTexto(ctx);
     if (setup.paso === 3) recordarCantidades(ctx);
-    soltarMicrofono(setup);
+    soltarMicrofono(ctx);
     setup.paso = Math.max(1, setup.paso - 1);
     ctx.render();
   },
@@ -564,55 +562,8 @@ export const SETUP_ACTIONS = {
     // que es lo que mantiene quieto el resto de la pantalla.
     el.closest('.setup-fila-nota')?.remove();
   },
-  'setup-dictar': async (el, ctx) => {
-    const setup = ctx.ui.setup;
-    try {
-      recordarTexto(ctx);
-      const motor = capacidad('dictar');
-      if (!motor.ok) { setup.escuchando = false; setup.errorVoz = motor.detalle; ctx.render(); return; }
-      if (motor.origen === 'navegador' && !avisadoDeVozAjena) { avisadoDeVozAjena = true; setup.avisoVoz = AVISO_VOZ_AJENA; }
-      const base = setup.texto || '';
-      const sesion = ++dictadoActual;
-      Object.assign(setup, { escuchando: true, errorVoz: '', pistaVoz: '' });
-      ctx.render();
-      const oido = await dictar({
-        onParcial: trozo => {
-          if (sesion !== dictadoActual) return;
-          setup.texto = juntar(base, trozo);
-          // Lo que se va oyendo se escribe en el cuadro vivo. Redibujar por
-          // palabra parpadea, pierde el foco y deja al dedo sin dónde tocar
-          // para parar.
-          const cuadro = document.querySelector('[data-setup-texto]');
-          if (cuadro) { cuadro.value = setup.texto; cuadro.scrollTop = cuadro.scrollHeight; }
-        }
-      });
-      if (sesion !== dictadoActual) return;
-      setup.escuchando = false;
-      if (oido.ok) {
-        setup.texto = juntar(base, oido.texto);
-        setup.pistaVoz = oido.parcial ? 'Eso fue lo que alcancé a oír antes de que se cortara: repásalo y sigue dictando si falta algo.' : '';
-      } else if (!oido.cancelado) {
-        // Lo oído a medias se queda en el cuadro; el motivo lo escribe
-        // device.js en español.
-        setup.errorVoz = oido.error;
-      }
-      ctx.render();
-      const cuadro = document.querySelector('[data-setup-texto]');
-      if (cuadro) { cuadro.focus(); cuadro.setSelectionRange(cuadro.value.length, cuadro.value.length); }
-    } catch {
-      setup.escuchando = false;
-      setup.errorVoz = 'No se pudo dictar. Escríbelo en el cuadro, o usa el micrófono del teclado.';
-      ctx.render();
-    }
-  },
-  'setup-parar': (el, ctx) => {
-    // Parar cierra el micrófono y se queda con lo dicho; cancelar lo tira. Aquí
-    // se para.
-    recordarTexto(ctx);
-    try { Promise.resolve(pararDictado()).catch(() => {}); } catch { /* Ya estaba parado. */ }
-    ctx.ui.setup.escuchando = false;
-    ctx.render();
-  },
+  // Dictar ya no vive aquí: lo lleva `voz.js`, igual que en las otras tres
+  // pantallas desde donde se puede dictar. El botón manda `voz-abrir`.
 
   // Paso 3
   // «Completar después» guarda lo mismo que «Guardar y continuar» —las
@@ -653,8 +604,6 @@ export const SETUP_ACTIONS = {
     ctx.toast('Cuando quieras, el menú del mes está en «Mes».');
   }
 };
-
-const juntar = (antes, trozo) => (antes.trim() ? `${antes.replace(/\s+$/, '')} ${trozo}` : trozo);
 
 // `parseProductText` parte por comas y puntos, y por «y» solo cuando alguno de
 // los dos lados trae cantidad («2 panes y atún»): es lo correcto al dictar una
@@ -714,7 +663,7 @@ export const SETUP_FORMS = {
       return;
     }
 
-    soltarMicrofono(setup);
+    soltarMicrofono(ctx);
     const yaElegidos = new Set(setup.elegidos.map(normalizeName));
     const vistos = new Set();
     const propios = [];

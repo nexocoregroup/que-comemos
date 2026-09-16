@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cancelarDictado, capacidad, comprobarDictado, diagnostico, dictar, pararDictado, permisoDeVoz } from '../src/device.js';
+import { abrirAjustesDelTelefono, cancelarDictado, capacidad, comprobarDictado, diagnostico, dictar, estaEscuchando, falloAnterior, olvidarFalloAnterior, pararDictado, permisoDeVoz } from '../src/device.js';
 
 // `device.js` habla con el teléfono a través de `globalThis.Capacitor`, así que
 // aquí se le pone delante un complemento falso que la prueba gobierna: emite los
@@ -487,4 +487,187 @@ test('el diagnóstico guarda el código del fallo y el motor, nunca lo que se di
   assert.equal(parte.leerFoto, undefined);
   assert.equal(parte.camara, undefined);
   assert.equal(capacidad('leer-foto').ok, false);
+});
+
+
+/* ── Que ninguna pregunta al teléfono se quede colgada ─────────────────────
+
+   Este era el otro fallo que dejaba la aplicación inservible al dictar, y el
+   único de los dos que era nuestro.
+
+   `isOnDeviceRecognitionAvailable()` resuelve su promesa desde dentro de un
+   `RecognitionSupportCallback` de Android. Un teléfono cuyo servicio de voz
+   está roto o ausente —que es justo el teléfono que hay que sobrevivir— no llama
+   a ese callback nunca. Sin tope, la promesa se quedaba colgada para siempre, y
+   con ella la persona: «Preparando el micrófono…» sin nada que tocar, porque
+   parar no hace nada con el micrófono todavía sin abrir.
+
+   Las dos pruebas de abajo adelantan el reloj en vez de esperar los seis
+   segundos de verdad. `setImmediate` para soltar las microtareas, porque
+   `setTimeout` está fingido y no se puede usar para eso. */
+
+const soltar = async (veces = 8) => { for (let i = 0; i < veces; i += 1) await new Promise(seguir => setImmediate(seguir)); };
+
+// Una promesa que no se resuelve jamás: lo que devuelve un complemento cuyo
+// servicio nativo acepta la llamada y no vuelve.
+const nuncaContesta = () => new Promise(() => {});
+
+test('una pregunta que el teléfono no contesta se rinde en vez de colgarse', async t => {
+  const voz = montarVoz({ local: true });
+  voz.isOnDeviceRecognitionAvailable = nuncaContesta;
+  t.after(restaurar);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+
+  const promesa = comprobarDictado({ idioma: 'es-DO' });
+  await soltar();
+  t.mock.timers.tick(6001);
+  await soltar();
+
+  const salida = await promesa;
+  assert.equal(salida.ok, true, 'que no conteste esa pregunta no impide dictar');
+  assert.equal(salida.local, null, 'sin respuesta es «no se sabe», que no es «no»');
+});
+
+test('un dictado contra un complemento mudo termina con una frase que enseñar', async t => {
+  const voz = montarVoz();
+  // Ni el servicio ni el permiso contestan: el teléfono está completamente mudo.
+  voz.available = nuncaContesta;
+  voz.checkPermissions = nuncaContesta;
+  voz.requestPermissions = nuncaContesta;
+  t.after(restaurar);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+
+  const promesa = dictar({ idioma: 'es-DO' });
+  // Un tope por cada pregunta que no contesta.
+  for (let i = 0; i < 4; i += 1) { await soltar(); t.mock.timers.tick(90001); }
+  await soltar();
+
+  const salida = await promesa;
+  assert.equal(salida.ok, false);
+  assert.ok(salida.error.length > 20, 'tiene que haber una frase en español que enseñar');
+  assert.ok(!/undefined|null|\[object/.test(salida.error), `el aviso no puede traer jerga: ${salida.error}`);
+});
+
+/* ── Que un permiso se explique según por qué falló ────────────────────── */
+
+test('el permiso que no se puede consultar da una frase, no una excepción', async t => {
+  const voz = montarVoz();
+  voz.checkPermissions = async () => { throw new Error('el puente se rompió'); };
+  t.after(restaurar);
+
+  const salida = await permisoDeVoz();
+  assert.equal(salida.ok, false);
+  assert.equal(salida.motivo, 'error');
+  assert.ok(/mano|ajustes/i.test(salida.detalle), 'tiene que ofrecer una salida');
+});
+
+test('un permiso denegado se distingue de un permiso que no se pudo preguntar', async t => {
+  montarVoz({ permiso: 'denied', permisoPedido: 'denied' });
+  t.after(restaurar);
+
+  const salida = await permisoDeVoz();
+  assert.equal(salida.ok, false);
+  assert.equal(salida.motivo, 'denegado', 'los dos casos llevan a consejos distintos');
+});
+
+/* ── Los ajustes del teléfono ──────────────────────────────────────────── */
+
+test('sin el complemento Aparato, abrir los ajustes dice que no se pudo', async t => {
+  montarVoz();
+  t.after(restaurar);
+  const salida = await abrirAjustesDelTelefono();
+  assert.equal(salida.ok, false);
+  assert.equal(salida.motivo, 'no-disponible');
+});
+
+test('con el complemento Aparato, los ajustes se abren', async t => {
+  montarVoz();
+  globalThis.Capacitor.Plugins.Aparato = { async abrirAjustes() { return { abierto: true }; } };
+  t.after(restaurar);
+  assert.equal((await abrirAjustesDelTelefono()).ok, true);
+});
+
+test('un complemento Aparato que lanza no rompe nada', async t => {
+  montarVoz();
+  globalThis.Capacitor.Plugins.Aparato = { async abrirAjustes() { throw new Error('roto'); } };
+  t.after(restaurar);
+  const salida = await abrirAjustesDelTelefono();
+  assert.equal(salida.ok, false);
+  assert.equal(salida.motivo, 'fallo');
+});
+
+/* ── El fallo nativo de la vez anterior ────────────────────────────────── */
+
+test('el fallo que mató la aplicación se lee al arrancar la siguiente', async t => {
+  montarVoz();
+  let olvidado = false;
+  globalThis.Capacitor.Plugins.Aparato = {
+    async ultimoFallo() {
+      return {
+        hay: true, cuando: 1700000000000, clase: 'java.lang.NullPointerException',
+        mensaje: 'Attempt to invoke virtual method on a null object reference',
+        hilo: 'Binder:1234_2', principal: false, pila: 'at app.capgo.speechrecognition…'
+      };
+    },
+    async olvidarFallo() { olvidado = true; }
+  };
+  t.after(restaurar);
+
+  const fallo = await falloAnterior();
+  assert.equal(fallo.clase, 'java.lang.NullPointerException');
+  assert.equal(fallo.principal, false, 'saber si murió el hilo principal es la mitad del diagnóstico');
+  assert.ok(fallo.pila.length > 0);
+
+  await olvidarFalloAnterior();
+  assert.equal(olvidado, true, 'enseñar el mismo fallo en cada arranque para siempre es ruido');
+});
+
+test('sin fallo apuntado no se inventa ninguno', async t => {
+  montarVoz();
+  globalThis.Capacitor.Plugins.Aparato = { async ultimoFallo() { return { hay: false }; } };
+  t.after(restaurar);
+  assert.equal(await falloAnterior(), null);
+});
+
+test('sin el complemento Aparato tampoco pasa nada', async t => {
+  montarVoz();
+  t.after(restaurar);
+  assert.equal(await falloAnterior(), null);
+  await assert.doesNotReject(() => olvidarFalloAnterior());
+});
+
+/* ── El micrófono no se queda abierto por detrás ───────────────────────── */
+
+test('estaEscuchando dice la verdad antes, durante y después', async t => {
+  const voz = montarVoz();
+  t.after(restaurar);
+
+  assert.equal(estaEscuchando(), false);
+  const promesa = dictar({ idioma: 'es-DO' });
+  await tic();
+  assert.equal(estaEscuchando(), true, 'con el micrófono abierto tiene que decirlo');
+
+  voz.emitir('listeningState', { state: 'stopped', reason: 'results' });
+  await promesa;
+  assert.equal(estaEscuchando(), false, 'y al cerrarse, también');
+});
+
+test('cancelar antes de que el micrófono se abra impide que se abra', async t => {
+  const voz = montarVoz({ permiso: 'prompt' });
+  let conceder;
+  voz.requestPermissions = () => new Promise(resolver => { conceder = () => resolver({ speechRecognition: 'granted' }); });
+  t.after(restaurar);
+
+  const promesa = dictar({ idioma: 'es-DO' });
+  await tic();
+  assert.ok(typeof conceder === 'function', 'la prueba debería estar esperando en el permiso');
+  assert.ok(!voz.llamadas.includes('start'), 'el micrófono no debería haberse abierto todavía');
+
+  await cancelarDictado();
+  conceder();
+  const salida = await promesa;
+
+  assert.ok(!voz.llamadas.includes('start'), 'tras cancelar, el micrófono NO puede abrirse');
+  assert.equal(salida.ok, false);
+  assert.equal(salida.cancelado, true);
 });
