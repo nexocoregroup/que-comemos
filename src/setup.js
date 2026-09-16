@@ -167,11 +167,25 @@ const parecidoA = (state, nombre) =>
 
 // Una promesa, un botón. La opción de ver un ejemplo va plegada debajo para que
 // se pueda mirar sin salir de aquí y sin competir con lo que hay que pulsar.
+// El número de pasos se cuenta, no se escribe a mano.
+//
+// Decía «Ocho pasos cortos» y era verdad cuando se escribió: entonces había
+// ocho, y uno de ellos era un paso propio para dictar los alimentos de corrido.
+// Ese paso se quitó después —dictar es ahora un enlace dentro del paso de los
+// alimentos, que es donde hace falta— y el texto se quedó como estaba. Encima,
+// el paso del reparto solo se le enseña a quien compra por quincenas. Así que
+// a quien compra una vez al mes se le prometían ocho pasos y veía seis.
+//
+// Escrito a mano vuelve a pasar la próxima vez que se toque un paso. Contado,
+// no. Hay una prueba que lo vigila.
+const EN_LETRA = ['cero', 'Un', 'Dos', 'Tres', 'Cuatro', 'Cinco', 'Seis', 'Siete', 'Ocho', 'Nueve'];
+
 function pantallaInicio(setup) {
   const llevaEmpezado = Boolean(setup?.elegidos?.length);
+  const cuantos = pasosDe(setup).length;
   return `<section class="setup setup-inicio">
     <p class="eyebrow">Organizar mi casa</p>
-    <p class="setup-camino">Ocho pasos cortos: quiénes comen aquí, lo que compras todos los meses, cuánto y cada cuánto, las comidas que se repiten, y el primer menú.</p>
+    <p class="setup-camino">${EN_LETRA[cuantos] || cuantos} pasos cortos: quiénes comen aquí, lo que compras todos los meses, cuánto y cada cuánto, las comidas que se repiten, y el primer menú.</p>
     <h2 class="setup-promesa">Ahora vamos a crear la canasta base de tu hogar. Selecciona los alimentos que normalmente compras todos los meses. Podrás agregar cualquier alimento que no aparezca.</h2>
     <div class="pantalla-acciones">${button(llevaEmpezado ? 'Seguir donde lo dejé' : 'Empezar', 'setup-empezar', 'btn-primary btn-grande')}</div>
     ${llevaEmpezado ? `<p class="small muted">Llevas ${setup.elegidos.length} alimento(s) marcados.</p>` : ''}
