@@ -16,7 +16,7 @@
 //    se queda intacto, y los cambios de cada mes ni se rozan: este archivo no
 //    llama a nada que escriba en `monthOverrides`.
 
-import { CATEGORIES, SEED_PRODUCTS, seedByCategory } from './catalog-seed.js';
+import { RUBROS, SEED_PRODUCTS, categoriaDelRubro, rubroDeCategoria, rubroPorIndice, seedByRubro } from './catalog-seed.js';
 import { UNITS, addProduct, findSimilarProducts, habitualLines, product, productByName, setHabitualBasket, todayISO } from './model.js';
 import { normalizeName, parseProductText } from './text-parse.js';
 import { cancelarDictado, capacidad } from './device.js';
@@ -24,8 +24,8 @@ import { panelDeVoz } from './voz.js';
 import { button, esc, notice, options } from './ui-kit.js';
 
 export const PASOS = [
-  { id: 1, titulo: '¿Qué se consume normalmente en tu casa?', corto: 'Alimentos' },
-  { id: 2, titulo: '¿Falta algo habitual de tu casa?', corto: 'Lo tuyo' },
+  { id: 1, titulo: 'La canasta base de tu hogar', corto: 'Alimentos' },
+  { id: 2, titulo: '¿Falta algo por dictar o escribir de corrido?', corto: 'Dictar' },
   { id: 3, titulo: '¿Cuánto se consume al mes?', corto: 'Cantidades' },
   { id: 4, titulo: 'Preparar mi primer menú mensual', corto: 'El mes' }
 ];
@@ -35,15 +35,63 @@ export const PASOS = [
 export const emptySetup = () => ({
   paso: 0,
   precargado: false,
-  elegidos: [],        // nombres del catálogo marcados
-  propios: [],         // [{ nombre, unidad }] escritos o dictados en el paso 2
+  rubro: 0,            // cuál de los ocho rubros se está preguntando (0…7)
+  elegidos: [],        // todos los nombres marcados, del catálogo o escritos
+  propios: [],         // [{ nombre, unidad, categoria, origen }] los que no estaban
   cantidades: {},      // nombre → { cantidad, unidad, yaGuardada }
   texto: '',           // lo que se lleva escrito o dictado en el paso 2
   filas: null,         // las filas separadas del texto, antes de aceptarlas
-  categoria: CATEGORIES[0].id,
   busqueda: '',
+  anadiendo: false,    // ¿está abierta la ventanita de «añadir un alimento»?
+  nombreNuevo: '',
+  errorNuevo: '',
   guardados: 0
 });
+
+/* ── El avance se guarda solo ──────────────────────────────────────────────
+
+   Registrar la canasta de una casa son ocho pantallas, y nadie las hace de una
+   sentada sin que le hablen, le llamen o se le acabe la batería. Hasta ahora lo
+   marcado vivía solo en memoria: cerrar la app antes de llegar a las cantidades
+   tiraba el trabajo entero sin decir nada.
+
+   Ahora cada toque escribe en `state.settings.canasta`, que es estado de la
+   casa y por tanto se guarda en el cajón de esta cuenta y viaja con ella. Se
+   guardan los campos que costó rellenar y ninguno más: lo que está a medio
+   buscar o la ventanita abierta no hacen falta mañana. */
+
+const CAMPOS_GUARDADOS = ['paso', 'precargado', 'rubro', 'elegidos', 'propios', 'cantidades', 'texto', 'guardados'];
+
+export function guardarAvance(ctx) {
+  const setup = ctx.ui.setup;
+  if (!setup) return null;
+  if (!ctx.state.settings || typeof ctx.state.settings !== 'object') ctx.state.settings = {};
+  ctx.state.settings.canasta = Object.fromEntries(CAMPOS_GUARDADOS.map(campo => [campo, structuredClone(setup[campo])]));
+  // Guardar sin repintar: marcar ochenta casillas repintando ochenta veces es
+  // exactamente lo que le quitaba el sitio al pulgar.
+  if (typeof ctx.guardar === 'function') ctx.guardar();
+  return ctx.state.settings.canasta;
+}
+
+export function avanceGuardado(state) {
+  const guardado = state?.settings?.canasta;
+  if (!guardado || typeof guardado !== 'object' || Array.isArray(guardado)) return null;
+  const setup = { ...emptySetup(), ...guardado };
+  // Un respaldo traído a mano puede venir con cualquier cosa escrita aquí. Se
+  // recorta a lo que las pantallas saben pintar, en vez de confiar.
+  setup.paso = Math.min(PASOS.length, Math.max(0, Number(setup.paso) || 0));
+  setup.rubro = Math.min(RUBROS.length - 1, Math.max(0, Number(setup.rubro) || 0));
+  setup.elegidos = (Array.isArray(setup.elegidos) ? setup.elegidos : []).map(String);
+  setup.propios = (Array.isArray(setup.propios) ? setup.propios : []).filter(item => item && item.nombre);
+  setup.cantidades = setup.cantidades && typeof setup.cantidades === 'object' ? setup.cantidades : {};
+  setup.filas = null;
+  setup.anadiendo = false;
+  return setup;
+}
+
+export function olvidarAvance(state) {
+  if (state?.settings) delete state.settings.canasta;
+}
 
 const ETIQUETA_UNIDAD = { unidad: 'unidades', lb: 'libras', taza: 'tazas', lata: 'latas', paquete: 'paquetes', rueda: 'ruedas', rebanada: 'rebanadas' };
 const unidades = elegida => options(UNITS.map(unidad => [unidad, ETIQUETA_UNIDAD[unidad] || unidad]), elegida);
@@ -74,77 +122,122 @@ const parecidoA = (state, nombre) =>
 
 // Una promesa, un botón. La opción de ver un ejemplo va plegada debajo para que
 // se pueda mirar sin salir de aquí y sin competir con lo que hay que pulsar.
-function pantallaInicio() {
+function pantallaInicio(setup) {
+  const llevaEmpezado = Boolean(setup?.elegidos?.length);
   return `<section class="setup setup-inicio">
-    <p class="eyebrow">¿Qué comemos?</p>
-    <h2 class="setup-promesa">Organiza una vez lo habitual de tu casa y prepara cada mes cambiando solamente lo diferente.</h2>
-    <div class="pantalla-acciones">${button('Organizar mi casa', 'setup-empezar', 'btn-primary btn-grande')}</div>
+    <p class="eyebrow">Tu canasta base</p>
+    <h2 class="setup-promesa">Ahora vamos a crear la canasta base de tu hogar. Selecciona los alimentos que normalmente compras todos los meses. Podrás agregar cualquier alimento que no aparezca.</h2>
+    <div class="pantalla-acciones">${button(llevaEmpezado ? 'Seguir donde lo dejé' : 'Empezar', 'setup-empezar', 'btn-primary btn-grande')}</div>
+    ${llevaEmpezado ? `<p class="small muted">Llevas ${setup.elegidos.length} alimento(s) marcados.</p>` : ''}
     <details class="plegable setup-ejemplo">
-      <summary>Ver un ejemplo</summary>
-      <p class="muted">Una casa marca arroz, huevos, salami, plátanos y detergente, y dice cuánto lleva de cada uno en un mes corriente. Eso es <strong>su canasta habitual</strong>: se escribe una vez.</p>
-      <p class="muted">En diciembre compran el doble de arroz y no compran plátanos. En lugar de escribir la lista entera otra vez, solo anotan esas dos cosas: son los <strong>cambios de este mes</strong>. Enero vuelve solo a lo habitual.</p>
+      <summary>¿Qué es la canasta base?</summary>
+      <p class="muted">Una casa marca arroz, huevos, salami, plátanos y detergente, y dice cuánto lleva de cada uno en un mes corriente. Eso es <strong>su canasta base</strong>: hay una sola y se escribe una vez.</p>
+      <p class="muted">En diciembre compran el doble de arroz y no compran plátanos. En lugar de escribir la lista entera otra vez, solo anotan esas dos cosas: son los <strong>cambios de ese mes</strong>. Enero vuelve solo a la canasta base.</p>
     </details>
-    <p class="tiny muted setup-nota">Se puede salir en cualquier momento. Lo que marques se guarda al llegar al paso de las cantidades.</p>
+    <p class="tiny muted setup-nota">Se puede salir en cualquier momento. Lo que marques se guarda solo.</p>
   </section>`;
 }
 
-/* ── Paso 1: los alimentos habituales ──────────────────────────────────── */
+/* ── Paso 1: la canasta base, rubro por rubro ──────────────────────────────
 
-function pasoHabituales(setup) {
-  const elegidos = new Set(setup.elegidos);
+   Antes esto era una sola pantalla con una tira de catorce categorías que había
+   que arrastrar de lado. Esa tira tenía tres problemas a la vez: no se ve
+   cuántas quedan, la lista salta bajo el dedo al cambiar de pestaña, y en un
+   teléfono las últimas categorías están escondidas fuera de la pantalla, así
+   que sencillamente no se visitan.
+
+   Ahora son ocho pantallas seguidas, cada una en el mismo sitio, y se avanza
+   con Continuar. La posición no cambia nunca: lo único que cambia es la lista
+   de en medio. */
+
+function pantallaDeRubro(setup) {
+  const rubro = rubroPorIndice(setup.rubro);
+  const elegidos = new Set(setup.elegidos.map(normalizeName));
+  const marcado = nombre => elegidos.has(normalizeName(nombre));
   const busqueda = normalizeName(setup.busqueda || '');
+  const delRubro = seedByRubro(rubro.id);
   const lista = busqueda
-    ? SEED_PRODUCTS.filter(item => normalizeName(item.name).includes(busqueda) || item.aliases.some(alias => normalizeName(alias).includes(busqueda)))
-    : seedByCategory(setup.categoria);
-  const habituales = busqueda ? [] : seedByCategory(setup.categoria).filter(item => item.common && !elegidos.has(item.name));
+    ? delRubro.filter(item => normalizeName(item.name).includes(busqueda) || item.aliases.some(alias => normalizeName(alias).includes(busqueda)))
+    : delRubro;
+  // Los que escribió la propia casa van al final, justo encima del botón de
+  // añadir: es donde estaba el dedo cuando los escribió, y así el que acaba de
+  // añadirse se ve sin tener que buscarlo.
+  const tuyos = setup.propios.filter(item => item.categoria === categoriaDelRubro(rubro.id));
+  const enEsteRubro = [...delRubro.map(item => item.name), ...tuyos.map(item => item.nombre)].filter(marcado).length;
+  const primero = setup.rubro === 0;
+  const ultimo = setup.rubro >= RUBROS.length - 1;
 
-  return `<p class="pantalla-intro">Te mostramos algunos de los alimentos más habituales para que no tengas que escribirlos uno por uno. Esta lista es solo un punto de partida: cada hogar es diferente y podrás añadir todo lo que falte.</p>
+  return `<p class="setup-rubro" role="status" aria-live="polite">
+      <span class="setup-rubro-emoji" aria-hidden="true">${rubro.emoji}</span>
+      Categoría ${setup.rubro + 1} de ${RUBROS.length} — <strong>${esc(rubro.titulo)}</strong>
+    </p>
+    <div class="progress setup-rubro-progreso"><span style="width:${Math.round((setup.rubro + 1) / RUBROS.length * 100)}%"></span></div>
 
-    <div class="setup-buscador">
-      <label class="field setup-search"><span class="sr-only">Buscar un alimento</span>
-        <input type="search" id="setup-buscar" value="${esc(setup.busqueda)}" placeholder="Buscar entre ${SEED_PRODUCTS.length} alimentos…" autocomplete="off" aria-label="Buscar un alimento">
+    <p class="pantalla-intro">Selecciona todos los que compras habitualmente. No importa cuántos sean.</p>
+
+    ${delRubro.length > 12 ? `<div class="setup-buscador">
+      <label class="field setup-search"><span class="sr-only">Buscar dentro de ${esc(rubro.titulo)}</span>
+        <input type="search" id="setup-buscar" value="${esc(setup.busqueda)}" placeholder="Buscar en ${esc(rubro.titulo.toLocaleLowerCase('es'))}…" autocomplete="off" aria-label="Buscar dentro de ${esc(rubro.titulo)}">
       </label>
-      ${button('Buscar', 'setup-buscar', 'btn-secondary')}
       ${setup.busqueda ? button('Ver todo', 'setup-limpiar-busqueda', 'btn-quiet') : ''}
-    </div>
+    </div>` : ''}
 
-    ${busqueda ? '' : `<div class="setup-cats" role="group" aria-label="Filtrar por categoría">${CATEGORIES.map(cat => {
-      const marcados = seedByCategory(cat.id).filter(item => elegidos.has(item.name)).length;
-      return `<button type="button" class="setup-cat ${cat.id === setup.categoria ? 'active' : ''}" aria-pressed="${cat.id === setup.categoria}" data-action="setup-categoria" data-cat="${esc(cat.id)}">
-        <span aria-hidden="true">${cat.emoji}</span> ${esc(cat.label)}<span class="setup-cat-count" data-setup-cuenta="${esc(cat.id)}">${marcados || ''}</span></button>`;
-    }).join('')}</div>`}
+    <div class="setup-lista">${lista.map(item => fichaAlimento(item.name, item.controlUnit, marcado(item.name))).join('')
+      || `<p class="muted">Nada de este rubro coincide con «${esc(setup.busqueda)}». Puedes añadirlo aquí abajo.</p>`}</div>
 
-    ${habituales.length ? `<div class="inline setup-bulk">${button(`Marcar los ${habituales.length} más habituales`, 'setup-marcar-habituales', 'btn-secondary btn-small')}</div>` : ''}
-
-    <div class="setup-lista">${lista.map(item => fichaAlimento(item, elegidos.has(item.name))).join('')
-      || `<p class="muted">Nada coincide con «${esc(setup.busqueda)}». Añádelo tú en el paso siguiente.</p>`}</div>
+    ${tuyos.length ? `<p class="setup-tuyos-titulo">Añadidos por ti</p>
+      <div class="setup-lista setup-tuyos">${tuyos.map(item => fichaAlimento(item.nombre, item.unidad, marcado(item.nombre))).join('')}</div>` : ''}
 
     <div class="setup-falta">
-      <button type="button" class="enlace" data-action="setup-falta">¿No encuentras un alimento? Añadirlo</button>
+      ${setup.anadiendo
+        ? ventanitaDeAnadir(setup, rubro)
+        : `<button type="button" class="enlace" data-action="setup-falta">¿No encuentras un alimento? Añadirlo</button>`}
     </div>
 
     <div class="modal-actions setup-actions">
-      ${button('Salir', 'setup-salir', 'btn-quiet')}
+      ${button(primero ? 'Salir' : 'Atrás', primero ? 'setup-salir' : 'setup-rubro-atras', 'btn-quiet')}
       <span class="tour-spacer"></span>
-      <span class="pill" data-setup-total role="status" aria-live="polite">${textoMarcados(setup.elegidos.length)}</span>
-      ${button('Continuar', 'setup-siguiente', 'btn-primary', `data-setup-seguir ${setup.elegidos.length ? '' : 'disabled'}`)}
+      <span class="pill ${enEsteRubro ? '' : 'gray'}" data-setup-total role="status" aria-live="polite">${textoMarcados(setup.elegidos.length)}</span>
+      ${button(ultimo ? 'Continuar' : 'Continuar', 'setup-rubro-seguir', 'btn-primary', 'data-setup-seguir')}
     </div>`;
 }
 
-const textoMarcados = total => `${total} marcado${total === 1 ? '' : 's'}`;
+const textoMarcados = total => `${total} marcado${total === 1 ? '' : 's'} en total`;
 
-function fichaAlimento(item, marcado) {
+function fichaAlimento(nombre, unidad, marcado) {
   return `<label class="chip-check setup-ficha ${marcado ? 'marcado' : ''}">
-    <input type="checkbox" data-action="setup-marcar" data-setup-marca data-nombre="${esc(item.name)}" data-cat="${esc(item.category)}" ${marcado ? 'checked' : ''}>
-    <span class="setup-ficha-texto">${esc(item.name)}<span class="tiny">${esc(ETIQUETA_UNIDAD[item.controlUnit] || item.controlUnit)}</span></span>
+    <input type="checkbox" data-action="setup-marcar" data-setup-marca data-nombre="${esc(nombre)}" ${marcado ? 'checked' : ''}>
+    <span class="setup-ficha-texto">${esc(nombre)}<span class="tiny">${esc(ETIQUETA_UNIDAD[unidad] || unidad || 'unidad')}</span></span>
   </label>`;
+}
+
+// La ventanita de añadir. Pide el nombre y nada más: la medida se sugiere sola
+// según el rubro y se puede cambiar después, y preguntarla aquí sería un
+// segundo campo entre alguien y el alimento que ya sabe que compra.
+//
+// Se abre dentro de la propia categoría, no encima de la pantalla, por una
+// razón práctica: aquí no se puede perder el sitio. Quien la cierra sigue
+// exactamente donde estaba, con lo marcado intacto.
+function ventanitaDeAnadir(setup, rubro) {
+  return `<form data-form="setup-nuevo" class="setup-ventanita" aria-label="Añadir un alimento a ${esc(rubro.titulo)}">
+    <p class="setup-ventanita-titulo">Añadir a ${esc(rubro.titulo)}</p>
+    <label class="field"><span class="sr-only">Nombre del alimento</span>
+      <input name="nombre" data-setup-nuevo value="${esc(setup.nombreNuevo || '')}" placeholder="Ej. Fresa" autocomplete="off" maxlength="40" enterkeyhint="done">
+    </label>
+    ${setup.errorNuevo ? `<p class="setup-error" role="alert">${esc(setup.errorNuevo)}</p>` : ''}
+    <div class="inline setup-ventanita-acciones">
+      <button type="submit" class="btn btn-primary btn-small">Añadir</button>
+      ${button('Cancelar', 'setup-cancelar-nuevo', 'btn-quiet btn-small')}
+    </div>
+    <p class="tiny muted">Solo el nombre. Queda marcado en ${esc(rubro.titulo.toLocaleLowerCase('es'))} y se mide en ${esc(ETIQUETA_UNIDAD[rubro.unidad] || rubro.unidad)} mientras no digas otra cosa.</p>
+  </form>`;
 }
 
 /* ── Paso 2: lo propio de cada casa ────────────────────────────────────── */
 
 function pasoPropios(setup, ctx) {
   const motor = capacidad('dictar');
-  return `<p class="pantalla-intro">Añade aquí los alimentos que no encontraste en la lista. Puedes escribir varios de corrido.</p>
+  return `<p class="pantalla-intro">Este paso es opcional. Si te resulta más rápido decirlos de corrido que buscarlos uno por uno, dilos o escríbelos aquí; si ya marcaste todo lo tuyo, pasa de largo.</p>
 
     <form data-form="setup-propios" class="stack">
       <label class="field"><span class="sr-only">Alimentos que faltan</span>
@@ -228,29 +321,34 @@ function pasoCantidades(setup) {
   </form>`;
 }
 
-// Lo marcado en el paso 1 y lo escrito en el paso 2, en una sola lista y sin
-// repetidos: el mismo alimento por las dos vías es un alimento, no dos.
+// Todo lo marcado, sea del catálogo o escrito por la casa, en una sola lista y
+// sin repetidos: el mismo alimento por las dos vías es un alimento, no dos.
+//
+// La lista sale de `elegidos` y solo de ahí. Un alimento que se escribió y
+// después se desmarcó se queda en `propios` —para poder volver a marcarlo sin
+// escribirlo otra vez— pero no llega hasta aquí.
 function filasDeCantidades(setup) {
   const filas = new Map();
-  const meter = (nombre, unidadPorDefecto, origen) => {
+  const propioDe = nombre => setup.propios.find(item => normalizeName(item.nombre) === normalizeName(nombre));
+  for (const nombre of setup.elegidos) {
     const clave = normalizeName(nombre);
-    if (!clave || filas.has(clave)) return;
+    if (!clave || filas.has(clave)) continue;
+    const propio = propioDe(nombre);
     const guardada = setup.cantidades[nombre] || setup.cantidades[clave] || {};
     filas.set(clave, {
       nombre,
-      origen,
+      origen: propio?.origen || 'catalogo',
+      categoria: propio?.categoria || semillaPorNombre(nombre)?.category || '',
       cantidad: guardada.cantidad ?? '',
-      unidad: unidadValida(guardada.unidad) || unidadValida(unidadPorDefecto) || 'unidad',
+      unidad: unidadValida(guardada.unidad) || unidadValida(propio?.unidad) || unidadValida(semillaPorNombre(nombre)?.controlUnit) || 'unidad',
       yaGuardada: Boolean(guardada.yaGuardada)
     });
-  };
-  for (const nombre of setup.elegidos) meter(nombre, semillaPorNombre(nombre)?.controlUnit, 'catalogo');
-  for (const propio of setup.propios) meter(propio.nombre, propio.unidad, propio.origen || 'texto');
+  }
   return [...filas.values()];
 }
 
-function filaCantidad({ nombre = '', unidad = 'unidad', cantidad = '', origen = 'catalogo' } = {}) {
-  return `<div class="item-row setup-cantidad-row" data-setup-cantidad data-origen="${esc(origen)}">
+function filaCantidad({ nombre = '', unidad = 'unidad', cantidad = '', origen = 'catalogo', categoria = '' } = {}) {
+  return `<div class="item-row setup-cantidad-row" data-setup-cantidad data-origen="${esc(origen)}" data-categoria="${esc(categoria)}">
     <span class="setup-cantidad-nombre">${esc(nombre)}<input type="hidden" name="nombre" value="${esc(nombre)}"></span>
     <label class="field"><span class="sr-only">Cantidad al mes de ${esc(nombre)}</span>
       <input name="cantidad" type="number" min="0" step="any" inputmode="decimal" value="${esc(cantidad)}" placeholder="Al mes" aria-label="Cantidad al mes de ${esc(nombre)}"></label>
@@ -289,9 +387,9 @@ function barra(paso) {
 
 export function renderSetup(ctx) {
   const setup = ctx.ui.setup;
-  if (!setup || setup.paso === 0) return pantallaInicio();
+  if (!setup || setup.paso === 0) return pantallaInicio(setup);
 
-  const cuerpo = setup.paso === 1 ? pasoHabituales(setup)
+  const cuerpo = setup.paso === 1 ? pantallaDeRubro(setup)
     : setup.paso === 2 ? pasoPropios(setup, ctx)
     : setup.paso === 3 ? pasoCantidades(setup)
     : pasoMenu(setup);
@@ -334,7 +432,9 @@ export function guardarEnLaCanasta(state, filas) {
         name: semilla?.name || nombre,
         controlUnit: unidad || semilla?.controlUnit || 'unidad',
         purchaseUnit: semilla?.purchaseUnit || unidad || 'unidad',
-        category: semilla?.category || 'otros',
+        // El rubro donde se escribió manda sobre el cajón de sobras: «Fresa»,
+        // escrita en Frutas, se guarda en Frutas.
+        category: semilla?.category || fila.categoria || 'otros',
         aliases: semilla?.aliases || [],
         origin: semilla ? 'catalogo' : fila.origen === 'texto' ? 'texto' : 'manual'
       });
@@ -362,7 +462,11 @@ export function guardarEnLaCanasta(state, filas) {
 /* ── Lectura de la pantalla ────────────────────────────────────────────── */
 
 const leerFilas = (selector, campos) => [...document.querySelectorAll(selector)].map(fila =>
-  Object.fromEntries([...campos.map(campo => [campo, fila.querySelector(`[name="${campo}"]`)?.value ?? '']), ['origen', fila.dataset.origen || 'catalogo']]));
+  Object.fromEntries([
+    ...campos.map(campo => [campo, fila.querySelector(`[name="${campo}"]`)?.value ?? '']),
+    ['origen', fila.dataset.origen || 'catalogo'],
+    ['categoria', fila.dataset.categoria || '']
+  ]));
 
 // Lo escrito en el paso 2 y lo escrito en el paso 3 vive en el DOM mientras se
 // edita. Cualquier cosa que redibuje tiene que pasar antes por aquí, o se
@@ -422,8 +526,12 @@ function precargar(ctx) {
     if (!item) continue;
     const semilla = semillaPorNombre(item.name);
     setup.cantidades[item.name] = { cantidad: linea.quantity === null ? '' : linea.quantity, unidad: linea.unit, yaGuardada: true };
-    if (semilla) setup.elegidos = [...new Set([...setup.elegidos, semilla.name])];
-    else setup.propios = [...setup.propios, { nombre: item.name, unidad: linea.unit, origen: 'manual', reconocido: item.name }];
+    const nombre = semilla?.name || item.name;
+    setup.elegidos = [...new Set([...setup.elegidos, nombre])];
+    if (!semilla) {
+      setup.propios = [...setup.propios.filter(propio => normalizeName(propio.nombre) !== normalizeName(item.name)),
+        { nombre: item.name, unidad: linea.unit, categoria: item.category || 'otros', origen: 'manual', reconocido: item.name }];
+    }
   }
 }
 
@@ -434,26 +542,20 @@ function precargar(ctx) {
 
    La solución es no redibujar. `setup-marcar` escribe en `ui.setup.elegidos`
    —que es lo que se leerá al guardar y lo que pintará el próximo redibujo, si
-   llega— y después toca a mano las cuatro cosas que se ven: la clase de la
-   ficha, el contador de arriba, el número de la categoría y si el botón de
-   continuar está apagado. Ningún nodo se crea ni se destruye, así que ni el
-   desplazamiento ni el foco se mueven. Lo mismo hace «marcar los más
-   habituales», que además marca casillas ya pintadas en vez de repintar la
-   lista.
+   llega—, guarda el avance sin pintar, y después toca a mano las dos cosas que
+   se ven: la clase de la ficha y el contador de arriba. Ningún nodo se crea ni
+   se destruye, así que ni el desplazamiento ni el foco se mueven.
 
-   Los redibujos que sí ocurren —cambiar de categoría, buscar— son los que
-   cambian la lista entera, y ahí empezar por arriba es lo correcto. */
+   Los redibujos que sí ocurren —cambiar de rubro, buscar, abrir la ventanita—
+   son los que cambian la lista entera, y ahí empezar por arriba es lo
+   correcto. */
 
 function refrescarContadores(ctx) {
   const setup = ctx.ui.setup;
   const total = document.querySelector('[data-setup-total]');
-  if (total) total.textContent = textoMarcados(setup.elegidos.length);
-  const seguir = document.querySelector('[data-setup-seguir]');
-  if (seguir) seguir.disabled = !setup.elegidos.length;
-  const elegidos = new Set(setup.elegidos);
-  for (const cat of CATEGORIES) {
-    const cuenta = document.querySelector(`[data-setup-cuenta="${cat.id}"]`);
-    if (cuenta) cuenta.textContent = seedByCategory(cat.id).filter(item => elegidos.has(item.name)).length || '';
+  if (total) {
+    total.textContent = textoMarcados(setup.elegidos.length);
+    total.classList.toggle('gray', !setup.elegidos.length);
   }
 }
 
@@ -475,6 +577,7 @@ export const SETUP_ACTIONS = {
     ctx.ui.setup = ctx.ui.setup || emptySetup();
     precargar(ctx);
     ctx.ui.setup.paso = 1;
+    guardarAvance(ctx);
     ctx.render();
   },
   'setup-salir': (el, ctx) => {
@@ -482,65 +585,80 @@ export const SETUP_ACTIONS = {
     if (setup.paso === 2) recordarTexto(ctx);
     if (setup.paso === 3) recordarCantidades(ctx);
     soltarMicrofono(ctx);
+    // Salir no descarta nada: el avance se queda escrito donde estaba.
+    guardarAvance(ctx);
     ctx.ui.page = 'hoy';
     ctx.render();
-    ctx.toast('Puedes retomarlo cuando quieras desde Más.');
+    ctx.toast('Guardado. Puedes retomarlo desde Más → Organizar mi casa.');
   },
   'setup-atras': (el, ctx) => {
     const setup = ctx.ui.setup;
     if (setup.paso === 2) recordarTexto(ctx);
     if (setup.paso === 3) recordarCantidades(ctx);
     soltarMicrofono(ctx);
+    // Volver del paso 2 al 1 devuelve el último rubro, no el primero: es donde
+    // estaba quien pulsó «Atrás».
     setup.paso = Math.max(1, setup.paso - 1);
+    if (setup.paso === 1) setup.rubro = RUBROS.length - 1;
+    guardarAvance(ctx);
     ctx.render();
   },
   'setup-siguiente': (el, ctx) => {
     const setup = ctx.ui.setup;
     setup.paso = Math.min(PASOS.length, setup.paso + 1);
+    guardarAvance(ctx);
     ctx.render();
-  },
-  'setup-falta': (el, ctx) => {
-    ctx.ui.setup.paso = 2;
-    ctx.render();
-    document.querySelector('[data-setup-texto]')?.focus();
   },
 
-  // Paso 1
-  'setup-categoria': (el, ctx) => {
-    Object.assign(ctx.ui.setup, { categoria: el.dataset.cat, busqueda: '' });
+  /* ── Paso 1: los ocho rubros ─────────────────────────────────────────── */
+
+  'setup-rubro-atras': (el, ctx) => {
+    const setup = ctx.ui.setup;
+    setup.rubro = Math.max(0, setup.rubro - 1);
+    // Lo marcado no se toca al retroceder: eso es lo que se estaba comprobando.
+    Object.assign(setup, { busqueda: '', anadiendo: false, nombreNuevo: '', errorNuevo: '' });
+    guardarAvance(ctx);
     ctx.render();
   },
-  'setup-buscar': (el, ctx) => {
-    ctx.ui.setup.busqueda = document.querySelector('#setup-buscar')?.value || '';
+  // Se puede continuar sin marcar nada. Hay casas que no compran vegetales
+  // frescos, y obligarlas a marcar algo para pasar sería pedirles que mientan.
+  'setup-rubro-seguir': (el, ctx) => {
+    const setup = ctx.ui.setup;
+    Object.assign(setup, { busqueda: '', anadiendo: false, nombreNuevo: '', errorNuevo: '' });
+    if (setup.rubro >= RUBROS.length - 1) setup.paso = 2;
+    else setup.rubro += 1;
+    guardarAvance(ctx);
     ctx.render();
-    document.querySelector('#setup-buscar')?.focus();
   },
   'setup-limpiar-busqueda': (el, ctx) => {
     ctx.ui.setup.busqueda = '';
     ctx.render();
   },
+
+  // La ventanita de añadir un alimento, dentro de la propia categoría.
+  'setup-falta': (el, ctx) => {
+    Object.assign(ctx.ui.setup, { anadiendo: true, nombreNuevo: '', errorNuevo: '' });
+    ctx.render();
+    document.querySelector('[data-setup-nuevo]')?.focus();
+  },
+  'setup-cancelar-nuevo': (el, ctx) => {
+    Object.assign(ctx.ui.setup, { anadiendo: false, nombreNuevo: '', errorNuevo: '' });
+    ctx.render();
+  },
+
   'setup-marcar': (el, ctx) => {
     const setup = ctx.ui.setup;
     const nombre = el.dataset.nombre;
-    setup.elegidos = el.checked ? [...new Set([...setup.elegidos, nombre])] : setup.elegidos.filter(item => item !== nombre);
+    const clave = normalizeName(nombre);
+    setup.elegidos = el.checked
+      ? [...new Set([...setup.elegidos, nombre])]
+      : setup.elegidos.filter(item => normalizeName(item) !== clave);
+    // Se guarda en cada toque, y sin repintar: quien está marcando veinte
+    // casillas no puede perder el sitio, y tampoco lo marcado si cierra la app.
+    guardarAvance(ctx);
     pintarFicha(el, el.checked);
     refrescarContadores(ctx);
   },
-  'setup-marcar-habituales': (el, ctx) => {
-    const setup = ctx.ui.setup;
-    const habituales = new Set(seedByCategory(setup.categoria).filter(item => item.common).map(item => item.name));
-    let marcados = 0;
-    for (const casilla of document.querySelectorAll('[data-setup-marca]')) {
-      if (!habituales.has(casilla.dataset.nombre) || casilla.checked) continue;
-      casilla.checked = true;
-      pintarFicha(casilla, true);
-      setup.elegidos = [...new Set([...setup.elegidos, casilla.dataset.nombre])];
-      marcados++;
-    }
-    refrescarContadores(ctx);
-    ctx.toast(marcados ? `${marcados} marcados. Quita los que no apliquen.` : 'Ya estaban todos marcados.');
-  },
-
   // Paso 2
   'setup-separar': (el, ctx) => {
     recordarTexto(ctx);
@@ -573,6 +691,7 @@ export const SETUP_ACTIONS = {
   // no llegaría nunca y las dos salidas harían lo mismo en silencio.
   'setup-luego': (el, ctx) => {
     const guardados = guardarLoEscrito(ctx);
+    olvidarAvance(ctx.state);
     ctx.ui.setup = null;
     ctx.ui.page = 'hoy';
     ctx.commit(`${guardados} alimento(s) en tu canasta habitual. Las cantidades que falten las completas cuando quieras.`);
@@ -588,16 +707,19 @@ export const SETUP_ACTIONS = {
       delete setup.cantidades[nombre];
     }
     fila?.remove();
+    guardarAvance(ctx);
   },
 
   // Paso 4
   'setup-menu': (el, ctx) => {
     const mes = todayISO().slice(0, 7);
+    olvidarAvance(ctx.state);
     ctx.ui.setup = null;
     ctx.ui.page = 'mes';
     ctx.openModal('rutina', { month: mes });
   },
   'setup-ahora-no': (el, ctx) => {
+    olvidarAvance(ctx.state);
     ctx.ui.setup = null;
     ctx.ui.page = 'hoy';
     ctx.render();
@@ -648,6 +770,60 @@ function separarAlimentos(state, setup) {
 /* ── Formularios ───────────────────────────────────────────────────────── */
 
 export const SETUP_FORMS = {
+  /* ── Añadir un alimento que no está en la lista ──────────────────────────
+
+     Nombre y un toque en «Añadir». Nada más, y nunca se sale de la categoría.
+
+     Lo único que esto hace con cabeza es no crear dos veces el mismo alimento:
+     si lo escrito ya existe —en el catálogo dominicano o en la casa— se marca
+     el que hay y se dice dónde estaba, en vez de fabricar un duplicado que
+     partiría el inventario en dos fichas del mismo arroz. */
+  'setup-nuevo': (form, data, ctx) => {
+    const setup = ctx.ui.setup;
+    const rubro = rubroPorIndice(setup.rubro);
+    const escrito = String(data.get('nombre') ?? document.querySelector('[data-setup-nuevo]')?.value ?? '').trim();
+    setup.nombreNuevo = escrito;
+
+    if (escrito.length < 2) {
+      setup.errorNuevo = 'Escribe el nombre del alimento.';
+      ctx.render();
+      document.querySelector('[data-setup-nuevo]')?.focus();
+      return;
+    }
+
+    const clave = normalizeName(escrito);
+    const yaMarcado = setup.elegidos.some(item => normalizeName(item) === clave);
+    const semilla = semillaPorNombre(escrito);
+    const existente = productByName(ctx.state, escrito);
+    const propio = setup.propios.find(item => normalizeName(item.nombre) === clave);
+    const nombre = semilla?.name || existente?.name || propio?.nombre || escrito;
+
+    if (!propio && !semilla && !existente) {
+      // Un alimento nuevo de verdad. La medida sale del rubro donde se escribió
+      // —libras en las carnes, unidades en las frutas— y se puede cambiar
+      // después desde la ficha del alimento.
+      setup.propios = [...setup.propios, {
+        nombre: escrito,
+        unidad: unidadValida(rubro.unidad) || 'unidad',
+        categoria: categoriaDelRubro(rubro.id),
+        origen: 'manual'
+      }];
+    }
+
+    setup.elegidos = [...new Set([...setup.elegidos, nombre])];
+    Object.assign(setup, { anadiendo: false, nombreNuevo: '', errorNuevo: '' });
+    guardarAvance(ctx);
+    ctx.render();
+
+    // Dónde quedó. Si estaba en otro rubro hay que decirlo, o quien lo escribió
+    // se quedará buscándolo en esta pantalla.
+    const suyo = semilla?.category || existente?.category || propio?.categoria || categoriaDelRubro(rubro.id);
+    const donde = rubroDeCategoria(suyo);
+    if (yaMarcado) ctx.toast(`«${nombre}» ya estaba marcado.`);
+    else if (donde && donde.id !== rubro.id) ctx.toast(`«${nombre}» ya estaba en ${donde.titulo}: queda marcado ahí.`);
+    else ctx.toast(`«${nombre}» añadido a ${rubro.titulo} y marcado.`);
+  },
+
   'setup-propios': (form, data, ctx) => {
     const setup = ctx.ui.setup;
     recordarTexto(ctx);
@@ -676,7 +852,11 @@ export const SETUP_FORMS = {
       // Un alimento del catálogo escrito a mano no crea un duplicado: se marca
       // en la lista de siempre, con su categoría y sus alias.
       if (semilla) { setup.elegidos = [...new Set([...setup.elegidos, semilla.name])]; continue; }
-      propios.push({ nombre, unidad: unidadValida(fila.unidad) || 'unidad', origen: 'texto' });
+      // Lo dictado de corrido no dice de qué rubro es, y adivinarlo por el
+      // nombre sería inventar. Va al cajón de «Otros productos habituales», que
+      // es donde se puede encontrar, y se cambia desde la ficha del alimento.
+      propios.push({ nombre, unidad: unidadValida(fila.unidad) || 'unidad', categoria: 'otros', origen: 'texto' });
+      setup.elegidos = [...new Set([...setup.elegidos, nombre])];
     }
     // Lo escrito en visitas anteriores no se pierde: se suma sin repetir.
     const previos = setup.propios.filter(item => !propios.some(nuevo => normalizeName(nuevo.nombre) === normalizeName(item.nombre)));
@@ -684,12 +864,17 @@ export const SETUP_FORMS = {
     setup.texto = '';
     setup.filas = null;
     setup.paso = 3;
+    guardarAvance(ctx);
     ctx.render();
   },
 
   'setup-cantidades': (form, data, ctx) => {
     const guardados = guardarLoEscrito(ctx);
     ctx.ui.setup.paso = 4;
-    ctx.commit(`${guardados} alimento(s) en tu canasta habitual.`);
+    // La canasta ya está escrita donde vive de verdad: el borrador del
+    // asistente deja de hacer falta y se borra, para que volver a entrar no
+    // enseñe un avance a medias de algo que ya está hecho.
+    olvidarAvance(ctx.state);
+    ctx.commit(`${guardados} alimento(s) en tu canasta base.`);
   }
 };

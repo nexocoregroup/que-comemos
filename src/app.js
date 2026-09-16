@@ -21,7 +21,7 @@ import { clearAll, hasSavedState, loadStateDetailed, saveState } from './storage
 import { BRAND_MARK } from './brand.js';
 import { TOUR_STEPS, WELCOME } from './onboarding.js';
 import { CATEGORIES } from './catalog-seed.js';
-import { SETUP_ACTIONS, SETUP_FORMS, emptySetup, renderSetup } from './setup.js';
+import { SETUP_ACTIONS, SETUP_FORMS, avanceGuardado, emptySetup, renderSetup } from './setup.js';
 import { HOGAR_ACTIONS, HOGAR_FORMS, cuerpoDeFicha, emptyHogar, fichaActiva, renderHogar, tocaConfigurarElHogar } from './hogar.js';
 import { CHAT_ACTIONS, CHAT_FORMS, emptyChat, renderChat } from './chat-ui.js';
 import { BULK_ACTIONS, BULK_FORMS, emptyBulk, renderBulk } from './bulk-entry.js';
@@ -84,7 +84,10 @@ function abrirCajon(cual) {
   ui.tour = null;
   ui.reviewId = null; ui.correctingReview = false; ui.modal = null;
   ui.mes = emptyMes(mesActual); ui.compra = emptyCompra(mesActual); ui.mas = emptyMas();
-  ui.setup = null; ui.chat = null; ui.bulk = null;
+  // El asistente de la canasta se retoma donde se dejó: lo marcado vive en el
+  // estado, así que abrir la app en otro momento —u otro teléfono— devuelve el
+  // mismo rubro con las mismas casillas marcadas.
+  ui.setup = avanceGuardado(state); ui.chat = null; ui.bulk = null;
   ui.hogar = emptyHogar();
   ui.voz = emptyVoz();
 }
@@ -96,7 +99,10 @@ const sidebarInitiallyCollapsed = (() => { try { return localStorage.getItem(SID
 const ui = {
   page: 'hoy',
   modal: null,
-  setup: null, chat: null, bulk: null,
+  // El asistente de la canasta arranca donde se dejó. `abrirCajon` hace lo
+  // mismo al cambiar de cuenta, pero en el arranque normal —sin sesión— no
+  // pasa por ahí: el estado se lee arriba del todo y esta es su única puerta.
+  setup: avanceGuardado(state), chat: null, bulk: null,
   hogar: emptyHogar(),
   mes: emptyMes(mesActual),
   compra: emptyCompra(mesActual),
@@ -389,6 +395,15 @@ function toast(message, error = false) {
   el.textContent = message; el.className = `show${error ? ' error' : ''}`;
   clearTimeout(toastTimer); toastTimer = setTimeout(() => el.className = '', 4200);
 }
+// Guardar sin repintar. Lo necesita quien va marcando ochenta casillas: cada
+// redibujo reemplaza los nodos, el navegador devuelve el desplazamiento a cero y
+// el foco se va al cuerpo del documento. Lo que se guarda es lo mismo que
+// guardaría `commit`; lo único que no pasa es el repintado.
+function guardar() {
+  saveState(state, undefined, cajon);
+  apuntarParaSubir();
+}
+
 function commit(message) {
   saveState(state, undefined, cajon);
   // Cada guardado marca que hay algo que subir. No se sube en el acto: quien
@@ -405,7 +420,7 @@ function commit(message) {
 // respaldo o al borrar los datos, y una referencia guardada apuntaría al viejo.
 function ctx() {
   return {
-    state, ui, commit, toast, render, closeModal, openModal,
+    state, ui, commit, guardar, toast, render, closeModal, openModal,
     startTour: () => goTour(0),
     servicios: {
       transcribe: capacidad('dictar').ok,

@@ -48,21 +48,51 @@
 .setup-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .setup-progress { margin-bottom: 20px; }
 
-/* ── Paso 1: buscar, filtrar y marcar ──────────────────────────────────── */
+/* ── Paso 1: la canasta base, rubro por rubro ──────────────────────────────
 
-.setup-buscador { display: flex; align-items: flex-end; gap: 8px; margin: 16px 0 12px; }
+   Aquí había una tira de catorce categorías que se arrastraba de lado. Se ha
+   ido entera, y con ella el problema que tenía: en un teléfono las últimas
+   categorías quedaban fuera de la pantalla, así que no se visitaban.
+
+   Ahora son ocho pantallas seguidas y lo único que cambia entre una y otra es
+   la lista de en medio. El título, la barra, el buscador y los dos botones
+   están siempre en el mismo píxel, que es lo que permite ir a ciegas: el pulgar
+   aprende dónde está «Continuar» y ya no lo busca más. */
+
+.setup-buscador { display: flex; align-items: flex-end; gap: 8px; margin: 14px 0 12px; }
 .setup-search { flex: 1 1 auto; min-width: 0; margin: 0; }
 
-/* Las categorías son una tira que se desplaza sola en horizontal. Es el único
-   sitio donde el desplazamiento lateral es correcto —son un filtro, no
-   contenido— y aun así se recorre con el teclado. */
-.setup-cats { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 12px; scrollbar-width: thin; }
-.setup-cat { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; padding: 8px 13px; min-height: 44px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: #594d45; font: inherit; font-size: .81rem; cursor: pointer; white-space: nowrap; }
-.setup-cat.active { background: var(--clay); border-color: var(--clay); color: #fff; font-weight: 700; }
-.setup-cat:focus-visible { outline: 3px solid var(--clay); outline-offset: 2px; }
-.setup-cat-count:not(:empty) { display: grid; place-items: center; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 999px; background: var(--sage); color: #fff; font-size: .68rem; font-weight: 800; }
-.setup-cat.active .setup-cat-count:not(:empty) { background: #fff; color: var(--clay-dark); }
-.setup-bulk { margin-bottom: 12px; }
+.setup-rubro {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin: 0 0 10px; font-size: .95rem; color: var(--ink-muted);
+}
+.setup-rubro strong { color: var(--ink); font-size: 1.06rem; letter-spacing: -.02em; }
+.setup-rubro-emoji { font-size: 1.25rem; line-height: 1; }
+.setup-rubro-progreso { margin-bottom: 4px; }
+
+/* Lo que escribió la propia casa, separado de lo que venía en la lista: quien
+   acaba de añadir «Fresa» tiene que verla aparecer, y aparece justo aquí,
+   encima del botón donde estaba su dedo. */
+.setup-tuyos-titulo {
+  margin: 16px 0 6px; font-size: .74rem; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .1em; color: var(--ink-muted);
+}
+.setup-lista.setup-tuyos { max-height: none; overflow: visible; }
+
+/* La ventanita de añadir. No tapa la pantalla: se abre en el sitio del enlace,
+   dentro de la categoría, y al cerrarse deja todo exactamente donde estaba. */
+.setup-ventanita {
+  display: grid; gap: 10px; text-align: left;
+  border: 1px solid var(--clay-line); border-radius: 14px;
+  background: var(--clay-light); padding: 14px;
+  box-shadow: 0 4px 14px #3d2d1d10;
+}
+.setup-ventanita-titulo { margin: 0; font-weight: 800; color: var(--clay-dark); font-size: .95rem; }
+.setup-ventanita .field { margin: 0; }
+.setup-ventanita input { background: var(--surface); }
+.setup-ventanita-acciones { gap: 8px; }
+.setup-ventanita p:last-child { margin: 0; }
+.setup-error { margin: 0; color: #9d3a2e; font-size: .84rem; font-weight: 700; line-height: 1.4; }
 
 .setup-lista { display: flex; flex-wrap: wrap; gap: 8px; max-height: 48vh; overflow-y: auto; padding: 2px; }
 /* Dos renglones dentro de la ficha —nombre y en qué se cuenta—, así que aquí la

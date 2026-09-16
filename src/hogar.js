@@ -301,9 +301,10 @@ function pantallaFinal(ctx) {
       ? notice('Las alergias quedan avisadas', `Si una comida lleva algo que ${conAlergia.map(persona => esc(persona.name)).join(' o ')} no puede comer, la app no te deja guardarla sin decírtelo.`, 'warn')
       : ''}
     <p class="muted">Las comidas se preparan para toda la casa. Cuando alguien no coma, se marca ese día y ya.</p>
+    <p class="hogar-siguiente"><strong>Lo siguiente es la canasta base:</strong> los alimentos que compras todos los meses. Se pregunta por categorías y se tarda unos minutos.</p>
     <div class="pantalla-acciones">
-      ${button('Ir a Hoy', 'hogar-terminar', 'btn-primary')}
-      ${button('Ahora organizar la despensa', 'setup-open', 'btn-secondary')}
+      ${button('Continuar', 'setup-open', 'btn-primary btn-grande')}
+      ${button('Ahora no', 'hogar-terminar', 'btn-quiet')}
       ${button('Ver mi familia', 'navigate', 'btn-quiet', 'data-page="familia"')}
     </div>
   </section>`;
