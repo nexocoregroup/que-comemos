@@ -77,12 +77,26 @@ export function readPNG(path) {
   return { width: header.width, height: header.height, rgba };
 }
 
-export function writePNG(path, { width, height, rgba }) {
-  const stride = width * 4;
+// `sinAlfa` guarda en color verdadero de 24 bits en vez de 32. Importa para
+// Google Play, que pide las capturas y el gráfico de cabecera «sin canal alfa»:
+// una imagen opaca guardada con alfa sigue teniendo el canal, y ahí es donde
+// una ficha se cae por algo que no se ve. Si queda algún píxel transparente se
+// para, porque aplanarlo contra un color inventado sería peor que avisar.
+export function writePNG(path, { width, height, rgba }, { sinAlfa = false } = {}) {
+  const canales = sinAlfa ? 3 : 4;
+  const stride = width * canales;
   const raw = Buffer.alloc(height * (stride + 1));
   for (let y = 0; y < height; y++) {
     raw[y * (stride + 1)] = 0;
-    rgba.copy(raw, y * (stride + 1) + 1, y * stride, (y + 1) * stride);
+    if (!sinAlfa) {
+      rgba.copy(raw, y * (stride + 1) + 1, y * width * 4, (y + 1) * width * 4);
+      continue;
+    }
+    for (let x = 0; x < width; x++) {
+      const s = (y * width + x) * 4, d = y * (stride + 1) + 1 + x * 3;
+      if (rgba[s + 3] !== 255) throw new Error(`No se puede guardar sin alfa: el píxel (${x}, ${y}) es transparente.`);
+      raw[d] = rgba[s]; raw[d + 1] = rgba[s + 1]; raw[d + 2] = rgba[s + 2];
+    }
   }
   const chunk = (type, body) => {
     const head = Buffer.alloc(8);
@@ -95,7 +109,7 @@ export function writePNG(path, { width, height, rgba }) {
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(width, 0);
   ihdr.writeUInt32BE(height, 4);
-  ihdr[8] = 8; ihdr[9] = 6;
+  ihdr[8] = 8; ihdr[9] = sinAlfa ? 2 : 6;
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, Buffer.concat([SIGNATURE, chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0))]));
 }

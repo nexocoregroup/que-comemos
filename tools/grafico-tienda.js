@@ -101,6 +101,8 @@ for (const [px, py] of [[margen, margen], [ANCHO - margen, margen], [margen, ALT
 }
 
 const destino = 'tienda/grafico-destacado-1024x500.png';
-writePNG(join(PROJECT, destino), banner);
-console.log(`\n${destino}  ${ANCHO}×${ALTO}, sin transparencia, márgenes limpios`);
+// Sin canal alfa, no solo sin píxeles transparentes: es lo que pide la ficha, y
+// la diferencia no se ve mirando la imagen.
+writePNG(join(PROJECT, destino), banner, { sinAlfa: true });
+console.log(`\n${destino}  ${ANCHO}×${ALTO}, 24 bits sin canal alfa, márgenes limpios`);
 console.log(`conjunto de ${anchoTotal} px centrado, ${Math.round(anchoTotal / ANCHO * 100)} % del ancho`);

@@ -9,7 +9,8 @@
     "build": "node build.js",
     "android": "node build.js && cap sync android",
     "brand": "node tools/brand-assets.js",
-    "tienda": "node tools/grafico-tienda.js"
+    "tienda": "node tools/grafico-tienda.js",
+    "capturas": "node tools/capturas.js"
   },
   "devDependencies": {
     "@capacitor/android": "^8.5.2",
