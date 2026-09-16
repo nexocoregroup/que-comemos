@@ -11,7 +11,7 @@
 
 import { normalizeName } from './nombres.js';
 
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 // Los momentos en que una preparación suele comerse. Viven aquí, igual que las
 // clases de persona, para que la migración pueda normalizarlas sin arrastrar el
@@ -375,7 +375,33 @@ function v6toV7(data) {
   return { state, notes: [] };
 }
 
-const STEPS = { 1: v1toV2, 2: v2toV3, 3: v3toV4, 4: v4toV5, 5: v5toV6, 6: v6toV7 };
+// v7 → v8. Cada línea de la canasta guarda su historia en vez de una cantidad.
+//
+// Antes una línea tenía una cantidad y una fecha de entrada. La fecha decía
+// desde cuándo el alimento estaba en la canasta; la cantidad no tenía fecha
+// ninguna, así que corregirla hoy cambiaba también lo que la app decía de julio.
+// Y julio ya se compró.
+//
+// Convertir es directo y no pierde nada: lo que había pasa a ser el primer
+// tramo, con la misma fecha que tenía la línea. Un respaldo sin fecha queda en
+// «desde siempre», y es la verdad: esa era la canasta de la casa durante
+// aquellos meses. Inventarle ahora un mes de comienzo sería escribir un dato
+// que nadie dijo.
+function v7toV8(data) {
+  const state = clone(data);
+  const lineas = state.habitualBasket?.lines;
+  if (Array.isArray(lineas)) {
+    state.habitualBasket.lines = lineas.map(linea => {
+      if (!linea || typeof linea !== 'object' || Array.isArray(linea.tramos)) return linea;
+      const { quantity = null, unit, priority, desde = null, ...resto } = linea;
+      return { ...resto, tramos: [{ desde: desde ?? null, quantity, unit, priority: priority || 'frecuente' }] };
+    });
+  }
+  state.version = 8;
+  return { state, notes: [] };
+}
+
+const STEPS = { 1: v1toV2, 2: v2toV3, 3: v3toV4, 4: v4toV5, 5: v5toV6, 6: v6toV7, 7: v7toV8 };
 
 // Campos que aparecieron dentro de una misma versión del esquema. Un respaldo
 // exportado antes de que existieran se rellena en vez de rechazarse.
@@ -443,6 +469,24 @@ export function migrate(data) {
     current.mealRoutines = current.mealRoutines.map(rutina => (
       rutina && typeof rutina === 'object' && !('desde' in rutina) ? { ...rutina, desde: null } : rutina
     ));
+  }
+
+  // Y una por la canasta, por lo mismo que las anteriores: un respaldo
+  // exportado a media tarde puede traer unas líneas con tramos y otras con la
+  // cantidad suelta. Una línea sin tramos dejaría la compra del mes sin ese
+  // alimento y sin decir por qué, que es la peor forma de fallar.
+  if (Array.isArray(current.habitualBasket?.lines)) {
+    current.habitualBasket.lines = current.habitualBasket.lines.map(linea => {
+      if (!linea || typeof linea !== 'object') return linea;
+      if (!Array.isArray(linea.tramos) || !linea.tramos.length) {
+        const { quantity = null, unit, priority, desde = null, ...resto } = linea;
+        return { ...resto, tramos: [{ desde: desde ?? null, quantity, unit, priority: priority || 'frecuente' }] };
+      }
+      // Ordenados siempre: quien busca el tramo de un mes recorre la lista y se
+      // para en el primero que se pasa de fecha, así que un tramo fuera de sitio
+      // devolvería la cantidad de otro mes sin que nada avisara.
+      return { ...linea, tramos: [...linea.tramos].sort((a, b) => String(a.desde || '').localeCompare(String(b.desde || ''))) };
+    });
   }
 
   return { ok: true, state: current, from, to: SCHEMA_VERSION, migrated: from < SCHEMA_VERSION, notes };

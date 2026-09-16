@@ -283,14 +283,41 @@ export function mergeProducts(state, keepId, dropId) {
     return keep;
   });
 }
-// Dos líneas del mismo alimento tras una unión: se suman si comparten unidad y,
-// si no, se queda la primera. Convertir aquí sería adivinar una equivalencia.
+/* ── Dos líneas del mismo alimento, tras unir dos alimentos en uno ─────────
+
+   Cada una trae su historia, así que no basta con sumar dos cantidades: hay que
+   sumar dos historias. Se miran los meses en que alguna de las dos cambia
+   —fuera de esos, nada cambia— y se decide en cada uno.
+
+   Dentro de un mes, la regla es la de siempre: si las dos dicen algo y comparten
+   unidad se suman; si no, manda la primera. Convertir aquí sería adivinar una
+   equivalencia que nadie ha escrito. */
+
+function fundirTramos(unos, otros) {
+  const fechas = [...new Set([...unos, ...otros].map(tramo => tramo.desde ?? null))]
+    .sort((a, b) => String(a || '').localeCompare(String(b || '')));
+  return fechas.map(desde => {
+    const mes = desde || '0000-00';
+    const vivos = [tramoEn({ tramos: unos }, mes), tramoEn({ tramos: otros }, mes)].filter(tramo => tramo && !tramo.fuera);
+    if (!vivos.length) return { desde, fuera: true };
+    const [base, otro] = vivos;
+    const suman = otro && otro.unit === base.unit;
+    return {
+      desde,
+      quantity: !suman ? base.quantity
+        : (base.quantity === null || otro.quantity === null ? base.quantity ?? otro.quantity : round(base.quantity + otro.quantity)),
+      unit: base.unit,
+      priority: base.priority
+    };
+  });
+}
+
 function mergeBasketLines(lines) {
   const out = [];
-  for (const line of lines) {
-    const twin = out.find(row => row.productId === line.productId && row.unit === line.unit);
+  for (const line of lines.map(conTramos)) {
+    const twin = out.find(row => row.productId === line.productId);
     if (!twin) { out.push(line); continue; }
-    twin.quantity = twin.quantity === null || line.quantity === null ? twin.quantity ?? line.quantity : round(twin.quantity + line.quantity);
+    twin.tramos = fundirTramos(twin.tramos, line.tramos);
   }
   return out;
 }
@@ -330,7 +357,109 @@ export function setEquivalence(state, productId, unit, factor) {
 // haya que abrirlo para calcular la compra: si no hay cambios, la canasta de ese
 // mes es exactamente la habitual.
 
-export function habitualLines(state) { return state.habitualBasket.lines; }
+/* ── Los tramos de una línea ───────────────────────────────────────────────
+
+   Una línea de la canasta no guarda una cantidad: guarda su historia. «Noventa
+   tazas de arroz desde julio, ciento veinte desde septiembre» son dos tramos de
+   la misma línea, y cada mes lee el que le tocaba.
+
+   Antes había una sola cantidad y una fecha de entrada. La fecha decía desde
+   cuándo el alimento estaba en la canasta, pero la cantidad no tenía fecha
+   ninguna: corregirla hoy cambiaba también lo que la app decía de julio. Y julio
+   ya se compró. La pantalla que existe para acordarte de lo que hiciste distinto
+   —«Y en la compra cambia esto»— era precisamente la que no podía verlo, porque
+   al recalcular el mes anterior con la cantidad de hoy los dos meses salían
+   iguales.
+
+   Un tramo con `fuera` dice que desde ese mes el alimento ya no está en la
+   canasta. Quitar algo tampoco puede reescribir los meses en que sí se compró.
+
+   `desde: null` es «desde siempre», y es lo que traen las canastas escritas
+   antes de que existiera la fecha: eran la canasta de la casa durante aquellos
+   meses, y ponerles una fecha ahora sería inventar un día en que empezaron. */
+
+const porFecha = (a, b) => String(a.desde || '').localeCompare(String(b.desde || ''));
+
+// Una línea de antes de los tramos, convertida donde está. La migración las
+// convierte todas al cargar, así que esto es para lo que llegue por otro camino
+// —un respaldo pegado a mano, una prueba, código viejo—. Sin ella, una línea así
+// no tendría ningún tramo que leer y el alimento desaparecería de la canasta sin
+// que nada avisara, que es peor que cualquier error.
+function conTramos(line) {
+  if (!Array.isArray(line.tramos)) {
+    line.tramos = [{ desde: line.desde ?? null, quantity: line.quantity ?? null, unit: line.unit, priority: line.priority || 'frecuente' }];
+  }
+  return line;
+}
+
+// El tramo que vale en un mes: el último que empezó en ese mes o antes. Devuelve
+// `null` si el alimento todavía no había entrado en la canasta.
+export function tramoEn(line, month) {
+  let vale = null;
+  for (const tramo of line.tramos || []) {
+    if (tramo.desde && tramo.desde > month) break;
+    vale = tramo;
+  }
+  return vale;
+}
+
+/* ── Las dos formas de preguntar por la canasta ────────────────────────────
+
+   Con un mes: cómo era ese mes, y solo eso. Lo que todavía no había entrado no
+   estaba, y lo dado de baja tampoco. Es lo que hay que mirar para calcular una
+   compra o para contar lo que pasó.
+
+   Sin mes: la canasta tal como está puesta hoy, que es lo que enseña la
+   pantalla. Aquí sí entra lo que empieza más adelante, porque está en la
+   canasta: alguien lo escribió para que empiece. Ascender un cambio de octubre
+   estando en septiembre lo habría hecho desaparecer de la pantalla hasta
+   octubre, y el alimento que acabas de guardar no puede esfumarse.
+
+   Se calcula en vez de guardarse. Tener la cantidad de hoy escrita junto a los
+   tramos serían dos verdades sobre lo mismo, y la que se arregla nunca es la
+   que alguien está leyendo. */
+
+function tramoDeLectura(line, mes, estricto) {
+  const vigente = tramoEn(line, mes);
+  if (vigente && !vigente.fuera) return vigente;
+  if (estricto) return null;
+  return (line.tramos || []).find(tramo => !tramo.fuera && tramo.desde && tramo.desde > mes) || null;
+}
+
+export function habitualLines(state, month = null) {
+  const mes = month || mesEnCurso();
+  const out = [];
+  for (const line of state.habitualBasket.lines.map(conTramos)) {
+    const tramo = tramoDeLectura(line, mes, Boolean(month));
+    if (!tramo) continue;
+    out.push({
+      id: line.id,
+      productId: line.productId,
+      quantity: tramo.quantity,
+      unit: tramo.unit,
+      priority: tramo.priority,
+      // Desde cuándo está en la canasta, que no es lo mismo que desde cuándo
+      // vale esta cantidad.
+      desde: line.tramos[0]?.desde ?? null,
+      // Desde cuándo vale lo que se está leyendo.
+      vigenteDesde: tramo.desde ?? null,
+      // Lo que ya está escrito para más adelante, si lo hay. Sin esto, ascender
+      // un cambio de octubre estando en septiembre dejaría la pantalla diciendo
+      // la cantidad de septiembre y ni una palabra de que cambia el mes que
+      // viene, y quien acaba de escribirlo pensaría que no se guardó.
+      proximo: (line.tramos || []).find(otro => otro !== tramo && otro.desde && otro.desde > mes) || null,
+      tramos: line.tramos
+    });
+  }
+  return out;
+}
+
+// La línea guardada, con sus tramos, esté dentro de la canasta este mes o no.
+// Lo necesitan las pocas cosas que tienen que mirar la historia entera.
+export function lineaDeLaCanasta(state, productId) {
+  const line = state.habitualBasket.lines.find(row => row.productId === productId);
+  return line ? conTramos(line) : null;
+}
 
 /* ── Lo que una línea hereda de la que ya estaba ───────────────────────────
 
@@ -361,12 +490,65 @@ export function habitualLines(state) { return state.habitualBasket.lines; }
 
 const mesEnCurso = () => todayISO().slice(0, 7);
 
-function heredaDeLaCanasta(state, productId, { desde, priority }) {
-  const anterior = state.habitualBasket.lines.find(line => line.productId === productId);
-  return {
-    desde: validMonth(desde) ? desde : (anterior ? anterior.desde ?? null : mesEnCurso()),
-    priority: PRIORITIES.includes(priority) ? priority : (anterior?.priority || 'frecuente')
-  };
+/* ── Escribir en una línea ────────────────────────────────────────────────
+
+   Escribir no pisa lo que había: abre un tramo desde el mes en curso y deja
+   quieto lo anterior. Corregir el arroz hoy dice qué se come ahora, no qué se
+   comía en julio.
+
+   `corregir` es la otra intención, la que hay que poder decir también: no es
+   que haya cambiado el consumo, es que estaba mal escrito. Entonces sí se
+   reescribe el tramo que estaba vigente, que es como decir «desde que empezó
+   esto, la cantidad buena era esta otra». No toca los tramos anteriores, porque
+   aquellos eran correctos.
+
+   Y si lo que llega es igual a lo que ya valía, no se abre ningún tramo. Hace
+   falta: la pantalla de la canasta reenvía todas sus líneas al guardar, también
+   las que nadie tocó, y sin esto cada Guardar le añadiría un tramo idéntico a
+   cada alimento hasta convertir la historia en ruido. */
+
+function escribirTramo(state, productId, { quantity, unit, priority, desde, corregir = false, fuera = false }) {
+  const lines = state.habitualBasket.lines;
+  let line = lines.find(row => row.productId === productId);
+  if (line) conTramos(line);
+  const mes = validMonth(desde) ? desde : mesEnCurso();
+
+  if (!line) {
+    if (fuera) return null;   // Quitar algo que nunca estuvo no escribe nada.
+    line = { id: nextId(state, 'canasta'), productId, tramos: [] };
+    lines.push(line);
+  }
+
+  const vigente = tramoEn(line, mes);
+  const tramo = fuera
+    ? { desde: mes, fuera: true }
+    : {
+      desde: mes,
+      quantity,
+      unit,
+      // Corregir unas libras de arroz no puede degradar lo que estaba marcado
+      // como obligatorio, ni cambiar su unidad sin que nadie lo pida.
+      priority: PRIORITIES.includes(priority) ? priority : (vigente?.priority || 'frecuente')
+    };
+
+  const igualQueAntes = vigente && !vigente.fuera === !tramo.fuera
+    && vigente.quantity === tramo.quantity && vigente.unit === tramo.unit && vigente.priority === tramo.priority;
+  if (igualQueAntes && !corregir) return line;
+
+  if (corregir && vigente) {
+    // Se reescribe donde estaba, conservando su fecha: la corrección alcanza
+    // hacia atrás justo hasta donde empezó el dato equivocado.
+    line.tramos[line.tramos.indexOf(vigente)] = { ...tramo, desde: vigente.desde ?? null };
+  } else {
+    // Un solo tramo por mes: volver a escribir en el mismo mes corrige el que ya
+    // había en vez de apilar dos verdades sobre el mismo alimento.
+    const mismoMes = line.tramos.findIndex(row => (row.desde ?? null) === mes);
+    if (mismoMes >= 0) line.tramos[mismoMes] = tramo;
+    else line.tramos.push(tramo);
+  }
+  line.tramos.sort(porFecha);
+  state.habitualBasket.updatedAt = todayISO();
+  return line;
 }
 
 function normalizeBasketLines(state, lines, { origin = 'canasta' } = {}) {
@@ -390,38 +572,33 @@ function normalizeBasketLines(state, lines, { origin = 'canasta' } = {}) {
     const key = normalizeName(row.name);
     const item = row.existing || nuevos.get(key) || addProduct(state, { name: row.name, controlUnit: row.unit, purchaseUnit: row.unit, origin });
     if (!row.existing && key) nuevos.set(key, item);
-    return { id: row.id || nextId(state, 'canasta'), productId: item.id, quantity: row.quantity, unit: row.unit, ...heredaDeLaCanasta(state, item.id, row) };
+    return { productId: item.id, quantity: row.quantity, unit: row.unit, priority: row.priority, desde: row.desde };
   });
 }
 
+// La canasta entera de una vez, como la manda la pantalla al guardar. Lo que
+// viene se escribe, y lo que estaba y ya no viene se da de baja con fecha: los
+// meses en que sí se compraba siguen diciendo que se compraba.
 export function setHabitualBasket(state, lines, options = {}) {
-  const next = normalizeBasketLines(state, lines, options);
+  const filas = normalizeBasketLines(state, lines, options);
   const date = todayISO();
-  if (state.habitualBasket.lines.length) {
-    state.habitualBasket.history = [...(state.habitualBasket.history || []), { date, count: state.habitualBasket.lines.length }].slice(-24);
+  const antes = habitualLines(state);
+  if (antes.length) {
+    state.habitualBasket.history = [...(state.habitualBasket.history || []), { date, count: antes.length }].slice(-24);
   }
-  state.habitualBasket.lines = next;
+  for (const fila of filas) escribirTramo(state, fila.productId, fila);
+  const vienen = new Set(filas.map(fila => fila.productId));
+  for (const linea of antes) if (!vienen.has(linea.productId)) removeHabitualLine(state, linea.productId);
   state.habitualBasket.updatedAt = date;
-  return next;
+  return habitualLines(state);
 }
 
 // Escribe la línea sin interpretar la cantidad. `setHabitualLine` sí entiende el
 // vacío como una baja; ascender un cambio del mes no puede hacerlo, porque
 // «todavía no sé cuánto» es una cantidad legítima y borrar el alimento por eso
 // sería perder justo lo que acaban de pedir conservar.
-function writeHabitualLine(state, { productId, quantity: amount, unit, priority, desde }) {
-  const lines = state.habitualBasket.lines;
-  const index = lines.findIndex(line => line.productId === productId);
-  const line = {
-    id: index >= 0 ? lines[index].id : nextId(state, 'canasta'),
-    productId, quantity: amount, unit,
-    // Corregir la cantidad del arroz no puede cambiar desde cuándo se compra
-    // arroz en esta casa, ni degradar lo que estaba marcado como obligatorio.
-    ...heredaDeLaCanasta(state, productId, { desde, priority })
-  };
-  if (index >= 0) lines[index] = line; else lines.push(line);
-  state.habitualBasket.updatedAt = todayISO();
-  return line;
+function writeHabitualLine(state, { productId, quantity: amount, unit, priority, desde, corregir = false }) {
+  return escribirTramo(state, productId, { quantity: amount, unit, priority, desde, corregir });
 }
 
 // El consumo mensual de un solo alimento, para poder escribirlo desde su propia
@@ -431,21 +608,59 @@ function writeHabitualLine(state, { productId, quantity: amount, unit, priority,
 // `desde` solo hace falta cuando quien escribe está parado en un mes concreto:
 // añadir algo «para siempre» desde los cambios de octubre lo estrena en octubre,
 // no hoy. Sin decir nada, una línea nueva nace en el mes en curso.
-export function setHabitualLine(state, productId, amount, unit, priority, desde = null) {
+// `corregir` distingue las dos intenciones que se parecen al escribir y no son
+// la misma: «ahora comemos más» abre un tramo desde este mes, «lo escribí mal»
+// arregla el tramo que estaba vigente y con él los meses que cubría.
+export function setHabitualLine(state, productId, amount, unit, priority, desde = null, { corregir = false } = {}) {
   if (!product(state, productId)) throw new Error('Selecciona un producto.');
   if (amount === '' || amount === undefined || amount === null || Number(amount) === 0) {
-    removeHabitualLine(state, productId);
+    removeHabitualLine(state, productId, { desde });
     return null;
   }
   if (!UNITS.includes(unit)) throw new Error('Elige la unidad del consumo del mes.');
-  return writeHabitualLine(state, { productId, quantity: quantity(amount), unit, priority, desde });
+  return writeHabitualLine(state, { productId, quantity: quantity(amount), unit, priority, desde, corregir });
 }
 
-export function removeHabitualLine(state, productId) {
-  const before = state.habitualBasket.lines.length;
-  state.habitualBasket.lines = state.habitualBasket.lines.filter(line => line.productId !== productId);
+// Quitar algo de la canasta es dejar de comprarlo desde ahora, no haber dejado
+// de comprarlo siempre. Se escribe un tramo de baja y los meses anteriores
+// siguen diciendo la verdad de lo que fueron.
+//
+// La excepción es lo que nunca llegó a estar en ningún mes pasado: un alimento
+// añadido hoy y quitado hoy no deja historia que proteger, y guardarle una línea
+// de baja sería dejar basura con forma de dato.
+// El escape: lo que se acabó de escribir no era un cambio, era un arreglo.
+//
+// El tramo que está vigente se funde con el que tiene delante, que pasa a decir
+// lo que dice este. Así la corrección alcanza hacia atrás justo hasta donde
+// empezó el dato equivocado, y ni un mes más: los tramos anteriores a ese eran
+// correctos y no se tocan.
+export function corregirHaciaAtras(state, productId, { desde = null } = {}) {
+  const line = lineaDeLaCanasta(state, productId);
+  if (!line) return false;
+  const mes = validMonth(desde) ? desde : mesEnCurso();
+  const vigente = tramoEn(line, mes);
+  const donde = line.tramos.indexOf(vigente);
+  if (!vigente || vigente.fuera || donde < 1) return false;
+  const anterior = line.tramos[donde - 1];
+  if (anterior.fuera) return false;
+  line.tramos[donde - 1] = { ...vigente, desde: anterior.desde ?? null };
+  line.tramos.splice(donde, 1);
   state.habitualBasket.updatedAt = todayISO();
-  return before !== state.habitualBasket.lines.length;
+  return true;
+}
+
+export function removeHabitualLine(state, productId, { desde = null } = {}) {
+  const line = lineaDeLaCanasta(state, productId);
+  if (!line) return false;
+  const mes = validMonth(desde) ? desde : mesEnCurso();
+  const vigente = tramoEn(line, mes);
+  if (!vigente || vigente.fuera) return false;
+
+  escribirTramo(state, productId, { fuera: true, desde: mes });
+  const quedaHistoria = line.tramos.some(tramo => !tramo.fuera);
+  if (!quedaHistoria) state.habitualBasket.lines = state.habitualBasket.lines.filter(row => row.productId !== productId);
+  state.habitualBasket.updatedAt = todayISO();
+  return true;
 }
 
 // Preguntar por un mes no puede abrirlo. Si leer noviembre lo creara, la app
@@ -471,10 +686,12 @@ export function openMonthChanges(state, month) {
 export function effectiveBasket(state, month) {
   const changes = monthChanges(state, month).changes;
   const byProduct = new Map(changes.map(change => [change.productId, change]));
-  // Una línea con fecha de vigencia no existe antes de esa fecha. Es lo que
-  // permite decir «el pollo entra en mi canasta desde noviembre» sin que
-  // octubre, que ya pasó, aparezca comprando pollo.
-  const vigentes = habitualLines(state).filter(line => !line.desde || line.desde <= month);
+  // La canasta tal como era ese mes: cada línea con el tramo que le tocaba, sin
+  // las que todavía no habían entrado ni las que ya se habían dado de baja. Es
+  // lo que permite decir «el pollo entra en mi canasta desde noviembre» sin que
+  // octubre, que ya pasó, aparezca comprando pollo, y «ahora son 120 tazas» sin
+  // que julio diga que también lo eran.
+  const vigentes = habitualLines(state, month);
   const habituales = new Set(vigentes.map(line => line.productId));
   const out = [];
   for (const line of vigentes) {
@@ -496,7 +713,7 @@ export function effectiveBasket(state, month) {
 export function setMonthChange(state, month, productId, fields = {}) {
   if (!product(state, productId)) throw new Error('Selecciona un producto.');
   const override = openMonthChanges(state, month);
-  const habitual = habitualLines(state).find(line => line.productId === productId) || null;
+  const habitual = habitualLines(state, month).find(line => line.productId === productId) || null;
   const previous = override.changes.find(change => change.productId === productId) || null;
   const unit = fields.unit ?? previous?.unit ?? habitual?.unit;
   if (!UNITS.includes(unit)) throw new Error('Elige la unidad del consumo del mes.');
@@ -562,13 +779,13 @@ export function promoteToHabitual(state, month, productIds, desde = null) {
 }
 
 export function monthExtras(state, month) {
-  const habituales = new Set(habitualLines(state).filter(line => !line.desde || line.desde <= month).map(line => line.productId));
+  const habituales = new Set(habitualLines(state, month).map(line => line.productId));
   return monthChanges(state, month).changes.filter(change => !habituales.has(change.productId) && !change.removed);
 }
 
 export function monthBasketSummary(state, month) {
   const basket = effectiveBasket(state, month);
-  const habituales = new Set(habitualLines(state).filter(line => !line.desde || line.desde <= month).map(line => line.productId));
+  const habituales = new Set(habitualLines(state, month).map(line => line.productId));
   return {
     habituales: basket.filter(line => line.source === 'habitual').length,
     cambiados: basket.filter(line => line.source === 'cambio').length,
@@ -1338,6 +1555,16 @@ export const basisLabel = basis => ({ casa: 'mi canasta habitual', menu: 'el men
    lista de «Alimento eliminado». */
 
 export const PERIODOS_DE_CIERRE = ['mes', 'primera', 'segunda', 'fechas'];
+
+// El cierre que cubre una fecha, si lo hay.
+//
+// Un cierre guarda la fotografía de lo que pasó en ese período. Escribir dentro
+// de él después es cambiar el pasado sin que la fotografía se entere, y entonces
+// hay dos versiones del mismo mes y ninguna forma de saber cuál vale. Quien de
+// verdad necesite corregir algo de ahí puede reabrirlo; lo que no puede es
+// cambiarlo sin enterarse de que estaba cerrado.
+export const cierreQueCubre = (state, fecha) =>
+  (validDate(fecha) ? (state.closedPeriods || []).find(cierre => cierre.start <= fecha && fecha <= cierre.end) : null) || null;
 
 export const cierresDe = (state, month) =>
   (state.closedPeriods || []).filter(cierre => cierre.month === month).sort((a, b) => a.start.localeCompare(b.start));

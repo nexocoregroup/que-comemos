@@ -1480,6 +1480,9 @@ document.addEventListener('click', event => {
       // detrás de una pantalla que ya no se ve.
       cerrarLaVoz();
       ui.page = el.dataset.page;
+      // Salir de la canasta se lleva el aviso: volver dentro de un rato y
+      // encontrarse «guardado desde este mes» sería hablar de algo que ya pasó.
+      if (ui.page !== 'canasta') ui.mas.corregibles = [];
       if (el.dataset.month) { ui.mas.canastaMes = el.dataset.month; ui.mas.canastaVista = 'cambios'; }
       if (ui.page === 'mes') abrirMesSiHaceFalta(ctx(), ui.mes.month);
       ui.modal = null; ui.drawerOpen = false;
@@ -1890,7 +1893,15 @@ document.addEventListener('submit', async event => {
         if (campo.dataset.quitado === '1') continue;
         lineas.push({ productId, quantity: campo.value === '' ? null : campo.value, unit: fila.querySelector('.canasta-unidad').value });
       }
+      const antes = new Map(habitualLines(state).map(linea => [linea.productId, `${linea.quantity}|${linea.unit}`]));
       setHabitualBasket(state, lineas);
+      // Lo que cambió y ya tenía historia detrás: para esas líneas, y solo para
+      // esas, tiene sentido preguntar si el dato viejo estaba mal escrito.
+      ui.mas.corregibles = habitualLines(state)
+        .filter(linea => antes.has(linea.productId)
+          && antes.get(linea.productId) !== `${linea.quantity}|${linea.unit}`
+          && linea.tramos.length > 1)
+        .map(linea => linea.productId);
       commit(`Canasta guardada con ${lineas.length} alimento(s).`);
     }
     else if (kind === 'cambio-mes') {

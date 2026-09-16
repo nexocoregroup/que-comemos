@@ -410,6 +410,11 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 .canasta-nombre { font-size: .94rem; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .canasta-cantidad { text-align: right; font-variant-numeric: tabular-nums; }
 .canasta-unidad { min-width: 0; }
+/* La historia de la línea —desde cuándo vale esta cantidad, y la que ya está
+   escrita para más adelante— va debajo y de lado a lado. Es una nota al pie de
+   la fila: no puede robarle sitio a la cantidad, que es lo que se viene a
+   tocar. Solo aparece en las líneas que han tenido más de una cantidad. */
+.canasta-historia { grid-column: 1 / -1; margin: 0; line-height: 1.35; }
 
 /* A 375 px las cuatro columnas dejan el nombre en dos letras. Se parte en dos
    líneas: el nombre arriba y los controles debajo, alineados a la derecha. */

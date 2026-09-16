@@ -12,7 +12,7 @@ import { CATEGORIES } from './catalog-seed.js';
 import {
   FRECUENCIAS, MOMENTOS, UNITS, archiveProduct, cierresDe, etiquetaDeMomento, effectiveBasket, esActiva, findSimilarProducts, frecuenciaDe,
   nombreEnElCierre, ultimaCompra,
-  habitualLines, historialDeFrecuencia, inventoryNow, lastStockReview, monthBasketSummary, monthChanges,
+  corregirHaciaAtras, habitualLines, historialDeFrecuencia, inventoryNow, lastStockReview, monthBasketSummary, monthChanges,
   periodosDelMes, personasActivas, product, productByName, restoreProduct, restriccionesDe,
   reviewAvailability, sliceStyle, syncReviewProducts, todayISO
 } from './model.js';
@@ -93,6 +93,9 @@ export const TITULOS_MAS = {
 export function emptyMas() {
   return {
     canastaVista: 'habitual', canastaMes: hoy.slice(0, 7), filtroAlimento: '', verArchivados: false,
+    // Lo que se acaba de guardar sobre algo que ya venía de antes, para poder
+    // ofrecer una vez el «estaba mal escrito». Se vacía al salir de la pantalla.
+    corregibles: [],
     revisionFiltro: '', revisionSoloFaltan: false, revisionAviso: '',
     // El buscador de preparaciones y qué bloques están abiertos. Empiezan todos
     // abiertos: una casa con seis preparaciones no quiere abrir cinco cajones.
@@ -196,8 +199,9 @@ function vistaHabitual(ctx) {
     if (!porCategoria.has(categoria)) porCategoria.set(categoria, []);
     porCategoria.get(categoria).push({ linea, item });
   }
-  return `<p class="pantalla-intro">Lo que tu casa consume en un mes corriente. Lo que <strong>añadas</strong> aquí empieza a contar desde este mes: los que ya pasaron no cambian.</p>
-    <p class="tiny muted">Corregir la cantidad de algo que ya estaba vale para todos los meses en los que lo has tenido, también los pasados. Para cambiar un mes solo, entra en «Cambios de este mes».</p>
+  return `<p class="pantalla-intro">Lo que tu casa consume en un mes corriente. Lo que <strong>añadas o corrijas</strong> aquí empieza a contar desde este mes: los que ya pasaron se quedan con lo que se compró entonces.</p>
+    <p class="tiny muted">Para cambiar un mes solo, entra en «Cambios de este mes».</p>
+    ${avisoDeCorreccion(ctx)}
     <form data-form="canasta-habitual" class="canasta-form">
       ${[...porCategoria.entries()].sort((a, b) => etiquetaCategoria(a[0]).localeCompare(etiquetaCategoria(b[0]), 'es')).map(([categoria, filas]) => `
         <h3 class="canasta-grupo">${esc(etiquetaCategoria(categoria))}</h3>
@@ -208,6 +212,7 @@ function vistaHabitual(ctx) {
                    name="cantidad-${linea.productId}" value="${linea.quantity ?? ''}" placeholder="—" aria-label="Cantidad al mes de ${esc(item.name)}">
             <select class="canasta-unidad" name="unidad-${linea.productId}" aria-label="Unidad de ${esc(item.name)}">${options(UNITS.map(unidad => [unidad, unidad]), linea.unit)}</select>
             <button type="button" class="btn btn-quiet btn-small" data-action="canasta-quitar" data-id="${linea.productId}" aria-label="Quitar ${esc(item.name)} de la canasta">✕</button>
+            ${historiaDeLaLinea(linea)}
           </div>`).join('')}</div>`).join('')}
       <p class="small muted">Deja una cantidad en blanco si todavía no la sabes: el alimento sigue en la lista y la compra lo avisará.</p>
       <div class="pantalla-acciones">
@@ -216,6 +221,42 @@ function vistaHabitual(ctx) {
         <button type="submit" class="btn btn-primary">Guardar</button>
       </div>
     </form>`;
+}
+
+// Lo que hace falta saber de una línea que ha tenido más de una cantidad. Solo
+// se dice cuando hay algo que decir: poner «desde septiembre» debajo de los
+// treinta alimentos de una casa sería convertir un dato útil en decoración.
+function historiaDeLaLinea(linea) {
+  // `monthName` capitaliza porque casi siempre es un rótulo suelto. Aquí el mes
+  // va dentro de una frase, y en español ahí se escribe en minúscula.
+  const mes = valor => esc(monthName(valor).toLocaleLowerCase('es'));
+  const trozos = [];
+  if (linea.vigenteDesde && linea.tramos.length > 1) trozos.push(`desde ${mes(linea.vigenteDesde)}`);
+  if (linea.proximo) {
+    trozos.push(linea.proximo.fuera
+      ? `se quita en ${mes(linea.proximo.desde)}`
+      : `${esc(measure(linea.proximo.quantity, linea.proximo.unit))} desde ${mes(linea.proximo.desde)}`);
+  }
+  return trozos.length ? `<p class="canasta-historia tiny muted">${trozos.join(' · ')}</p>` : '';
+}
+
+// El escape, y solo cuando puede hacer falta: justo después de guardar un
+// cambio sobre algo que ya venía de antes.
+//
+// Las dos intenciones se parecen y no son la misma. «Ahora comemos más arroz»
+// vale desde este mes, que es lo que la app hace sola. «Lo escribí mal» tiene
+// que alcanzar hacia atrás. Preguntarlo siempre sería un toque de más en la
+// tarea más repetida de la pantalla; no ofrecerlo nunca dejaría un dato malo
+// enterrado para siempre. Se ofrece una vez, cuando acaba de pasar.
+function avisoDeCorreccion(ctx) {
+  const { state, ui } = ctx;
+  const ids = (ui.mas.corregibles || []).filter(id => product(state, id));
+  if (!ids.length) return '';
+  const nombres = ids.map(id => product(state, id).name).join(', ');
+  return notice('Guardado desde este mes',
+    `${esc(nombres)}: los meses que ya pasaron se quedan con la cantidad que tenían.
+     ${ids.length === 1 ? '¿Estaba mal escrita?' : '¿Estaban mal escritas?'}
+     <button type="button" class="enlace" data-action="canasta-corregir-atras">Corregir también los meses anteriores</button>`);
 }
 
 const etiquetaCategoria = id => CATEGORIES.find(cat => cat.id === id)?.label || 'Otros';
@@ -1055,7 +1096,13 @@ export const MAS_ACTIONS = {
   // asistente, la configuración inicial y la entrada rápida. Cuando la persona
   // toca «Usar este texto», app.js llama a `aplicarDictado` con lo dictado.
   'legal-ver': (el, ctx) => { ctx.ui.mas.documento = el.dataset.doc; ctx.render(); },
-  'canasta-vista': (el, ctx) => { ctx.ui.mas.canastaVista = el.dataset.vista; ctx.render(); },
+  'canasta-vista': (el, ctx) => { ctx.ui.mas.canastaVista = el.dataset.vista; ctx.ui.mas.corregibles = []; ctx.render(); },
+  'canasta-corregir-atras': (el, ctx) => {
+    const ids = ctx.ui.mas.corregibles || [];
+    const hechas = ids.filter(id => corregirHaciaAtras(ctx.state, id)).length;
+    ctx.ui.mas.corregibles = [];
+    ctx.commit(hechas ? `Corregido también en los meses anteriores: ${hechas} alimento(s).` : 'No había nada que corregir hacia atrás.');
+  },
   'canasta-mes': (el, ctx) => { ctx.ui.mas.canastaMes = shiftMonth(ctx.ui.mas.canastaMes, Number(el.dataset.delta)); ctx.render(); },
   'alimentos-archivados': (el, ctx) => { ctx.ui.mas.verArchivados = !ctx.ui.mas.verArchivados; ctx.render(); },
   'canasta-nuevo-cambio': (el, ctx) => ctx.openModal('cambio-mes', { month: el.dataset.month || ctx.ui.mas.canastaMes }),

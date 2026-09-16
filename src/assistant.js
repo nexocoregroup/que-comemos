@@ -26,7 +26,7 @@
 // fechas a la vista. Nunca enseñando el JSON.
 
 import {
-  BASES, MOTIVOS_DE_RESTRICCION, PRIORITIES, SLOTS, SLOTS_PRINCIPALES, UNITS, addProduct, addPurchase, archiveProduct, basisLabel,
+  BASES, MOTIVOS_DE_RESTRICCION, PRIORITIES, SLOTS, SLOTS_PRINCIPALES, UNITS, addProduct, addPurchase, archiveProduct, basisLabel, cierreQueCubre, cierresDe,
   copyPlan, correctStock, createReview, deletePlan, deleteRecipe, duplicateRecipe, effectiveBasket,
   etiquetaDeMomento, findSimilarProducts, generateMonth, habitualLines, inventoryNow, linkPendingRestrictions, makeRecipePlan, mergeProducts,
   monthBasketSummary, monthChanges, movePlan, planFor, product, productByName, promoteToHabitual,
@@ -39,8 +39,18 @@ import {
   describeRule, detachPlanFromRoutine, monthProgress, openMonth, routinesFor
 } from './routines.js';
 import { normalizeName } from './nombres.js';
+import { unitText } from './ui-kit.js';
 
 const fmt = value => new Intl.NumberFormat('es-DO', { maximumFractionDigits: 3 }).format(Number(value || 0));
+
+// «8 unidades», no «8 unidad». La pantalla de confirmación es lo único que
+// alguien lee antes de decir que sí, y una concordancia mal hecha ahí hace dudar
+// de todo lo demás que dice. El plural sale de ui-kit, que es donde vive la
+// tabla, para no acabar con dos listas de plurales que se separan.
+//
+// No se usa `measure` de ui-kit porque esa escapa, y lo que sale de aquí lo
+// escapa después el panel: escapado dos veces, «Plátano» se lee «Pl&amp;aacute;tano».
+const medida = (cantidad, unidad) => `${fmt(cantidad)} ${unitText(unidad, Number(cantidad))}`;
 const mesActual = () => todayISO().slice(0, 7);
 const mesTexto = mes => new Intl.DateTimeFormat('es-DO', { month: 'long', year: 'numeric' }).format(new Date(`${mes}-01T12:00:00`));
 const fechaTexto = fecha => new Intl.DateTimeFormat('es-DO', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(`${fecha}T12:00:00`));
@@ -168,16 +178,29 @@ const masAmplio = (a, b) => (ORDEN_ALCANCE[b.tipo] > ORDEN_ALCANCE[a.tipo] ? b :
 
 /* ── La tabla de acciones ──────────────────────────────────────────────── */
 //
-// `kind`:     'consulta'  → no cambia nada, no pide confirmación, no necesita deshacer
-//             'cambio'    → reversible; se ejecuta y se ofrece deshacer
-//             'sensible'  → toca el inventario, borra o reescribe algo; confirma antes
+// `kind`:     'consulta'  → no cambia nada: contesta y ya, sin confirmar ni deshacer
+//             'cambio'    → cambia datos y se puede deshacer
+//             'sensible'  → cambia datos, toca el inventario o borra; deshacer ayuda poco
 //
-// `alcance`   dice hasta dónde llega el cambio. Lo amplio confirma siempre.
+//             Las dos últimas se confirman antes de tocar nada, sin excepción.
+//             La diferencia entre ellas es lo que pasa después: de un 'cambio'
+//             se sale con deshacer, y de lo 'sensible' casi nunca.
+//
+// `alcance`   dice hasta dónde llega el cambio. Se enseña antes de confirmar,
+//             porque «todos los viernes» no dice si son cuatro días o cuarenta.
 // `revisa`    devuelve un motivo para no ejecutar, antes de llegar a `run`.
-// `confirmaSi` obliga a confirmar aunque el alcance sea corto (registrar un
-//             alimento nuevo, pisar una comida que ya estaba puesta).
 // `describe`  es lo que ve el usuario antes de confirmar. En español, con las
 //             cantidades, los nombres y las fechas reales, nunca el JSON.
+
+// Una fila de alimento como la escribe quien habla, dicha en español para la
+// pantalla de confirmación. La cantidad puede faltar —«échale salami» no dice
+// cuánto— y entonces se nombra a secas, que es más honrado que inventar un uno.
+const dichoDelAlimento = row => {
+  const nombre = row.producto ?? row.productId ?? row.nombre ?? 'algo';
+  const cantidad = row.cantidad ?? row.quantity;
+  const unidad = row.unidad ?? row.unit;
+  return cantidad && unidad ? `${medida(cantidad, unidad)} de ${nombre}` : String(nombre);
+};
 
 export const ACTIONS = {
   /* Productos */
@@ -261,11 +284,7 @@ export const ACTIONS = {
     args: { producto: { type: 'alimento' }, cantidad: { type: 'numero' }, unidad: { type: 'unidad' }, prioridad: { type: 'prioridad', required: false } },
     alcance: () => deSiempre(),
     revisa: a => (a.cantidad > 0 ? null : 'Para la canasta habitual hace falta una cantidad mayor que cero.'),
-    // Registrar un alimento que no existía es un efecto de más: se enseña y se
-    // confirma, para que nadie descubra un «cangrejo» en su catálogo sin saber
-    // de dónde salió.
-    confirmaSi: a => Boolean(a.producto.nuevo),
-    describe: a => `${a.producto.nuevo ? `Registrar «${a.producto.name}» como alimento nuevo y p` : 'P'}oner ${fmt(a.cantidad)} ${a.unidad} de ${a.producto.name} al mes en mi canasta habitual. Desde ahora, todos los meses.`,
+    describe: a => `${a.producto.nuevo ? `Registrar «${a.producto.name}» como alimento nuevo y p` : 'P'}oner ${medida(a.cantidad, a.unidad)} de ${a.producto.name} al mes en mi canasta habitual. Desde ahora, todos los meses.`,
     run: (state, a) => setHabitualLine(state, idDelAlimento(state, a.producto, a.unidad), a.cantidad, a.unidad, a.prioridad)
   },
   quitar_de_habitual: {
@@ -306,8 +325,7 @@ export const ACTIONS = {
     args: { mes: { type: 'mes', required: false }, producto: { type: 'alimento' }, cantidad: { type: 'numero' }, unidad: { type: 'unidad', required: false } },
     alcance: a => deUnMes(a.mes || mesActual()),
     revisa: (a, state) => (a.producto.nuevo && !a.unidad ? `Dime en qué se cuenta «${a.producto.name}»: ${UNITS.join(', ')}.` : null),
-    confirmaSi: a => Boolean(a.producto.nuevo),
-    describe: a => `${a.producto.nuevo ? `Registrar «${a.producto.name}» como alimento nuevo y p` : 'P'}oner ${fmt(a.cantidad)} ${a.unidad || ''} de ${a.producto.name} solo en ${mesTexto(a.mes || mesActual())}. Mi canasta habitual no cambia.`.replace(/\s+/g, ' '),
+    describe: a => `${a.producto.nuevo ? `Registrar «${a.producto.name}» como alimento nuevo y p` : 'P'}oner ${medida(a.cantidad, a.unidad)} de ${a.producto.name} solo en ${mesTexto(a.mes || mesActual())}. Mi canasta habitual no cambia.`.replace(/\s+/g, ' '),
     run: (state, a) => setMonthChange(state, a.mes || mesActual(), idDelAlimento(state, a.producto, a.unidad), {
       quantity: a.cantidad, ...(a.unidad ? { unit: a.unidad } : {})
     })
@@ -488,7 +506,7 @@ export const ACTIONS = {
   },
   cantidad_habitual: {
     kind: 'cambio', args: { persona: { type: 'persona' }, producto: { type: 'producto' }, cantidad: { type: 'numero' }, unidad: { type: 'unidad' } },
-    describe: a => `${a.persona.name} come normalmente ${fmt(a.cantidad)} ${a.unidad} de ${a.producto.name}.`,
+    describe: a => `${a.persona.name} come normalmente ${medida(a.cantidad, a.unidad)} de ${a.producto.name}.`,
     run: (state, a) => {
       const person = state.people.find(item => item.id === a.persona.id);
       const habitual = (person.habitual || []).filter(row => row.productId !== a.producto.id);
@@ -508,6 +526,34 @@ export const ACTIONS = {
         return { productId: found.value.id, quantity: row.cantidad ?? row.quantity, unit: row.unidad ?? row.unit };
       });
       return { id: upsertRecipe(state, { name: a.nombre, uses: a.comidas, items }).id };
+    }
+  },
+  // Añadirle algo a una preparación que ya está escrita.
+  //
+  // `upsertRecipe` reemplaza la lista de alimentos entera, así que aquí se lee
+  // lo que había y se le suma lo nuevo. Quien dice «al mangú échale salami» no
+  // está diciendo que el mangú sea solo salami, y guardarlo así se llevaría por
+  // delante el plátano y el queso sin que nadie lo notara hasta la cena.
+  agregar_a_preparacion: {
+    kind: 'cambio',
+    args: { preparacion: { type: 'preparacion' }, alimentos: { type: 'lista' } },
+    revisa: a => (a.alimentos.length ? null : 'Dime qué alimentos le añado.'),
+    describe: a => `Añadir a «${a.preparacion.name}»: ${a.alimentos.map(dichoDelAlimento).join(', ')}.`,
+    run: (state, a) => {
+      const nuevos = a.alimentos.map(row => {
+        const found = resolveEntity(state.products, row.producto ?? row.productId ?? row.nombre, 'un alimento');
+        if (!found.ok) throw new Error(found.error);
+        return { productId: found.value.id, quantity: row.cantidad ?? row.quantity ?? null, unit: row.unidad ?? row.unit };
+      });
+      const items = (a.preparacion.items || []).map(item => ({ ...item }));
+      for (const nuevo of nuevos) {
+        // Un alimento que ya estaba no se duplica: se le corrige la cantidad,
+        // que es lo que quiere decir «ponle dos huevos» cuando ya había uno.
+        const igual = items.find(item => item.productId === nuevo.productId && item.unit === nuevo.unit);
+        if (igual) igual.quantity = nuevo.quantity;
+        else items.push(nuevo);
+      }
+      return { id: upsertRecipe(state, { ...a.preparacion, items }).id, alimentos: items.length };
     }
   },
   duplicar_preparacion: {
@@ -546,7 +592,6 @@ export const ACTIONS = {
     kind: 'cambio',
     args: { fecha: { type: 'fecha' }, comida: { type: 'comida' }, preparacion: { type: 'preparacion', required: false }, estado: { type: 'texto', required: false } },
     alcance: a => deUnDia(a.fecha),
-    confirmaSi: (a, state) => Boolean(planFor(state, a.fecha, a.comida)),
     describe: (a, state) => {
       const habia = planFor(state, a.fecha, a.comida);
       const antes = habia ? ` En vez de ${habia.title ? `«${habia.title}»` : ESTADO_DICHO[habia.kind] || 'lo que hay'}.` : '';
@@ -647,7 +692,7 @@ export const ACTIONS = {
     alcance: a => deUnDia(a.fecha || todayISO()),
     describe: (a, state) => `Registrar una compra de ${a.lineas.map(row => {
       const found = resolveEntity(state.products, row.producto ?? row.productId ?? row.nombre, 'un alimento');
-      return `${fmt(row.cantidad ?? row.quantity)} ${row.unidad ?? row.unit ?? ''} de ${found.ok ? found.value.name : row.producto}`;
+      return `${medida(row.cantidad ?? row.quantity, row.unidad ?? row.unit)} de ${found.ok ? found.value.name : row.producto}`;
     }).join(', ')}. Esto aumentará tus existencias.`,
     run: (state, a) => {
       const lines = a.lineas.map(row => {
@@ -680,7 +725,7 @@ export const ACTIONS = {
     alcance: () => deUnDia(todayISO()),
     describe: (a, state) => {
       const stock = inventoryNow(state)[a.producto.id] || 0;
-      return `Anotar que quedan ${fmt(a.queda)} ${a.producto.controlUnit} de ${a.producto.name}. La app tiene contadas ${fmt(stock)}, así que registrará un consumo de ${fmt(Math.max(0, stock - a.queda))}. Esto baja tus existencias.`;
+      return `Anotar que quedan ${medida(a.queda, a.producto.controlUnit)} de ${a.producto.name}. La app tiene contadas ${fmt(stock)}, así que registrará un consumo de ${fmt(Math.max(0, stock - a.queda))}. Esto baja tus existencias.`;
     },
     run: (state, a) => {
       const review = a.revision
@@ -710,7 +755,7 @@ export const ACTIONS = {
     describe: (a, state) => {
       const stock = inventoryNow(state)[a.producto.id] || 0;
       const delta = a.cantidad - stock;
-      return `Corregir ${a.producto.name}: de ${fmt(stock)} a ${fmt(a.cantidad)} ${a.producto.controlUnit} (${delta >= 0 ? '+' : ''}${fmt(delta)}).`;
+      return `Corregir ${a.producto.name}: de ${fmt(stock)} a ${medida(a.cantidad, a.producto.controlUnit)} (${delta >= 0 ? '+' : ''}${fmt(delta)}).`;
     },
     run: (state, a) => ({ id: correctStock(state, a.producto.id, a.cantidad, a.motivo).id })
   }
@@ -793,20 +838,40 @@ export function scopeOf(state, name, args = {}) {
   return check.ok ? check.alcance : SIN_ALCANCE;
 }
 
-// Lo amplio se confirma: más de un día tocado, o cualquier cosa que valga desde
-// ahora y para siempre. Lo demás se hace y se ofrece deshacer.
+/* ── Qué se confirma ───────────────────────────────────────────────────────
+
+   Todo lo que cambia datos. No hay cambio pequeño.
+
+   Antes se confirmaba solo lo amplio —más de un día tocado, o algo que valiera
+   para siempre— y el resto se hacía enseñando un «deshacer». Con el teclado
+   delante eso casi funciona, porque quien escribe ve lo que escribió. Dictando
+   no: entre lo que alguien dice y lo que la app entendió hay un paso que nadie
+   ve, y «lo entendió mal» se descubre siempre después de que ya pasó. Deshacer
+   sirve para arrepentirse; no sirve para enterarse.
+
+   Una consulta no cambia nada, así que no se confirma: preguntar qué se come
+   mañana y que la app pida permiso para contestar sería absurdo. */
+
 export function needsConfirmation(state, name, args = {}) {
   const check = validateAction(state, name, args);
   if (!check.ok) return false;
-  const spec = ACTIONS[name];
-  if (spec.kind === 'sensible') return true;
-  if (spec.confirmaSi?.(check.args, state)) return true;
-  return check.alcance.tipo === 'permanente' || check.alcance.fechas.length > 1;
+  return check.kind !== 'consulta';
 }
 
 /* ── Ejecución ─────────────────────────────────────────────────────────── */
 
-const TOCAN_EXISTENCIAS = ['registrar_compra', 'registrar_restante', 'confirmar_revision', 'corregir_existencias'];
+// El cierre que impide hacer algo, según hasta dónde llegue. Un alcance de días
+// sueltos choca si alguno cae dentro; uno de mes entero, si el mes tiene algún
+// cierre, porque «cambiar octubre» toca también la quincena cerrada de octubre.
+function cierreQueEstorba(state, alcance) {
+  if (!alcance || alcance.tipo === 'ninguno' || alcance.tipo === 'permanente') return null;
+  for (const fecha of alcance.fechas || []) {
+    const cierre = cierreQueCubre(state, fecha);
+    if (cierre) return cierre;
+  }
+  if (alcance.tipo === 'mes' && alcance.mes && !(alcance.fechas || []).length) return cierresDe(state, alcance.mes)[0] || null;
+  return null;
+}
 
 // Un grupo de acciones entra entero o no entra. Y si ya se ejecutó una petición
 // con el mismo identificador, no se repite: mandar dos veces «registra que
@@ -829,19 +894,40 @@ export function runActions(state, requests, { requestId = null, confirmed = fals
     };
   }
 
+  /* ── Lo que ya está cerrado no se toca ────────────────────────────────
+
+     Cerrar un período guarda la fotografía de lo que pasó: la canasta de
+     entonces, las compras, la existencia declarada y la lista final. Escribir
+     dentro de él después deja dos versiones del mismo mes y ninguna forma de
+     saber cuál vale.
+
+     Se mira el alcance, que ya sabe qué días toca cada acción, así que vale
+     para las veintitantas que llevan fecha sin tener que acordarse de ninguna.
+     Lo permanente no entra: desde que la canasta guarda tramos, un cambio para
+     siempre empieza en el mes en curso y no alcanza hacia atrás. Y consultar no
+     es tocar: un período cerrado se lee, que es justo para lo que se guardó. */
+
+  const chocan = checks
+    .filter(row => row.check.kind !== 'consulta')
+    .map(row => ({ row, cierre: cierreQueEstorba(state, row.check.alcance) }))
+    .filter(item => item.cierre);
+  if (chocan.length) {
+    const cierre = chocan[0].cierre;
+    return {
+      ok: false,
+      errors: [`Del ${fechaTexto(cierre.start)} al ${fechaTexto(cierre.end)} ya está cerrado, así que eso no se puede cambiar desde aquí. Lo que pasó en ese período se lee tal como quedó. Si de verdad hay que corregirlo, ábrelo otra vez en Más → Historial.`],
+      alcance: SIN_ALCANCE,
+      summary: 'Ese período ya está cerrado.'
+    };
+  }
+
   // El alcance del grupo es el más amplio de los suyos: si una sola acción vale
   // para siempre, el grupo entero vale para siempre.
   const alcance = checks.reduce((mayor, row) => masAmplio(mayor, row.check.alcance), SIN_ALCANCE);
-  const sensitive = checks.filter(row => row.check.kind === 'sensible');
-  const aparte = checks.filter(row => ACTIONS[row.request.action].confirmaSi?.(row.check.args, state));
-  // Varias acciones que tocan el inventario a la vez se confirman aunque cada
-  // una por separado fuera menor: el riesgo está en el conjunto.
-  const touchesStock = checks.filter(row => TOCAN_EXISTENCIAS.includes(row.request.action));
-  const amplio = alcance.tipo === 'permanente' || alcance.fechas.length > 1;
-  if (!confirmed && (sensitive.length || aparte.length || touchesStock.length > 1 || amplio)) {
-    const preview = checks.map(row => ACTIONS[row.request.action].describe(row.check.args, state));
-    return { ok: false, needsConfirmation: true, preview, alcance, summary: preview.join(' ') };
-  }
+  // Cada acción del grupo se enseña por separado, aunque vengan de una sola
+  // frase: «pon mangú el lunes y anota que compré arroz» son dos cosas y hay que
+  // poder ver las dos antes de decir que sí.
+  const cambia = checks.some(row => row.check.kind !== 'consulta');
 
   const before = snapshot(state);
   let results;
@@ -863,6 +949,25 @@ export function runActions(state, requests, { requestId = null, confirmed = fals
   if (pregunta) {
     restore(state, before);
     return { ok: false, question: pregunta.result.pregunta, campo: pregunta.result.campo || null, options: pregunta.result.opciones, alcance, summary: pregunta.result.pregunta };
+  }
+
+  /* ── El ensayo ──────────────────────────────────────────────────────────
+
+     Hasta aquí las acciones ya se ejecutaron, pero sobre un estado del que hay
+     copia. Si todavía no hay confirmación se deshace y se enseña lo que habría
+     pasado.
+
+     El orden importa y costó llegar a él. Preguntar va antes de confirmar:
+     «¿cuál de estos tres platos?» o «ya tienes algo parecido» son cosas que solo
+     se descubren intentándolo, y descubrirlas después de que alguien diga «sí»
+     convierte una confirmación en un trámite que no significa nada. Y enseñar
+     va después de intentar, porque así lo que se enseña es lo que de verdad va
+     a ocurrir, no lo que se supone. */
+
+  if (!confirmed && cambia) {
+    restore(state, before);
+    const preview = checks.map(row => ACTIONS[row.request.action].describe(row.check.args, before));
+    return { ok: false, needsConfirmation: true, preview, alcance, summary: preview.join(' ') };
   }
 
   if (changed) {

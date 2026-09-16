@@ -5,149 +5,25 @@
 //
 // Después de cambiar el isotipo:  npm run brand
 //
-// Lleva dentro un lector y un escritor de PNG porque el proyecto no tiene
-// dependencias y no hacía falta añadir ninguna: un PNG de color verdadero son
-// líneas de píxeles comprimidas con zlib y cinco filtros posibles.
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { deflateSync, inflateSync } from 'node:zlib';
-import { dirname, join, resolve } from 'node:path';
+// El lector y el escritor de PNG están en `png.js`, que es de donde los toma
+// también el generador del gráfico de la tienda.
+import { join, resolve } from 'node:path';
+import { bordes, readPNG, resample, writePNG } from './png.js';
 
 const PROJECT = resolve(import.meta.dirname, '..');
 const CREAM = [0xfb, 0xf7, 0xf1];
-const SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-const CHANNELS = { 0: 1, 2: 3, 4: 2, 6: 4 };
-
-const crcTable = Array.from({ length: 256 }, (_, n) => {
-  let c = n;
-  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-  return c >>> 0;
-});
-function crc32(buffer) {
-  let c = 0xffffffff;
-  for (const byte of buffer) c = crcTable[(c ^ byte) & 0xff] ^ (c >>> 8);
-  return (c ^ 0xffffffff) >>> 0;
-}
-
-function readPNG(path) {
-  const file = readFileSync(path);
-  if (!file.subarray(0, 8).equals(SIGNATURE)) throw new Error(`${path} no es un PNG.`);
-  let offset = 8, header = null;
-  const data = [];
-  while (offset < file.length) {
-    const length = file.readUInt32BE(offset);
-    const type = file.toString('ascii', offset + 4, offset + 8);
-    const body = file.subarray(offset + 8, offset + 8 + length);
-    if (type === 'IHDR') header = { width: body.readUInt32BE(0), height: body.readUInt32BE(4), depth: body[8], colorType: body[9], interlace: body[12] };
-    if (type === 'IDAT') data.push(body);
-    offset += 12 + length;
-  }
-  if (header.depth !== 8) throw new Error(`Profundidad de ${header.depth} bits no soportada.`);
-  if (header.interlace) throw new Error('PNG entrelazado no soportado.');
-  const channels = CHANNELS[header.colorType];
-  const raw = inflateSync(Buffer.concat(data));
-  const stride = header.width * channels;
-  const pixels = Buffer.alloc(header.height * stride);
-  // Cada línea empieza con su tipo de filtro y se reconstruye a partir del
-  // píxel anterior (a), el de arriba (b) y el de arriba a la izquierda (c).
-  for (let y = 0; y < header.height; y++) {
-    const filter = raw[y * (stride + 1)];
-    const line = raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1));
-    for (let x = 0; x < stride; x++) {
-      const a = x >= channels ? pixels[y * stride + x - channels] : 0;
-      const b = y > 0 ? pixels[(y - 1) * stride + x] : 0;
-      const c = x >= channels && y > 0 ? pixels[(y - 1) * stride + x - channels] : 0;
-      let value = line[x];
-      if (filter === 1) value += a;
-      else if (filter === 2) value += b;
-      else if (filter === 3) value += (a + b) >> 1;
-      else if (filter === 4) {
-        const p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
-        value += pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
-      }
-      pixels[y * stride + x] = value & 0xff;
-    }
-  }
-  // Todo se normaliza a RGBA para no repetir casos más adelante.
-  const rgba = Buffer.alloc(header.width * header.height * 4);
-  for (let i = 0; i < header.width * header.height; i++) {
-    const s = i * channels, d = i * 4;
-    if (channels === 4) { rgba[d] = pixels[s]; rgba[d + 1] = pixels[s + 1]; rgba[d + 2] = pixels[s + 2]; rgba[d + 3] = pixels[s + 3]; }
-    else if (channels === 3) { rgba[d] = pixels[s]; rgba[d + 1] = pixels[s + 1]; rgba[d + 2] = pixels[s + 2]; rgba[d + 3] = 255; }
-    else if (channels === 2) { rgba[d] = rgba[d + 1] = rgba[d + 2] = pixels[s]; rgba[d + 3] = pixels[s + 1]; }
-    else { rgba[d] = rgba[d + 1] = rgba[d + 2] = pixels[s]; rgba[d + 3] = 255; }
-  }
-  return { width: header.width, height: header.height, rgba };
-}
-
-function writePNG(path, { width, height, rgba }) {
-  const stride = width * 4;
-  const raw = Buffer.alloc(height * (stride + 1));
-  for (let y = 0; y < height; y++) {
-    raw[y * (stride + 1)] = 0;
-    rgba.copy(raw, y * (stride + 1) + 1, y * stride, (y + 1) * stride);
-  }
-  const chunk = (type, body) => {
-    const head = Buffer.alloc(8);
-    head.writeUInt32BE(body.length, 0);
-    head.write(type, 4, 'ascii');
-    const tail = Buffer.alloc(4);
-    tail.writeUInt32BE(crc32(Buffer.concat([head.subarray(4), body])), 0);
-    return Buffer.concat([head, body, tail]);
-  };
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(width, 0);
-  ihdr.writeUInt32BE(height, 4);
-  ihdr[8] = 8; ihdr[9] = 6;
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, Buffer.concat([SIGNATURE, chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0))]));
-}
-
-// Escalado por caja con alfa premultiplicado. Sin premultiplicar, los píxeles
-// transparentes del borde aportan su color al promedio y dejan una orla.
-function resample(src, sw, sh, dw, dh) {
-  const out = Buffer.alloc(dw * dh * 4);
-  const xr = sw / dw, yr = sh / dh;
-  for (let dy = 0; dy < dh; dy++) {
-    const y0 = Math.floor(dy * yr), y1 = Math.min(sh, Math.max(y0 + 1, Math.ceil((dy + 1) * yr)));
-    for (let dx = 0; dx < dw; dx++) {
-      const x0 = Math.floor(dx * xr), x1 = Math.min(sw, Math.max(x0 + 1, Math.ceil((dx + 1) * xr)));
-      let r = 0, g = 0, b = 0, a = 0, n = 0;
-      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
-        const i = (y * sw + x) * 4, alpha = src[i + 3] / 255;
-        r += src[i] * alpha; g += src[i + 1] * alpha; b += src[i + 2] * alpha; a += src[i + 3]; n++;
-      }
-      const d = (dy * dw + dx) * 4, mean = a / n;
-      out[d + 3] = Math.round(mean);
-      if (mean > 0.5) {
-        const k = 255 / mean;
-        out[d] = Math.min(255, Math.round(r / n * k));
-        out[d + 1] = Math.min(255, Math.round(g / n * k));
-        out[d + 2] = Math.min(255, Math.round(b / n * k));
-      }
-    }
-  }
-  return out;
-}
 
 // --- el isotipo, recortado a su contenido y centrado en un lienzo cuadrado ---
 const source = readPNG(join(PROJECT, 'identidad visual', 'isotipo.png'));
-let minX = source.width, minY = source.height, maxX = -1, maxY = -1;
-for (let y = 0; y < source.height; y++) for (let x = 0; x < source.width; x++) {
-  if (source.rgba[(y * source.width + x) * 4 + 3] > 8) {
-    if (x < minX) minX = x;
-    if (x > maxX) maxX = x;
-    if (y < minY) minY = y;
-    if (y > maxY) maxY = y;
-  }
-}
-const cw = maxX - minX + 1, ch = maxY - minY + 1;
+const caja = bordes(source);
 // Cuadrado, no estirado: el isotipo es más alto que ancho por el punto de abajo.
-const side = Math.max(cw, ch), padX = Math.round((side - cw) / 2), padY = Math.round((side - ch) / 2);
+const side = Math.max(caja.width, caja.height);
+const padX = Math.round((side - caja.width) / 2), padY = Math.round((side - caja.height) / 2);
 const mark = Buffer.alloc(side * side * 4);
-for (let y = 0; y < ch; y++) {
-  source.rgba.copy(mark, ((y + padY) * side + padX) * 4, ((y + minY) * source.width + minX) * 4, ((y + minY) * source.width + maxX + 1) * 4);
+for (let y = 0; y < caja.height; y++) {
+  source.rgba.copy(mark, ((y + padY) * side + padX) * 4, ((y + caja.minY) * source.width + caja.minX) * 4, ((y + caja.minY) * source.width + caja.maxX + 1) * 4);
 }
-console.log(`isotipo: recorte de ${cw}×${ch} centrado en un lienzo de ${side}×${side}`);
+console.log(`isotipo: recorte de ${caja.width}×${caja.height} centrado en un lienzo de ${side}×${side}`);
 
 function compose(size, fraction, background, shape = 'none') {
   const inner = Math.round(size * fraction);

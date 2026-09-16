@@ -66,7 +66,16 @@ Editar dentro de *Mi canasta habitual* es permanente. Editar dentro de un mes va
 
 **Por dentro, un mes guarda diferencias, no una copia.** En la versión anterior cada mes guardaba su lista completa, y eso tenía dos consecuencias malas: abrir un mes escribía datos sin que nadie lo pidiera, y un extra de octubre podía acabar pareciendo parte del hábito. Ahora abrir un mes no escribe ninguna canasta, y un producto añadido solo para octubre **no** vuelve a aparecer en noviembre. Su identidad sí se conserva, porque puede estar atada a compras, revisiones e inventario: para el usuario aparece como **«extra de octubre»**, no como una entrada de un catálogo global.
 
-Pasar un cambio a habitual es siempre **explícito y por alimento**. Es lo que separa «este mes compré más pollo» de «en esta casa ahora se come más pollo». Los meses ya cerrados no cambian retroactivamente.
+Pasar un cambio a habitual es siempre **explícito y por alimento**. Es lo que separa «este mes compré más pollo» de «en esta casa ahora se come más pollo».
+
+**Cada línea de la canasta guarda su historia, no una cantidad.** «Noventa tazas de arroz desde julio, ciento veinte desde septiembre» son dos tramos de la misma línea, y cada mes lee el que le tocaba. Antes había una sola cantidad: corregirla hoy cambiaba también lo que la app decía de julio, y julio ya se compró. Con eso, la pantalla que existe para acordarte de lo que hiciste distinto —«Y en la compra cambia esto»— era precisamente la que no podía verlo, porque al recalcular el mes anterior con la cantidad de hoy los dos meses salían iguales.
+
+En la práctica:
+
+- Corregir una cantidad **vale desde el mes en curso**. Los meses que ya pasaron se quedan con lo que se compró entonces.
+- Si lo que pasó es que estaba **mal escrito**, la app lo ofrece justo después de guardar: «corregir también los meses anteriores». Alcanza hasta donde empezó el dato equivocado, y ni un mes más.
+- Se puede fechar hacia adelante: «desde noviembre son 120». Este mes no cambia, y la canasta lo enseña como lo que viene.
+- **Quitar algo también lleva fecha.** Dejar de comprar pollo desde hoy no borra los meses en que sí se compró.
 
 ## Rutinas: la idea central
 
@@ -153,9 +162,13 @@ Planificar comidas no descuenta nada. La lista sugerida no cambia nada. Abrir un
 
 Es una comodidad, no un requisito: todo lo que hace se puede hacer a mano desde las pantallas. Entiende frases como «pon tortillas con jamón y queso todos los lunes, miércoles y viernes de desayuno», «este mes no comeremos en casa ningún domingo» o «quedan dos plátanos, diez huevos y media libra de queso».
 
-Antes de ejecutar **siempre** enseña lo que entendió, dice si el cambio es de una fecha, del mes o permanente, y muestra las fechas afectadas. Pide confirmación cuando el alcance es amplio, ejecuta solo acciones de una lista blanca, y ofrece **Deshacer**.
+Antes de tocar nada muestra una pantalla que dice **«Entendí lo siguiente»**: cada acción por separado, con sus cantidades, nombres y fechas reales, y una línea que dice hasta dónde llega —un día, un mes, o desde ahora y todos los meses— con los días concretos que toca. De ahí salen tres caminos: **Confirmar**, **Corregir** —que devuelve la frase al campo para arreglarle lo que esté mal, sin volver a dictarla entera— y **Cancelar**.
 
-Lo que no hace nunca: ejecutar código, escribir directamente en el almacenamiento, inventar alimentos o cantidades, cambiar rutinas permanentes en silencio, confundir «este mes» con «todos los meses», ni pisar comidas existentes sin confirmar.
+Se confirma **todo lo que cambia datos**, sin excepción. Antes se confirmaba solo lo amplio y el resto se hacía enseñando un «deshacer». Con el teclado delante eso casi funciona, porque quien escribe ve lo que escribió; dictando no, porque entre lo que alguien dice y lo que la app entendió hay un paso que nadie ve. Deshacer sirve para arrepentirse, no para enterarse. Consultar no cambia nada y por eso no se confirma.
+
+Lo que la frase no dijo se pregunta, y solo eso: «todos los viernes» no elige por su cuenta entre cuatro días y para siempre. Lo que la frase sí dijo no se vuelve a preguntar. Y las dudas que solo se descubren intentándolo —«ya tienes algo parecido», «no hay preparaciones de cena»— salen **antes** de la confirmación, porque descubrirlas después de que alguien diga que sí convierte la confirmación en un trámite que no significa nada.
+
+Lo que no hace nunca: ejecutar código, escribir directamente en el almacenamiento, inventar alimentos o cantidades, cambiar rutinas permanentes en silencio, confundir «este mes» con «todos los meses», pisar comidas existentes sin confirmar, ni **tocar un período ya cerrado** —eso se lee tal como quedó; para corregirlo hay que reabrirlo a mano desde Más → Historial—.
 
 ## Dictar: lo hace el teléfono
 

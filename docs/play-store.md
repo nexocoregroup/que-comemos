@@ -385,39 +385,24 @@ NexoCore, República Dominicana.
 |---|---|---|
 | **Ícono 512×512** | `src/icon-512.png` | **Listo.** Ya mide exactamente 512×512, con el fondo crema de la marca. Se sube tal cual. |
 | Íconos de la app instalada | `android/app/src/main/res/mipmap-*/` y `drawable-*/` | Listos, los genera `npm run brand`. No se suben a Play: viajan dentro del AAB. |
+| **Gráfico de cabecera 1024×500** | `tienda/grafico-destacado-1024x500.png` | **Listo.** Lo genera `npm run tienda`, que parte el logotipo por su hueco y monta las dos piezas en horizontal. Comprueba solo que no queda transparencia y que los márgenes están limpios. Se sube tal cual. |
+| **Seis capturas de teléfono** | `tienda/capturas/` | **Listas.** Las genera `npm run capturas`: conduce un Chrome sin perfil por las seis pantallas, con el ejemplo de la propia app y nunca con datos de nadie. 1080×1920, 24 bits sin alfa. |
 | Original de la marca | `identidad visual/isotipo.png` y `logotipo.png` (1080×1350) | Es la fuente para todo lo demás. |
 
 ### Lo que hay que crear
 
-**1. Gráfico de cabecera — 1024×500 px. Obligatorio.**
+**1. Las seis capturas, y por qué esas.** Las genera `npm run capturas`; el orden es el del archivo y cada una tiene una idea sola:
 
-No existe y **no sale de redimensionar nada**: los originales son verticales (1080×1350) y el formato pedido es apaisado. Hay que componerlo: fondo crema `#FBF7F1`, el isotipo a la izquierda o centrado, el nombre en terracota `#A04B22`, y aire alrededor.
-
-- PNG o JPEG, sin transparencia, 15 MB como máximo.
-- **Nada de texto pequeño ni pegado a los bordes:** Play lo recorta en algunos sitios y le superpone el botón de reproducir si algún día añades vídeo. Deja el tercio central libre de texto importante.
-- Que se entienda en miniatura. Se ve a 2 cm de ancho más veces que a tamaño completo.
-
-**2. Capturas de pantalla de teléfono — de 2 a 8. Obligatorias (mínimo 2).**
-
-No existe ninguna. Recomendación: **6**, una por idea.
-
-- Formato: PNG de 24 bits (sin canal alfa) o JPEG.
-- Tamaño recomendado: **1080×1920** (vertical, 9:16).
-- Lado menor mínimo 320 px, mayor máximo 3840 px, y la proporción no puede pasar de 2:1.
-- Se sacan de un teléfono real o del emulador, con los datos de ejemplo cargados para que no salgan pantallas vacías.
-
-Las seis que cuentan la historia, en este orden:
-
-1. **Hoy** — el desayuno, el almuerzo y la cena con sus cantidades. Es lo que la gente va a ver todos los días.
+1. **Hoy** — el desayuno y el almuerzo con sus cantidades. Es lo que la gente va a ver todos los días.
 2. **Plan mensual** — el progreso del mes y las rutinas de la casa.
-3. **El modal de una rutina** — «lunes, miércoles, viernes y sábado» con las fichas de los días. Es la idea central de la app.
-4. **La compra** — la lista con el origen de cada línea.
-5. **¿Cuánto queda?** — la revisión, con la resta hecha.
+3. **Editar la rutina** — «todos los lunes, miércoles, viernes y sábados». Es la idea central de la app, y por eso se abre una rutina que ya existe en vez de un formulario en blanco.
+4. **La compra** — la lista con lo que queda en casa junto a cada línea.
+5. **¿Cuánto queda?** — la revisión con la resta hecha: «había 16 ruedas, se consumió 14».
 6. **Mi canasta habitual** — lo que se escribe una sola vez.
 
-Si les pones un texto encima, que sea corto y en la tipografía de la marca. Y que la captura siga viéndose: una captura tapada por un rótulo no enseña la app.
+Para rehacerlas hay que tener el servidor en marcha (`npm start`). Si cambia el orden de una pantalla y la captura sale en otro sitio, se ajusta `desplazar` en `tools/capturas.js`, que es la única cosa de ahí que depende de cómo esté puesta la app hoy.
 
-**3. Capturas de tableta — 7 y 10 pulgadas. Opcionales, recomendadas.**
+**2. Capturas de tableta — 7 y 10 pulgadas. Opcionales, recomendadas.**
 
 Sin ellas, Play puede marcar la ficha como no optimizada para pantallas grandes y mostrar un aviso a quien la abra desde una tableta. La app es responsive, así que sacarlas es barato: el emulador con un perfil de tableta y las mismas seis pantallas.
 
@@ -463,11 +448,11 @@ cd android
 
 Instala ese APK en un teléfono y recorre la app entera, sobre todo el dictado, que es lo que se resuelve por reflexión y lo que el minificador podría tumbar.
 
-**6. Las páginas legales publicadas y abriendo.** Apartado 1.
+**6. Las páginas legales publicadas y abriendo. Hecho.** Están en <https://nexocoregroup.github.io/que-comemos/legal/>, servidas por GitHub Pages desde `main`. Ojo con eso: Pages publica `main`, así que un texto corregido en una rama no está publicado hasta que la rama se fusiona. Apartado 1.
 
 **7. El correo de contacto decidido y sustituido.** En `legal/privacidad.html`, `legal/terminos.html`, `legal/eliminar-datos.html`, `legal/index.html`, `src/legal.js` y la ficha de la tienda.
 
-**8. El gráfico de cabecera y las capturas.** Apartado 9.
+**8. El gráfico de cabecera y las capturas. Hecho.** `npm run tienda` y `npm run capturas`. Están en `tienda/`. Lo único que queda del apartado 9 son las capturas de tableta, que son opcionales. Apartado 9.
 
 ### Ya está hecho, no hay que tocarlo
 
