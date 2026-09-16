@@ -8,9 +8,14 @@ Todo lo de aquí sale de leer el código de la app, no de suponer. Cuando algo d
 - **Identificador:** `com.nexocore.quecomemos`
 - **Categoría sugerida:** Estilo de vida (alternativa razonable: Productividad)
 - **Precio:** gratis, sin compras dentro de la app
-- **Actualizado:** 15 de septiembre de 2026
+- **Actualizado:** 16 de septiembre de 2026
+- **Correo de contacto:** `nexocore.group@gmail.com` — **provisional**
 
-Antes de empezar, sustituye `CORREO_DE_CONTACTO` en las cuatro páginas de `legal/` y en `src/legal.js`. Ese mismo correo va en la ficha de la tienda, donde **es público**: lo ve cualquiera que abra la ficha. Conviene que sea un buzón que puedas atender, no tu correo personal de siempre.
+Ese correo ya está escrito en las cuatro páginas de `legal/` y en `src/legal.js`, y va también en la ficha de la tienda, donde **es público**: lo ve cualquiera que abra la ficha. Está marcado como provisional a la espera del buzón oficial de NexoCore; cuando cambie, cambia en seis archivos a la vez:
+
+```bash
+grep -rn nexocore.group@gmail.com legal/ src/legal.js docs/
+```
 
 ---
 
@@ -32,36 +37,63 @@ Las tres tienen que **abrir sin contraseña y sin redirección rara**. Un reviso
 
 ## 2. Seguridad de los datos (formulario «Data safety»)
 
-El apartado más importante y el que más gente rellena mal. Para esta app es todo «no», y **es verdad**: en todo el código **no hay ni una función capaz de salir a la red**, y la prueba de `tests/seguridad.test.js` lo comprueba con la lista vacía (`assert.deepEqual(salidas, [])`). El día que alguien añada una, esa prueba se pone roja.
+El apartado más importante y el que más gente rellena mal.
+
+> **Esta sección se reescribió el 16 de septiembre de 2026.** Antes decía que la app no tenía cuentas ni código de red, y daba por buena la etiqueta «No se recopilan datos». Eso dejó de ser cierto el día que entraron las cuentas de Supabase, y durante un tiempo esta guía te habría hecho declararle a Google algo falso. **Ya no: lee lo de abajo, no lo que recuerdes de antes.**
+
+### Lo que la app hace hoy, que es lo que hay que declarar
+
+Son **dos interruptores distintos**, los dos apagados de fábrica, y de ellos depende todo lo demás:
+
+1. **Crear una cuenta.** Opcional. La app funciona entera sin ella, y sin sesión guardada **no hace ni una llamada a la red**. Al crearla se guardan tu correo, tu nombre y tu contraseña cifrada en Supabase.
+2. **Encender la sincronización.** Opcional y aparte. Solo entonces la casa —despensa, menú, compras, personas de la casa y lo que evita cada quien— se guarda además en la cuenta.
+
+Nada se comparte con terceros en ningún caso. Supabase es el **encargado del tratamiento**, no un tercero con el que se comparten datos: presta el servicio de base de datos y no los usa para nada suyo.
 
 ### Las respuestas
 
 | Pregunta | Respuesta | Por qué |
 |---|---|---|
-| ¿Tu app recopila o comparte alguno de los tipos de datos de usuario requeridos? | **No** | La app no transmite nada fuera del dispositivo. Todo vive en `localStorage`, dentro del teléfono. |
-| ¿Recopilas datos? | **No** | No hay cuentas, ni analítica, ni publicidad, ni informes de fallos, ni SDK de terceros. |
-| ¿Compartes datos con terceros? | **No** | No hay terceros. La app no habla con ningún servidor. |
-| ¿Los datos están cifrados en tránsito? | *No aplica / no se muestra* | Ver abajo. |
-| ¿Ofreces una forma de solicitar la eliminación de datos? | *Ver abajo* | |
+| ¿Tu app recopila o comparte alguno de los tipos de datos de usuario requeridos? | **Sí** | Con cuenta se recoge correo y nombre; con sincronización, además el contenido de la casa. |
+| ¿Compartes datos con terceros? | **No** | No se ceden a nadie. Supabase es encargado del tratamiento, no un destinatario. |
+| ¿Los datos están cifrados en tránsito? | **Sí** | HTTPS siempre, y `networkSecurityConfig` bloquea el tráfico sin cifrar a nivel de sistema. |
+| ¿Ofreces una forma de solicitar la eliminación de datos? | **Sí** | La URL de `legal/eliminar-datos.html`, con el camino 3 dedicado a borrar la cuenta. |
+| ¿La app permite crear una cuenta? | **Sí** | Y por eso la URL de eliminación de cuenta es **obligatoria**. |
 | ¿La app cumple la política de Familias? | **No aplica** | El público objetivo es 18+ (apartado 4). |
 
-Al responder «No» a la primera pregunta, Play da el formulario por terminado y en la ficha aparece la etiqueta **«No se recopilan datos»**. Es la etiqueta más limpia que da Google, y aquí es legítima.
+La ficha ya **no** llevará la etiqueta «No se recopilan datos». Era la más limpia que da Google, y sostenerla hoy sería motivo de retirada.
 
-### Cifrado en tránsito: por qué la pregunta no aplica
+### Los tipos de datos, uno por uno
 
-Esa pregunta es sobre **los datos que la app recoge y manda a algún sitio**. Esta app no manda nada a ningún sitio, así que **no hay tránsito del que hablar** y Play normalmente ni te la enseña.
+Para cada uno, Play pregunta si se **recoge**, si se **comparte**, si es **obligatorio** y para qué. Aquí van las cuatro respuestas de cada uno:
 
-Si alguna vez tienes que justificarlo ante un revisor, la respuesta corta es esta:
+| Tipo de dato | ¿Se recoge? | ¿Se comparte? | ¿Obligatorio? | Propósito |
+|---|---|---|---|---|
+| **Información personal → Dirección de correo** | Sí, solo si crea cuenta | No | **Opcional** | Gestión de la cuenta |
+| **Información personal → Nombre** | Sí, solo si crea cuenta | No | **Opcional** | Gestión de la cuenta |
+| **Información personal → Otra información** (las personas de la casa y sus nombres) | Sí, solo si sincroniza | No | **Opcional** | Funciones de la app |
+| **Salud y forma física → Información de salud** (alergias e intolerancias anotadas) | Sí, solo si sincroniza | No | **Opcional** | Funciones de la app |
+| **Otros → Otros datos generados por el usuario** (despensa, menú, compras, historial) | Sí, solo si sincroniza | No | **Opcional** | Funciones de la app |
 
-> La aplicación no realiza ninguna petición de red. No existe ningún código de red en el proyecto: no hay `fetch`, ni `XMLHttpRequest`, ni `WebSocket`, ni `sendBeacon` en ningún módulo, y una prueba automatizada lo verifica en cada ejecución. Todos los datos se guardan en el almacenamiento local del dispositivo. Además, el `networkSecurityConfig` del manifiesto (`android/app/src/main/res/xml/seguridad_de_red.xml`) declara `cleartextTrafficPermitted="false"` y solo confía en las autoridades del sistema, de modo que cualquier tráfico sin cifrar quedaría bloqueado a nivel de sistema.
+Marca siempre **«Los usuarios pueden elegir si se recopilan estos datos»**: es literalmente cierto, porque tanto la cuenta como la sincronización se encienden a mano y vienen apagadas.
 
-### Eliminación de datos
+> **La fila de salud es la que hay que declarar sí o sí.** La app deja anotar que alguien de la casa tiene alergia o intolerancia a un alimento, y eso es información de salud aunque lo escriba otra persona. Si se sincroniza, sale del teléfono. Omitirla porque «es solo una etiqueta de comida» es exactamente el tipo de omisión que retira una app.
 
-Play enlaza las preguntas de eliminación con la recogida de datos y con la existencia de cuentas. Como aquí no hay ni una cosa ni la otra, **puede que el formulario ni te las muestre**. Según lo que te aparezca:
+### Cifrado en tránsito
 
-- **Si te pregunta si la app permite crear una cuenta** (en *Contenido de la app → Eliminación de datos*): responde **No**. No hay registro, ni inicio de sesión, ni contraseñas. Con eso el requisito de «URL de eliminación de cuenta» queda cubierto.
-- **Si te deja poner una URL de eliminación de datos igualmente**: ponla. Es la de `legal/eliminar-datos.html`. No cuesta nada y le ahorra la duda al revisor.
-- La política de privacidad ya enlaza a esa página, así que la ruta existe aunque el formulario no la pida.
+Ahora sí aplica, y la respuesta es **sí**. Si un revisor pide justificarlo:
+
+> Toda la comunicación de la aplicación va por HTTPS contra un único destino: el proyecto de Supabase que presta el servicio de cuentas. La aplicación no tiene ningún otro cliente de red, y una prueba automatizada (`tests/seguridad.test.js`) falla si aparece una segunda salida o si cambia la dirección de esta. Además, el `networkSecurityConfig` del manifiesto (`android/app/src/main/res/xml/seguridad_de_red.xml`) declara `cleartextTrafficPermitted="false"` y solo confía en las autoridades del sistema, de modo que cualquier tráfico sin cifrar quedaría bloqueado a nivel de sistema. Sin sesión iniciada la aplicación no realiza ninguna petición: funciona por completo contra el almacenamiento local del dispositivo.
+
+### Eliminación de datos y de cuenta
+
+Como la app **sí** permite crear una cuenta, esto pasó de opcional a **obligatorio**. En *Contenido de la app → Eliminación de datos*:
+
+- **¿La app permite crear una cuenta?** → **Sí**.
+- **URL donde se solicita la eliminación de la cuenta** → la de `legal/eliminar-datos.html`. Google exige que esa página se pueda abrir **sin iniciar sesión**, y esta cumple: es una página pública.
+- Esa página explica los tres caminos, y el **camino 3** es el de la cuenta: *Más → Mi cuenta → Borrar mi cuenta*, inmediato, sin formulario y sin espera.
+- También ofrece un correo de respaldo para quien ya no pueda entrar a la app. Google valora que exista esa salida.
+- **Qué se borra y qué se conserva:** se borra todo —correo, nombre, contraseña, la casa guardada— y no se conserva nada. Si el formulario pide detallar retención, la respuesta es que no hay retención.
 
 ### El micrófono: por qué NO se declara como dato recogido
 
@@ -69,11 +101,11 @@ Aquí es donde se equivoca la gente, así que conviene tenerlo claro y por escri
 
 **Por qué el audio no cuenta como «recopilado por la app»:**
 
-Para Google, «recopilar» significa que **la app** saca datos del dispositivo. Esta app no lo hace en ningún momento:
+Para Google, «recopilar» significa que **la app** saca datos del dispositivo. Con el audio no lo hace nunca, ni con cuenta ni sin ella:
 
 - No graba. No se crea ningún archivo de audio, ni temporal.
 - No guarda. No hay audio en `localStorage` ni en ninguna parte.
-- No transmite. La app no puede mandar audio a ningún sitio: no tiene código de red de ninguna clase.
+- No transmite. La única salida de red de la app habla con el servicio de cuentas y solo sabe mandar texto de la casa; no hay ninguna ruta por la que pueda salir audio.
 
 Lo que hace es pedirle al **reconocedor de voz del propio Android** —el mismo del micrófono del teclado— que le devuelva texto. El audio lo maneja ese servicio del sistema, y la app solo recibe la cadena de texto ya convertida. Un servicio del sistema operativo del usuario no es un «tercero» tuyo en el sentido del formulario.
 
@@ -84,7 +116,7 @@ Lo de arriba es correcto, pero declarar «no recojo nada» con `RECORD_AUDIO` en
 1. **Deja la explicación del micrófono en la política de privacidad.** Ya está en `legal/privacidad.html`, y dice la verdad completa: incluido que en los teléfonos sin reconocimiento local, **Android manda el audio a sus servidores** para entenderlo. Eso lo hace Android, no la app, pero ocultarlo sería mentir.
 2. **Ten lista la nota al revisor** del apartado 7. Es donde se explica en dos líneas para qué está el permiso.
 3. **Que el permiso se pida en contexto.** La app solo abre el micrófono cuando la persona toca «Dictar», que es justo lo que Play quiere ver. Y antes de abrirlo comprueba si el audio va a salir del aparato; si va a salir, lo dice en pantalla.
-4. **Si algún día la app llegara a enviar audio** —o cualquier otra cosa— hay que **volver a este formulario y declararlo**. Ese día la etiqueta «No se recopilan datos» deja de ser cierta, y sostenerla cuando ya no lo es es motivo de retirada.
+4. **Si algún día la app llegara a enviar audio** —o cualquier otra cosa que no esté en la tabla de arriba— hay que **volver a este formulario y declararlo**. Ya pasó una vez con las cuentas y la declaración se quedó vieja durante semanas; que no vuelva a pasar.
 
 ---
 
@@ -151,7 +183,7 @@ La app pide **dos permisos y ninguno más**. Hay una prueba (`tests/seguridad.te
 
 **Sobre `<queries>`.** El manifiesto declara un `<queries>` con el intent `android.speech.RecognitionService`. Es lo correcto y **no necesita declaración**: no se usa `QUERY_ALL_PACKAGES`, que sí la necesitaría. Está ahí porque desde Android 11 el sistema esconde qué apps hay instaladas, y sin eso el teléfono no encuentra su propio motor de voz.
 
-**Sobre `INTERNET`, si alguien pregunta.** Es un permiso normal: Play no lo cuestiona y no hay formulario que llenar. Pero conviene saber la respuesta, porque es rara de explicar: **el permiso está declarado y no lo usa nada**. La opción de conectar un servidor propio existió y **se eliminó del producto entero**; lo que queda es el permiso en el manifiesto, que se conserva porque quitarlo sin poder probarlo en todos los teléfonos arriesga que el WebView de la app deje de cargar. La política de privacidad lo dice con esas mismas palabras en vez de esconderlo.
+**Sobre `INTERNET`, si alguien pregunta.** Es un permiso normal: Play no lo cuestiona y no hay formulario que llenar. La respuesta, si hace falta darla: **se usa únicamente para la cuenta, que es opcional**. Sin sesión iniciada la app no hace ninguna petición y funciona por completo en modo avión. El destino es uno solo —el proyecto de Supabase que presta el servicio de cuentas— y una prueba automatizada falla si aparece un segundo. La política de privacidad lo explica con esas mismas palabras, en su propia sección, en vez de esconderlo.
 
 ---
 
@@ -193,16 +225,19 @@ probarlo: botón + (abajo a la derecha) -> "Hablar o dictar".
 Toda la funcionalidad está disponible escribiendo a mano. El permiso se puede
 denegar y la app sigue siendo completamente utilizable.
 
-Sobre el permiso de INTERNET: la app no realiza ninguna petición de red. No
-existe código de red en el proyecto (ni fetch, ni XMLHttpRequest, ni
-WebSocket, ni sendBeacon), y una prueba automatizada lo verifica en cada
-ejecución. El permiso permanece declarado en el manifiesto por compatibilidad
-del WebView, pero ningún código de la aplicación puede utilizarlo.
+Sobre el permiso de INTERNET: se usa unicamente para la cuenta, que es
+opcional. Sin sesion iniciada la app no realiza ninguna peticion de red y
+funciona por completo en modo avion. La app tiene un unico destino de red
+—el proyecto de Supabase que presta el servicio de cuentas— y una prueba
+automatizada falla si aparece un segundo.
 
-Todos los datos se guardan en el almacenamiento local del dispositivo. No hay
-servidor del desarrollador, no hay servicios de terceros integrados y no se
-recopila ningún dato del usuario. La app funciona por completo en modo avión.
+Los datos se guardan en el almacenamiento local del dispositivo. Solo salen
+de el si el usuario crea una cuenta y ademas activa la sincronizacion, que
+son dos acciones separadas y desactivadas de fabrica. No hay analitica, ni
+publicidad, ni informes de fallos, ni SDK de terceros.
 ```
+
+> Ese bloque va sin tildes a propósito: algunos formularios de Play maltratan los acentos al pegarlos.
 
 ---
 
@@ -335,7 +370,7 @@ NexoCore, República Dominicana.
 |---|---|
 | Categoría | Estilo de vida |
 | Etiquetas | organización del hogar, lista de compras, planificador de comidas |
-| Correo de contacto **(público)** | `CORREO_DE_CONTACTO` |
+| Correo de contacto **(público)** | `nexocore.group@gmail.com` |
 | Sitio web | la del repositorio o `https://USUARIO.github.io/que-comemos/` (opcional) |
 | Teléfono | déjalo vacío: una vez puesto, es público |
 | Política de privacidad | `https://USUARIO.github.io/que-comemos/legal/privacidad.html` |
@@ -438,7 +473,7 @@ Instala ese APK en un teléfono y recorre la app entera, sobre todo el dictado, 
 
 - **Minificación y reglas de ProGuard** — `minifyEnabled` y `shrinkResources` activados, con `proguard-rules.pro` conservando a mano lo que se resuelve por reflexión.
 - **`targetSdk 36`, `minSdk 24`** — al día con lo que Play exige.
-- **Respaldo automático desactivado** — `allowBackup="false"`, `fullBackupContent="false"` y `dataExtractionRules`. Es lo que sostiene la frase «tus datos no salen del teléfono».
+- **Respaldo automático desactivado** — `allowBackup="false"`, `fullBackupContent="false"` y `dataExtractionRules`. Es lo que impide que Android suba la despensa a la cuenta de Google del dueño del teléfono sin que nadie lo pida.
 - **Tráfico sin cifrar bloqueado** — `networkSecurityConfig` con `cleartextTrafficPermitted="false"` y solo las autoridades del sistema.
 - **Permisos al mínimo** — dos, con una prueba que falla si entra un tercero.
 - **Ícono de 512×512** — `src/icon-512.png`.
@@ -449,6 +484,8 @@ Instala ese APK en un teléfono y recorre la app entera, sobre todo el dictado, 
 
 Los textos de `legal/` y las respuestas de esta guía son **plantillas honestas escritas a partir de lo que la app hace de verdad**, leyendo el código: dónde se guardan los datos, qué permisos pide, qué sale a la red y qué no. No son un documento redactado por un abogado y no sustituyen a uno.
 
-Antes de publicar, conviene que un abogado los revise. Y hay un momento en que esa revisión deja de ser recomendable y pasa a ser necesaria: **el día que la app deje de ser puramente local**. Si alguna versión futura añade cuentas, sincronización, un servidor propio, analítica, publicidad o cualquier envío de datos a un tercero, casi todo lo de estas páginas deja de ser cierto y **hay que reescribirlo antes de publicar esa versión**, no después. La etiqueta «No se recopilan datos» de Play también deja de serlo, y sostenerla cuando ya no es verdad es motivo de retirada de la app.
+Antes de publicar, conviene que un abogado los revise. **Y ahora hace más falta que antes**, porque la app ya no es puramente local: tiene cuentas y sincronización opcionales, y eso mete en juego un encargado del tratamiento (Supabase), un dato de salud (las alergias anotadas) y un derecho de supresión que hay que poder atender.
+
+Ese día ya llegó una vez y la documentación no se enteró: las cuentas entraron el 15 de septiembre de 2026 y estas páginas siguieron diciendo «no hay cuentas ni servidor» hasta el 16. **La regla, escrita para la próxima vez:** si una versión añade, quita o cambia algo de lo que sale del teléfono, se reescriben `legal/`, `src/legal.js`, el README y este documento **en el mismo commit**, no después. `tests/legal.test.js` existe para que eso no dependa de que alguien se acuerde.
 
 Si lo que cambia es solo la app y no lo que hace con los datos, esto sigue valiendo. Actualiza la fecha y sigue.

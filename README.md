@@ -1,6 +1,6 @@
 # ¿Qué comemos?
 
-Aplicación local para organizar las comidas de una casa y calcular la compra. Los datos viven en el dispositivo; no hay cuentas ni servidor. La interfaz y los datos de demostración están en español dominicano. Las cantidades del ejemplo son datos de prueba, no recomendaciones nutricionales.
+Aplicación local para organizar las comidas de una casa y calcular la compra. Los datos viven en el dispositivo y la app funciona entera sin cuenta y sin conexión: sin sesión iniciada no hace ni una llamada a la red. La cuenta es opcional —sirve para recuperar la casa al cambiar de teléfono— y subir los datos a ella es una segunda decisión aparte, con su propio interruptor; las dos vienen apagadas. La interfaz y los datos de demostración están en español dominicano. Las cantidades del ejemplo son datos de prueba, no recomendaciones nutricionales.
 
 **La regla que gobierna el diseño:** lo habitual se escribe **una sola vez**. Cada mes empieza ya preparado y el usuario solo registra las excepciones. Marcar «Arroz» en el catálogo inicial lo registra como alimento y lo pone en la canasta habitual; guardar «mangú con salami, martes y jueves de desayuno» llena todos los martes y jueves reales del mes de una vez.
 
@@ -169,17 +169,19 @@ Este fue un error de diseño corregido: la primera versión mandaba la voz a un 
 
 Escribir a mano funciona siempre, en todos los campos, con o sin micrófono.
 
-### La app no habla con ningún servidor
+### Una sola puerta de salida a la red
 
-Ni uno. No hay dirección que configurar, ni clave que guardar, ni analítica, ni informes de fallos. Hay una prueba, `tests/seguridad.test.js`, que falla si algún módulo vuelve a usar `fetch`.
+La app tiene exactamente un destino: el proyecto de Supabase que presta el servicio de cuentas. Nada más. No hay analítica, ni informes de fallos, ni SDK de terceros, ni ninguna dirección que se pueda configurar. `tests/seguridad.test.js` falla si aparece una segunda salida o si cambia la dirección de esta.
 
-Hubo una opción para conectar un servidor propio y que la asistente entendiera lenguaje totalmente libre. Se quitó por dos razones. La primera es que **no llegaba a funcionar**: la interfaz guardaba la dirección sin activar la capacidad, así que quien la escribía no conseguía nada y no sabía por qué. La segunda es que contradecía la idea de fondo de esta app —tiene que servir sin que nadie monte nada— y a cambio obligaba a escribir en la política de privacidad un «salvo que tú configures un servidor» que debilitaba la única promesa que importa.
+**Sin sesión iniciada esa puerta ni se abre.** Al arrancar, la app mira si hay una sesión guardada en el teléfono y, si no la hay, se detiene ahí sin tocar la red: quien no crea cuenta usa la app entera en modo avión. Crear la cuenta es una decisión, y subir los datos de la casa a ella es otra distinta, con su propio interruptor; las dos vienen apagadas.
+
+Hubo además una opción para conectar un servidor propio de modelo y que la asistente entendiera lenguaje totalmente libre. Se quitó por dos razones. La primera es que **no llegaba a funcionar**: la interfaz guardaba la dirección sin activar la capacidad, así que quien la escribía no conseguía nada y no sabía por qué. La segunda es que obligaba a escribir en la política de privacidad un «salvo que tú configures un servidor» que dejaba la promesa en manos de una casilla que nadie entendía.
 
 Lo que queda es más honesto y más simple: la app reconoce las formas de frase que reconoce, aquí dentro, y **lo que no entiende lo dice** en vez de mandarlo fuera. Para lenguaje realmente libre haría falta un modelo grande, que no cabe en la aplicación.
 
 ### Qué protege esta app, y qué no
 
-No hay servidor, ni cuentas, ni contraseñas, ni pagos: casi todo el catálogo habitual de ataques no tiene dónde agarrarse. Lo que sí tiene superficie es el HTML que se dibuja con texto del usuario, dentro de un WebView que lleva al lado el puente de Capacitor. Por eso todo texto se escapa antes de llegar a la pantalla, y `tests/seguridad.test.js` mete un ataque en cada campo escribible y dibuja las 22 pantallas comprobando que no sale sin escapar en ninguna.
+No hay servidor propio ni pagos, y la cuenta la opera Supabase con la contraseña cifrada fuera del alcance de la app: buena parte del catálogo habitual de ataques no tiene dónde agarrarse. Lo que sí tiene superficie es el HTML que se dibuja con texto del usuario, dentro de un WebView que lleva al lado el puente de Capacitor. Por eso todo texto se escapa antes de llegar a la pantalla, y `tests/seguridad.test.js` mete un ataque en cada campo escribible y dibuja las 22 pantallas comprobando que no sale sin escapar en ninguna.
 
 Además: el respaldo automático de Android está **apagado** (`allowBackup="false"` y `dataExtractionRules`), porque encendido sube el almacenamiento de la app a la cuenta de Google del dueño. La contrapartida es que perder el teléfono sin copia es perderlo todo, así que la app avisa en «Más» cuando hace más de un mes que no guardas una.
 
@@ -295,7 +297,7 @@ La identidad usa **terracota** (`#A04B22`) para navegación y acciones, **crema*
 Esta elección es una hipótesis de diseño, no una afirmación de que un color provoque hambre o funcione igual para todas las familias. Un [experimento con etiquetas alimentarias](https://pubmed.ncbi.nlm.nih.gov/23444895/) encontró que el verde puede sugerir salud; esa no es la función de esta app. Un [estudio de asociaciones entre color y emoción](https://doi.org/10.1002/col.22171) vinculó naranjas y amarillos con emociones relativamente positivas. Otro [experimento](https://doi.org/10.1007/s00426-017-0880-8) mostró que saturación y brillo influyen junto con el matiz, y un [estudio en 30 países](https://www.psychologicalscience.org/journals/psychological-science/0956797620948810/) encontró diferencias culturales. Por eso el acento cálido es moderado. La pareja terracota/blanco tiene un contraste de 5,96:1, por encima del [mínimo WCAG AA de 4,5:1](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html).
 ## Límites de esta versión
 
-- **No sincroniza** entre dispositivos. No hay cuentas ni servidor de datos.
+- **La sincronización entre dispositivos está sin probar en uso real.** El código de la cuenta y del sincronizado existe y tiene pruebas, pero nadie lo ha usado todavía con dos teléfonos de verdad. Viene apagada.
 - **La lectura de facturas por fotografía se eliminó.** No funcionaba lo bastante bien y arrastraba los modelos de OCR dentro del APK. Con ella se fueron el complemento de cámara, el de sistema de archivos, el de reconocimiento de texto y los permisos de cámara y de galería.
 - Una rutina reparte por día de la semana. No sabe de feriados, de visitas ni de que en diciembre se come distinto: eso se resuelve como excepción del mes.
 - Las cantidades habituales de Familia no se aplican solas: hay que pedirlas, y lo que traen es la suma de las personas que la preparación cubre, sin ajustar por quién falta ese día.
