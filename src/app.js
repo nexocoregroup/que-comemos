@@ -30,12 +30,62 @@ import { MAS_ACTIONS, PAGINAS_MAS, TITULOS_MAS, aplicarDictado, emptyMas, render
 import { avisoDeVoz, cancelarDictado, capacidad, diagnostico, falloAnterior, olvidarFalloAnterior } from './device.js';
 import { VOZ_ACTIONS, comprobarSiElDictadoMatoLaApp, emptyVoz, fallosDeVoz, seRindio } from './voz.js';
 import { anotar, fallosRecientes, instalarRed, protegida } from './fallos.js';
+import { CUENTA_ACTIONS, CUENTA_FORMS, emptyCuenta, renderCuenta, volvimosDeGoogle } from './page-cuenta.js';
+import { CAJON_DE_ESTE_TELEFONO, arrancarSesion, cajonDe, fundirSesion, guardarSesion, olvidarSesion } from './sesion.js';
+import { guardarCopiaAntesDeBajar, sincronizar } from './sincronizar.js';
+import { hayNube } from './config-nube.js';
 import { button, cap, empty, esc, fmt, measure, modal, monthName, niceDate, notice, options, productDatalist, unitText } from './ui-kit.js';
+
+/* ── De qué cajón salen los datos ──────────────────────────────────────────
+
+   Con cuentas ya no hay un solo sitio donde se guarda todo. Cada cuenta tiene el
+   suyo y el de este teléfono sigue siendo el de siempre, que es donde está lo de
+   quien lleva tiempo usando la app sin registrarse.
+
+   `cajon` es la variable que dice cuál está abierto ahora mismo. Arranca en el
+   de este teléfono —así, si alguien abre la app sin sesión o sin internet,
+   encuentra lo suyo— y cambia al de la cuenta cuando alguien entra. */
+let cajon = CAJON_DE_ESTE_TELEFONO;
 
 const firstRun = !hasSavedState();
 let state, loadError = '', migratedFrom = 0;
-try { const cargado = loadStateDetailed(); state = cargado.state; if (cargado.migrated) migratedFrom = cargado.from; }
+try { const cargado = loadStateDetailed(undefined, cajon); state = cargado.state; if (cargado.migrated) migratedFrom = cargado.from; }
 catch (error) { state = createEmptyState(); loadError = error.message; }
+
+// Abrir otro cajón: se lee lo que haya dentro y se pinta. Nunca se mezcla con lo
+// que hubiera abierto antes, que es justamente el punto.
+function abrirCajon(cual) {
+  cajon = cual;
+  // Un cajón vacío es una casa que todavía no existe, y hay que tratarla como
+  // tal. `loadStateDetailed` devuelve el ejemplo cuando no encuentra nada
+  // guardado —que es lo correcto en el primer arranque de la app—, pero al
+  // entrar en una cuenta recién creada eso saldría como una despensa llena de
+  // comida que nadie anotó, indistinguible de los datos de otra persona. Así
+  // que se abre vacía y se enseña la bienvenida, que es de donde sale el
+  // ejemplo si alguien lo pide.
+  const habiaAlgo = hasSavedState(undefined, cajon);
+  try {
+    if (habiaAlgo) {
+      const cargado = loadStateDetailed(undefined, cajon);
+      state = cargado.state;
+      migratedFrom = cargado.migrated ? cargado.from : 0;
+    } else {
+      state = createEmptyState();
+      migratedFrom = 0;
+    }
+    loadError = '';
+  } catch (error) {
+    state = createEmptyState();
+    loadError = error.message;
+    anotar('abrir-cajon', error, { cajon: cual });
+  }
+  ui.welcome = !habiaAlgo;
+  ui.tour = null;
+  ui.reviewId = null; ui.correctingReview = false; ui.modal = null;
+  ui.mes = emptyMes(mesActual); ui.compra = emptyCompra(mesActual); ui.mas = emptyMas();
+  ui.setup = null; ui.chat = null; ui.bulk = null;
+  ui.voz = emptyVoz();
+}
 const today = todayISO();
 const mesActual = today.slice(0, 7);
 const SIDEBAR_KEY = 'que-comemos-sidebar-collapsed';
@@ -50,12 +100,237 @@ const ui = {
   mas: emptyMas(),
   reviewId: null, correctingReview: false,
   voz: emptyVoz(),
+  cuenta: emptyCuenta(),
+  sesion: null,
   sidebarCollapsed: sidebarInitiallyCollapsed, drawerOpen: false,
   welcome: firstRun, tour: null, justStarted: false,
   // Lo que hay que contarle a la persona nada más abrir: que la vez anterior la
   // aplicación se cerró sola mientras dictaba. Se llena en el arranque.
   avisoDeArranque: ''
 };
+
+
+/* ── La cuenta ─────────────────────────────────────────────────────────────
+
+   La cuenta es opcional, y de esa decisión cuelga casi todo lo de aquí abajo.
+
+   Quien no tenga sesión ve primero la pantalla de la cuenta —es lo que pidió la
+   fase— pero con una salida abajo: «Seguir sin cuenta en este teléfono». Quien
+   la toque no vuelve a verla, y la app trabaja con el cajón de siempre, que es
+   donde ya está su despensa. Nadie se queda mirando un formulario de registro
+   con sus propios datos al otro lado, y menos un día sin internet. */
+
+const CLAVE_SIN_CUENTA = 'que-comemos-sin-cuenta';
+const CLAVE_PKCE = 'que-comemos-google-pkce';
+
+let sesion = null;
+let sinCuenta = (() => { try { return localStorage.getItem(CLAVE_SIN_CUENTA) === '1'; } catch { return false; } })();
+let avisoDeSesion = '';
+
+// ¿Hay que enseñar la portada de la cuenta? Solo si las cuentas están
+// configuradas en esta compilación; si no lo están, la app se comporta
+// exactamente como antes y no menciona nada que no pueda cumplir.
+const tocaPedirCuenta = () => hayNube() && !sesion && !sinCuenta;
+
+function ponerSesion(nueva) {
+  sesion = nueva;
+  ui.sesion = nueva;
+}
+
+/* ── Subir sin molestar ────────────────────────────────────────────────────
+
+   Guardar es local y sigue siendo instantáneo. Subir se apunta y se hace un
+   rato después: quien está anotando la compra toca diez veces seguidas, y diez
+   viajes a la red mientras alguien escribe se le notan en la batería y en la
+   fluidez de la pantalla.
+
+   Si no hay conexión, la marca se queda puesta y se reintenta al volver. Eso es
+   todo lo que hace falta para que la app funcione en un sótano. */
+
+const ESPERA_ANTES_DE_SUBIR_MS = 4000;
+let hayCambiosSinSubir = false;
+let relojDeSubida = null;
+
+function apuntarParaSubir() {
+  if (!sesion?.sincronizando) return;
+  hayCambiosSinSubir = true;
+  clearTimeout(relojDeSubida);
+  relojDeSubida = setTimeout(() => { sincronizarAhora().catch(error => anotar('subir', error)); }, ESPERA_ANTES_DE_SUBIR_MS);
+}
+
+async function sincronizarAhora(opciones = {}) {
+  if (!sesion?.sincronizando) return { ok: true, resultado: 'apagada' };
+  const cuenta = ui.cuenta = ui.cuenta || emptyCuenta();
+  const salida = await sincronizar(sesion, state, {
+    hayCambiosLocales: opciones.hayCambiosLocales ?? hayCambiosSinSubir
+  });
+
+  if (salida.sesion) ponerSesion(salida.sesion);
+
+  if (!salida.ok) {
+    // Sin red no es un error que enseñar en rojo: es el estado normal de un
+    // teléfono que se movió. Se deja la marca puesta y ya se subirá.
+    cuenta.sincronia = { resultado: salida.sinRed ? 'sin-red' : 'error', detalle: salida.sinRed ? '' : (salida.error || '') };
+    if (salida.caducada) { avisoDeSesion = 'Tu sesión caducó. Vuelve a entrar cuando puedas; tus datos siguen aquí.'; alSalirDeLaCuenta({ silencioso: true }); }
+    return salida;
+  }
+
+  if (salida.resultado === 'conflicto') {
+    cuenta.conflicto = { estadoServidor: salida.estadoServidor, revisionServidor: salida.revisionServidor, cuando: salida.cuando };
+    cuenta.vista = 'conflicto';
+    cuenta.sincronia = { resultado: 'error', detalle: 'Hay dos versiones.' };
+    ui.page = 'cuenta';
+    render();
+    return salida;
+  }
+
+  if (salida.resultado === 'bajado' && salida.estado) {
+    traerEstadoDeLaNube(salida.estado, salida.revision);
+  }
+  if (salida.resultado === 'subido' || salida.resultado === 'al-dia') hayCambiosSinSubir = false;
+  cuenta.sincronia = { resultado: salida.resultado, detalle: '' };
+  return salida;
+}
+
+// Traerse la versión del servidor encima de la de este teléfono, guardando antes
+// una copia de lo que se tapa.
+function traerEstadoDeLaNube(estadoRemoto, revision) {
+  try {
+    const traido = importState(typeof estadoRemoto === 'string' ? estadoRemoto : JSON.stringify(estadoRemoto));
+    guardarCopiaAntesDeBajar(state);
+    state = traido;
+    saveState(state, undefined, cajon);
+    ponerSesion(guardarSesion(fundirSesion(sesion, { revision: Number(revision) || 0 })));
+    hayCambiosSinSubir = false;
+    ui.reviewId = null; ui.modal = null;
+    ui.mes = emptyMes(mesActual); ui.compra = emptyCompra(mesActual); ui.mas = emptyMas();
+    render();
+    return true;
+  } catch (error) {
+    // Un documento del servidor que no pasa la validación no se instala. Es la
+    // misma regla que con los respaldos: mejor no traer nada que traer basura
+    // encima de lo que funciona.
+    anotar('bajar-estado', error);
+    return false;
+  }
+}
+
+/* ── Entrar, salir, borrarse ──────────────────────────────────────────── */
+
+async function alEntrar(sesionNueva, { nueva = false } = {}) {
+  const guardada = guardarSesion(sesionNueva);
+  ponerSesion(guardada);
+  avisoDeSesion = '';
+  // Cada cuenta, su cajón. Aquí es donde se garantiza que quien entra no ve la
+  // despensa de quien entró antes en este mismo teléfono.
+  abrirCajon(cajonDe(guardada.usuario.id));
+  ui.cuenta = emptyCuenta();
+  ui.cuenta.vista = 'cuenta';
+  ui.page = nueva ? 'cuenta' : 'hoy';
+  render();
+  // Y si la sincronización estaba encendida de una sesión anterior, se pone al
+  // día en segundo plano. Que tarde no puede bloquear la pantalla.
+  sincronizarAhora({ hayCambiosLocales: false }).catch(error => anotar('sincronizar-al-entrar', error));
+}
+
+function alSalirDeLaCuenta({ silencioso = false } = {}) {
+  olvidarSesion();
+  ponerSesion(null);
+  clearTimeout(relojDeSubida);
+  hayCambiosSinSubir = false;
+  // Se vuelve al cajón de este teléfono. Los datos de la cuenta se quedan en el
+  // suyo, intactos, esperando a que vuelva a entrar.
+  abrirCajon(CAJON_DE_ESTE_TELEFONO);
+  ui.cuenta = emptyCuenta();
+  if (!silencioso) { sinCuenta = false; try { localStorage.removeItem(CLAVE_SIN_CUENTA); } catch { /* da igual */ } }
+  ui.page = 'hoy';
+  render();
+  if (!silencioso) toast('Sesión cerrada. Tus datos siguen guardados.');
+}
+
+function alBorrarLaCuenta() {
+  const id = sesion?.usuario?.id || '';
+  olvidarSesion();
+  ponerSesion(null);
+  clearTimeout(relojDeSubida);
+  // El cajón de esa cuenta se va con ella. El de este teléfono no se toca: es de
+  // otra persona, o del mismo antes de registrarse, y nadie pidió borrarlo.
+  if (id) { try { localStorage.removeItem(cajonDe(id)); } catch { /* ya no estaba */ } }
+  sinCuenta = false;
+  try { localStorage.removeItem(CLAVE_SIN_CUENTA); } catch { /* da igual */ }
+  abrirCajon(CAJON_DE_ESTE_TELEFONO);
+  ui.cuenta = emptyCuenta();
+  ui.page = 'hoy';
+  render();
+  toast('Cuenta borrada.');
+}
+
+// El contexto que necesitan las pantallas de la cuenta: lo de siempre, más las
+// puertas hacia el resto de la aplicación. Se pasan como funciones para que
+// `page-cuenta.js` no tenga que saber nada de cajones ni de `state`.
+function ctxCuenta() {
+  return {
+    ...ctx(),
+    sesion,
+    confirmar: mensaje => window.confirm(mensaje),
+    seguirSinCuenta: () => {
+      sinCuenta = true;
+      try { localStorage.setItem(CLAVE_SIN_CUENTA, '1'); } catch { /* se volverá a preguntar, no es grave */ }
+      ui.page = 'hoy';
+      render();
+    },
+    ponerSesion: nueva => ponerSesion(nueva),
+    alEntrar,
+    alSalirDeLaCuenta,
+    alBorrarLaCuenta,
+    sincronizarAhora,
+    traerEstadoDeLaNube,
+    datosDeLaCasa: () => state,
+    // Lo que hay en el cajón de este teléfono, que es lo que se ofrece vincular
+    // después de crear una cuenta.
+    datosDelTelefono: () => {
+      try { return loadStateDetailed(undefined, CAJON_DE_ESTE_TELEFONO).state; }
+      catch { return null; }
+    },
+    abrirEnNavegador: async url => {
+      const aparato = globalThis.Capacitor?.Plugins?.Aparato;
+      if (aparato?.abrirEnNavegador) {
+        const salida = await aparato.abrirEnNavegador({ url }).catch(() => null);
+        return Boolean(salida?.abierto);
+      }
+      // En el navegador de escritorio no hay complemento: se abre una pestaña.
+      try { return Boolean(window.open(url, '_blank', 'noopener')); } catch { return false; }
+    },
+    guardarVerificador: valor => { try { valor ? localStorage.setItem(CLAVE_PKCE, valor) : localStorage.removeItem(CLAVE_PKCE); } catch { /* se pedirá otra vez */ } },
+    leerVerificador: () => { try { return localStorage.getItem(CLAVE_PKCE) || ''; } catch { return ''; } }
+  };
+}
+
+/* ── La vuelta de Google ───────────────────────────────────────────────────
+   Dos caminos, porque el sistema puede haber cerrado la app mientras la persona
+   escribía su contraseña: si seguía viva, el enlace llega por el complemento
+   nada más volver; si la cerró, llega en el arranque. Se mira en los dos
+   momentos. */
+
+async function mirarSiVolvimosDeGoogle() {
+  const aparato = globalThis.Capacitor?.Plugins?.Aparato;
+  let enlace = '';
+  if (aparato?.enlaceDeEntrada) {
+    const leido = await aparato.enlaceDeEntrada().catch(() => null);
+    if (leido?.hay) enlace = String(leido.enlace || '');
+  } else if (typeof window !== 'undefined' && /[?&]code=/.test(window.location.search)) {
+    // En el navegador la vuelta llega en la propia dirección de la página.
+    enlace = window.location.href;
+  }
+  if (!enlace) return;
+  ui.page = 'cuenta';
+  const atendido = await volvimosDeGoogle(ctxCuenta(), enlace);
+  if (atendido && typeof window !== 'undefined' && window.history?.replaceState) {
+    // La dirección se limpia para que un recargar no reintente un código ya
+    // gastado y salga un error que no significa nada.
+    try { window.history.replaceState({}, '', window.location.pathname); } catch { /* da igual */ }
+  }
+}
 
 /* ── Atajos de lectura ─────────────────────────────────────────────────── */
 
@@ -97,7 +372,16 @@ function toast(message, error = false) {
   el.textContent = message; el.className = `show${error ? ' error' : ''}`;
   clearTimeout(toastTimer); toastTimer = setTimeout(() => el.className = '', 4200);
 }
-function commit(message) { saveState(state); render(); if (message) toast(message); }
+function commit(message) {
+  saveState(state, undefined, cajon);
+  // Cada guardado marca que hay algo que subir. No se sube en el acto: quien
+  // está anotando la compra toca diez veces seguidas, y diez viajes a la red
+  // mientras alguien escribe es la forma más rápida de gastarle la batería y de
+  // que la pantalla se quede pillada.
+  apuntarParaSubir();
+  render();
+  if (message) toast(message);
+}
 
 // Lo que un módulo de pantalla necesita para trabajar sin conocer app.js por
 // dentro. Se construye en cada llamada porque `state` se reasigna al importar un
@@ -129,7 +413,7 @@ function ctxConVoz() {
   };
 }
 
-const TITULOS = { hoy: 'Hoy en casa', mes: 'Plan mensual', compra: 'La compra', mas: 'Más', setup: 'Organizar mi casa', legal: 'Privacidad y condiciones', ...TITULOS_MAS };
+const TITULOS = { hoy: 'Hoy en casa', mes: 'Plan mensual', compra: 'La compra', mas: 'Más', setup: 'Organizar mi casa', legal: 'Privacidad y condiciones', cuenta: 'Mi cuenta', ...TITULOS_MAS };
 function pageTitle() { return TITULOS[ui.page] || '¿Qué comemos?'; }
 
 /* ── Bienvenida y recorrido ────────────────────────────────────────────── */
@@ -165,7 +449,8 @@ const PAGINAS = {
   hoy: renderToday,
   mes: () => renderMes(ctx()),
   compra: () => renderCompra(ctx()),
-  setup: () => renderSetup(ctx())
+  setup: () => renderSetup(ctx()),
+  cuenta: () => renderCuenta(ctxCuenta())
 };
 const esPaginaDeMas = pagina => pagina === 'mas' || PAGINAS_MAS.includes(pagina);
 
@@ -212,6 +497,14 @@ function pintar() {
   document.body.classList.toggle('menu-open', ui.drawerOpen);
   document.body.classList.toggle('tour-open', ui.tour !== null);
   document.body.classList.toggle('tour-fab', ui.tour !== null && TOUR_STEPS[ui.tour].highlight === 'fab');
+  // La portada de la cuenta va antes que la bienvenida: es lo primero que ve
+  // quien abre la app sin sesión, y desde ella se decide si se entra o se sigue
+  // sin cuenta. Va fuera del armazón porque no es una página más de la app.
+  if (tocaPedirCuenta()) {
+    document.querySelector('#app').innerHTML = renderCuenta(ctxCuenta());
+    document.querySelector('#modal-root').innerHTML = '';
+    return;
+  }
   if (ui.welcome) {
     document.querySelector('#app').innerHTML = renderWelcome();
     document.querySelector('#modal-root').innerHTML = '';
@@ -229,6 +522,7 @@ function pintar() {
     <main class="main">
       <div class="mobile-brand"><button type="button" class="menu-toggle" data-action="toggle-sidebar" aria-label="${ui.drawerOpen ? 'Ocultar menú' : 'Abrir menú'}" aria-controls="app-sidebar" aria-expanded="${ui.drawerOpen}">☰</button><span class="brand-mark">${BRAND_MARK}</span><span>¿Qué comemos?</span></div>
       <header class="topline"><div class="topline-heading"><button type="button" class="menu-toggle desktop-menu-toggle" data-action="toggle-sidebar" aria-label="${ui.sidebarCollapsed ? 'Abrir menú' : 'Ocultar menú'}" aria-controls="app-sidebar" aria-expanded="${!ui.sidebarCollapsed}">☰</button><div><p class="eyebrow">${esc(eyebrow())}</p><h1>${esc(pageTitle())}</h1></div></div></header>
+      ${avisoDeSesion ? notice('Sobre tu cuenta', `${esc(avisoDeSesion)} <button type="button" class="enlace" data-action="navigate" data-page="cuenta">Ir a mi cuenta</button>`, 'warn') : ''}
       ${ui.avisoDeArranque ? notice('La vez anterior la aplicación se cerró sola', `${esc(ui.avisoDeArranque)} <button type="button" class="enlace" data-action="entendido-el-cierre">Entendido</button>`, 'warn') : ''}
       ${migratedFrom ? notice('Tus datos se actualizaron al formato nuevo.', 'La canasta que tenías es ahora <strong>tu canasta habitual</strong>, y lo que cambiaba en algún mes quedó guardado como cambio de ese mes. Nada se perdió, y lo anterior quedó a salvo por si acaso.') : ''}
       ${loadError ? notice('No se pudieron leer los datos guardados.', `${esc(loadError)} Trae una copia desde Más → Respaldo, o borra los datos para empezar de nuevo.`, 'error') : ''}
@@ -817,6 +1111,7 @@ document.addEventListener('click', event => {
     // El panel de dictado va primero y es el mismo para las cuatro pantallas
     // desde donde se puede dictar.
     if (VOZ_ACTIONS[action]) { llamarAccion(action, VOZ_ACTIONS[action], el, ctxConVoz()); return; }
+    if (CUENTA_ACTIONS[action]) { llamarAccion(action, CUENTA_ACTIONS[action], el, ctxCuenta()); return; }
 
     // Las pantallas que viven en su propio archivo traen sus propias acciones.
     if (SETUP_ACTIONS[action]) {
@@ -1150,6 +1445,7 @@ document.addEventListener('submit', async event => {
   event.preventDefault();
   const data = formValues(form, event.submitter), kind = form.dataset.form;
   try {
+    if (CUENTA_FORMS[kind]) { await CUENTA_FORMS[kind](form, data, ctxCuenta()); return; }
     if (SETUP_FORMS[kind]) { SETUP_FORMS[kind](form, data, ctx()); return; }
     if (CHAT_FORMS[kind]) { await CHAT_FORMS[kind](form, data, { ...ctx(), chat: ui.chat }); return; }
     if (BULK_FORMS[kind]) { await BULK_FORMS[kind](form, data, { ...ctx(), bulk: ui.bulk }); return; }
@@ -1350,9 +1646,56 @@ falloAnterior()
 // El mes corriente se abre en cuanto arranca la app, no cuando alguien entra en
 // Plan mensual: así la pantalla de Hoy ya encuentra las comidas puestas.
 if (!ui.welcome) {
-  try { if (abrirMesSiHaceFalta(ctx(), mesActual)) saveState(state); } catch { /* Sin rutinas no hay nada que aplicar. */ }
+  try { if (abrirMesSiHaceFalta(ctx(), mesActual)) saveState(state, undefined, cajon); } catch { /* Sin rutinas no hay nada que aplicar. */ }
 }
 render();
+
+/* ── La sesión, al arrancar ────────────────────────────────────────────────
+
+   Va después del primer `render()` a propósito. Recuperar la sesión puede querer
+   hablar con el servidor —para renovar el token— y eso tarda; hacerlo antes de
+   pintar dejaría a alguien mirando una pantalla en blanco mientras su teléfono
+   busca cobertura. Así la app aparece entera y la sesión se acomoda encima.
+
+   Y si no hay internet, no pasa nada: `arrancarSesion` devuelve
+   'dentro-sin-red', que significa «esta persona sigue siendo quien es y sus
+   datos están aquí». La aplicación funciona igual. */
+
+arrancarSesion()
+  .then(async arranque => {
+    if (arranque.estado === 'dentro' || arranque.estado === 'dentro-sin-red') {
+      ponerSesion(arranque.sesion);
+      abrirCajon(cajonDe(arranque.sesion.usuario.id));
+      if (arranque.aviso) avisoDeSesion = arranque.aviso;
+      render();
+      if (arranque.estado === 'dentro') {
+        await sincronizarAhora({ hayCambiosLocales: false }).catch(error => anotar('sincronizar-al-arrancar', error));
+      }
+    } else if (arranque.aviso) {
+      avisoDeSesion = arranque.aviso;
+      render();
+    }
+    await mirarSiVolvimosDeGoogle();
+  })
+  .catch(error => anotar('arranque:sesion', error));
+
+// Al volver la conexión se reintenta lo que quedara sin subir. Es la otra mitad
+// de «funciona sin internet»: no basta con no romperse, hay que ponerse al día
+// solo cuando se pueda, sin que nadie tenga que acordarse de nada.
+if (typeof globalThis.addEventListener === 'function') {
+  globalThis.addEventListener('online', () => {
+    if (!sesion?.sincronizando) return;
+    sincronizarAhora().catch(error => anotar('sincronizar-al-volver-la-red', error));
+  });
+
+  // Y al volver a la app: es cuando llega el enlace de vuelta de Google, y
+  // también el momento en que conviene mirar si otro teléfono cambió algo.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    mirarSiVolvimosDeGoogle().catch(error => anotar('vuelta-de-google', error));
+    if (sesion?.sincronizando) sincronizarAhora({ hayCambiosLocales: hayCambiosSinSubir }).catch(error => anotar('sincronizar-al-volver', error));
+  });
+}
 
 // El trabajador de servicio permite instalar la app y abrirla sin conexión. El
 // navegador solo lo acepta en contexto seguro (https o localhost); sobre http en

@@ -8,15 +8,28 @@ export const STORAGE_KEY = 'que-comemos-v1';
 // doble durante una temporada; perder la despensa de una casa cuesta más.
 export const BACKUP_KEY = 'que-comemos-antes-de-migrar';
 
+/* ── Un cajón por cuenta ───────────────────────────────────────────────────
+
+   `STORAGE_KEY` sigue siendo el cajón de este teléfono: es donde está lo de
+   quien lleva tiempo usando la app sin cuenta, y no se toca jamás. Cada cuenta
+   que entre en este aparato tiene el suyo, `que-comemos-v1::<id>`, y de ahí sale
+   la separación entre cuentas del lado del teléfono —la del lado del servidor la
+   ponen las políticas por fila de la base de datos.
+
+   Sin esto, María cerraría sesión, entraría Pedro y vería la despensa de María.
+   Las tres funciones de abajo aceptan por eso una clave; sin ella se comportan
+   exactamente como antes, que es lo que hace que nada de lo que ya existía se
+   entere de este cambio. */
+
 // Sin nada guardado es el primer arranque: la app muestra la bienvenida.
-export function hasSavedState(storage = globalThis.localStorage) {
-  return Boolean(storage?.getItem(STORAGE_KEY));
+export function hasSavedState(storage = globalThis.localStorage, clave = STORAGE_KEY) {
+  return Boolean(storage?.getItem(clave));
 }
 
 // Devuelve el estado y, además, si hubo que convertirlo. La app lo usa para
 // avisar de una sola vez, no para decidir nada.
-export function loadStateDetailed(storage = globalThis.localStorage) {
-  const saved = storage?.getItem(STORAGE_KEY);
+export function loadStateDetailed(storage = globalThis.localStorage, clave = STORAGE_KEY) {
+  const saved = storage?.getItem(clave);
   if (!saved) return { state: createDemoState(), migrated: false, from: SCHEMA_VERSION };
   const parsedVersion = Number(JSON.parse(saved)?.version);
   // Validar antes de tocar nada: si `importState` lanza, lo guardado se queda
@@ -24,18 +37,18 @@ export function loadStateDetailed(storage = globalThis.localStorage) {
   const state = importState(saved);
   const migrated = Number.isInteger(parsedVersion) && parsedVersion < SCHEMA_VERSION;
   if (migrated) {
-    try { storage.setItem(BACKUP_KEY, saved); } catch { /* Sin sitio para el respaldo, no migramos a ciegas. */ }
-    saveState(state, storage);
+    try { storage.setItem(`${BACKUP_KEY}${clave === STORAGE_KEY ? '' : `::${clave}`}`, saved); } catch { /* Sin sitio para el respaldo, no migramos a ciegas. */ }
+    saveState(state, storage, clave);
   }
   return { state, migrated, from: parsedVersion };
 }
 
-export function loadState(storage = globalThis.localStorage) {
-  return loadStateDetailed(storage).state;
+export function loadState(storage = globalThis.localStorage, clave = STORAGE_KEY) {
+  return loadStateDetailed(storage, clave).state;
 }
 
-export function saveState(state, storage = globalThis.localStorage) {
-  storage?.setItem(STORAGE_KEY, JSON.stringify(state));
+export function saveState(state, storage = globalThis.localStorage, clave = STORAGE_KEY) {
+  storage?.setItem(clave, JSON.stringify(state));
 }
 
 // Borrar de verdad, que no es lo mismo que empezar de cero.
@@ -65,7 +78,20 @@ export function clearAll(storage = globalThis.localStorage) {
     // Cómo se ha portado el micrófono en este teléfono: cuántas veces falló y si
     // la app dejó de abrirlo sola. No es un dato de la casa, pero sí es algo que
     // esta aplicación escribió, y «borrar todos mis datos» quiere decir todos.
-    'que-comemos-voz-v1'
+    'que-comemos-voz-v1',
+    // La sesión, con el token de quien está dentro. Dejar un token vivo
+    // apuntando a una cuenta cuyos datos alguien acaba de pedir que
+    // desaparezcan sería justo lo contrario de lo que pidió.
+    'que-comemos-sesion-v1',
+    // La copia que se guarda antes de traerse la versión del servidor encima.
+    'que-comemos-antes-de-sincronizar',
+    // El secreto a medio usar de un inicio de sesión con Google.
+    'que-comemos-google-pkce',
+    // Que alguien eligió seguir sin cuenta. Es una preferencia de este teléfono,
+    // y borrar los datos incluye olvidar lo que se eligió.
+    'que-comemos-sin-cuenta',
+    // Y los cajones de cada cuenta que haya entrado en este teléfono.
+    ...cajonesDeCuentas(storage)
   ];
   const borradas = [];
   for (const clave of claves) {
@@ -73,4 +99,24 @@ export function clearAll(storage = globalThis.localStorage) {
     try { storage.removeItem(clave); borradas.push(clave); } catch { /* Sin almacenamiento no hay nada que borrar. */ }
   }
   return borradas;
+}
+
+/* Los cajones de las cuentas sí se buscan por prefijo, y es la única excepción
+   a la regla de enumerar a mano. El motivo es que no se pueden enumerar: llevan
+   dentro el identificador de un usuario que esta función no conoce.
+
+   La excepción es segura porque el prefijo es exacto y larguísimo,
+   `que-comemos-v1::`, con dos puntos dobles que no aparecen por casualidad en
+   la clave de nadie. No barre `que-comemos-` a secas, que es lo que sí podría
+   llevarse por delante algo de otra aplicación llamada parecido. */
+function cajonesDeCuentas(storage) {
+  const prefijo = `${STORAGE_KEY}::`;
+  const encontrados = [];
+  try {
+    for (let i = 0; i < Number(storage?.length || 0); i += 1) {
+      const clave = storage.key(i);
+      if (typeof clave === 'string' && clave.startsWith(prefijo)) encontrados.push(clave);
+    }
+  } catch { /* Un almacenamiento que no se deja recorrer no tiene cajones que borrar. */ }
+  return encontrados;
 }

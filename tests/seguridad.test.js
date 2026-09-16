@@ -191,17 +191,75 @@ test('la aplicación no ejecuta código escrito en texto', () => {
   assert.deepEqual(sospechas, [], 'formas de ejecutar texto como código');
 });
 
-test('la aplicación no sale a la red, y punto', () => {
-  // Aquí había una excepción: un módulo que llamaba al servidor que el usuario
-  // configurara. Esa opción se quitó —no llegaba a funcionar, y contradecía la
-  // idea de que esto tiene que servir sin que nadie monte nada—, así que la
-  // afirmación es ahora la más simple que existe: no hay ninguna salida.
+test('la aplicación sale a la red por una sola puerta, y solo a ella', () => {
+  // Esta prueba decía «no hay ninguna salida», y era verdad hasta que llegaron
+  // las cuentas. Borrarla al añadir la primera habría sido perder justo lo que
+  // protegía. Así que dice ahora lo más fuerte que sigue siendo cierto, que no
+  // es poco:
   //
-  // El día que alguien añada una, esta prueba se pone roja. Y entonces hay que
-  // cambiar también la política de privacidad y el formulario de Play, no solo
-  // esta línea.
+  //   · Un único módulo habla con la red: `nube.js`.
+  //   · Dentro de él hay UNA sola llamada a `fetch`, y su dirección se compone
+  //     siempre a partir de `urlLimpia()`, que es el proyecto configurado.
+  //
+  // De ahí sale la afirmación que hay que poder hacer delante de Google Play y
+  // de quien use esto: los datos de una casa solo pueden ir al sitio que su
+  // dueño configuró. No hay telemetría, no hay analítica, no hay una segunda
+  // dirección escondida en otro archivo.
   const salidas = modulos().filter(archivo => /\bfetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon/.test(sinComentarios(archivo)));
-  assert.deepEqual(salidas, [], 'módulos que salen a la red');
+  assert.deepEqual(salidas, ['nube.js'], 'módulos que salen a la red: solo nube.js debería');
+
+  const nube = sinComentarios('nube.js');
+  const llamadas = nube.match(/\bfetch\s*\(/g) || [];
+  assert.equal(llamadas.length, 1, 'nube.js tiene más de una llamada a fetch: la puerta única deja de serlo');
+
+  // Y esa llamada se construye con la dirección configurada, no con una escrita
+  // a mano en medio del archivo.
+  assert.ok(/fetch\(`\$\{urlLimpia\(\)\}/.test(nube), 'la llamada de red ya no se construye con la dirección configurada');
+
+  // Ninguna dirección de otro sitio, en ningún módulo. Se admite supabase.co
+  // —que es a donde va la cuenta— y nada más.
+  const ajenas = [];
+  for (const archivo of modulos()) {
+    // Se exige un dominio de verdad —con punto y extensión— para no cazar los
+    // «https://» sueltos que aparecen dentro de las frases que se le enseñan a
+    // quien tiene que configurar el proyecto.
+    for (const url of sinComentarios(archivo).match(/https?:\/\/(?:\*\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}/gi) || []) {
+      if (/^https:\/\/(\*\.)?supabase\.co/i.test(url)) continue;
+      if (/^https:\/\/localhost/i.test(url)) continue;
+      ajenas.push(`${archivo}: ${url}`);
+    }
+  }
+  assert.deepEqual(ajenas, [], 'direcciones de terceros dentro del código del cliente');
+});
+
+// La clave que viaja en el APK es la pública, y eso es correcto: no abre nada
+// por sí sola, porque quien decide qué se puede leer son las políticas por fila
+// de la base de datos. La que NO puede estar aquí es la de servicio, que se las
+// salta todas: quien la tenga puede leer y borrar los datos de cualquier casa.
+//
+// Un pegado por descuido de esa clave es el peor fallo posible de este proyecto,
+// y además es silencioso: la app funcionaría igual de bien. Por eso se busca.
+test('ninguna clave de servicio se cuela en el código del cliente', () => {
+  // Se mira el CÓDIGO, no los comentarios. Una clave pegada por descuido acaba
+  // en una variable, nunca dentro de un párrafo explicando por qué no debe
+  // estar ahí —y este archivo tiene varios de esos párrafos a propósito.
+  const leer = archivo => archivo === 'index.html'
+    ? readFileSync(resolve(SRC, '..', 'index.html'), 'utf8').replace(/<!--[\s\S]*?-->/g, ' ')
+    : sinComentarios(archivo);
+  const sospechosas = [];
+  for (const archivo of [...modulos(), 'index.html']) {
+    const texto = leer(archivo);
+    if (/service_role/i.test(texto)) sospechosas.push(`${archivo}: menciona service_role`);
+    if (/\bsb_secret_[A-Za-z0-9_-]{8,}/.test(texto)) sospechosas.push(`${archivo}: clave secreta de Supabase`);
+    // Un JWT de Supabase con el papel de servicio dentro. Se mira el contenido
+    // descodificado, que es donde está el papel, y no el nombre de la variable.
+    for (const jwt of texto.match(/eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g) || []) {
+      let carga = '';
+      try { carga = Buffer.from(jwt.split('.')[1], 'base64').toString('utf8'); } catch { carga = ''; }
+      if (/service_role/i.test(carga)) sospechosas.push(`${archivo}: JWT con papel de servicio`);
+    }
+  }
+  assert.deepEqual(sospechosas, [], 'claves privadas dentro del cliente');
 });
 
 test('un respaldo hostil no envenena el prototipo ni entra a medias', () => {
@@ -233,14 +291,20 @@ test('la política de contenido sigue cerrando las vías que cierra hoy', () => 
 
   // `'unsafe-eval'` convertiría cualquier texto en código ejecutable. Nunca.
   assert.ok(!csp.includes('unsafe-eval'), 'la política volvió a permitir ejecutar texto como código');
-  // Sin comodines: un `*` en script-src o connect-src anula el resto.
-  assert.ok(!/(script|connect|object)-src[^;]*\*/.test(csp), 'la política tiene un comodín donde no debe');
+  // Sin comodines en script-src ni object-src: uno solo anula el resto.
+  assert.ok(!/(script|object)-src[^;]*\*/.test(csp), 'la política tiene un comodín donde no debe');
+  // `connect-src` sí lleva uno, y es el único admitido: `https://*.supabase.co`
+  // cubre el subdominio del proyecto, que cambia de una instalación a otra. Lo
+  // que no puede volver es `https:` a secas, que permitía mandar la despensa de
+  // una casa a cualquier servidor del mundo.
+  const conectar = csp.match(/connect-src ([^;]+)/)?.[1]?.trim();
+  assert.equal(conectar, "'self' https://*.supabase.co", 'connect-src dejó de nombrar un único destino');
 
   for (const regla of ["default-src 'self'", "object-src 'none'", "base-uri 'none'", "frame-src 'none'"]) {
     assert.ok(csp.includes(regla), `falta la regla: ${regla}`);
   }
-  // Nada puede salir a un http:// en claro, que es por donde se iría una fuga.
-  assert.ok(/connect-src 'self' https:/.test(csp), 'connect-src dejó de exigir https');
+  // Y nada puede salir a un http:// en claro, que es por donde se iría una fuga.
+  assert.ok(!/connect-src[^;]*http:/.test(csp), 'connect-src volvió a admitir tráfico sin cifrar');
 
   // `script-src` lleva 'unsafe-inline' a la fuerza: Capacitor inyecta su puente
   // como script en línea y sin eso la app no arranca dentro del APK. Se deja

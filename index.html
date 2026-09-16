@@ -15,8 +15,17 @@
          · Ningún script de otro sitio. Un ataque no puede traerse herramientas.
          · Sin `'unsafe-eval'`: `eval` y `new Function` no funcionan ni aunque
            alguien logre meter código.
-         · `connect-src` solo admite https, así que nada puede mandar la
-           despensa de una casa a un `http://` cualquiera.
+         · `connect-src` nombra UN solo destino. Esto se estrechó al añadir las
+           cuentas y es la regla que más trabaja ahora: antes decía `https:` a
+           secas, que permitía mandar la despensa de una casa a cualquier
+           servidor del mundo mientras fuera cifrado. Hoy solo admite el
+           proyecto de Supabase, así que aunque alguien lograra colar código,
+           no tendría a dónde mandarse lo que leyera.
+
+           Si algún día el proyecto vive en un dominio propio en vez de en
+           `*.supabase.co`, hay que añadirlo aquí o las llamadas fallarán con un
+           error de la política que no menciona esta línea. Hay una prueba en
+           tests/seguridad.test.js que lo recuerda.
          · `object-src 'none'` y `base-uri 'none'` cierran dos vías clásicas.
 
        La defensa de verdad contra esto es que todo texto del usuario se escapa
@@ -25,7 +34,7 @@
 
        `frame-ancestors` no se puede poner en un <meta>: solo vale como cabecera
        HTTP, y server.js la manda. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self'; connect-src 'self' https:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self'; connect-src 'self' https://*.supabase.co; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'none'">
   <title>¿Qué comemos?</title>
   <link rel="icon" href="src/isotipo.png" type="image/png">
   <link rel="manifest" href="manifest.webmanifest">
@@ -45,6 +54,7 @@
   <!-- El panel de dictado va el último: aparece dentro de cuatro pantallas
        distintas y tiene que verse igual en las cuatro. -->
   <link rel="stylesheet" href="src/voz.css">
+  <link rel="stylesheet" href="src/cuenta.css">
 </head>
 <body>
   <div id="app"></div>

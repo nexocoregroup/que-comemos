@@ -43,6 +43,31 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- El viaje de vuelta de Google.
+
+                 Identificarse con Google ocurre en el navegador del teléfono y
+                 no dentro de la app, porque Google rechaza desde 2021 los
+                 inicios de sesión hechos en un WebView incrustado. Terminado
+                 aquello, el navegador tiene que poder devolver a la persona a
+                 esta aplicación, y este filtro es la puerta por la que entra.
+
+                 `quecomemos://cuenta` tiene que decir exactamente lo mismo en
+                 tres sitios o la vuelta se pierde y la pantalla se queda
+                 esperando para siempre: aquí, en `VUELTA_DE_GOOGLE` de
+                 src/config-nube.js, y en la lista de «Redirect URLs» del panel
+                 de Supabase.
+
+                 Un esquema propio como este lo puede reclamar otra aplicación
+                 del teléfono, y por eso el intercambio usa PKCE: lo que viaja
+                 por aquí es un código que no sirve de nada sin el secreto que se
+                 quedó dentro de esta app. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="quecomemos" android:host="cuenta" />
+            </intent-filter>
+
         </activity>
 
         <!-- Viene del andamiaje de Capacitor, no de un complemento nuestro: es

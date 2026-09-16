@@ -15,9 +15,6 @@ import org.json.JSONObject;
 /**
  * Lo poco que la aplicación necesita del teléfono y no puede hacer sola.
  *
- * Son dos cosas, y las dos nacen de la misma fase: que el dictado dejara de
- * cerrar la app y que, cuando falle, se pueda saber por qué.
- *
  *   · `abrirAjustes()` — cuando alguien dice «no» al permiso del micrófono,
  *     Android no lo vuelve a preguntar nunca más. Sin esto, el único consejo
  *     posible es «búscalo tú en los ajustes del teléfono», que es exactamente el
@@ -28,12 +25,35 @@ import org.json.JSONObject;
  *     no se puede contar desde dentro del proceso muerto; se cuenta al arrancar
  *     el siguiente.
  *
- * No se usa ningún complemento de terceros para esto a propósito. Son cuarenta
+ *   · `abrirEnNavegador()` y `enlaceDeEntrada()` — el viaje de ida y vuelta de
+ *     Google. Ver más abajo: tiene que ser el navegador del sistema, y no es
+ *     opcional.
+ *
+ * No se usa ningún complemento de terceros para esto a propósito. Son cien
  * líneas de Java; una dependencia nueva traería su propio código nativo, sus
  * propios permisos y su propia superficie de ataque, a cambio de nada.
  */
 @CapacitorPlugin(name = "Aparato")
 public class Aparato extends Plugin {
+
+    /**
+     * El enlace con el que alguien volvió del navegador.
+     *
+     * Es estático porque el viaje de vuelta puede llegar de dos maneras y hay
+     * que atender las dos: si la app seguía viva en segundo plano, Android la
+     * despierta con `onNewIntent`; si el sistema la había cerrado mientras la
+     * persona escribía su contraseña, vuelve a arrancarla entera y el enlace
+     * llega en el `onCreate`. En el segundo caso este complemento todavía no
+     * existe cuando el enlace aparece, así que el enlace tiene que esperarle
+     * aquí, fuera de cualquier instancia.
+     */
+    private static String enlacePendiente = null;
+
+    /** La llama `MainActivity` cada vez que un enlace entra en la aplicación. */
+    static void recibirEnlace(String enlace) {
+        if (enlace == null || enlace.isEmpty()) return;
+        enlacePendiente = enlace;
+    }
 
     /**
      * Abre la ficha de esta aplicación en los ajustes del teléfono, que es donde
@@ -89,6 +109,58 @@ public class Aparato extends Plugin {
             // Un informe de fallo ilegible no puede provocar otro fallo.
             call.resolve(respuesta.put("hay", false));
         }
+    }
+
+    /**
+     * Abre una dirección en el navegador del teléfono, fuera de la aplicación.
+     *
+     * Esto NO es una preferencia de diseño. Google rechaza desde 2021 los
+     * inicios de sesión hechos dentro de un WebView incrustado y contesta
+     * `disallowed_useragent`: es una medida suya contra las aplicaciones que
+     * espían la contraseña de quien entra, y no hay forma de esquivarla ni
+     * conviene que la haya. Así que la identificación pasa por el navegador de
+     * verdad, donde la persona puede ver la barra de direcciones y comprobar que
+     * está escribiendo su contraseña en accounts.google.com y no en una copia.
+     *
+     * Solo se abren direcciones `https`. Sin esa comprobación, cualquier cosa
+     * capaz de llegar hasta aquí podría lanzar intenciones arbitrarias del
+     * sistema desde dentro de la aplicación.
+     */
+    @PluginMethod
+    public void abrirEnNavegador(PluginCall call) {
+        final String url = call.getString("url", "");
+        if (url == null || !url.regionMatches(true, 0, "https://", 0, 8)) {
+            call.resolve(new JSObject().put("abierto", false).put("motivo", "Solo se abren direcciones https."));
+            return;
+        }
+        try {
+            final Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve(new JSObject().put("abierto", true));
+        } catch (Throwable error) {
+            // Un teléfono sin navegador es raro pero existe (algunos aparatos de
+            // empresa). Quien llama enseña entonces la alternativa del correo.
+            call.resolve(new JSObject().put("abierto", false).put("motivo", String.valueOf(error.getMessage())));
+        }
+    }
+
+    /**
+     * El enlace con el que se volvió del navegador, si lo hubo.
+     *
+     * Se entrega una sola vez: en cuanto el JavaScript lo recoge, se borra. Un
+     * código de autorización sirve para canjearse una vez, y dejarlo aquí para
+     * que lo vuelva a leer el siguiente arranque solo produciría un error
+     * confuso días después.
+     */
+    @PluginMethod
+    public void enlaceDeEntrada(PluginCall call) {
+        final String enlace = enlacePendiente;
+        enlacePendiente = null;
+        final JSObject respuesta = new JSObject();
+        respuesta.put("hay", enlace != null);
+        if (enlace != null) respuesta.put("enlace", enlace);
+        call.resolve(respuesta);
     }
 
     /** Se llama cuando el fallo ya se ha enseñado: enseñarlo dos veces asusta. */

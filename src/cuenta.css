@@ -1,0 +1,115 @@
+/* Las pantallas de la cuenta.
+ *
+ * La portada es lo primero que ve alguien que abre la app, así que aquí la
+ * identidad pesa más que en el resto: el isotipo grande, la terracota en el
+ * botón principal y sitio para respirar. Las demás vistas son formularios
+ * corrientes y reutilizan `.field` y `.btn` de siempre; lo único propio es lo
+ * que la fase pedía y no existía: el error pegado a su campo y el botón que
+ * sabe esperar. */
+
+.cuenta {
+  display: grid;
+  gap: 18px;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 8px 0 40px;
+}
+.cuenta-dentro { max-width: 560px; }
+
+/* ── La portada ───────────────────────────────────────────────────────── */
+
+.cuenta-marca { display: grid; justify-items: center; gap: 10px; text-align: center; padding: 18px 0 6px; }
+.cuenta-logo .brand-glyph { width: 96px; height: 96px; }
+.cuenta-marca h2 { margin: 0; font-size: 1.6rem; letter-spacing: -.03em; }
+.cuenta-marca p { margin: 0; max-width: 34ch; color: var(--ink-muted); line-height: 1.5; }
+
+.cuenta-cabecera { display: grid; gap: 6px; padding: 6px 0 2px; }
+.cuenta-cabecera h2 { margin: 0; font-size: 1.35rem; letter-spacing: -.03em; }
+.cuenta-cabecera p { margin: 0; line-height: 1.5; }
+
+.cuenta-acciones { display: grid; gap: 10px; }
+.cuenta-acciones .btn { width: 100%; justify-content: center; }
+
+/* Google pone su marca en gris sobre blanco por norma suya, y además así no
+   compite con el botón principal de la app, que es el de terracota. */
+.cuenta-google { background: #fff; border: 1px solid var(--line); color: var(--ink); }
+.cuenta-google:hover { background: #f7f2ec; }
+
+/* La salida de quien no quiere cuenta. Separada por una línea para que se lea
+   como otra cosa y no como un cuarto botón de la lista de arriba. */
+.cuenta-sin {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+.cuenta-sin p { max-width: 36ch; margin: 0; }
+
+/* ── El error pegado a su campo ───────────────────────────────────────── */
+
+.field-mal input { border-color: #b3261e; }
+.field-mal input:focus-visible { outline-color: #b3261e; }
+.cuenta-mal { color: #8c1d18; font-weight: 600; }
+
+/* ── El botón que espera ──────────────────────────────────────────────── */
+
+.cuenta-girando {
+  display: inline-block;
+  width: 14px; height: 14px;
+  margin-right: 8px;
+  vertical-align: -2px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: cuenta-vuelta .7s linear infinite;
+}
+@keyframes cuenta-vuelta { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .cuenta-girando { animation-duration: 2.4s; }
+}
+.btn[aria-busy="true"] { opacity: .75; cursor: progress; }
+
+/* ── Con sesión ───────────────────────────────────────────────────────── */
+
+.cuenta-ficha { padding: 16px; }
+.cuenta-quien { display: flex; align-items: center; gap: 14px; }
+.cuenta-quien > div { display: grid; gap: 2px; min-width: 0; }
+.cuenta-quien strong { font-size: 1.05rem; }
+.cuenta-quien span { overflow-wrap: anywhere; }
+
+.cuenta-inicial {
+  flex: none;
+  width: 48px; height: 48px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--clay-light);
+  color: var(--clay-dark);
+  font-size: 1.3rem; font-weight: 800;
+}
+
+.cuenta-interruptor { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+.cuenta-estado { margin: 10px 0 0; }
+.cuenta-estado.error { color: #8c1d18; }
+.cuenta-vincular { display: grid; gap: 10px; margin-top: 14px; }
+
+/* Lo irreversible se ve distinto. No en rojo chillón —eso lo convierte en un
+   botón que llama la atención—, sino apagado y con su borde, para que haya que
+   ir a buscarlo. */
+.cuenta-peligro { border-color: #e6c9c6; }
+.cuenta-peligro h3 { color: #8c1d18; }
+.cuenta-borrar-btn { color: #8c1d18; border: 1px solid #e6c9c6; }
+.cuenta-borrar-btn:hover { background: #fdf3f2; }
+
+/* ── El aviso de sesión en la barra ───────────────────────────────────── */
+
+.sesion-aviso {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 14px;
+  border-radius: 10px;
+  background: var(--clay-light);
+  color: var(--clay-dark);
+  font-size: .85rem; font-weight: 650;
+}
+.sesion-aviso.sin-red { background: #f2efe7; color: var(--ink-muted); }

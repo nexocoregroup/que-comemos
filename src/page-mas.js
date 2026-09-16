@@ -38,13 +38,18 @@ export const ENTRADAS_MAS = [
   ['alimentos', '🥬', 'Alimentos de la casa', 'La ficha de cada uno: medidas y existencias'],
   ['historial', '🕘', 'Historial', 'Compras, revisiones y correcciones'],
   ['respaldo', '💾', 'Respaldo', 'Guardar una copia o traerla de vuelta'],
+  ['cuenta', '👤', 'Mi cuenta', 'Entrar, sincronizar o cerrar sesión'],
   ['ajustes', '⚙️', 'Ajustes', 'Día de revisión, micrófono y ayuda'],
   ['avanzado', '🔧', 'Funciones avanzadas', 'Medidas, correcciones y uniones']
 ];
 
 // «legal» no sale en el índice —se llega desde Ajustes— pero es una página de
 // Más como las otras: necesita el mismo enrutado y el mismo botón de volver.
-export const PAGINAS_MAS = [...ENTRADAS_MAS.map(([id]) => id), 'legal'];
+// «cuenta» sale en el índice de Más, pero no la pinta este archivo: la pintan
+// las pantallas de `page-cuenta.js`, que necesitan cosas —la sesión, el cajón
+// abierto, la sincronización— que solo conoce `app.js`. Por eso se queda fuera
+// de esta lista aunque esté en la de arriba.
+export const PAGINAS_MAS = [...ENTRADAS_MAS.map(([id]) => id).filter(id => id !== 'cuenta'), 'legal'];
 
 export const TITULOS_MAS = Object.fromEntries(ENTRADAS_MAS.map(([id, , titulo]) => [id, titulo]));
 

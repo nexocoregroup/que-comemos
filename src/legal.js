@@ -36,8 +36,9 @@ export const LEGAL = {
         titulo: 'En corto',
         parrafos: [
           'Todo lo que escribes en esta app se queda guardado en tu teléfono.',
-          'No hay cuentas, no hay que registrarse y no hay un servidor nuestro. Nosotros, los que hicimos la app, no recibimos nada: ni tus comidas, ni tu despensa, ni tus compras, ni quiénes viven en tu casa, ni cuánto usas la app.',
-          'No se puede pedir lo que no se tiene. Si quieres borrar tus datos, los borras tú desde el teléfono y se acabaron.'
+          'Puedes usarla sin cuenta, y entonces no sale nada de tu teléfono. También puedes crear una cuenta, que sirve para recuperar tu casa si cambias de aparato.',
+          'Tener cuenta no significa subir tus datos. Guardar la casa en la cuenta es una segunda decisión, con su propio interruptor en Más → Mi cuenta, y mientras esté apagado no viaja nada.',
+          'Nosotros, los que hicimos la app, no recibimos nada en ningún caso: ni tus comidas, ni tu despensa, ni tus compras, ni quiénes viven en tu casa, ni cuánto usas la app. No hay analítica, ni publicidad, ni rastreadores.'
         ]
       },
       {
@@ -52,7 +53,8 @@ export const LEGAL = {
         parrafos: [
           'La app guarda lo que tú escribes en ella: los alimentos de tu casa y sus cantidades, las comidas que planificas, tus rutinas y tus notas, las personas de la casa con el nombre que tú les pongas y sus restricciones si las anotas, tus compras, tus revisiones de «cuánto queda» y el historial que sale de ahí.',
           'Todo eso vive en el almacenamiento local del navegador dentro de tu propio teléfono. Es el mismo teléfono donde instalaste la app, y nada más.',
-          'No se copia a la nube, no se sincroniza con otro aparato y no viaja a ninguna parte. Si abres la app en otro teléfono, ahí empiezas de cero: son dos almacenes distintos que no se hablan.',
+          'Con la sincronización apagada —que es como viene— no se copia a ninguna parte. Si abres la app en otro teléfono, ahí empiezas de cero.',
+          'Si la enciendes, ese mismo contenido se guarda además en tu cuenta, en servidores de Supabase, y vuelve solo cuando entras desde otro teléfono. Viaja cifrado y solo tú puedes leerlo: la base de datos está configurada para que cada cuenta vea únicamente su propia casa. Puedes apagarla cuando quieras, y borrar la cuenta borra lo que hubiera subido.',
           'La copia automática de Android está apagada a propósito. Android suele subir solo los datos de las aplicaciones a la cuenta de Google del dueño del teléfono; en esta app eso está desactivado, para que tu despensa no acabe en un servidor sin que nadie lo pidiera.',
           'El precio de esa decisión hay que decirlo claro: si pierdes el teléfono sin haber guardado una copia, se pierde todo. Por eso existe Más → Respaldo, y por eso la app insiste en que la uses.'
         ]
@@ -60,13 +62,13 @@ export const LEGAL = {
       {
         titulo: 'Qué NO recogemos',
         parrafos: [
-          'Esta es la lista completa de lo que el desarrollador recibe de ti: nada. Ni un dato.',
-          'Sin cuentas: no hay registro, ni correo, ni contraseña, ni inicio de sesión.',
+          'Esta es la lista completa de lo que el desarrollador recibe de ti: nada. Ni un dato. Lo que subas con la sincronización encendida se guarda en TU cuenta, no llega a nosotros, y nadie de NexoCore puede leerlo.',
+          'Si creas una cuenta, lo único que se guarda de ti es tu correo, tu nombre y tu contraseña cifrada, y eso lo guarda Supabase, que es quien opera el servicio de cuentas.',
           'Sin analítica: no medimos cuánta gente abre la app, ni qué pantallas usa, ni cuánto tiempo pasa dentro.',
           'Sin publicidad y sin rastreadores: no hay anuncios, ni píxeles, ni identificadores de publicidad.',
           'Sin informes de fallos: si la app se rompe, no nos enteramos.',
           'Sin SDK de terceros: no hay librerías de otras empresas metidas dentro recogiendo datos por su cuenta.',
-          'No es una promesa suelta. En el código de la app no hay ni una sola función capaz de salir a internet. Ninguna. Hay una prueba automática que se pone en rojo el día que alguien añada una.'
+          'No es una promesa suelta. La app tiene una sola puerta de salida a la red, y solo sabe hablar con el proyecto de Supabase que guarda tu cuenta. Hay una prueba automática que se pone en rojo el día que alguien abra una segunda o le ponga otra dirección.'
         ]
       },
       {
@@ -123,7 +125,7 @@ export const LEGAL = {
         titulo: 'No hay nada que pedirnos',
         parrafos: [
           'En las apps con cuenta, uno le escribe a la empresa para que le enseñe sus datos o se los borre. Aquí eso no aplica, y es una buena noticia.',
-          'Como no hay cuentas ni servidor, nosotros no tenemos ningún dato tuyo: no podemos enseñártelos, ni corregirlos, ni exportarlos, ni borrarlos, porque nunca los tuvimos. Todo eso lo haces tú directamente en el teléfono, que es donde están.',
+          'Nosotros no tenemos ningún dato tuyo: no podemos enseñártelos, ni corregirlos, ni exportarlos, ni borrarlos, porque nunca los tuvimos. Todo eso lo haces tú desde la propia app: los datos del teléfono en Más → Respaldo y en Más → Ajustes, y los de tu cuenta en Más → Mi cuenta → Borrar mi cuenta, que borra a la vez lo del servidor y lo del teléfono.',
           'Si aun así quieres preguntarnos algo sobre este aviso, escribe a CORREO_DE_CONTACTO y te contestamos.'
         ]
       },
@@ -289,7 +291,7 @@ export const LEGAL = {
         titulo: 'Por qué esta página dice esto y no otra cosa',
         parrafos: [
           'Casi todas las apps piden una cuenta, guardan tus datos en su servidor y tienen un formulario para pedir que los borren.',
-          '«¿Qué comemos?» no funciona así. No hay cuentas, no hay registro, no hay servidor nuestro y no recibimos ningún dato tuyo. Todo lo que escribes se guarda dentro de tu propio teléfono.',
+          '«¿Qué comemos?» no funciona así. Se puede usar entera sin cuenta, no hay servidor nuestro y no recibimos ningún dato tuyo. Si creas una cuenta y enciendes la sincronización, tus datos se guardan en tu cuenta para que puedas recuperarlos, y siguen sin pasar por nosotros.',
           'Eso cambia la respuesta a esta pregunta: no tenemos nada tuyo que borrar, y por eso no hay ningún formulario que llenar ni ninguna solicitud que esperar. El botón de borrar lo tienes tú, en la mano.'
         ]
       },

@@ -16,7 +16,7 @@
 
 export const WELCOME = {
   promise: 'Organiza una vez lo habitual de tu casa y prepara cada mes cambiando solamente lo diferente.',
-  foot: 'Todo se guarda solo en este aparato. No hay cuentas ni sincronización: guarda una copia antes de cambiar de teléfono.'
+  foot: 'Todo se guarda en este aparato. Puedes crear una cuenta para no perderlo si cambias de teléfono, o seguir sin cuenta y guardar una copia de vez en cuando.'
 };
 
 export const TOUR_STEPS = [
