@@ -57,7 +57,16 @@ export function saveState(state, storage = globalThis.localStorage) {
 // esta lista, el fallo es que sobrevive un dato —visible, arreglable— y no que
 // se borre algo de otra aplicación que casualmente se llamaba parecido.
 export function clearAll(storage = globalThis.localStorage) {
-  const claves = [STORAGE_KEY, BACKUP_KEY, 'que-comemos-proveedores-v1', 'que-comemos-sidebar-collapsed'];
+  const claves = [
+    STORAGE_KEY,
+    BACKUP_KEY,
+    'que-comemos-proveedores-v1',
+    'que-comemos-sidebar-collapsed',
+    // Cómo se ha portado el micrófono en este teléfono: cuántas veces falló y si
+    // la app dejó de abrirlo sola. No es un dato de la casa, pero sí es algo que
+    // esta aplicación escribió, y «borrar todos mis datos» quiere decir todos.
+    'que-comemos-voz-v1'
+  ];
   const borradas = [];
   for (const clave of claves) {
     if (storage?.getItem(clave) === null || storage?.getItem(clave) === undefined) continue;

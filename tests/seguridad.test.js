@@ -97,6 +97,7 @@ test('borrar los datos no deja ninguna copia detrás', async () => {
     [BACKUP_KEY, '{"version":2,"products":[{"name":"copia entera de lo anterior"}]}'],
     ['que-comemos-proveedores-v1', '{"baseUrl":"https://…","token":"secreto"}'],
     ['que-comemos-sidebar-collapsed', '1'],
+    ['que-comemos-voz-v1', '{"fallos":2,"enCurso":false}'],
     ['app-de-otro', 'esto no es nuestro']
   ]);
   const falso = { getItem: k => (almacen.has(k) ? almacen.get(k) : null), removeItem: k => almacen.delete(k) };
@@ -106,7 +107,33 @@ test('borrar los datos no deja ninguna copia detrás', async () => {
   assert.equal(almacen.get(STORAGE_KEY), undefined, 'quedaron los datos');
   assert.equal(almacen.get(BACKUP_KEY), undefined, 'quedó la copia previa a la migración, con todo dentro');
   assert.equal(almacen.get('que-comemos-proveedores-v1'), undefined, 'quedó la dirección del servidor y su token');
+  assert.equal(almacen.get('que-comemos-voz-v1'), undefined, 'quedó lo que la app sabe del micrófono de este teléfono');
   assert.equal(almacen.get('app-de-otro'), 'esto no es nuestro', 'se borró algo que no era de esta app');
+});
+
+// La lista de `clearAll` se enumera a mano, y una lista a mano se queda atrás en
+// cuanto alguien añade una clave nueva y no se acuerda. Esta prueba busca por el
+// código todas las claves que empiezan por `que-comemos-` y exige que estén
+// todas en la lista. Es la única forma de que el olvido salga en rojo aquí en
+// vez de salir como un dato que sobrevive a «borrar todos mis datos».
+test('ninguna clave de esta app se queda fuera de «borrar mis datos»', async () => {
+  const { clearAll } = await import('../src/storage.js');
+  const { readdirSync, readFileSync } = await import('node:fs');
+
+  const enElCodigo = new Set();
+  for (const archivo of readdirSync('src').filter(nombre => nombre.endsWith('.js'))) {
+    const codigo = readFileSync(`src/${archivo}`, 'utf8');
+    for (const cita of codigo.match(/'que-comemos-[a-z0-9-]*'/g) || []) enElCodigo.add(cita.slice(1, -1));
+  }
+  assert.ok(enElCodigo.size >= 4, 'la búsqueda no encontró claves: el patrón debe de estar mal');
+
+  // Se le da a `clearAll` un almacén con todas ellas dentro y se mira cuáles
+  // sobreviven.
+  const almacen = new Map([...enElCodigo].map(clave => [clave, 'algo']));
+  const falso = { getItem: k => (almacen.has(k) ? almacen.get(k) : null), removeItem: k => almacen.delete(k) };
+  clearAll(falso);
+
+  assert.deepEqual([...almacen.keys()], [], 'claves que esta app escribe y «borrar mis datos» no borra');
 });
 
 // Prometer «tu voz no sale del teléfono» sin comprobarlo era falso en cualquier
