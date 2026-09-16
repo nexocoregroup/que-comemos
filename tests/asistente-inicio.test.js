@@ -30,7 +30,8 @@ import {
   PASO, PASOS, SETUP_ACTIONS, SETUP_FORMS, avanceGuardado, emptySetup, pasosDe, renderSetup
 } from '../src/setup.js';
 import { HOGAR_ACTIONS, HOGAR_FORMS, emptyHogar } from '../src/hogar.js';
-import { addProduct, createEmptyState, personasActivas, upsertPerson, upsertRecipe } from '../src/model.js';
+import { addProduct, createEmptyState, personasActivas, todayISO, upsertPerson, upsertRecipe } from '../src/model.js';
+import { addRoutine, applyRoutine, datesForRule, describeRule } from '../src/routines.js';
 import { loadState, saveState } from '../src/storage.js';
 
 function contexto(state = createEmptyState()) {
@@ -335,4 +336,89 @@ test('el borrador sobrevive hasta el final, no hasta las cantidades', () => {
   // Al terminar sí se borra: ya no queda nada que retomar.
   SETUP_ACTIONS['setup-ahora-no'](null, ctx);
   assert.equal(avanceGuardado(ctx.state), null);
+});
+
+/* ── Los días se dicen en la propia preparación ────────────────────────── */
+
+test('la ventana de una preparación pregunta qué días se repite', () => {
+  // Esto vivía solo en la ventana de rutinas del plan mensual: se escribía la
+  // preparación en un sitio y cuándo se repite en otro, y entre las dos
+  // pantallas se perdía la mitad de la gente.
+  const codigo = readFileSync(resolve(import.meta.dirname, '..', 'src', 'app.js'), 'utf8');
+  assert.ok(/¿Qué días de la semana se repite\?/.test(codigo), 'la ventana no pregunta los días');
+  assert.ok(/name="weekdays"/.test(codigo));
+  assert.ok(/function bloqueDeDias\(recipe\)/.test(codigo));
+  assert.ok(/\$\{bloqueDeDias\(recipe\)\}/.test(codigo), 'el bloque no está puesto en la ventana');
+  // Y al guardar se aplica al mes en curso.
+  assert.ok(/const repeticion = aplicarDiasDeLaReceta\(form, data, receta\);/.test(codigo));
+  assert.ok(/applyRoutine\(state, regla\.id, mes, \{ modo: 'vacios' \}\)/.test(codigo),
+    'aplicar los días puede pisar comidas que ya estaban puestas');
+  // Sin días marcados no pasa nada: hay platos que no tienen día fijo.
+  assert.ok(/if \(!weekdays\.length\) \{\s*\n\s*if \(!rutina\) return '';/.test(codigo));
+  // Con varias reglas no se toca ninguna desde aquí.
+  assert.ok(/if \(cuantas > 1\) return '';/.test(codigo));
+});
+
+test('la regla que sale de una preparación llena el mes de una vez', () => {
+  // Lo que hace la ventana, hecho aquí con las mismas piezas: una preparación
+  // de desayuno y cena, los martes y jueves, tiene que poner dos comidas por
+  // cada martes y cada jueves del mes.
+  const state = createEmptyState();
+  const receta = upsertRecipe(state, { name: 'Mangú con salami', uses: ['desayuno', 'cena'], items: [], note: '' });
+  const rutina = addRoutine(state, { kind: 'recipe', recipeId: receta.id, slots: receta.uses, weekdays: [2, 4], weeks: null, scope: 'permanent' });
+  const mes = todayISO().slice(0, 7);
+  const dias = datesForRule(mes, [2, 4], null).length;
+
+  const puestas = applyRoutine(state, rutina.id, mes, { modo: 'vacios' });
+  assert.equal(puestas.creados.length, dias * 2, 'no puso las dos comidas de cada día');
+  assert.ok(dias >= 8, 'un mes tiene al menos ocho martes y jueves');
+  assert.equal(describeRule([2, 4], null), 'Todos los martes y jueves');
+});
+
+test('el último paso enseña lo que ya quedó puesto, y deja cambiarlo', () => {
+  const state = createEmptyState();
+  const receta = upsertRecipe(state, { name: 'Mangú con salami', uses: ['desayuno', 'cena'], items: [], note: '' });
+  const rutina = addRoutine(state, { kind: 'recipe', recipeId: receta.id, slots: receta.uses, weekdays: [2, 4], weeks: null, scope: 'permanent' });
+  const mes = todayISO().slice(0, 7);
+  applyRoutine(state, rutina.id, mes, { modo: 'vacios' });
+
+  const ctx = contexto(state);
+  ctx.ui.setup.paso = PASO.mes;
+  const html = renderSetup(ctx);
+  revisar(html, 'último paso con el mes montado');
+
+  assert.ok(html.includes('ya está montado'), 'sigue diciendo que hay que crear el mes');
+  assert.ok(html.includes('Mangú con salami'));
+  assert.ok(html.includes('Todos los martes y jueves'), 'no dice qué días se repite');
+  assert.ok(html.includes('Desayuno y Cena'), 'no dice en qué momentos');
+  assert.ok(/\d+ días en/.test(html), 'no dice cuántos días caen este mes');
+  // «Cambiar» lleva a la preparación, que es donde se escribieron los días.
+  assert.ok(html.includes(`data-action="open-recipe" data-id="${receta.id}"`), 'no se puede cambiar desde aquí');
+  assert.ok(html.includes('data-action="setup-ver-mes"'), 'no ofrece ver el mes ya montado');
+  assert.ok(!html.includes('Preparar mi primer menú mensual'), 'sigue prometiendo construir lo que ya está construido');
+});
+
+test('terminar lleva al mes, no a una pantalla en blanco', () => {
+  const state = createEmptyState();
+  const receta = upsertRecipe(state, { name: 'Sancocho', uses: ['almuerzo'], items: [], note: '' });
+  const rutina = addRoutine(state, { kind: 'recipe', recipeId: receta.id, slots: ['almuerzo'], weekdays: [7], weeks: null, scope: 'permanent' });
+  applyRoutine(state, rutina.id, todayISO().slice(0, 7), { modo: 'vacios' });
+
+  const ctx = contexto(state);
+  ctx.ui.setup.paso = PASO.mes;
+  SETUP_ACTIONS['setup-ver-mes'](null, ctx);
+  assert.equal(ctx.ui.page, 'mes');
+  assert.equal(ctx.ui.setup, null);
+  assert.equal(avanceGuardado(state), null, 'el borrador tenía que borrarse al terminar');
+});
+
+test('sin ninguna repetición, el último paso lo dice y ofrece anotarlas', () => {
+  const ctx = contexto();
+  upsertRecipe(ctx.state, { name: 'Mangú', uses: ['desayuno'], items: [], note: '' });
+  ctx.ui.setup.paso = PASO.mes;
+  const html = renderSetup(ctx);
+  revisar(html, 'último paso sin repeticiones');
+  assert.ok(html.includes('Falta decir qué días se prepara cada comida'));
+  assert.ok(html.includes('data-action="setup-menu"'));
+  assert.ok(!html.includes('data-action="setup-ver-mes"'), 'no hay mes montado que ver');
 });

@@ -31,10 +31,11 @@ import {
 // ventana: dos formularios de persona serían dos sitios donde olvidarse de
 // preguntar si un alimento es alergia o manía.
 import { claseDe, resumenDeRestricciones } from './hogar.js';
+import { datesForRule, describeRule, monthProgress, routinesFor } from './routines.js';
 import { normalizeName, parseProductText } from './text-parse.js';
 import { cancelarDictado, capacidad } from './device.js';
 import { panelDeVoz } from './voz.js';
-import { button, esc, notice, options } from './ui-kit.js';
+import { button, esc, monthName, notice, options } from './ui-kit.js';
 
 // Los pasos se llaman por su nombre y no por su número. Los números cambian
 // cada vez que se añade uno en medio, y un `setup.paso === 4` repartido por el
@@ -53,7 +54,7 @@ export const PASOS = [
   { id: PASO.cantidades, titulo: '¿Cuánto se compra normalmente al mes?', corto: 'Cantidades' },
   { id: PASO.reparto, titulo: 'Cómo se reparte entre las dos quincenas', corto: 'Reparto' },
   { id: PASO.preparaciones, titulo: 'Las comidas que se repiten en tu casa', corto: 'Preparaciones' },
-  { id: PASO.mes, titulo: 'Preparar mi primer menú mensual', corto: 'El mes' }
+  { id: PASO.mes, titulo: 'Tu primer mes', corto: 'El mes' }
 ];
 
 // El paso del reparto solo existe para quien compra por quincenas. A quien
@@ -502,23 +503,68 @@ const fmtNumero = valor => String(Math.round((Number(valor) || 0) * 1000) / 1000
 
 /* ── Paso 6: el primer menú del mes ────────────────────────────────────── */
 
+/* ── El último paso: revisar el mes, no construirlo ────────────────────────
+
+   Antes esto decía «preparar mi primer menú mensual» y mandaba a una pantalla
+   en blanco a empezar de cero. Ya no hace falta: al escribir cada preparación
+   se dice qué días se repite, así que para cuando se llega aquí el calendario
+   está puesto. Lo que queda es mirarlo y cambiar lo que no cuadre, que es muy
+   distinto de construirlo.
+
+   Y «Cambiar» abre la preparación, no una pantalla de reglas: ahí es donde la
+   persona escribió los días, y es donde va a buscarlos. */
+
 function pasoMenu(ctx, setup) {
-  const recetas = ctx.state.recipes.length;
-  const gente = personasActivas(ctx.state).length;
-  return `<div class="setup-hecho">
+  const { state } = ctx;
+  const mes = todayISO().slice(0, 7);
+  const recetas = state.recipes.length;
+  const gente = personasActivas(state).length;
+  const reglas = routinesFor(state, mes).filter(rutina => rutina.kind === 'recipe');
+  const nombreDe = rutina => state.recipes.find(item => item.id === rutina.recipeId)?.name || 'Preparación eliminada';
+
+  const hecho = `<div class="setup-hecho">
     <span class="setup-hecho-marca" aria-hidden="true">✓</span>
     <h3>Tu casa ya está escrita</h3>
     <p class="muted">${gente} persona${gente === 1 ? '' : 's'} en casa, ${setup.guardados} alimento${setup.guardados === 1 ? '' : 's'} en la canasta base y ${recetas} preparaci${recetas === 1 ? 'ón' : 'ones'}. Escrito una sola vez: desde ahora todos los meses parten de ahí y solo anotas lo diferente.</p>
-  </div>
-
-  <p class="pantalla-intro">Ahora dile qué días se prepara cada comida y la aplicación llenará el calendario real del mes.</p>
-  ${recetas ? '' : notice('No hay ninguna preparación guardada.', 'El menú del mes va a empezar vacío. Puedes volver atrás y escribir dos o tres: con eso, el mes entero queda hecho.')}
-
-  <div class="modal-actions setup-actions">
-    <span class="tour-spacer"></span>
-    ${button('Ahora no', 'setup-ahora-no', 'btn-secondary')}
-    ${button('Preparar mi primer menú mensual', 'setup-menu', 'btn-primary btn-grande')}
   </div>`;
+
+  if (!reglas.length) {
+    return `${hecho}
+      <p class="pantalla-intro">Falta decir qué días se prepara cada comida. Puedes volver atrás y anotarlo dentro de cada preparación —es donde antes te lo preguntamos— o decirlo ahora de una vez.</p>
+      ${recetas ? '' : notice('No hay ninguna preparación guardada.', 'El menú del mes va a empezar vacío. Puedes volver atrás y escribir dos o tres: con eso, el mes entero queda hecho.')}
+      <div class="modal-actions setup-actions">
+        ${button('Atrás', 'setup-atras', 'btn-quiet')}
+        ${button('Ahora no', 'setup-ahora-no', 'btn-secondary')}
+        ${button('Decir qué días se repiten', 'setup-menu', 'btn-primary btn-grande')}
+      </div>`;
+  }
+
+  const progreso = monthProgress(state, mes);
+  return `${hecho}
+    <p class="pantalla-intro">Y tu mes <strong>ya está montado</strong>. Al escribir cada preparación dijiste qué días se repite, así que la aplicación las colocó sola. Esto es lo que quedó; cambia lo que no sea así.</p>
+
+    <div class="card setup-repeticiones">${reglas.map(rutina => {
+      const dias = datesForRule(mes, rutina.weekdays, rutina.weeks).length;
+      return `<div class="list-row">
+        <div class="list-row-main">
+          <div class="list-row-title">${esc(nombreDe(rutina))}</div>
+          <div class="list-row-sub">${esc(describeRule(rutina.weekdays, rutina.weeks))} · ${esc(rutina.slots.map(etiquetaDeMomento).join(' y '))}</div>
+          <div class="list-row-sub">${dias} día${dias === 1 ? '' : 's'} en ${esc(monthName(mes))}${rutina.scope === 'permanent' ? ' · y en los meses siguientes' : ' · solo este mes'}</div>
+        </div>
+        ${button('Cambiar', 'open-recipe', 'btn-quiet btn-small', `data-id="${esc(rutina.recipeId)}"`)}
+      </div>`;
+    }).join('')}</div>
+
+    <div class="card soft setup-resumen-mes">
+      <div class="between"><strong>${esc(monthName(mes))}</strong><span class="pill warm">${progreso.porcentaje}%</span></div>
+      <p class="small muted">${progreso.encasa} comida${progreso.encasa === 1 ? '' : 's'} puesta${progreso.encasa === 1 ? '' : 's'} en casa${progreso.fuera ? ` · ${progreso.fuera} fuera` : ''} · ${progreso.pendientes} sin decidir. Lo que quede en blanco no es un error: se decide cuando toque. Las meriendas van aparte, y un día sin merienda está completo igual.</p>
+    </div>
+
+    <div class="modal-actions setup-actions">
+      ${button('Atrás', 'setup-atras', 'btn-quiet')}
+      ${button('+ Otra repetición', 'setup-menu', 'btn-secondary')}
+      ${button('Ver mi mes', 'setup-ver-mes', 'btn-primary btn-grande')}
+    </div>`;
 }
 
 /* ── Paso 1: quiénes comen en esta casa ────────────────────────────────────
@@ -1098,6 +1144,13 @@ export const SETUP_ACTIONS = {
     ctx.ui.setup = null;
     ctx.ui.page = 'mes';
     ctx.openModal('rutina', { month: mes });
+  },
+  // Terminar mirando el mes que quedó hecho, no una pantalla en blanco.
+  'setup-ver-mes': (el, ctx) => {
+    olvidarAvance(ctx.state);
+    ctx.ui.setup = null;
+    ctx.ui.page = 'mes';
+    ctx.commit('Tu mes está montado. Revisa lo que será diferente.');
   },
   'setup-ahora-no': (el, ctx) => {
     olvidarAvance(ctx.state);

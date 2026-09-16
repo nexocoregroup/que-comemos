@@ -26,6 +26,7 @@ import { HOGAR_ACTIONS, HOGAR_FORMS, cuerpoDeFicha, emptyHogar, fichaActiva, ren
 import { CHAT_ACTIONS, CHAT_FORMS, emptyChat, renderChat } from './chat-ui.js';
 import { BULK_ACTIONS, BULK_FORMS, emptyBulk, renderBulk } from './bulk-entry.js';
 import { MES_ACTIONS, MES_FORMS, abrirMesSiHaceFalta, emptyMes, modalDia, modalRutina, renderMes } from './page-mes.js';
+import { WEEKDAYS, WEEKDAY_SHORT, addRoutine, applyRoutine, deleteRoutine, describeRule, updateRoutine } from './routines.js';
 import { COMPRA_ACTIONS, COMPRA_FORMS, emptyCompra, periodoDeCompra, renderCompra } from './page-compra.js';
 import { MAS_ACTIONS, PAGINAS_MAS, TITULOS_MAS, aplicarDictado, emptyMas, renderMas } from './page-mas.js';
 import { avisoDeVoz, cancelarDictado, capacidad, diagnostico, falloAnterior, olvidarFalloAnterior } from './device.js';
@@ -826,6 +827,86 @@ function checkPeople(name, selected, date = null, slot = null) {
 
 /* ── Ventanas ──────────────────────────────────────────────────────────── */
 
+/* ── ¿Y qué días se repite? ────────────────────────────────────────────────
+
+   Esto vivía solo en la ventana de rutinas del plan mensual: la preparación se
+   escribía en un sitio y cuándo se repite se decía en otro, y entre las dos
+   pantallas se perdía la mitad de la gente. Quien acaba de escribir «mangú con
+   salami, desayuno y cena» ya sabe que es los martes y los jueves; hacerle
+   guardar, salir, entrar en otra pantalla y volver a elegir su preparación de
+   un desplegable es pedirle el mismo dato dos veces con un viaje en medio.
+
+   Marcar días aquí escribe la regla y la aplica al mes en curso, de golpe. No
+   marcar ninguno no hace nada: hay platos que no tienen día fijo, y esa es una
+   respuesta legítima. */
+
+// La regla de repetición de esta preparación, si tiene una sola. Con varias no
+// se toca ninguna desde aquí: adivinar cuál de las tres quiso cambiar sería
+// pisarle dos.
+function rutinaDeLaReceta(recipeId) {
+  const suyas = (state.mealRoutines || []).filter(item =>
+    item.kind === 'recipe' && item.recipeId === recipeId && item.active !== false);
+  return { rutina: suyas.length === 1 ? suyas[0] : null, cuantas: suyas.length };
+}
+
+function bloqueDeDias(recipe) {
+  const mes = today.slice(0, 7);
+  const { rutina, cuantas } = rutinaDeLaReceta(recipe?.id);
+  if (cuantas > 1) {
+    return `<div class="field"><span>¿Qué días de la semana se repite?</span>
+      <p class="small muted">Esta preparación ya tiene <strong>${cuantas} reglas guardadas</strong>. Para no pisar ninguna, se editan en Plan mensual → «Lo que se repite».</p></div>`;
+  }
+  const dias = rutina?.weekdays || [];
+  const semanas = rutina?.weeks ? String(rutina.weeks) : '';
+  const permanente = !rutina || rutina.scope === 'permanent';
+  return `<div class="field receta-dias">
+    <span>¿Qué días de la semana se repite? (opcional)</span>
+    <p class="small muted">Si marcas días, al guardar se pone sola en el calendario —esos días, en los momentos que elegiste arriba— y te ahorras ir día por día. Si no marcas ninguno, se guarda igual y la colocas cuando quieras.</p>
+    <div class="chips dias-semana">${WEEKDAYS.map((dia, indice) =>
+      `<label class="chip-check"><input type="checkbox" name="weekdays" value="${dia}" ${dias.includes(dia) ? 'checked' : ''}><span>${esc(WEEKDAY_SHORT[indice])}</span></label>`).join('')}</div>
+    <div class="radio-fila" style="margin-top:10px">
+      <label class="radio-pill"><input type="radio" name="weeks" value="todas" ${semanas ? '' : 'checked'}><span>Cada semana</span></label>
+      <label class="radio-pill"><input type="radio" name="weeks" value="1,3" ${semanas === '1,3' ? 'checked' : ''}><span>1.ª y 3.ª</span></label>
+      <label class="radio-pill"><input type="radio" name="weeks" value="2,4" ${semanas === '2,4' ? 'checked' : ''}><span>2.ª y 4.ª</span></label>
+    </div>
+    <div class="radio-fila" style="margin-top:8px">
+      <label class="radio-pill"><input type="radio" name="scope" value="permanent" ${permanente ? 'checked' : ''}><span>Todos los meses</span></label>
+      <label class="radio-pill"><input type="radio" name="scope" value="month" ${permanente ? '' : 'checked'}><span>Solo ${esc(monthName(mes))}</span></label>
+    </div>
+    <small>${rutina
+      ? `Ahora mismo: ${esc(describeRule(rutina.weekdays, rutina.weeks))}. Quitar todos los días la deja de repetir; las comidas que ya estén puestas se quedan donde están.`
+      : 'Nunca pisa una comida que ya tengas puesta ese día.'}</small>
+  </div>`;
+}
+
+// Escribe, cambia o retira la regla de repetición y la aplica al mes en curso.
+// Devuelve lo que pasó, en la misma frase que confirma el guardado: poner
+// trece comidas de golpe sin decirlo sería demasiada magia.
+function aplicarDiasDeLaReceta(form, data, receta) {
+  // La ventana pudo dibujarse sin el bloque —cuando hay varias reglas— y
+  // entonces aquí no se toca nada.
+  if (!form.querySelector('[name="weekdays"]')) return '';
+  const { rutina, cuantas } = rutinaDeLaReceta(receta.id);
+  if (cuantas > 1) return '';
+  const weekdays = [...form.querySelectorAll('[name="weekdays"]:checked')].map(input => Number(input.value));
+
+  if (!weekdays.length) {
+    if (!rutina) return '';
+    deleteRoutine(state, rutina.id);
+    return ' Ya no se repite sola; las comidas que estaban puestas se quedan.';
+  }
+
+  const crudas = data.get('weeks');
+  const weeks = !crudas || crudas === 'todas' ? null : String(crudas).split(',').map(Number);
+  const scope = data.get('scope') === 'month' ? 'month' : 'permanent';
+  const mes = today.slice(0, 7);
+  const campos = { kind: 'recipe', recipeId: receta.id, slots: receta.uses, weekdays, weeks, scope, month: scope === 'month' ? mes : null };
+  const regla = rutina ? updateRoutine(state, rutina.id, campos) : addRoutine(state, campos);
+  const puestas = applyRoutine(state, regla.id, mes, { modo: 'vacios' });
+  const momentos = receta.uses.map(slot => etiquetaDeMomento(slot).toLocaleLowerCase('es')).join(' y ');
+  return ` ${describeRule(weekdays, weeks)}, en ${momentos}: ${puestas.creados.length} comida(s) puestas en ${monthName(mes)}${puestas.saltados.length ? `, ${puestas.saltados.length} día(s) ya tenían algo y se dejaron como estaban` : ''}.`;
+}
+
 function renderModal() {
   const m = ui.modal;
 
@@ -882,6 +963,8 @@ function renderModal() {
           <div class="checks receta-momentos">${MOMENTOS.map(momento => `<label class="check-chip"><input type="checkbox" name="uses" value="${momento.id}" ${recipe?.uses?.includes(momento.id) ? 'checked' : ''}>${esc(momento.etiqueta)}</label>`).join('')}</div>
           <small>El mangú con salami, por ejemplo, suele estar en Desayuno y en Cena.</small>
         </div>
+
+        ${bloqueDeDias(recipe)}
 
         <div class="field">
           <span>Alimentos principales y cantidades</span>
@@ -1708,12 +1791,18 @@ document.addEventListener('submit', async event => {
       // escribiendo de una sentada las seis comidas de su casa no quiere
       // abrirla, cerrarla y volverla a abrir seis veces.
       const seguir = data.get('seguir') === '1';
+      // Los días que se repite: si se marcaron, la comida queda puesta en el
+      // calendario sin salir de aquí.
+      const repeticion = aplicarDiasDeLaReceta(form, data, receta);
       ui.modal = seguir ? { type: 'recipe', id: '' } : null;
       // Se guarda igual sin alimentos: la preparación ya sirve para llenar el
       // calendario. Lo único que no puede hacer es aportar a la compra, y eso
       // se dice en voz baja en vez de bloquear el guardado.
       const cola = seguir ? ' Escribe la siguiente.' : '';
-      commit((receta.items.length ? `«${receta.name}» guardada.` : `«${receta.name}» guardada. Cuando le añadas alimentos y cantidades podrá contar para la compra.`) + cola);
+      const base = receta.items.length || repeticion
+        ? `«${receta.name}» guardada.`
+        : `«${receta.name}» guardada. Cuando le añadas alimentos y cantidades podrá contar para la compra.`;
+      commit(base + repeticion + cola);
     }
     else if (kind === 'product') {
       const existente = product(state, form.dataset.id);
