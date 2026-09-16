@@ -50,9 +50,13 @@ function casa() {
   const state = createEmptyState();
   const arroz = addProduct(state, { name: 'Arroz', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
   const huevo = addProduct(state, { name: 'Huevo', controlUnit: 'unidad', purchaseUnit: 'unidad' }).id;
+  // Una casa que lleva años comprando lo mismo. La fecha de vigencia va escrita
+  // a propósito: sin ella la canasta empezaría hoy, y las pruebas de aquí
+  // preguntan por meses que ya pasaron —febrero, marzo— para comprobar cómo se
+  // reparten los días, no desde cuándo se come arroz en esta casa.
   setHabitualBasket(state, [
-    { productId: arroz, quantity: 20, unit: 'lb', priority: 'obligatorio' },
-    { productId: huevo, quantity: 60, unit: 'unidad', priority: 'frecuente' }
+    { productId: arroz, quantity: 20, unit: 'lb', priority: 'obligatorio', desde: '2025-01' },
+    { productId: huevo, quantity: 60, unit: 'unidad', priority: 'frecuente', desde: '2025-01' }
   ]);
   return { state, arroz, huevo };
 }

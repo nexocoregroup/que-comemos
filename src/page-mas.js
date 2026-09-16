@@ -196,7 +196,8 @@ function vistaHabitual(ctx) {
     if (!porCategoria.has(categoria)) porCategoria.set(categoria, []);
     porCategoria.get(categoria).push({ linea, item });
   }
-  return `<p class="pantalla-intro">Lo que tu casa consume en un mes corriente. Cambiar algo aquí vale <strong>desde ahora y para todos los meses</strong>.</p>
+  return `<p class="pantalla-intro">Lo que tu casa consume en un mes corriente. Lo que <strong>añadas</strong> aquí empieza a contar desde este mes: los que ya pasaron no cambian.</p>
+    <p class="tiny muted">Corregir la cantidad de algo que ya estaba vale para todos los meses en los que lo has tenido, también los pasados. Para cambiar un mes solo, entra en «Cambios de este mes».</p>
     <form data-form="canasta-habitual" class="canasta-form">
       ${[...porCategoria.entries()].sort((a, b) => etiquetaCategoria(a[0]).localeCompare(etiquetaCategoria(b[0]), 'es')).map(([categoria, filas]) => `
         <h3 class="canasta-grupo">${esc(etiquetaCategoria(categoria))}</h3>

@@ -1854,7 +1854,7 @@ document.addEventListener('submit', async event => {
       let mensaje = 'Guardado.';
       if (destino === 'siempre') {
         setHabitualLine(state, item.id, data.get('monthly'), data.get('monthlyUnit'));
-        mensaje = `«${item.name}» entra en tu canasta base: aparecerá todos los meses.`;
+        mensaje = `«${item.name}» entra en tu canasta base desde ${monthName(mesActual)}: aparecerá todos los meses. Los anteriores no cambian.`;
       } else if (destino === 'mes') {
         setMonthChange(state, mesActual, item.id, { quantity: data.get('monthly'), unit: data.get('monthlyUnit') || controlUnit });
         mensaje = `«${item.name}» entra solo en la compra de ${monthName(mesActual)}. Tu canasta base no cambia.`;
@@ -1891,8 +1891,10 @@ document.addEventListener('submit', async event => {
         const existente = state.products.find(item => item.name.toLocaleLowerCase('es') === nombre.toLocaleLowerCase('es'))
           || addProduct(state, { name: nombre, controlUnit: data.get('unidad'), purchaseUnit: data.get('unidad'), category: 'otros', origin: 'manual' });
         if (paraSiempre) {
-          setHabitualLine(state, existente.id, data.get('cantidad'), data.get('unidad'));
-          mensaje = `«${existente.name}» entra en tu canasta habitual: aparecerá todos los meses.`;
+          // Se estrena en el mes que se está mirando, no hoy: quien lo escribe
+          // estando en octubre no quiere comprarlo también en septiembre.
+          setHabitualLine(state, existente.id, data.get('cantidad'), data.get('unidad'), null, mes);
+          mensaje = `«${existente.name}» entra en tu canasta habitual desde ${monthName(mes)}: aparecerá todos los meses. Los anteriores no cambian.`;
         } else {
           setMonthChange(state, mes, existente.id, { quantity: data.get('cantidad'), unit: data.get('unidad') });
           mensaje = `«${existente.name}» solo para ${monthName(mes)}. Los demás meses no cambian.`;

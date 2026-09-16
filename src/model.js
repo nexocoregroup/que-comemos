@@ -332,6 +332,37 @@ export function setEquivalence(state, productId, unit, factor) {
 
 export function habitualLines(state) { return state.habitualBasket.lines; }
 
+/* ── Desde qué mes cuenta una línea de la canasta ──────────────────────────
+
+   Añadir cangrejo hoy quiere decir que esta casa come cangrejo desde hoy, no
+   que lo comiera en junio. Sin fecha, una línea nueva aparecía hacia atrás en
+   todos los meses ya pasados: junio, julio y agosto se ponían a comprar
+   cangrejo solos, y la compra de un mes que ya se hizo decía otra cosa de la
+   que dijo el día que se hizo.
+
+   La regla es una y vale para los seis sitios desde los que algo entra en la
+   canasta —la pantalla de la canasta, la ficha del alimento, el dictado, el
+   asistente, el cambio del mes y el propio asistente de entrada—:
+
+    · La fecha escrita manda. Es alguien diciendo explícitamente desde cuándo,
+      como hace «Añadir a mi canasta base».
+    · Una línea que ya estaba conserva la suya, aunque sea «desde siempre».
+      Guardar la pantalla de la canasta reenvía todas las líneas sin fecha, y
+      volver a fecharlas hoy vaciaría de golpe cada mes anterior.
+    · Una línea nueva nace fechada en el mes en curso.
+
+   Las canastas escritas antes de esto siguen sin fecha, que es «desde siempre»,
+   y así se quedan: eran la canasta de la casa durante aquellos meses, y ponerles
+   una fecha ahora sería inventar un día en que empezaron. */
+
+const mesEnCurso = () => todayISO().slice(0, 7);
+
+function vigenciaDe(state, productId, escrita) {
+  if (validMonth(escrita)) return escrita;
+  const anterior = state.habitualBasket.lines.find(line => line.productId === productId);
+  return anterior ? anterior.desde ?? null : mesEnCurso();
+}
+
 function normalizeBasketLines(state, lines, { origin = 'canasta' } = {}) {
   const rows = (lines || []).map(line => {
     const name = String(line.name || '').trim();
@@ -343,9 +374,7 @@ function normalizeBasketLines(state, lines, { origin = 'canasta' } = {}) {
       quantity: optionalQuantity(line.quantity),
       unit: line.unit,
       priority: PRIORITIES.includes(line.priority) ? line.priority : 'frecuente',
-      // Desde qué mes cuenta esta línea. Sin fecha cuenta desde siempre, que es
-      // lo que traen todas las canastas escritas hasta hoy.
-      desde: validMonth(line.desde) ? line.desde : null
+      desde: line.desde
     };
   });
   // Los alimentos que faltan se crean solo después de validarlo todo: si una
@@ -355,7 +384,7 @@ function normalizeBasketLines(state, lines, { origin = 'canasta' } = {}) {
     const key = normalizeName(row.name);
     const item = row.existing || nuevos.get(key) || addProduct(state, { name: row.name, controlUnit: row.unit, purchaseUnit: row.unit, origin });
     if (!row.existing && key) nuevos.set(key, item);
-    return { id: row.id || nextId(state, 'canasta'), productId: item.id, quantity: row.quantity, unit: row.unit, priority: row.priority, desde: row.desde };
+    return { id: row.id || nextId(state, 'canasta'), productId: item.id, quantity: row.quantity, unit: row.unit, priority: row.priority, desde: vigenciaDe(state, item.id, row.desde) };
   });
 }
 
@@ -381,10 +410,9 @@ function writeHabitualLine(state, { productId, quantity: amount, unit, priority,
     id: index >= 0 ? lines[index].id : nextId(state, 'canasta'),
     productId, quantity: amount, unit,
     priority: PRIORITIES.includes(priority) ? priority : lines[index]?.priority || 'frecuente',
-    // Una línea que ya estaba conserva su vigencia; una nueva puede traer la
-    // suya. Corregir la cantidad del arroz no puede cambiar desde cuándo se
-    // compra arroz en esta casa.
-    desde: validMonth(desde) ? desde : (index >= 0 ? lines[index].desde ?? null : null)
+    // Corregir la cantidad del arroz no puede cambiar desde cuándo se compra
+    // arroz en esta casa.
+    desde: vigenciaDe(state, productId, desde)
   };
   if (index >= 0) lines[index] = line; else lines.push(line);
   state.habitualBasket.updatedAt = todayISO();
@@ -395,14 +423,17 @@ function writeHabitualLine(state, { productId, quantity: amount, unit, priority,
 // ficha. La canasta y la ficha del producto son la misma lista vista de dos
 // formas. Vacío o cero borra la línea en vez de guardar un consumo de cero, que
 // no significa nada.
-export function setHabitualLine(state, productId, amount, unit, priority) {
+// `desde` solo hace falta cuando quien escribe está parado en un mes concreto:
+// añadir algo «para siempre» desde los cambios de octubre lo estrena en octubre,
+// no hoy. Sin decir nada, una línea nueva nace en el mes en curso.
+export function setHabitualLine(state, productId, amount, unit, priority, desde = null) {
   if (!product(state, productId)) throw new Error('Selecciona un producto.');
   if (amount === '' || amount === undefined || amount === null || Number(amount) === 0) {
     removeHabitualLine(state, productId);
     return null;
   }
   if (!UNITS.includes(unit)) throw new Error('Elige la unidad del consumo del mes.');
-  return writeHabitualLine(state, { productId, quantity: quantity(amount), unit, priority });
+  return writeHabitualLine(state, { productId, quantity: quantity(amount), unit, priority, desde });
 }
 
 export function removeHabitualLine(state, productId) {

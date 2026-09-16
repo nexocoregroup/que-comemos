@@ -21,7 +21,7 @@ import assert from 'node:assert/strict';
 
 import {
   addProduct, addPurchase, cerrarPeriodo, cierresDe, createEmptyState, createReview, effectiveBasket,
-  inventoryNow, nombreEnElCierre, periodoCerrado, ponerFrecuencia, promoteToHabitual, reabrirPeriodo,
+  habitualLines, inventoryNow, nombreEnElCierre, periodoCerrado, ponerFrecuencia, promoteToHabitual, reabrirPeriodo,
   saveReview, setHabitualBasket, setHabitualLine, setMonthChange, setReviewScope, shoppingList,
   todayISO, ultimaCompra, updateProduct, upsertRecipe, makeRecipePlan, monthBounds
 } from '../src/model.js';
@@ -284,6 +284,103 @@ test('corregir la cantidad de una línea no cambia desde cuándo se compra', () 
   const tiene = mes => effectiveBasket(state, mes).some(fila => fila.productId === cangrejo);
   assert.equal(tiene('2026-05'), false, 'corregir la cantidad lo adelantó dos meses');
   assert.equal(effectiveBasket(state, '2026-06').find(fila => fila.productId === cangrejo).quantity, 5);
+});
+
+/* ── Una línea nueva nace con su fecha ─────────────────────────────────────
+
+   Lo de arriba cubre el alimento que se asciende desde una excepción del mes,
+   que es el único sitio donde la app pregunta desde cuándo. Estas pruebas son
+   de los otros cinco: la pantalla de la canasta, la ficha del alimento, el
+   dictado, el asistente y el cambio del mes. Por todos ellos entraba antes sin
+   fecha, y sin fecha quiere decir «desde siempre»: añadir cangrejo hoy ponía a
+   junio, julio y agosto a comprar cangrejo. */
+
+// Una casa que ya venía funcionando antes de este mes.
+function casaDeAntes() {
+  const state = createEmptyState();
+  const arroz = addProduct(state, { name: 'Arroz', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
+  setHabitualBasket(state, [{ productId: arroz, quantity: 20, unit: 'lb', desde: '2025-01' }]);
+  return { state, arroz };
+}
+
+test('un alimento añadido hoy no aparece en los meses que ya pasaron', () => {
+  const { state } = casaDeAntes();
+  const cangrejo = addProduct(state, { name: 'Cangrejo', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
+  setHabitualLine(state, cangrejo, 5, 'lb');
+  const tiene = mes => effectiveBasket(state, mes).some(fila => fila.productId === cangrejo);
+  assert.equal(tiene(shiftMonth(MES, -3)), false, 'se metió tres meses hacia atrás');
+  assert.equal(tiene(shiftMonth(MES, -1)), false, 'se metió en el mes pasado');
+  assert.equal(tiene(MES), true, 'no entró en el mes en curso');
+  assert.equal(tiene(shiftMonth(MES, 1)), true, 'no sigue el mes que viene');
+});
+
+test('la compra de un mes que ya pasó no cambia porque hoy se añada algo', () => {
+  const { state, arroz } = casaDeAntes();
+  const pasado = monthBounds(shiftMonth(MES, -1));
+  const antes = shoppingList(state, pasado.start, pasado.end, 'casa');
+  assert.equal(antes.lines.length, 1, 'la casa de antes debería tener su arroz el mes pasado');
+
+  const cangrejo = addProduct(state, { name: 'Cangrejo', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
+  setHabitualLine(state, cangrejo, 5, 'lb');
+
+  const despues = shoppingList(state, pasado.start, pasado.end, 'casa');
+  assert.equal(despues.lines.length, 1, 'la compra del mes pasado cambió sola');
+  assert.equal(linea(despues, cangrejo), undefined, 'el mes pasado se puso a comprar cangrejo');
+  assert.ok(linea(despues, arroz), 'y de paso perdió el arroz de siempre');
+  // En el mes en curso sí está, que es lo que se pidió.
+  const ahora = monthBounds(MES);
+  assert.ok(linea(shoppingList(state, ahora.start, ahora.end, 'casa'), cangrejo));
+});
+
+test('guardar la canasta entera no vuelve a fechar lo que ya estaba', () => {
+  const { state, arroz } = casaDeAntes();
+  // La pantalla de la canasta reenvía todas sus líneas sin fecha al guardar. Si
+  // eso las volviera a fechar hoy, cada mes anterior se quedaría vacío de golpe
+  // por haber corregido una cantidad.
+  setHabitualBasket(state, [{ productId: arroz, quantity: 25, unit: 'lb' }]);
+  assert.equal(habitualLines(state)[0].desde, '2025-01', 'guardar la canasta vació todos los meses anteriores');
+  assert.equal(effectiveBasket(state, '2025-06').find(fila => fila.productId === arroz).quantity, 25);
+});
+
+test('añadir varios de corrido fecha solo lo nuevo', () => {
+  const { state, arroz } = casaDeAntes();
+  const habichuela = addProduct(state, { name: 'Habichuela', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
+  // Así guardan el dictado y el asistente de entrada: lo de siempre delante, lo
+  // nuevo detrás, todo de una sentada.
+  setHabitualBasket(state, [
+    { productId: arroz, quantity: 20, unit: 'lb' },
+    { productId: habichuela, quantity: 4, unit: 'lb' }
+  ]);
+  const fecha = id => habitualLines(state).find(fila => fila.productId === id).desde;
+  assert.equal(fecha(arroz), '2025-01');
+  assert.equal(fecha(habichuela), MES);
+
+  const anterior = effectiveBasket(state, shiftMonth(MES, -1)).map(fila => fila.productId);
+  assert.ok(anterior.includes(arroz), 'el mes pasado perdió el arroz de siempre');
+  assert.ok(!anterior.includes(habichuela), 'el mes pasado se puso a comprar habichuela');
+});
+
+test('una canasta escrita antes de esto sigue contando desde siempre', () => {
+  const state = createEmptyState();
+  const arroz = addProduct(state, { name: 'Arroz', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
+  // Tal cual quedaba guardada antes de que las líneas llevaran fecha. Ponerle
+  // una ahora sería inventar un día en que esta casa empezó a comer arroz.
+  state.habitualBasket.lines = [{ id: 'canasta-1', productId: arroz, quantity: 20, unit: 'lb', priority: 'frecuente', desde: null }];
+  assert.ok(effectiveBasket(state, '2020-01').some(fila => fila.productId === arroz));
+
+  setHabitualLine(state, arroz, 25, 'lb');
+  assert.equal(habitualLines(state)[0].desde, null, 'corregir la cantidad le inventó una fecha de nacimiento');
+  assert.ok(effectiveBasket(state, '2020-01').some(fila => fila.productId === arroz), 'un mes viejo perdió el arroz que sí compró');
+});
+
+test('corregir hoy la cantidad de algo añadido hoy no lo adelanta ni lo atrasa', () => {
+  const { state } = casaDeAntes();
+  const cangrejo = addProduct(state, { name: 'Cangrejo', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
+  setHabitualLine(state, cangrejo, 5, 'lb');
+  setHabitualLine(state, cangrejo, 8, 'lb');
+  const fila = habitualLines(state).find(item => item.productId === cangrejo);
+  assert.equal(fila.desde, MES);
+  assert.equal(fila.quantity, 8);
 });
 
 /* ── La migración ──────────────────────────────────────────────────────── */
