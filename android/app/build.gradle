@@ -27,6 +27,23 @@ android {
         applicationId "com.nexocore.quecomemos"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
+        // Dos números que no son lo mismo y se confunden siempre.
+        //
+        // `versionCode` es para Play: un entero que tiene que ser MAYOR que el
+        // de la última versión publicada, y nunca repetirse. No se enseña a
+        // nadie. `versionName` es lo que la gente lee en la ficha de la tienda,
+        // y puede ser lo que quieras.
+        //
+        // La trampa está en cuándo avisa el error: Play rechaza un versionCode
+        // repetido **al subir el paquete**, no al compilar. Así que se compila
+        // bien, se firma bien, se espera la subida entera y ahí es donde se
+        // descubre. Súbelo antes de generar el AAB, no después.
+        //
+        //   1.ª publicación → versionCode 1,  versionName "1.0"
+        //   la siguiente    → versionCode 2,  versionName "1.0.1" o "1.1"
+        //
+        // Si usas la firma de aplicaciones de Play, el número tampoco se puede
+        // reutilizar aunque hayas retirado la versión que lo llevaba.
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
@@ -58,8 +75,10 @@ android {
             // se empaquetan una vez por arquitectura, y sin filtrar iban cuatro:
             // 39 de los 52 MB del APK eran eso. `x86` y `x86_64` solo sirven
             // para emuladores, y `armeabi-v7a` para teléfonos de hace más de una
-            // década. Quitando las tres, el APK de depuración baja a unos 23 MB
-            // y compila más rápido.
+            // década. Quitando las tres, el APK de depuración bajó a unos 23 MB
+            // y compila más rápido. Después, al quitarse la lectura de facturas
+            // con sus modelos de OCR, se quedó en 4,4 MB medidos el 16 de
+            // septiembre de 2026.
             //
             // Esto vale solo para depuración, que es el archivo que se pasa a
             // mano al teléfono. La versión de Play Store se sube como AAB y allí

@@ -30,6 +30,35 @@ export const CATEGORIES = [
   { id: 'otros',     label: 'Otros',                emoji: '📦' }
 ];
 
+// Los ocho rubros con los que se registra la canasta base, en el orden en que
+// se preguntan.
+//
+// No sustituyen a las categorías de arriba: las agrupan. Un alimento sigue
+// guardando su categoría fina —«embutidos», «mar», «higiene»— porque es la que
+// usan la ficha del alimento, los filtros de «Alimentos de la casa» y los
+// respaldos que ya existen; cambiarla dejaría huérfano lo que la gente ya tiene
+// guardado. El rubro es solo cómo se enseñan al registrarlos por primera vez.
+//
+// `unidad` es la medida que se le sugiere a un alimento escrito a mano en ese
+// rubro, cuando no hay nada mejor de dónde sacarla. Es una sugerencia, no una
+// decisión: se puede cambiar después desde la ficha del alimento.
+//
+// Toda categoría tiene que estar en exactamente un rubro. Si no, sus alimentos
+// no aparecerían en ninguna pantalla y nadie podría marcarlos. Hay una prueba
+// que lo comprueba, porque es el fallo que no se ve mirando.
+export const RUBROS = [
+  { id: 'viveres',   titulo: 'Víveres',                    emoji: '🍠', categorias: ['viveres'],    unidad: 'lb' },
+  { id: 'granos',    titulo: 'Arroz, granos y pastas',     emoji: '🍚', categorias: ['granos'],     unidad: 'lb' },
+  { id: 'proteinas', titulo: 'Carnes y proteínas',         emoji: '🥩', categorias: ['carnes', 'embutidos', 'mar'], unidad: 'lb' },
+  { id: 'lacteos',   titulo: 'Lácteos y derivados',        emoji: '🥚', categorias: ['lacteos'],    unidad: 'unidad' },
+  { id: 'frutas',    titulo: 'Frutas',                     emoji: '🍌', categorias: ['frutas'],     unidad: 'unidad' },
+  { id: 'vegetales', titulo: 'Vegetales',                  emoji: '🥬', categorias: ['vegetales'],  unidad: 'lb' },
+  { id: 'desayunos', titulo: 'Desayunos y meriendas',      emoji: '🍞', categorias: ['panes'],      unidad: 'paquete' },
+  { id: 'otros',     titulo: 'Otros productos habituales', emoji: '📦', categorias: ['condimentos', 'bebidas', 'limpieza', 'higiene', 'otros'], unidad: 'unidad' }
+];
+
+export const rubroPorIndice = indice => RUBROS[Math.min(RUBROS.length - 1, Math.max(0, Number(indice) || 0))];
+
 // `controlUnit` es cómo se cuenta el alimento en casa y `purchaseUnit` cómo lo
 // despachan en el colmado: no siempre coinciden, y esa diferencia es justo la
 // que la app tiene que preguntar una vez —el salami se cuenta en ruedas pero se
@@ -238,3 +267,17 @@ export const SEED_PRODUCTS = [
 ];
 
 export const seedByCategory = id => SEED_PRODUCTS.filter(item => item.category === id);
+
+// Los alimentos de un rubro, en el orden de sus categorías: dentro de «Carnes y
+// proteínas» van primero las carnes, después los embutidos y al final lo del
+// mar, que es como se recorre un colmado y no como lo ordenaría el alfabeto.
+export const seedByRubro = id => (RUBROS.find(item => item.id === id)?.categorias || []).flatMap(seedByCategory);
+
+// Dónde se guarda un alimento escrito a mano dentro de un rubro: en la primera
+// de sus categorías. Es lo que hace que «Fresa», escrita en Frutas, quede en
+// Frutas y no en un cajón de sobras.
+export const categoriaDelRubro = id => (RUBROS.find(item => item.id === id)?.categorias || ['otros'])[0];
+
+// El rubro donde vive una categoría. Sirve para decirle a quien escribe «Arroz»
+// estando en Frutas dónde estaba ya ese alimento, en vez de crear otro.
+export const rubroDeCategoria = categoria => RUBROS.find(item => item.categorias.includes(categoria)) || null;

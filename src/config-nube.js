@@ -72,14 +72,6 @@ export function urlLimpia() {
   return url;
 }
 
-// El servidor al que se permite hablar, para la política de contenido y para la
-// prueba que vigila que no se hable con ningún otro.
-export function servidorDeLaNube() {
-  const url = urlLimpia();
-  if (!url) return '';
-  try { return new URL(url).origin; } catch { return ''; }
-}
-
 // Lo que se le dice a quien abre la app con esto a medio configurar. Se dice
 // entero: «no se pudo conectar» sin más manda a alguien a mirar su wifi durante
 // media hora cuando lo que falta es pegar dos líneas en un archivo.

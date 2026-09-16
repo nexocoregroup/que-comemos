@@ -8,12 +8,13 @@
 // la frecuencia con que hace falta de verdad.
 
 import {
-  SLICEABLE, SLICE_STYLES, SLOTS, UNITS, addDays, addProduct, addPurchase, archiveProduct,
+  MOMENTOS, SLICEABLE, SLICE_STYLES, SLOTS, SLOTS_PRINCIPALES, UNITS, addDays, addProduct, addPurchase, archiveProduct,
   copyPlan, correctReview, correctStock, createEmptyState, createReview, dependents, effectiveBasket,
-  exportState, findSimilarProducts, habitualLines, importState, incompatibleItems, inventoryNow,
-  esActiva, isAbsent, linkPlan, makeRecipePlan, mergeProducts, monthBounds, movePlan, nextId, personasActivas, planFor, product,
+  choquesDeLaComida, esOpcional, etiquetaDeMomento, exportState, findSimilarProducts, habitualLines, importState, incompatibleItems, inventoryNow,
+  esActiva, isAbsent, linkPlan, makeRecipePlan, mergeProducts, monthBounds, movePlan, nextId, personasActivas, planFor, ponerFrecuencia, product,
   promoteToHabitual, quantity, removeMonthChange, restoreProduct, reservedQuantity, reviewAvailability,
-  saveReview, setAbsence, setEquivalence, setHabitualBasket, setHabitualLine, setMonthChange,
+  saveReview, setAbsence, setEquivalence, setHabitualBasket, setHabitualLine, setMonthChange, detalleDeOrigen, etiquetaDeOrigen, origenDe,
+  cerrarPeriodo, setReviewScope, ultimaCompra,
   setSlice, setStatusPlan, shoppingList, sliceStyle, todayISO, updatePlan, updateProduct,
   upsertRecipe
 } from './model.js';
@@ -21,11 +22,12 @@ import { clearAll, hasSavedState, loadStateDetailed, saveState } from './storage
 import { BRAND_MARK } from './brand.js';
 import { TOUR_STEPS, WELCOME } from './onboarding.js';
 import { CATEGORIES } from './catalog-seed.js';
-import { SETUP_ACTIONS, SETUP_FORMS, emptySetup, renderSetup } from './setup.js';
+import { SETUP_ACTIONS, SETUP_FORMS, aplicarReparto, avanceGuardado, emptySetup, renderSetup } from './setup.js';
 import { HOGAR_ACTIONS, HOGAR_FORMS, cuerpoDeFicha, emptyHogar, fichaActiva, renderHogar, tocaConfigurarElHogar } from './hogar.js';
 import { CHAT_ACTIONS, CHAT_FORMS, emptyChat, renderChat } from './chat-ui.js';
 import { BULK_ACTIONS, BULK_FORMS, emptyBulk, renderBulk } from './bulk-entry.js';
-import { MES_ACTIONS, MES_FORMS, abrirMesSiHaceFalta, emptyMes, modalRutina, renderMes } from './page-mes.js';
+import { MES_ACTIONS, MES_FORMS, abrirMesSiHaceFalta, emptyMes, modalDia, modalRutina, renderMes } from './page-mes.js';
+import { WEEKDAYS, WEEKDAY_SHORT, addRoutine, applyRoutine, deleteRoutine, describeRule, updateRoutine } from './routines.js';
 import { COMPRA_ACTIONS, COMPRA_FORMS, emptyCompra, periodoDeCompra, renderCompra } from './page-compra.js';
 import { MAS_ACTIONS, PAGINAS_MAS, TITULOS_MAS, aplicarDictado, emptyMas, renderMas } from './page-mas.js';
 import { avisoDeVoz, cancelarDictado, capacidad, diagnostico, falloAnterior, olvidarFalloAnterior } from './device.js';
@@ -84,7 +86,10 @@ function abrirCajon(cual) {
   ui.tour = null;
   ui.reviewId = null; ui.correctingReview = false; ui.modal = null;
   ui.mes = emptyMes(mesActual); ui.compra = emptyCompra(mesActual); ui.mas = emptyMas();
-  ui.setup = null; ui.chat = null; ui.bulk = null;
+  // El asistente de la canasta se retoma donde se dejó: lo marcado vive en el
+  // estado, así que abrir la app en otro momento —u otro teléfono— devuelve el
+  // mismo rubro con las mismas casillas marcadas.
+  ui.setup = avanceGuardado(state); ui.chat = null; ui.bulk = null;
   ui.hogar = emptyHogar();
   ui.voz = emptyVoz();
 }
@@ -96,7 +101,10 @@ const sidebarInitiallyCollapsed = (() => { try { return localStorage.getItem(SID
 const ui = {
   page: 'hoy',
   modal: null,
-  setup: null, chat: null, bulk: null,
+  // El asistente de la canasta arranca donde se dejó. `abrirCajon` hace lo
+  // mismo al cambiar de cuenta, pero en el arranque normal —sin sesión— no
+  // pasa por ahí: el estado se lee arriba del todo y esta es su única puerta.
+  setup: avanceGuardado(state), chat: null, bulk: null,
   hogar: emptyHogar(),
   mes: emptyMes(mesActual),
   compra: emptyCompra(mesActual),
@@ -378,6 +386,7 @@ const NAV = [
 // escoger entre once formularios es peor que no tener el botón.
 const RAPIDAS = [
   ['rapida-comida', '🍽️', 'Poner una comida', 'En un día, o en todos los lunes'],
+  ['open-recipe', '📖', 'Crear una preparación', 'Un plato que se repite en casa'],
   ['open-chat', '💬', 'Hablar o dictar', 'Dile lo que pasó y ella lo anota'],
   ['open-purchase', '🧺', 'Anotar una compra', 'Lo que trajiste del colmado'],
   ['open-product', '🥬', 'Añadir un alimento', 'Uno nuevo, con su medida']
@@ -389,6 +398,15 @@ function toast(message, error = false) {
   el.textContent = message; el.className = `show${error ? ' error' : ''}`;
   clearTimeout(toastTimer); toastTimer = setTimeout(() => el.className = '', 4200);
 }
+// Guardar sin repintar. Lo necesita quien va marcando ochenta casillas: cada
+// redibujo reemplaza los nodos, el navegador devuelve el desplazamiento a cero y
+// el foco se va al cuerpo del documento. Lo que se guarda es lo mismo que
+// guardaría `commit`; lo único que no pasa es el repintado.
+function guardar() {
+  saveState(state, undefined, cajon);
+  apuntarParaSubir();
+}
+
 function commit(message) {
   saveState(state, undefined, cajon);
   // Cada guardado marca que hay algo que subir. No se sube en el acto: quien
@@ -405,7 +423,7 @@ function commit(message) {
 // respaldo o al borrar los datos, y una referencia guardada apuntaría al viejo.
 function ctx() {
   return {
-    state, ui, commit, toast, render, closeModal, openModal,
+    state, ui, commit, guardar, toast, render, closeModal, openModal,
     startTour: () => goTour(0),
     servicios: {
       transcribe: capacidad('dictar').ok,
@@ -555,7 +573,7 @@ function pintar() {
       ${state.demo ? `<div class="demo-banner"><span>✦</span><div><strong>Estás viendo un ejemplo</strong>Las cantidades son inventadas para que veas cómo funciona; no son recomendaciones de alimentación.</div>${button('Borrar el ejemplo', 'clear-demo', 'btn-secondary btn-small')}</div>` : ''}
       ${cuerpo}
     </main>
-    ${ui.modal || ui.page === 'setup' || ui.page === 'hogar' ? '' : `<button type="button" class="fab" data-action="open-quick" aria-label="Anotar algo"><span aria-hidden="true">+</span></button>`}
+    ${ui.modal || ui.page === 'setup' || ui.page === 'hogar' || (ui.page === 'mes' && ui.mes?.bloque) ? '' : `<button type="button" class="fab" data-action="open-quick" aria-label="Anotar algo"><span aria-hidden="true">+</span></button>`}
     <nav class="mobile-nav" aria-label="Navegación principal">${NAV.map(([id, icon, label]) => `<button type="button" class="${activa(id)}" data-action="navigate" data-page="${id}"><span>${icon}</span>${label}</button>`).join('')}</nav>
   </div>`;
   document.querySelector('#modal-root').innerHTML = ui.modal ? renderModal() : ui.tour === null ? '' : tourCard();
@@ -581,38 +599,70 @@ function renderToday() {
     </section>
     <div class="inline" style="margin-top:16px">${button('Ver un ejemplo', 'welcome-demo', 'btn-quiet')}</div>`;
   }
-  const decididas = SLOTS.filter(slot => { const plan = planFor(state, today, slot); return plan && plan.kind !== 'unplanned'; }).length;
+  // El progreso cuenta las tres de todos los días. Las meriendas no: una casa
+  // que no merienda no tiene un día incompleto a las diez de la mañana, y
+  // decirle que le faltan dos comidas sería reprocharle una costumbre que no
+  // tiene. Las que estén puestas se enseñan igual, detrás.
+  const hechas = SLOTS_PRINCIPALES.filter(slot => { const plan = planFor(state, today, slot); return plan && plan.kind !== 'unplanned'; }).length;
+  const total = SLOTS_PRINCIPALES.length;
+  const meriendas = SLOTS.filter(slot => esOpcional(slot) && planFor(state, today, slot));
   return `<section class="hero">
       <div>
         <div class="eyebrow">${esc(niceDate(today))}</div>
-        <h2>${decididas === 3 ? 'Todo listo para hoy' : decididas ? 'Casi listo' : '¿Qué comemos hoy?'}</h2>
-        <p>${decididas} de 3 comidas decididas</p>
+        <h2>${hechas === total ? 'Todo listo para hoy' : hechas ? 'Casi listo' : '¿Qué comemos hoy?'}</h2>
+        <p>${hechas} de ${total} comidas decididas${meriendas.length ? ` · ${meriendas.length} merienda(s)` : ''}</p>
       </div>
-      ${decididas === 3 ? '' : button('Ver el mes', 'navigate', 'btn-secondary', 'data-page="mes"')}
+      ${hechas === total ? '' : button('Ver el mes', 'navigate', 'btn-secondary', 'data-page="mes"')}
     </section>
-    <div class="grid grid-3">${SLOTS.map(slot => tarjetaDeComida(slot, today)).join('')}</div>
+    <div class="grid grid-3">${SLOTS_PRINCIPALES.map(slot => tarjetaDeComida(slot, today)).join('')}</div>
+    ${bloqueDeMeriendas(today)}
     ${pieDeHoy()}`;
+}
+
+// Las dos meriendas van juntas, debajo de las tres comidas y con menos peso.
+// Puestas se leen como lo que son; vacías se ofrecen sin dar la lata, porque
+// hay casas que no meriendan y no les falta nada.
+function bloqueDeMeriendas(date) {
+  const opcionales = SLOTS.filter(esOpcional);
+  const puestas = opcionales.filter(slot => planFor(state, date, slot));
+  if (!puestas.length) {
+    return `<p class="small muted meriendas-vacias">¿Hay merienda hoy? ${opcionales.map(slot =>
+      `<button type="button" class="enlace" data-action="open-meal" data-date="${date}" data-slot="${slot}">Anotar la ${esc(etiquetaDeMomento(slot).toLocaleLowerCase('es'))}</button>`).join(' · ')}</p>`;
+  }
+  return `<div class="grid grid-2 meriendas">${opcionales.map(slot => {
+    const plan = planFor(state, date, slot);
+    if (!plan) {
+      return `<article class="card soft merienda-card vacia"><div class="slot">${esc(etiquetaDeMomento(slot))}</div>
+        <p class="small muted">Sin anotar. Es opcional.</p>
+        ${button('Anotar', 'open-meal', 'btn-quiet btn-small', `data-date="${date}" data-slot="${slot}"`)}</article>`;
+    }
+    return `<article class="card soft merienda-card"><div class="slot">${esc(etiquetaDeMomento(slot))}</div>
+      <div class="meal-title">${esc(planTitle(plan))}</div>
+      ${plan.items.length ? cantidades(plan) : ''}
+      ${avisoDeChoques(choquesDeLaComida(state, plan.items, plan.participants))}
+      ${button('Ver o cambiar', 'open-meal', 'btn-quiet btn-small', `data-date="${date}" data-slot="${slot}"`)}</article>`;
+  }).join('')}</div>`;
 }
 
 function tarjetaDeComida(slot, date) {
   const plan = planFor(state, date, slot);
   if (!plan) {
-    return `<article class="card meal-card"><div class="slot">${cap(slot)}</div>
+    return `<article class="card meal-card"><div class="slot">${esc(etiquetaDeMomento(slot))}</div>
       <div class="meal-body"><div class="meal-title">Todavía sin decidir</div><p class="muted small">Elige una comida o marca que hoy no se cocina.</p></div>
       ${button('Decidir', 'open-meal', 'btn-secondary btn-small', `data-date="${date}" data-slot="${slot}"`)}</article>`;
   }
   if (!['recipe', 'linked'].includes(plan.kind)) {
-    return `<article class="card meal-card fuera"><div class="slot">${cap(slot)}</div>
+    return `<article class="card meal-card fuera"><div class="slot">${esc(etiquetaDeMomento(slot))}</div>
       <div class="meal-body"><div class="meal-title">${esc(planTitle(plan))}</div><p class="muted small">${plan.kind === 'outside' ? 'Hoy esta comida no se prepara en casa.' : plan.kind === 'order' ? 'Se pedirá fuera.' : 'Esta comida necesita una decisión.'}</p></div>
       ${button('Cambiar', 'open-meal', 'btn-quiet btn-small', `data-date="${date}" data-slot="${slot}"`)}</article>`;
   }
-  return `<article class="card meal-card"><div class="slot">${cap(slot)}</div>
+  return `<article class="card meal-card"><div class="slot">${esc(etiquetaDeMomento(slot))}</div>
     <div class="meal-body">
       <div class="meal-title">${esc(planTitle(plan))}</div>
       <div class="meal-people">${plan.participants.length ? `Para ${plan.participants.map(id => esc(personName(id))).join(', ')}` : 'Para quien coma en casa'}</div>
       ${cantidades(plan)}
       ${plan.note ? `<p class="small nota-cocina"><strong>Nota:</strong> ${esc(plan.note)}</p>` : ''}
-      ${incompatibleItems(state, plan.items, plan.participants).length ? '<p class="pill red">Ojo: lleva algo que alguien no puede comer</p>' : ''}
+      ${avisoDeChoques(choquesDeLaComida(state, plan.items, plan.participants))}
     </div>
     ${button('Ver o cambiar', 'open-meal', 'btn-secondary btn-small', `data-date="${date}" data-slot="${slot}"`)}</article>`;
 }
@@ -646,9 +696,9 @@ function pieDeHoy() {
   return `${tocaRevisar ? notice('Hoy toca revisar lo que queda.', `Un repaso rápido a la nevera deja la compra exacta. <button type="button" class="enlace" data-action="open-new-review">Empezar</button>`) : ''}
     ${lineaDeCompra()}
     ${hayManana ? `<div class="section-head"><div><h2>Mañana</h2></div>${button('Ver el mes', 'navigate', 'btn-quiet btn-small', 'data-page="mes"')}</div>
-      <div class="grid grid-3">${SLOTS.map(slot => {
+      <div class="grid grid-3">${SLOTS.filter(slot => !esOpcional(slot) || planFor(state, manana, slot)).map(slot => {
         const plan = planFor(state, manana, slot);
-        return `<div class="card soft"><div class="between"><span class="pill warm">${cap(slot)}</span></div><h3 style="margin-top:10px">${esc(plan ? planTitle(plan) : 'Sin decidir')}</h3>${plan?.kind === 'linked' ? '<p class="small muted">Usa la parte apartada de hoy.</p>' : ''}</div>`;
+        return `<div class="card soft"><div class="between"><span class="pill ${esOpcional(slot) ? 'gray' : 'warm'}">${esc(etiquetaDeMomento(slot))}</span></div><h3 style="margin-top:10px">${esc(plan ? planTitle(plan) : 'Sin decidir')}</h3>${plan?.kind === 'linked' ? '<p class="small muted">Usa la parte apartada de hoy.</p>' : ''}</div>`;
       }).join('')}</div>` : ''}`;
 }
 
@@ -692,6 +742,81 @@ function itemRow(item = {}, type = 'ingredient') {
 // Quien está dado de baja no aparece aquí, salvo que ya estuviera marcado en
 // esta comida: una comida de marzo la comió quien la comió, y editarla no puede
 // expulsar a nadie por haberse mudado en agosto.
+/* ── Avisar con la gravedad que toca ───────────────────────────────────────
+
+   Tres niveles y tres aspectos distintos, porque un maní que manda al hospital
+   y una berenjena que no gusta no son el mismo aviso. Cuando todo alarma igual,
+   la gente deja de leer y el aviso que importa se pierde entre los otros.
+
+   Ninguno impide guardar. Las tres salidas —cambiar la preparación, cambiar
+   quién come, o dejarla porque se hará otra cosa— son los tres controles que ya
+   están en pantalla: el selector de arriba, las casillas de las personas, y el
+   botón de guardar. */
+
+const TONO_DE_GRAVEDAD = { 3: 'choque-alergia', 2: 'choque-intolerancia', 1: 'choque-preferencia' };
+const TITULO_DE_GRAVEDAD = {
+  3: 'Ojo: esto es una alergia',
+  2: 'Cuidado: le sienta mal',
+  1: 'Un detalle'
+};
+const VERBO_DE_MOTIVO = {
+  alergia: 'es alérgica a',
+  intolerancia: 'no tolera bien',
+  preferencia: 'prefiere evitar'
+};
+
+function avisoDeChoques(choques, { conSalidas = false } = {}) {
+  if (!choques.length) return '';
+  const peor = Math.max(...choques.map(choque => choque.gravedad));
+  const lineas = choques.map(choque =>
+    `<li><strong>${esc(choque.persona)}</strong> ${esc(VERBO_DE_MOTIVO[choque.motivo] || 'evita')} <strong>${esc(choque.producto)}</strong>${choque.motivo ? '' : ' <span class="muted">(sin decir por qué)</span>'}</li>`).join('');
+  return `<div class="choque ${TONO_DE_GRAVEDAD[peor] || 'choque-intolerancia'}" role="${peor === 3 ? 'alert' : 'status'}">
+    <div class="choque-cabeza"><span class="choque-marca" aria-hidden="true">${peor === 3 ? '⚠' : peor === 2 ? '!' : '·'}</span><strong>${esc(TITULO_DE_GRAVEDAD[peor] || 'Ojo')}</strong></div>
+    <ul class="choque-lista">${lineas}</ul>
+    ${conSalidas ? '<p class="tiny">Puedes cambiar la preparación, quitar a esa persona de esta comida, o dejarla como está si le vas a hacer otra cosa. La app no te lo impide.</p>' : ''}
+  </div>`;
+}
+
+/* ── ¿Para toda la casa, o solo para algunos? ──────────────────────────────
+
+   Por defecto, para toda la casa: no se pregunta nada. Las casillas de las
+   personas solo aparecen si alguien abre la excepción, que es lo que de verdad
+   es una excepción.
+
+   Los que estén marcados fuera ese día salen anotados, pero no se descuentan
+   solos de lo que se cocina: la olla de arroz no se encoge porque un hijo avise
+   a las seis de que come fuera. */
+
+function bloqueDeQuienComeAbierto(ui) {
+  return Boolean(ui.modal?.soloAlgunos);
+}
+
+function bloqueDeQuienCome(name, marcados, date, slot, { abierto } = {}) {
+  if (!state.people.length) return '';
+  const fuera = personasActivas(state).filter(person => isAbsent(state, date, slot, person.id));
+  if (!abierto) {
+    return `<div class="field quien-come">
+      <p class="small muted">Esta comida es para toda la casa.${fuera.length ? ` Hoy está marcado fuera: ${fuera.map(person => esc(person.name)).join(', ')}.` : ''}</p>
+      ${marcados.map(id => `<input type="hidden" name="${esc(name)}" value="${esc(id)}">`).join('')}
+      <button type="button" class="enlace" data-action="solo-algunos">¿Esta preparación es solamente para algunas personas?</button>
+    </div>`;
+  }
+  return `<div class="field quien-come">
+    <span>¿Quiénes comen de esta preparación?</span>
+    ${checkPeople(name, marcados, date, slot)}
+    <button type="button" class="enlace" data-action="solo-algunos">Volver a dejarla para toda la casa</button>
+  </div>`;
+}
+
+// Delante de una comida del calendario, la primera pregunta de cualquiera es
+// si la puso él. Contestarla en una línea es lo que hace que se atreva a
+// cambiarla: quitar algo que vino de una rutina no es lo mismo que quitar algo
+// que uno mismo escribió el martes.
+function lineaDeOrigen(plan) {
+  const origen = origenDe(plan);
+  return `<p class="origen-linea"><span class="origen-punto origen-${esc(origen)}" aria-hidden="true"></span><strong>${esc(etiquetaDeOrigen(origen))}</strong> · ${esc(detalleDeOrigen(origen))}</p>`;
+}
+
 function checkPeople(name, selected, date = null, slot = null) {
   const gente = state.people.filter(person => esActiva(person) || selected.includes(person.id));
   if (!gente.length) return '<p class="muted small">Todavía no hay personas registradas. Puedes seguir sin ellas.</p>';
@@ -703,6 +828,86 @@ function checkPeople(name, selected, date = null, slot = null) {
 
 /* ── Ventanas ──────────────────────────────────────────────────────────── */
 
+/* ── ¿Y qué días se repite? ────────────────────────────────────────────────
+
+   Esto vivía solo en la ventana de rutinas del plan mensual: la preparación se
+   escribía en un sitio y cuándo se repite se decía en otro, y entre las dos
+   pantallas se perdía la mitad de la gente. Quien acaba de escribir «mangú con
+   salami, desayuno y cena» ya sabe que es los martes y los jueves; hacerle
+   guardar, salir, entrar en otra pantalla y volver a elegir su preparación de
+   un desplegable es pedirle el mismo dato dos veces con un viaje en medio.
+
+   Marcar días aquí escribe la regla y la aplica al mes en curso, de golpe. No
+   marcar ninguno no hace nada: hay platos que no tienen día fijo, y esa es una
+   respuesta legítima. */
+
+// La regla de repetición de esta preparación, si tiene una sola. Con varias no
+// se toca ninguna desde aquí: adivinar cuál de las tres quiso cambiar sería
+// pisarle dos.
+function rutinaDeLaReceta(recipeId) {
+  const suyas = (state.mealRoutines || []).filter(item =>
+    item.kind === 'recipe' && item.recipeId === recipeId && item.active !== false);
+  return { rutina: suyas.length === 1 ? suyas[0] : null, cuantas: suyas.length };
+}
+
+function bloqueDeDias(recipe) {
+  const mes = today.slice(0, 7);
+  const { rutina, cuantas } = rutinaDeLaReceta(recipe?.id);
+  if (cuantas > 1) {
+    return `<div class="field"><span>¿Qué días de la semana se repite?</span>
+      <p class="small muted">Esta preparación ya tiene <strong>${cuantas} reglas guardadas</strong>. Para no pisar ninguna, se editan en Plan mensual → «Lo que se repite».</p></div>`;
+  }
+  const dias = rutina?.weekdays || [];
+  const semanas = rutina?.weeks ? String(rutina.weeks) : '';
+  const permanente = !rutina || rutina.scope === 'permanent';
+  return `<div class="field receta-dias">
+    <span>¿Qué días de la semana se repite? (opcional)</span>
+    <p class="small muted">Si marcas días, al guardar se pone sola en el calendario —esos días, en los momentos que elegiste arriba— y te ahorras ir día por día. Si no marcas ninguno, se guarda igual y la colocas cuando quieras.</p>
+    <div class="chips dias-semana">${WEEKDAYS.map((dia, indice) =>
+      `<label class="chip-check"><input type="checkbox" name="weekdays" value="${dia}" ${dias.includes(dia) ? 'checked' : ''}><span>${esc(WEEKDAY_SHORT[indice])}</span></label>`).join('')}</div>
+    <div class="radio-fila" style="margin-top:10px">
+      <label class="radio-pill"><input type="radio" name="weeks" value="todas" ${semanas ? '' : 'checked'}><span>Cada semana</span></label>
+      <label class="radio-pill"><input type="radio" name="weeks" value="1,3" ${semanas === '1,3' ? 'checked' : ''}><span>1.ª y 3.ª</span></label>
+      <label class="radio-pill"><input type="radio" name="weeks" value="2,4" ${semanas === '2,4' ? 'checked' : ''}><span>2.ª y 4.ª</span></label>
+    </div>
+    <div class="radio-fila" style="margin-top:8px">
+      <label class="radio-pill"><input type="radio" name="scope" value="permanent" ${permanente ? 'checked' : ''}><span>Todos los meses</span></label>
+      <label class="radio-pill"><input type="radio" name="scope" value="month" ${permanente ? '' : 'checked'}><span>Solo ${esc(monthName(mes))}</span></label>
+    </div>
+    <small>${rutina
+      ? `Ahora mismo: ${esc(describeRule(rutina.weekdays, rutina.weeks))}. Quitar todos los días la deja de repetir; las comidas que ya estén puestas se quedan donde están.`
+      : 'Nunca pisa una comida que ya tengas puesta ese día.'}</small>
+  </div>`;
+}
+
+// Escribe, cambia o retira la regla de repetición y la aplica al mes en curso.
+// Devuelve lo que pasó, en la misma frase que confirma el guardado: poner
+// trece comidas de golpe sin decirlo sería demasiada magia.
+function aplicarDiasDeLaReceta(form, data, receta) {
+  // La ventana pudo dibujarse sin el bloque —cuando hay varias reglas— y
+  // entonces aquí no se toca nada.
+  if (!form.querySelector('[name="weekdays"]')) return '';
+  const { rutina, cuantas } = rutinaDeLaReceta(receta.id);
+  if (cuantas > 1) return '';
+  const weekdays = [...form.querySelectorAll('[name="weekdays"]:checked')].map(input => Number(input.value));
+
+  if (!weekdays.length) {
+    if (!rutina) return '';
+    deleteRoutine(state, rutina.id);
+    return ' Ya no se repite sola; las comidas que estaban puestas se quedan.';
+  }
+
+  const crudas = data.get('weeks');
+  const weeks = !crudas || crudas === 'todas' ? null : String(crudas).split(',').map(Number);
+  const scope = data.get('scope') === 'month' ? 'month' : 'permanent';
+  const mes = today.slice(0, 7);
+  const campos = { kind: 'recipe', recipeId: receta.id, slots: receta.uses, weekdays, weeks, scope, month: scope === 'month' ? mes : null };
+  const regla = rutina ? updateRoutine(state, rutina.id, campos) : addRoutine(state, campos);
+  const puestas = applyRoutine(state, regla.id, mes, { modo: 'vacios' });
+  const momentos = receta.uses.map(slot => etiquetaDeMomento(slot).toLocaleLowerCase('es')).join(' y ');
+  return ` ${describeRule(weekdays, weeks)}, en ${momentos}: ${puestas.creados.length} comida(s) puestas en ${monthName(mes)}${puestas.saltados.length ? `, ${puestas.saltados.length} día(s) ya tenían algo y se dejaron como estaban` : ''}.`;
+}
+
 function renderModal() {
   const m = ui.modal;
 
@@ -713,6 +918,8 @@ function renderModal() {
 
   if (m.type === 'rutina') return modalRutina(ctx(), m);
 
+  if (m.type === 'dia') return modalDia(ctx(), m);
+
   if (m.type === 'meal') return modalComida(m);
 
   if (m.type === 'alcance-comida') {
@@ -720,33 +927,68 @@ function renderModal() {
     const rutina = state.mealRoutines?.find(item => item.id === plan?.routineId);
     const quitando = m.accion === 'quitar';
     const cuantas = state.plans.filter(item => item.routineId === plan.routineId).length;
-    return modal('¿Qué quieres cambiar?', `${cap(plan.slot)} · ${niceDate(plan.date, { weekday: 'long', day: 'numeric', month: 'long' })}`,
+    return modal('¿Qué quieres cambiar?', `${etiquetaDeMomento(plan.slot)} · ${niceDate(plan.date, { weekday: 'long', day: 'numeric', month: 'long' })}`,
       `<p class="muted small">Esta comida viene de una rutina${rutina ? ` —${esc(describeRutina(rutina))}— que está puesta en ${cuantas} día(s)` : ''}. Dinos hasta dónde llega ${quitando ? 'lo que quitas' : 'el cambio'}.</p>
        <div class="opcion-larga" style="margin-top:16px">
          ${[['sola', 'Solo esta fecha', quitando ? 'Las demás se quedan igual, y la rutina también.' : 'Esta comida deja de seguir la rutina; las demás siguen igual.'],
             ['siguientes', 'Esta y todas las siguientes', 'Las anteriores no se tocan.'],
             ['todas', 'Toda la rutina', 'Incluidas las que ya pasaron este mes.']].map(([valor, titulo, detalle]) =>
            `<button type="button" class="radio-bloque" data-action="alcance-elegido" data-id="${plan.id}" data-alcance="${valor}"><span><strong>${esc(titulo)}</strong>${esc(detalle)}</span></button>`).join('')}
-       </div>`);
+       </div>
+       ${rutina ? `<p class="small muted" style="margin-top:16px">Las tres cambian comidas ya puestas. Para cambiar <strong>la regla</strong> —qué días, en qué comida, desde cuándo, si es de todos los meses— hay que editarla:
+         <button type="button" class="enlace" data-action="open-routine" data-id="${esc(rutina.id)}">Editar la regla completa</button>.
+         Eso sí llega a los meses que vengan.</p>` : ''}`);
   }
 
+  /* ── Una preparación ──────────────────────────────────────────────────────
+
+     Seis cosas en orden y ninguna escondida: nombre, cuándo se come, qué lleva,
+     cuánto rinde, la nota de quien cocina, y guardar.
+
+     Lo que se fue: «¿quiénes la comen normalmente?». Se preguntaba aquí y se
+     volvía a preguntar al ponerla en el calendario, y de las dos respuestas la
+     buena era siempre la segunda, porque quién come depende del día y no del
+     plato. Ahora una preparación es de la casa, y la excepción se marca el día
+     que toca.
+
+     Y los alimentos salen del plegable. Estaban dentro de «Más opciones», que
+     es exactamente donde no se mira: son lo que convierte una preparación en
+     una lista de compra, y esconderlos era esconder para qué sirve todo esto. */
   if (m.type === 'recipe') {
     const recipe = state.recipes.find(item => item.id === m.id);
+    const enCasa = personasActivas(state).length;
     return modal(recipe ? 'Editar preparación' : 'Nueva preparación',
-      'Con el nombre y en qué comida se sirve ya basta. Lo demás se puede añadir después.',
-      `<form data-form="recipe" data-id="${recipe?.id || ''}">
+      'Con el nombre y cuándo se come ya basta. Lo demás se puede añadir después.',
+      `<form data-form="recipe" data-id="${recipe?.id || ''}" data-volver-rutina="${esc(m.volverRutina || '')}" class="receta-form">
         <label class="field"><span>¿Cómo se llama?</span><input name="name" required value="${esc(recipe?.name || '')}" placeholder="Ej. Mangú con salami"></label>
-        <div class="field" style="margin-top:14px"><span>¿En qué comida?</span><div class="checks">${SLOTS.map(slot => `<label class="check-chip"><input type="checkbox" name="uses" value="${slot}" ${recipe?.uses.includes(slot) ? 'checked' : ''}>${cap(slot)}</label>`).join('')}</div></div>
-        <div class="field" style="margin-top:14px"><span>¿Quiénes la comen normalmente?</span>${checkPeople('covers', recipe?.covers || [])}<small>Si no marcas a nadie, vale para quien coma ese día.</small></div>
-        <label class="field" style="margin-top:14px"><span>Nota para quien cocina (opcional)</span><textarea name="note" placeholder="Ej. dejar una parte para la cena" autocapitalize="sentences" spellcheck="true" enterkeyhint="done">${esc(recipe?.note || '')}</textarea></label>
-        <details class="more" style="margin-top:17px" ${recipe?.items.length ? 'open' : ''}>
-          <summary>Más opciones: alimentos y raciones</summary>
-          <p class="small muted">Solo los alimentos principales. No hace falta anotar la sal, el aceite, el ajo ni los condimentos: la app no les lleva la cuenta y pedírtelos sería trabajo para nada.</p>
-          <label class="field"><span>¿Para cuántas raciones? (opcional)</span><input name="servings" type="number" min="0.1" step="any" inputmode="decimal" value="${recipe?.servings ?? ''}" placeholder="Ej. 4"></label>
-          <div data-item-list="ingredient">${(recipe?.items || []).map(item => itemRow(item)).join('')}</div>
-          <div class="inline">${button('+ Añadir alimento', 'add-item', 'btn-secondary btn-small', 'data-type="ingredient"')}${state.people.some(person => person.habitual?.length) ? button('↺ Traer las cantidades habituales', 'fill-habitual', 'btn-quiet btn-small') : ''}</div>
-        </details>
-        <div class="modal-actions"><button class="btn btn-primary" type="submit">Guardar</button></div>
+
+        <div class="field">
+          <span>¿En cuáles momentos suelen comer esta preparación? Puedes seleccionar más de uno.</span>
+          <div class="checks receta-momentos">${MOMENTOS.map(momento => `<label class="check-chip"><input type="checkbox" name="uses" value="${momento.id}" ${recipe?.uses?.includes(momento.id) ? 'checked' : ''}>${esc(momento.etiqueta)}</label>`).join('')}</div>
+          <small>El mangú con salami, por ejemplo, suele estar en Desayuno y en Cena.</small>
+        </div>
+
+        ${bloqueDeDias(recipe)}
+
+        <div class="field">
+          <span>Alimentos principales y cantidades</span>
+          <p class="small muted">Solo los que hacen falta para la compra. No hace falta anotar la sal, la pimienta, el agua, el aceite ni los condimentos: la app no les lleva la cuenta y pedírtelos sería trabajo para nada.</p>
+          <div data-item-list="receta">${(recipe?.items || []).map(item => itemRow(item, 'receta')).join('')}</div>
+          <div class="inline">${button('+ Añadir alimento', 'add-item', 'btn-secondary btn-small', 'data-type="receta"')}${state.people.some(person => person.habitual?.length) ? button('↺ Traer las cantidades habituales', 'fill-habitual', 'btn-quiet btn-small') : ''}</div>
+        </div>
+
+        <label class="field">
+          <span>¿Cuántas porciones rinde esta preparación? (opcional)</span>
+          <input name="servings" type="number" min="0.1" step="any" inputmode="decimal" value="${recipe?.servings ?? ''}" placeholder="${enCasa || 4}">
+          <small>Una porción equivale aproximadamente a la cantidad que come una persona una vez.${enCasa ? ` En tu casa viven ${enCasa}.` : ''}</small>
+        </label>
+
+        <label class="field"><span>Nota para quien cocina (opcional)</span><textarea name="note" placeholder="Ej. guardar lo que sobre para el desayuno del día siguiente" autocapitalize="sentences" spellcheck="true" enterkeyhint="done">${esc(recipe?.note || '')}</textarea></label>
+
+        <div class="modal-actions">
+          ${recipe ? '' : '<button class="btn btn-secondary" type="submit" name="seguir" value="1">Guardar y añadir otra</button>'}
+          <button class="btn btn-primary" type="submit">Guardar</button>
+        </div>
       </form>`, true);
   }
 
@@ -773,6 +1015,32 @@ function renderModal() {
   }
 
   if (m.type === 'product') return modalProducto(m);
+
+  /* ── ¿Desde qué mes entra en la canasta base? ────────────────────────────
+
+     «Este mes compré cangrejo» y «en esta casa ahora se come cangrejo» son dos
+     cosas distintas, y entre una y otra hay una fecha. Sin preguntarla, pasar
+     algo a la canasta base lo metía hacia atrás en todos los meses que ya
+     habían pasado —incluido el historial— y eso es reescribir lo que la casa
+     compró de verdad. */
+  if (m.type === 'promoter') {
+    const item = product(state, m.id);
+    const mesActual = today.slice(0, 7);
+    const siguiente = shiftMonth(mesActual, 1);
+    // El mes del cambio entra en la lista porque es cuando la casa lo compró por
+    // primera vez; nunca se ofrece nada anterior a él.
+    const meses = [...new Set([m.month, mesActual, siguiente, shiftMonth(mesActual, 2), shiftMonth(mesActual, 3)])]
+      .filter(mes => mes >= m.month).sort();
+    return modal('Añadir a mi canasta base', esc(item?.name || ''),
+      `<form data-form="promover" data-id="${esc(m.id)}" data-month="${esc(m.month)}" class="stack">
+        <p class="muted">Pasará a comprarse <strong>todos los meses</strong>, sin tener que anotarlo cada vez.</p>
+        <label class="field"><span>¿Desde qué mes?</span>
+          <select name="desde">${options(meses.map(mes => [mes, monthName(mes)]), siguiente >= m.month ? siguiente : m.month)}</select>
+          <small>Los meses anteriores a esa fecha no se tocan: seguirán diciendo lo que dijeron.</small>
+        </label>
+        <div class="modal-actions">${button('Cancelar', 'close-modal', 'btn-secondary')}<button type="submit" class="btn btn-primary">Añadir</button></div>
+      </form>`);
+  }
 
   if (m.type === 'cambio-mes') {
     const mes = m.month;
@@ -842,7 +1110,7 @@ function renderModal() {
        <form data-form="link" data-id="${source.id}">
         <div class="form-grid" style="margin-top:15px">
           <label class="field"><span>¿Para qué día?</span><input type="date" name="date" min="${addDays(source.date, 1)}" value="${addDays(source.date, 1)}" required></label>
-          <label class="field"><span>¿Qué comida?</span><select name="slot">${options(SLOTS.map(slot => [slot, cap(slot)]), 'almuerzo')}</select></label>
+          <label class="field"><span>¿Qué comida?</span><select name="slot">${options(SLOTS.map(slot => [slot, etiquetaDeMomento(slot)]), 'almuerzo')}</select></label>
         </div>
         <div class="section-head"><h3>¿Cuánto se aparta?</h3></div>
         ${source.items.map(item => `<div class="list-row"><div>${itemText(item)}<div class="small muted">Ya apartado: ${fmt(reservedQuantity(state, source.id, item.id))} ${esc(item.unit)}</div></div><label class="field" style="max-width:130px"><span class="sr-only">Apartar</span><input type="number" min="0" max="${Math.max(0, item.quantity - reservedQuantity(state, source.id, item.id))}" step="any" inputmode="decimal" name="reserve-${item.id}" value="0" aria-label="Cuánto apartar de ${esc(productName(item.productId))}"></label></div>`).join('')}
@@ -856,7 +1124,7 @@ function renderModal() {
     return modal(m.type === 'move' ? 'Mover esta comida' : 'Copiar esta comida', planTitle(plan),
       `<form data-form="move-copy" data-id="${plan.id}" data-operation="${m.type}" class="stack">
         <div class="form-grid"><label class="field"><span>¿A qué día?</span><input type="date" name="date" value="${m.type === 'copy' ? addDays(plan.date, 1) : plan.date}" required></label>
-        <label class="field"><span>¿Qué comida?</span><select name="slot">${options(SLOTS.map(slot => [slot, cap(slot)]), plan.slot)}</select></label></div>
+        <label class="field"><span>¿Qué comida?</span><select name="slot">${options(SLOTS.map(slot => [slot, etiquetaDeMomento(slot)]), plan.slot)}</select></label></div>
         <div class="modal-actions"><button type="submit" class="btn btn-primary">${m.type === 'move' ? 'Mover' : 'Copiar'}</button></div></form>`);
   }
 
@@ -896,7 +1164,7 @@ function renderModal() {
   if (m.type === 'absence') return modal('Alguien no come en casa', '',
     `<form data-form="absence" class="stack"><div class="form-grid">
       <label class="field"><span>¿Qué día?</span><input name="date" type="date" value="${m.date || today}" required></label>
-      <label class="field"><span>¿Qué comida?</span><select name="slot">${options(SLOTS.map(slot => [slot, cap(slot)]), m.slot || 'almuerzo')}</select></label></div>
+      <label class="field"><span>¿Qué comida?</span><select name="slot">${options(SLOTS.map(slot => [slot, etiquetaDeMomento(slot)]), m.slot || 'almuerzo')}</select></label></div>
       <div class="field"><span>¿Quién?</span>${checkPeople('absent', state.absences.filter(item => item.date === (m.date || today) && item.slot === (m.slot || 'almuerzo')).map(item => item.personId))}</div>
       <div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar</button></div></form>`);
 
@@ -915,16 +1183,17 @@ function describeRutina(rutina) {
 // casillas para poner el mismo desayuno.
 function modalComida(m) {
   const plan = planFor(state, m.date, m.slot);
-  const contexto = `${cap(m.slot)} · ${niceDate(m.date, { weekday: 'long', day: 'numeric', month: 'long' })}`;
+  const contexto = `${etiquetaDeMomento(m.slot)} · ${niceDate(m.date, { weekday: 'long', day: 'numeric', month: 'long' })}`;
   if (!plan) {
     const opciones = state.recipes.filter(recipe => recipe.uses.includes(m.slot));
     // Sin decir nada, la comida es para toda la casa: se marcan todos los que
     // viven aquí hoy. Quitar a alguien es la excepción, no el trámite.
-    const marcados = (opciones[0]?.covers.length ? opciones[0].covers : personasActivas(state).map(person => person.id)).filter(id => esActiva(state.people.find(item => item.id === id)));
+    const marcados = personasActivas(state).map(person => person.id);
     return modal('¿Qué se come?', contexto, `<form data-form="assign" class="stack">
       <input type="hidden" name="date" value="${m.date}"><input type="hidden" name="slot" value="${m.slot}">
       <label class="field"><span>Preparación</span><select name="recipeId" id="assign-recipe" ${opciones.length ? '' : 'disabled'}>${options(opciones.map(recipe => [recipe.id, recipe.name]), opciones[0]?.id, opciones.length ? '' : 'Todavía no hay ninguna')}</select></label>
-      ${state.people.length ? `<div class="field"><span>¿Quiénes comen?</span>${checkPeople('participants', marcados, m.date, m.slot)}</div>` : ''}
+      ${bloqueDeQuienCome('participants', marcados, m.date, m.slot, { abierto: bloqueDeQuienComeAbierto(ui) })}
+      <div data-choque>${avisoDeChoques(choquesDeLaComida(state, opciones[0]?.items || [], marcados), { conSalidas: true })}</div>
       ${opciones.length
         ? `<div class="field"><span>¿Solo hoy, o se repite?</span>
             <div class="radio-fila">
@@ -933,7 +1202,7 @@ function modalComida(m) {
             </div>
             <small>«Hacerla rutina» te deja elegir los días de la semana y llena el mes entero de una vez.</small></div>
            <button type="submit" class="btn btn-primary">Poner esta comida</button>`
-        : `<div class="hint">Todavía no tienes preparaciones para ${esc(m.slot)}. ${button('Crear una', 'open-recipe', 'btn-secondary btn-small')}</div>`}
+        : `<div class="hint">Todavía no tienes preparaciones para ${esc(etiquetaDeMomento(m.slot).toLocaleLowerCase('es'))}. ${button('Crear una', 'open-recipe', 'btn-secondary btn-small')}</div>`}
       </form>
       <div class="divider"></div>
       <div class="small strong" style="margin-bottom:9px">O marcar que no se cocina</div>
@@ -942,17 +1211,19 @@ function modalComida(m) {
       <p class="small muted" style="margin:12px 0 0">Un día de paseo no se parte en tres: ${button('marcar el día entero fuera', 'mark-day', 'btn-quiet btn-small', `data-date="${m.date}" data-kind="outside"`)}</p>`);
   }
   if (!['recipe', 'linked'].includes(plan.kind)) {
-    return modal(planTitle(plan), contexto, `<p class="muted">Esta comida está resuelta: no cuenta como pendiente y no gasta alimentos.</p>
-      ${plan.routineId ? '<p class="small muted">Viene de una rutina.</p>' : ''}
+    return modal(planTitle(plan), contexto, `${lineaDeOrigen(plan)}
+      <p class="muted">Esta comida está resuelta: no cuenta como pendiente y no gasta alimentos.</p>
       <div class="modal-actions">${button('Cambiarla por una comida', 'delete-plan', 'btn-secondary', `data-id="${plan.id}"`)}${button('Quitar la marca', 'delete-plan', 'btn-quiet', `data-id="${plan.id}"`)}</div>`);
   }
   return modal(plan.kind === 'linked' ? 'Comida apartada' : 'Esta comida', contexto,
-    `${plan.routineId ? `<div class="hint">Esta comida viene de una rutina. Lo que cambies aquí afecta <strong>solo a este día</strong>; para cambiar la rutina entera, ve a Plan mensual.</div>` : '<div class="hint">Lo que cambies aquí afecta solo a este día.</div>'}
+    `${lineaDeOrigen(plan)}
+     ${plan.routineId ? `<div class="hint">Esta comida viene de una rutina. Lo que cambies aquí afecta <strong>solo a este día</strong>; para cambiar la rutina entera, ve a Plan mensual.</div>` : '<div class="hint">Lo que cambies aquí afecta solo a este día.</div>'}
      ${plan.kind === 'linked' ? cantidades(plan) : dependents(state, plan.id).length ? `<div class="notice warn"><span>↪</span><div><strong>De esta comida se aparta una parte para otro día.</strong>Si bajas las cantidades, deja suficiente.</div></div>` : ''}
+     <div data-choque>${avisoDeChoques(choquesDeLaComida(state, plan.items, plan.participants), { conSalidas: true })}</div>
      <form data-form="plan" data-id="${plan.id}">
       <div class="form-grid">
         <label class="field"><span>Nombre</span><input name="title" value="${esc(plan.title)}" required></label>
-        ${state.people.length ? `<div class="field"><span>¿Quiénes comen?</span>${checkPeople('participants', plan.participants, plan.date, plan.slot)}</div>` : '<span></span>'}
+        ${bloqueDeQuienCome('participants', plan.participants, plan.date, plan.slot, { abierto: bloqueDeQuienComeAbierto(ui) || plan.participants.length !== personasActivas(state).length })}
       </div>
       <label class="field" style="margin-top:14px"><span>Nota para quien cocina</span><textarea name="note" placeholder="Ej. dejar una parte para mañana" autocapitalize="sentences" spellcheck="true" enterkeyhint="done">${esc(plan.note || '')}</textarea></label>
       <details class="more" style="margin-top:16px" ${plan.items.length ? 'open' : ''}>
@@ -974,6 +1245,40 @@ function modalComida(m) {
        button(label, 'replace-status', 'btn-quiet btn-small', `data-id="${plan.id}" data-kind="${kind}"`)).join('')}</div>`, true);
 }
 
+/* ── ¿Es de todos los meses, o solo de este? ───────────────────────────────
+
+   Lo que se compra una vez y lo que se compra siempre son dos cosas distintas y
+   se escribían igual. El cangrejo que se compra en Navidad acababa en la
+   canasta habitual —«lo que consume tu casa en un mes corriente»— y aparecía en
+   la lista de febrero, de marzo y de todos los demás.
+
+   Así que se pregunta, y la respuesta que toca la costumbre nunca viene
+   marcada: añadir algo para siempre es una decisión, no un descuido. */
+
+const DESTINOS = [
+  ['mes', 'Solo para este mes', 'Entra en la compra de este mes y no vuelve a aparecer.'],
+  ['siempre', 'Añadir a mi canasta base', 'Aparecerá en la compra de todos los meses, desde ahora.'],
+  ['ficha', 'Solo guardar la ficha', 'Queda anotado como alimento de la casa, sin entrar en ninguna compra.']
+];
+
+function bloqueDeDestino(item, mensual) {
+  // Editando algo que ya está en la canasta, la pregunta ya está contestada: lo
+  // que se escriba corrige la costumbre, que es donde vive.
+  if (item && mensual) {
+    return `<p class="small muted">Este alimento ya está en tu canasta base: lo que escribas arriba corrige lo de <strong>todos los meses</strong>. Para cambiar solo un mes, entra en Más → Mi canasta habitual → Cambios de este mes.</p>
+      <input type="hidden" name="destino" value="siempre">`;
+  }
+  const mesActual = todayISO().slice(0, 7);
+  return `<div class="field"><span>¿Dónde entra este alimento?</span>
+    <div class="setup-opciones destino-opciones">${DESTINOS.map(([id, titulo, detalle], indice) =>
+      `<label class="setup-opcion destino-opcion">
+        <input type="radio" name="destino" value="${id}" ${indice === 0 ? 'checked' : ''}>
+        <span><strong>${esc(titulo === 'Solo para este mes' ? `Solo para ${monthName(mesActual)}` : titulo)}</strong><small>${esc(detalle)}</small></span>
+      </label>`).join('')}</div>
+    <small>Lo ocasional no entra solo en la costumbre: para que aparezca todos los meses hay que decirlo aquí.</small>
+  </div>`;
+}
+
 function modalProducto(m) {
   const item = product(state, m.id);
   const stock = item ? inventoryNow(state)[item.id] || 0 : 0;
@@ -986,10 +1291,11 @@ function modalProducto(m) {
       <div data-dedup-warning></div>
       <div class="form-grid">
         <label class="field"><span>¿Cómo lo cuentas?</span><select name="controlUnit" ${item ? 'disabled' : ''}>${unitOptions(controlUnit)}</select><small>${item ? 'No se cambia cuando ya hay movimientos.' : 'Por unidades, por libras, por paquetes…'}</small></label>
-        <label class="field"><span>¿Cuánto se consume al mes?</span>
-          <div class="paired"><input name="monthly" type="number" min="0" step="any" inputmode="decimal" value="${mensual?.quantity ?? ''}" placeholder="No lo sé"><select name="monthlyUnit" aria-label="Unidad del consumo del mes">${unitOptions(mensual?.unit || controlUnit)}</select></div>
-          <small>Es lo que entra en tu canasta habitual. Puedes dejarlo vacío.</small></label>
+        <label class="field"><span>¿Cuánto se compra?</span>
+          <div class="paired"><input name="monthly" type="number" min="0" step="any" inputmode="decimal" value="${mensual?.quantity ?? ''}" placeholder="No lo sé"><select name="monthlyUnit" aria-label="Unidad de la cantidad">${unitOptions(mensual?.unit || controlUnit)}</select></div>
+          <small>Puedes dejarlo vacío y ponerlo después.</small></label>
       </div>
+      ${bloqueDeDestino(item, mensual)}
       <details class="more" ${item ? 'open' : ''}>
         <summary>Más opciones</summary>
         <label class="field"><span>Categoría</span><select name="category">${options(CATEGORIES.map(cat => [cat.id, `${cat.emoji} ${cat.label}`]), item?.category || 'otros')}</select><small>Solo sirve para ordenar y buscar.</small></label>
@@ -1179,6 +1485,7 @@ document.addEventListener('click', event => {
       ui.modal = null; ui.drawerOpen = false;
       commit('');
     }
+    else if (action === 'solo-algunos') { if (ui.modal) ui.modal.soloAlgunos = !ui.modal.soloAlgunos; render(); }
     else if (action === 'open-quick') openModal('quick');
     else if (action === 'rapida-comida') openModal('meal', { date: today, slot: proximaComidaLibre() });
     else if (action === 'open-chat') { ui.chat = ui.chat || emptyChat(); openModal('chat'); }
@@ -1207,7 +1514,9 @@ document.addEventListener('click', event => {
     // Los dos destinos a los que manda la asistente cuando no entiende una
     // frase de canasta o de rutina: el sitio donde eso se escribe a mano.
     else if (action === 'open-basket') { ui.page = 'canasta'; ui.mas.canastaVista = 'habitual'; ui.modal = null; render(); }
-    else if (action === 'open-routine') openModal('rutina', { month: ui.mes.month });
+    else if (action === 'open-routine') openModal('rutina', { month: ui.mes.month, id: el.dataset.id || '' });
+    // Salir del callejón: se escribe la primera preparación y se vuelve aquí.
+    else if (action === 'rutina-primera-preparacion') openModal('recipe', { id: '', volverRutina: el.dataset.month || ui.mes.month });
     else if (action === 'open-new-review') openModal('new-review');
     else if (action === 'open-correction') openModal('correction', { id: el.dataset.id });
     else if (action === 'open-absence') openModal('absence');
@@ -1217,10 +1526,19 @@ document.addEventListener('click', event => {
     else if (action === 'review-mode') { const review = state.reviews.find(item => item.id === el.dataset.id); if (review && review.status === 'draft') { review.mode = el.dataset.mode; commit(''); } }
     else if (action === 'select-review') { ui.reviewId = el.dataset.id; ui.correctingReview = false; ui.page = 'revision'; render(); }
     else if (action === 'toggle-correct-review') { ui.correctingReview = !ui.correctingReview; render(); }
-    else if (action === 'canasta-promover') {
-      promoteToHabitual(state, el.dataset.month, [el.dataset.id]);
-      commit(`«${productName(el.dataset.id)}» pasa a tu canasta habitual. Desde el mes siguiente aparece solo.`);
+    // Pasar algo a la canasta base es decidir desde cuándo es verdad, y eso no
+    // se puede suponer: hacerlo valer «desde siempre» reescribiría meses que ya
+    // pasaron, y hacerlo valer desde hoy puede dejar fuera el mes en que la casa
+    // empezó a comprarlo. Se pregunta.
+    else if (action === 'canasta-promover') openModal('promover', { id: el.dataset.id, month: el.dataset.month });
+
+    else if (action === 'compra-cerrar') {
+      const periodo = periodoDeCompra(ui.compra);
+      const cierre = cerrarPeriodo(state, { start: periodo.start, end: periodo.end, periodo: ui.compra.tramo, basis: ui.compra.base });
+      commit(`Período cerrado. Queda guardado lo que se calculó: ${cierre.lista.length} alimento(s), la canasta de ${monthName(cierre.month)} y lo que declaraste que quedaba.`);
     }
+
+    else if (action === 'review-scope') { setReviewScope(state, el.dataset.id, el.dataset.origen); commit(''); }
     else if (action === 'canasta-quitar-cambio') { removeMonthChange(state, el.dataset.month, el.dataset.id); commit('Ese cambio se quitó; vuelve a ser como siempre.'); }
     else if (action === 'canasta-quitar') {
       const fila = el.closest('.canasta-fila');
@@ -1369,22 +1687,38 @@ function aplicarPorAlcance(planId, alcance) {
     : `${afectadas.length} comida(s) cambiadas de aquí en adelante.`);
 }
 
+// Recalcula el aviso sin redibujar la ventana entera: quien está tocando
+// casillas perdería el sitio, y el desplegable de «solo hoy o se repite»
+// volvería a su valor de fábrica.
+function pintarChoques(form) {
+  const caja = form?.querySelector('[data-choque]') || form?.parentElement?.querySelector('[data-choque]');
+  if (!caja) return;
+  const receta = state.recipes.find(item => item.id === form.querySelector('[name="recipeId"]')?.value);
+  const plan = state.plans.find(item => item.id === form.dataset.id);
+  const items = receta?.items || plan?.items || [];
+  const marcados = [...form.querySelectorAll('[name="participants"]')].filter(input => input.checked || input.type === 'hidden').map(input => input.value);
+  caja.innerHTML = avisoDeChoques(choquesDeLaComida(state, items, marcados), { conSalidas: true });
+}
+
 function traerCantidadesHabituales(el) {
   const form = el.closest('form');
-  const lista = form.querySelector('[data-item-list="ingredient"]');
-  const marcadas = selected(form, 'covers');
-  const personas = state.people.filter(person => (!marcadas.length || marcadas.includes(person.id)) && person.habitual?.length);
+  const lista = form.querySelector('[data-item-list="receta"]');
+  // Se suman las de toda la casa. Antes se podía filtrar por las personas
+  // marcadas en la propia preparación, pero esa pregunta ya no existe: una
+  // preparación es familiar, así que lo habitual que se trae es lo de todos los
+  // que viven aquí hoy.
+  const personas = personasActivas(state).filter(person => person.habitual?.length);
   const totales = new Map();
   for (const persona of personas) for (const fila of persona.habitual) {
     const clave = `${fila.productId}|${fila.unit}`;
     totales.set(clave, (totales.get(clave) || 0) + Number(fila.quantity));
   }
-  if (!totales.size) throw new Error(marcadas.length ? 'Las personas marcadas no tienen cantidades guardadas.' : 'Todavía no hay cantidades habituales guardadas en Familia.');
+  if (!totales.size) throw new Error('Todavía no hay cantidades habituales guardadas en Más → Familia.');
   const escrito = [...lista.querySelectorAll('[data-item-row]')].some(row => row.querySelector('[name="productId"]')?.value);
   if (escrito && !window.confirm('Se reemplazará lo escrito por la suma de las cantidades habituales. ¿Continuar?')) return;
   lista.innerHTML = [...totales].map(([clave, total]) => {
     const [productId, unit] = clave.split('|');
-    return itemRow({ productId, quantity: Math.round(total * 1000) / 1000, unit });
+    return itemRow({ productId, quantity: Math.round(total * 1000) / 1000, unit }, 'receta');
   }).join('');
   toast(`${totales.size} alimento(s) sumados de ${personas.length} persona(s).`);
 }
@@ -1395,11 +1729,10 @@ document.addEventListener('change', event => {
   const el = event.target;
   if (el.id === 'compra-desde') { ui.compra.desde = el.value; render(); }
   if (el.id === 'compra-hasta') { ui.compra.hasta = el.value; render(); }
-  if (el.id === 'assign-recipe') {
-    const receta = state.recipes.find(item => item.id === el.value);
-    const form = el.closest('form');
-    form.querySelectorAll('[name="participants"]').forEach(input => input.checked = !input.disabled && (receta?.covers.length ? receta.covers.includes(input.value) : true));
-  }
+  if (el.id === 'assign-recipe') pintarChoques(el.closest('form'));
+  // Marcar o desmarcar a alguien cambia el aviso: puede que el choque fuera con
+  // esa persona, o puede que aparezca uno nuevo.
+  if (el.name === 'participants') pintarChoques(el.closest('form'));
   if (['date', 'slot'].includes(el.name) && el.closest('[data-form="absence"]')) {
     const form = el.closest('form'), date = form.querySelector('[name="date"]').value, slot = form.querySelector('[name="slot"]').value;
     form.querySelectorAll('[name="absent"]').forEach(input => input.checked = isAbsent(state, date, slot, input.value));
@@ -1413,6 +1746,9 @@ document.addEventListener('change', event => {
   // El grosor solo aparece en lo que se corta; se oculta sin volver a dibujar
   // el formulario para no perder lo ya escrito.
   if (el.name === 'controlUnit' && el.closest('[data-form="product"]')) { const campo = el.form.querySelector('[data-cut-field]'); if (campo) campo.hidden = !SLICEABLE.includes(el.value); }
+  // Escribir cuánto va en la primera quincena: la segunda es el resto, así que
+  // se recalcula al salir del campo. Las dos partes suman siempre el mes.
+  if (el.matches('[data-reparto-primera]')) { aplicarReparto(ctx(), el); return; }
   // Elegir «una preparación» o «fuera de casa» enseña u oculta el selector.
   if (el.name === 'kind' && el.closest('[data-form="rutina"]')) { const campo = el.form.querySelector('[data-rutina-receta]'); if (campo) campo.hidden = el.value !== 'recipe'; }
 });
@@ -1426,6 +1762,7 @@ document.addEventListener('input', event => {
   const buscadores = {
     'alimento-filtro': valor => { ui.mas.filtroAlimento = valor; },
     'revision-filtro': valor => { ui.mas.revisionFiltro = valor; },
+    'receta-filtro': valor => { ui.mas.recetaFiltro = valor; },
     'setup-buscar': valor => { ui.setup.busqueda = valor; }
   };
   const escribir = buscadores[event.target.id];
@@ -1490,8 +1827,30 @@ document.addEventListener('submit', async event => {
     if (COMPRA_FORMS[kind]) { COMPRA_FORMS[kind](form, data, ctx()); return; }
 
     if (kind === 'recipe') {
-      upsertRecipe(state, { id: form.dataset.id, name: data.get('name'), uses: selected(form, 'uses'), covers: selected(form, 'covers'), servings: data.get('servings'), items: collectItems(form), note: data.get('note') });
-      ui.modal = null; commit('Preparación guardada.');
+      const receta = upsertRecipe(state, { id: form.dataset.id, name: data.get('name'), uses: selected(form, 'uses'), servings: data.get('servings'), items: collectItems(form), note: data.get('note') });
+      // «Guardar y añadir otra» deja la ventana abierta y en blanco. Quien está
+      // escribiendo de una sentada las seis comidas de su casa no quiere
+      // abrirla, cerrarla y volverla a abrir seis veces.
+      const seguir = data.get('seguir') === '1';
+      // Los días que se repite: si se marcaron, la comida queda puesta en el
+      // calendario sin salir de aquí.
+      const repeticion = aplicarDiasDeLaReceta(form, data, receta);
+      // Quien llegó aquí desde el formulario de una rutina porque no tenía
+      // ninguna preparación escrita vuelve por donde vino, y vuelve con la que
+      // acaba de escribir ya elegida. El registro inicial no puede terminar en
+      // una ventana que se cierra y te deja donde no estabas.
+      const volverARutina = form.dataset.volverRutina || '';
+      ui.modal = seguir ? { type: 'recipe', id: '' }
+        : volverARutina ? { type: 'rutina', month: volverARutina, receta: receta.id, kind: 'recipe' }
+        : null;
+      // Se guarda igual sin alimentos: la preparación ya sirve para llenar el
+      // calendario. Lo único que no puede hacer es aportar a la compra, y eso
+      // se dice en voz baja en vez de bloquear el guardado.
+      const cola = seguir ? ' Escribe la siguiente.' : '';
+      const base = receta.items.length || repeticion
+        ? `«${receta.name}» guardada.`
+        : `«${receta.name}» guardada. Cuando le añadas alimentos y cantidades podrá contar para la compra.`;
+      commit(base + repeticion + cola);
     }
     else if (kind === 'product') {
       const existente = product(state, form.dataset.id);
@@ -1502,9 +1861,26 @@ document.addEventListener('submit', async event => {
       if (existente) updateProduct(state, existente.id, { name: data.get('name'), purchaseUnit, category: data.get('category') });
       if (data.get('slice')) setSlice(state, item.id, data.get('slice'));
       if (purchaseUnit !== controlUnit && factor) setEquivalence(state, item.id, purchaseUnit, factor);
-      setHabitualLine(state, item.id, data.get('monthly'), data.get('monthlyUnit'));
+      const destino = String(data.get('destino') || 'ficha');
+      const mesActual = todayISO().slice(0, 7);
+      let mensaje = 'Guardado.';
+      if (destino === 'siempre') {
+        setHabitualLine(state, item.id, data.get('monthly'), data.get('monthlyUnit'));
+        mensaje = `«${item.name}» entra en tu canasta base desde ${monthName(mesActual)}: aparecerá todos los meses. Los anteriores no cambian.`;
+      } else if (destino === 'mes') {
+        setMonthChange(state, mesActual, item.id, { quantity: data.get('monthly'), unit: data.get('monthlyUnit') || controlUnit });
+        mensaje = `«${item.name}» entra solo en la compra de ${monthName(mesActual)}. Tu canasta base no cambia.`;
+      } else {
+        mensaje = `«${item.name}» queda guardado. No entra en ninguna compra hasta que lo digas.`;
+      }
       ui.modal = null;
-      commit('Guardado.');
+      commit(mensaje);
+    }
+    else if (kind === 'promover') {
+      const desde = String(data.get('desde') || '');
+      promoteToHabitual(state, form.dataset.month, [form.dataset.id], desde);
+      ui.modal = null;
+      commit(`«${productName(form.dataset.id)}» entra en tu canasta base desde ${monthName(desde)}. Lo anterior no cambia.`);
     }
     else if (kind === 'canasta-habitual') {
       const lineas = [];
@@ -1527,8 +1903,10 @@ document.addEventListener('submit', async event => {
         const existente = state.products.find(item => item.name.toLocaleLowerCase('es') === nombre.toLocaleLowerCase('es'))
           || addProduct(state, { name: nombre, controlUnit: data.get('unidad'), purchaseUnit: data.get('unidad'), category: 'otros', origin: 'manual' });
         if (paraSiempre) {
-          setHabitualLine(state, existente.id, data.get('cantidad'), data.get('unidad'));
-          mensaje = `«${existente.name}» entra en tu canasta habitual: aparecerá todos los meses.`;
+          // Se estrena en el mes que se está mirando, no hoy: quien lo escribe
+          // estando en octubre no quiere comprarlo también en septiembre.
+          setHabitualLine(state, existente.id, data.get('cantidad'), data.get('unidad'), null, mes);
+          mensaje = `«${existente.name}» entra en tu canasta habitual desde ${monthName(mes)}: aparecerá todos los meses. Los anteriores no cambian.`;
         } else {
           setMonthChange(state, mes, existente.id, { quantity: data.get('cantidad'), unit: data.get('unidad') });
           mensaje = `«${existente.name}» solo para ${monthName(mes)}. Los demás meses no cambian.`;
@@ -1539,6 +1917,15 @@ document.addEventListener('submit', async event => {
       if (!mensaje) throw new Error('Escribe un alimento o marca algo que quitar.');
       ui.modal = null;
       commit(mensaje);
+    }
+    // La frecuencia de compra no se guarda como un valor suelto: se añade un
+    // tramo con su fecha de vigencia, y lo anterior a esa fecha no se toca.
+    else if (kind === 'frecuencia') {
+      const tipo = data.get('tipo');
+      const desde = data.get('desde');
+      ponerFrecuencia(state, tipo, desde);
+      Object.assign(ui.mas, { cambiandoFrecuencia: false, frecuenciaNueva: '', frecuenciaDesde: '' });
+      commit(`Desde ${monthName(desde)} la compra es ${tipo === 'quincenal' ? 'quincenal' : 'mensual'}. Los meses anteriores se quedan como estaban.`);
     }
     else if (kind === 'ajuste-revision') {
       state.settings = { ...(state.settings || {}), reviewWeekday: Number(data.get('dia')) };

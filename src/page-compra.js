@@ -16,7 +16,7 @@
 // Las dos cuentas nunca se suman. Sumarlas contaría dos veces el mismo arroz:
 // una por estar en la canasta y otra por estar dentro de una preparación.
 
-import { effectiveBasket, lastStockReview, monthBounds, product, shoppingList, todayISO } from './model.js';
+import { effectiveBasket, etiquetaDeMomento, frecuenciaDe, lastStockReview, monthBounds, periodoCerrado, periodosDelMes, product, reabrirPeriodo, shoppingList, todayISO, ultimaCompra } from './model.js';
 import { button, cap, empty, esc, measure, monthName, niceDate, notice, shiftMonth } from './ui-kit.js';
 
 const hoy = todayISO();
@@ -35,11 +35,25 @@ export function emptyCompra(month = hoy.slice(0, 7)) {
   };
 }
 
-const TRAMOS = [
-  ['mes', 'Todo el mes'],
-  ['primera', '1.ª quincena'],
-  ['segunda', '2.ª quincena']
-];
+// Los tramos que se ofrecen salen de la frecuencia de ESE mes, no de una lista
+// fija: una casa que compra una vez al mes no tiene que elegir entre tres
+// botones para ver su única lista, y una que compra dos veces no tiene por qué
+// ver «todo el mes» como si fuera lo normal.
+//
+// Cualquier otro rango sigue disponible en «Usar otras fechas», que es la
+// salida para la compra de mitad de semana que no encaja en ningún esquema.
+const tramosDelMes = (state, month) => periodosDelMes(state, month).map(periodo => [periodo.id, periodo.etiqueta, periodo.dias]);
+
+// El tramo abierto tiene que ser uno de los que ese mes ofrece. Cambiar de mes
+// —o cambiar la frecuencia— puede dejar puesto uno que ya no existe, y entonces
+// la lista se calcularía sobre un período que la casa no usa.
+function tramoQueToca(state, compra) {
+  if (compra.tramo === 'fechas') return 'fechas';
+  const disponibles = tramosDelMes(state, compra.month).map(([id]) => id);
+  if (disponibles.includes(compra.tramo)) return compra.tramo;
+  if (disponibles.length === 1) return disponibles[0];
+  return Number(hoy.slice(8)) <= 15 ? 'primera' : 'segunda';
+}
 
 export function periodoDeCompra(compra) {
   if (compra.tramo === 'fechas') return { start: compra.desde, end: compra.hasta };
@@ -54,6 +68,7 @@ export function renderCompra(ctx) {
   const { state, ui } = ctx;
   if (!ui.compra) ui.compra = emptyCompra();
   const compra = ui.compra;
+  compra.tramo = tramoQueToca(state, compra);
   const periodo = periodoDeCompra(compra);
 
   let lista, errorPeriodo = '';
@@ -70,10 +85,13 @@ export function renderCompra(ctx) {
 
   return `${selectorDePeriodo(ctx, compra)}
     ${errorPeriodo ? notice('Revisa las fechas.', esc(errorPeriodo), 'error') : ''}
-    ${recordatorioDeRevision(state)}
+    ${bloqueDeCierre(ctx, compra, lista)}
+    ${lista.congelado ? '' : queToca(state, compra)}
+    ${lista.congelado ? '' : recordatorioDeRevision(state)}
     ${listaPrincipal(ctx, faltan, origenes, lista)}
+    ${avisoSinCantidades(ctx, lista)}
     ${bloqueDisponible(ctx, hay)}
-    ${avisosPrevios(ctx, lista)}
+    ${lista.congelado ? '' : avisosPrevios(ctx, lista)}
     ${bloqueManual(ctx)}
     ${opcionesAvanzadas(ctx, compra, lista)}
     ${historialDeCompras(ctx)}`;
@@ -82,7 +100,11 @@ export function renderCompra(ctx) {
 /* ── Período ───────────────────────────────────────────────────────────── */
 
 function selectorDePeriodo(ctx, compra) {
+  const { state } = ctx;
   const periodo = periodoDeCompra(compra);
+  const tramos = tramosDelMes(state, compra.month);
+  const quincenal = frecuenciaDe(state, compra.month) === 'quincenal';
+  const abierto = tramos.find(([id]) => id === compra.tramo);
   const rotulo = compra.tramo === 'fechas' && periodo.start && periodo.end
     ? `${niceDate(periodo.start, { day: 'numeric', month: 'short' })} – ${niceDate(periodo.end, { day: 'numeric', month: 'short' })}`
     : monthName(compra.month);
@@ -92,8 +114,9 @@ function selectorDePeriodo(ctx, compra) {
       <div class="strong compra-mes">${esc(rotulo)}</div>
       ${button('›', 'compra-mover', 'btn-secondary btn-small', 'data-delta="1" aria-label="Mes siguiente"')}
     </div>
-    <div class="segmented">${TRAMOS.map(([id, texto]) => `<button type="button" data-action="compra-tramo" data-tramo="${id}" class="${compra.tramo === id ? 'active' : ''}">${texto}</button>`).join('')}</div>
+    ${tramos.length > 1 ? `<div class="segmented">${tramos.map(([id, texto]) => `<button type="button" data-action="compra-tramo" data-tramo="${id}" class="${compra.tramo === id ? 'active' : ''}">${texto}</button>`).join('')}</div>` : ''}
   </div>
+  ${quincenal && abierto ? `<p class="small muted compra-quincena">${esc(abierto[1])} de ${esc(monthName(compra.month))}: ${abierto[2]} días. <button type="button" class="enlace" data-action="navigate" data-page="organizacion">Cambiar cómo se reparte el mes</button></p>` : ''}
   ${compra.tramo === 'fechas'
     ? `<div class="inline compra-fechas"><label class="field"><span>Desde</span><input id="compra-desde" type="date" value="${esc(compra.desde)}"></label><label class="field"><span>Hasta</span><input id="compra-hasta" type="date" value="${esc(compra.hasta)}"></label>${button('Volver al mes', 'compra-tramo', 'btn-quiet btn-small', 'data-tramo="mes"')}</div>`
     : `<p class="small muted compra-otras"><button type="button" class="enlace" data-action="compra-tramo" data-tramo="fechas">Usar otras fechas</button></p>`}`;
@@ -140,7 +163,9 @@ function listaPrincipal(ctx, faltan, origenes, lista) {
           : `<strong>${esc(measure(linea.purchaseQuantity, linea.purchaseUnit))}</strong>`}</div>
       </div>`;
     }).join('')}</div>
-    <div class="inline compra-acciones">${button('Ya compré: anotar lo que traje', 'open-purchase', 'btn-primary')}</div>
+    ${lista.congelado
+      ? '<p class="small muted compra-acciones">Este período está cerrado: lo que anotes a partir de ahora ya no entra en esta lista.</p>'
+      : `<div class="inline compra-acciones">${button('Ya compré: anotar lo que traje', 'open-purchase', 'btn-primary')}</div>`}
     ${lista.pending.length ? avisoDeMedidas(state, lista) : ''}`;
 }
 
@@ -209,9 +234,97 @@ function avisosPrevios(ctx, lista) {
       'La lista no las descuenta sola: comer fuera un domingo no hace que la casa gaste menos arroz el resto del mes. Si este mes van a consumir menos de algo, anótalo en los cambios del mes.'));
   }
   if (ui.compra.base === 'menu' && lista.missing?.length) {
-    trozos.push(notice(`${lista.missing.length} comida(s) sin planificar`, `Calculando desde el menú, lo que no esté planificado no entra en la lista. ${lista.missing.slice(0, 4).map(item => `${cap(item.slot)} ${niceDate(item.date, { day: 'numeric', month: 'short' })}`).join(', ')}${lista.missing.length > 4 ? '…' : ''}`, 'warn'));
+    trozos.push(notice(`${lista.missing.length} comida(s) sin planificar`, `Calculando desde el menú, lo que no esté planificado no entra en la lista. ${lista.missing.slice(0, 4).map(item => `${etiquetaDeMomento(item.slot)} ${niceDate(item.date, { day: 'numeric', month: 'short' })}`).join(', ')}${lista.missing.length > 4 ? '…' : ''}`, 'warn'));
   }
   return trozos.join('');
+}
+
+/* ── Qué toca ahora ────────────────────────────────────────────────────────
+
+   Una casa que compra dos veces al mes tiene que contar lo que le queda antes
+   de la segunda compra, o la segunda compra vuelve a traer lo que ya tiene. Una
+   que compra una vez tiene que contarlo antes de empezar el mes siguiente. Son
+   dos costumbres distintas y la app lo sabe, así que puede decirlo en vez de
+   dejar que se descubra cuando ya sobra arroz. */
+
+function queToca(state, compra) {
+  const mes = compra.month;
+  const quincenal = frecuenciaDe(state, mes) === 'quincenal';
+  const dia = Number(hoy.slice(8));
+  const esteMes = mes === hoy.slice(0, 7);
+  const compraAnterior = ultimaCompra(state, hoy);
+  if (!compraAnterior) return '';
+  const revisadoDespues = state.reviews.some(item =>
+    item.status === 'confirmed' && (item.date > compraAnterior.date || (item.date === compraAnterior.date && item.seq > compraAnterior.seq)));
+  if (revisadoDespues) return '';
+
+  if (quincenal && esteMes && dia >= 13) {
+    return notice('Antes de la segunda compra, cuenta lo que queda.',
+      `Así la lista de la segunda quincena descuenta lo que sobró de la primera en vez de volver a traerlo. Son ${compraAnterior.lines.length} alimento(s): los que trajiste el ${esc(niceDate(compraAnterior.date, { day: 'numeric', month: 'long' }))}. <button type="button" class="enlace" data-action="open-new-review">Revisar ahora</button>`);
+  }
+  if (!quincenal && esteMes && dia >= 25) {
+    return notice('Antes de empezar el mes que viene, cuenta lo que queda.',
+      `La lista del mes nuevo parte de lo que sobre de este. <button type="button" class="enlace" data-action="open-new-review">Revisar ahora</button>`);
+  }
+  return '';
+}
+
+/* ── Un período cerrado ────────────────────────────────────────────────────
+
+   Lo que se ve de un período cerrado no se está calculando: se está leyendo.
+   Decirlo importa, porque es la diferencia entre «esto es lo que compré» y
+   «esto es lo que compraría hoy con los precios y la canasta de hoy». */
+
+function bloqueDeCierre(ctx, compra, lista) {
+  const { state } = ctx;
+  const periodo = periodoDeCompra(compra);
+  if (!periodo.start || !periodo.end) return '';
+  const cierre = lista.cierre || periodoCerrado(state, periodo.start, periodo.end);
+
+  if (cierre) {
+    const compradas = cierre.compras.reduce((suma, item) => suma + item.lines.length, 0);
+    return `<div class="notice cerrado"><span>🔒</span><div>
+      <strong>Este período está cerrado.</strong>
+      Lo cerraste el ${esc(niceDate(cierre.closedAt, { day: 'numeric', month: 'long', year: 'numeric' }))} y lo que ves es <strong>exactamente lo que se calculó entonces</strong>: ${cierre.canasta.length} alimento(s) de canasta, ${cierre.excepciones.length} cambio(s) de ese mes, compra ${esc(cierre.frecuencia === 'quincenal' ? 'quincenal' : 'mensual')}, ${compradas} alimento(s) comprados. Cambiar tu canasta hoy no lo toca.
+      <div class="inline" style="margin-top:10px">
+        ${button('Ver lo que quedó guardado', 'navigate', 'btn-secondary btn-small', 'data-page="historial"')}
+        ${button('Reabrir', 'compra-reabrir', 'btn-quiet btn-small', `data-id="${esc(cierre.id)}"`)}
+      </div>
+    </div></div>`;
+  }
+
+  // Cerrar hacia el futuro no significa nada: no se puede congelar lo que
+  // todavía no ha pasado.
+  if (periodo.start > hoy) return '';
+  const etiqueta = compra.tramo === 'fechas'
+    ? `${niceDate(periodo.start, { day: 'numeric', month: 'short' })} – ${niceDate(periodo.end, { day: 'numeric', month: 'short' })}`
+    : `${tramosDelMes(state, compra.month).find(([id]) => id === compra.tramo)?.[1] || monthName(compra.month)} de ${monthName(compra.month)}`;
+  return `<details class="plegable"><summary>Cerrar este período</summary>
+    <div class="card">
+      <p class="small muted">Cerrarlo guarda una fotografía de todo lo que hizo falta para calcularlo: <strong>la canasta que usaste, los cambios de ese mes, la frecuencia vigente, lo que compraste, lo que declaraste que quedaba y la lista final</strong> —y el menú, si lo calculaste desde ahí—. Desde entonces la app lo lee en vez de volver a sumarlo.</p>
+      <p class="small muted">Es lo que hace que subir el arroz de 10 a 15 libras el mes que viene no reescriba lo que este período dijo que hacía falta.</p>
+      <p class="tiny muted">Se puede reabrir, y reabrirlo no borra ninguna compra ni ninguna revisión: solo tira la fotografía.</p>
+      <div class="inline">${button(`Cerrar ${etiqueta}`, 'compra-cerrar', 'btn-secondary')}</div>
+    </div>
+  </details>`;
+}
+
+/* ── Preparaciones sin cantidades ──────────────────────────────────────────
+
+   Calculando desde el menú, una preparación sin alimentos anotados no aporta
+   nada. Inventarle media libra de arroz porque «algo llevará» dejaría la compra
+   corta sin que nadie pudiera saber por qué, así que se dice cuáles son. */
+
+function avisoSinCantidades(ctx, lista) {
+  const sin = lista.sinCantidades || [];
+  if (!sin.length) return '';
+  const nombres = [...new Set(sin.map(item => item.title))];
+  return `<div class="notice warn"><span>?</span><div>
+    <strong>${nombres.length === 1 ? 'Esta preparación no tiene cantidades suficientes para calcularla' : `${nombres.length} preparaciones no tienen cantidades suficientes para calcularlas`}</strong>
+    ${nombres.slice(0, 6).map(nombre => esc(nombre)).join(' · ')}${nombres.length > 6 ? ' · y más' : ''}.
+    Están puestas en ${sin.length} comida(s) de este período y no suman nada a la lista: la app no se inventa lo que lleva un plato.
+    <div class="inline" style="margin-top:10px">${button('Ir a las preparaciones', 'navigate', 'btn-secondary btn-small', 'data-page="preparaciones"')}</div>
+  </div></div>`;
 }
 
 /* ── Lo que se anota a mano ────────────────────────────────────────────── */
@@ -274,6 +387,11 @@ function historialDeCompras(ctx) {
 /* ── Acciones ──────────────────────────────────────────────────────────── */
 
 export const COMPRA_ACTIONS = {
+  'compra-reabrir': (el, ctx) => {
+    if (!window.confirm('Reabrir este período vuelve a calcularlo con tu canasta de hoy, así que puede dejar de decir lo que decía. Las compras y las revisiones no se tocan. ¿Reabrirlo?')) return;
+    if (reabrirPeriodo(ctx.state, el.dataset.id)) ctx.commit('Período reabierto. Vuelve a calcularse con lo de hoy.');
+  },
+
   'compra-mover': (el, ctx) => {
     ctx.ui.compra.month = shiftMonth(ctx.ui.compra.month, Number(el.dataset.delta));
     if (ctx.ui.compra.tramo === 'fechas') ctx.ui.compra.tramo = 'mes';

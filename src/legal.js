@@ -20,14 +20,26 @@
 // `legal/terminos.html` y `legal/eliminar-datos.html`, y sube `actualizado` en
 // los cuatro sitios. Son el mismo documento en dos formatos.
 //
-// El correo de contacto va como marcador a propósito: no se inventó ninguna
-// dirección. Antes de publicar hay que sustituirlo aquí y en las cuatro
-// páginas de `legal/`. Para encontrarlos todos de una vez:
+// ── Lo que pasó una vez y no puede volver a pasar ──────────────────────────
 //
-//     grep -rn CORREO_DE_CONTACTO legal/ src/legal.js docs/
+// Cuando entraron las cuentas, este archivo se actualizó a medias y las cuatro
+// páginas de `legal/` no se tocaron. Durante un día el documento se contradijo a
+// sí mismo —una sección decía que la app tenía una puerta a la red y otra, tres
+// más abajo, que no tenía ninguna— y las páginas públicas negaban directamente
+// una función que la app ya traía. `tests/legal.test.js` existe por eso: revisa
+// que ningún texto legal, ni el de aquí ni el de `legal/`, siga afirmando cosas
+// que el código ya desmiente.
+//
+// ── El correo ──────────────────────────────────────────────────────────────
+//
+// `nexocore.group@gmail.com` es PROVISIONAL, a la espera del buzón oficial de
+// NexoCore. Sale público en la ficha de Play Store. Cuando cambie, cambia en
+// seis archivos a la vez; para verlos todos:
+//
+//     grep -rn nexocore.group@gmail.com legal/ src/legal.js docs/
 
 export const LEGAL = {
-  actualizado: '2026-09-15',
+  actualizado: '2026-09-16',
 
   privacidad: {
     titulo: 'Aviso de privacidad',
@@ -36,16 +48,17 @@ export const LEGAL = {
         titulo: 'En corto',
         parrafos: [
           'Todo lo que escribes en esta app se queda guardado en tu teléfono.',
-          'Puedes usarla sin cuenta, y entonces no sale nada de tu teléfono. También puedes crear una cuenta, que sirve para recuperar tu casa si cambias de aparato.',
+          'Puedes usarla sin cuenta, y entonces no sale nada de tu teléfono: la app no llama a ninguna parte. También puedes crear una cuenta, que sirve para recuperar tu casa si cambias de aparato.',
           'Tener cuenta no significa subir tus datos. Guardar la casa en la cuenta es una segunda decisión, con su propio interruptor en Más → Mi cuenta, y mientras esté apagado no viaja nada.',
-          'Nosotros, los que hicimos la app, no recibimos nada en ningún caso: ni tus comidas, ni tu despensa, ni tus compras, ni quiénes viven en tu casa, ni cuánto usas la app. No hay analítica, ni publicidad, ni rastreadores.'
+          'No hay analítica, ni publicidad, ni rastreadores: nadie mide cuánto usas la app ni qué haces dentro, ni con cuenta ni sin ella.',
+          'Si enciendes la sincronización, tu casa se guarda en tu cuenta. Más abajo se dice exactamente dónde queda y quién puede llegar a ella, sin adornos.'
         ]
       },
       {
         titulo: 'Quién hace esta app',
         parrafos: [
           'NexoCore, República Dominicana. La aplicación se llama «¿Qué comemos?» y en Google Play aparece con el identificador com.nexocore.quecomemos.',
-          'Para cualquier cosa de este aviso, escríbenos a CORREO_DE_CONTACTO.'
+          'Para cualquier cosa de este aviso, escríbenos a nexocore.group@gmail.com.'
         ]
       },
       {
@@ -56,16 +69,19 @@ export const LEGAL = {
           'Lo que la app no te pide, y no debes escribir en ella, es el peso de nadie, su fecha de nacimiento, un diagnóstico o una medicación. No los necesita para nada, y lo que no se guarda no se puede perder.',
           'Todo eso vive en el almacenamiento local del navegador dentro de tu propio teléfono. Es el mismo teléfono donde instalaste la app, y nada más.',
           'Con la sincronización apagada —que es como viene— no se copia a ninguna parte. Si abres la app en otro teléfono, ahí empiezas de cero.',
-          'Si la enciendes, ese mismo contenido se guarda además en tu cuenta, en servidores de Supabase, y vuelve solo cuando entras desde otro teléfono. Viaja cifrado y solo tú puedes leerlo: la base de datos está configurada para que cada cuenta vea únicamente su propia casa. Puedes apagarla cuando quieras, y borrar la cuenta borra lo que hubiera subido.',
+          'Si la enciendes, ese mismo contenido se guarda además en tu cuenta, en servidores de Supabase, y vuelve solo cuando entras desde otro teléfono. Puedes apagarla cuando quieras, y borrar la cuenta borra lo que hubiera subido.',
           'La copia automática de Android está apagada a propósito. Android suele subir solo los datos de las aplicaciones a la cuenta de Google del dueño del teléfono; en esta app eso está desactivado, para que tu despensa no acabe en un servidor sin que nadie lo pidiera.',
-          'El precio de esa decisión hay que decirlo claro: si pierdes el teléfono sin haber guardado una copia, se pierde todo. Por eso existe Más → Respaldo, y por eso la app insiste en que la uses.'
+          'El precio de esa decisión hay que decirlo claro: si no usas cuenta y pierdes el teléfono sin haber guardado una copia, se pierde todo. Por eso existe Más → Respaldo, y por eso la app insiste en que la uses.'
         ]
       },
       {
-        titulo: 'Qué NO recogemos',
+        titulo: 'Qué no recogemos, y qué sí — sin medias verdades',
         parrafos: [
-          'Esta es la lista completa de lo que el desarrollador recibe de ti: nada. Ni un dato. Lo que subas con la sincronización encendida se guarda en TU cuenta, no llega a nosotros, y nadie de NexoCore puede leerlo.',
-          'Si creas una cuenta, lo único que se guarda de ti es tu correo, tu nombre y tu contraseña cifrada, y eso lo guarda Supabase, que es quien opera el servicio de cuentas.',
+          'Con la sincronización apagada, que es como viene, esta es la lista completa de lo que el desarrollador recibe de ti: nada. Ni un dato.',
+          'Con la sincronización encendida hay que decirlo entero, porque media verdad aquí sería una mentira. Tu casa se guarda en una base de datos de Supabase que administra NexoCore. Está configurada para que cada cuenta solo pueda leer la suya, y eso protege a unos usuarios de otros de verdad. Pero quienes administramos esa base somos nosotros, así que el acceso técnico existe: no podemos decirte que nos resulte imposible leer lo que subes, porque no lo es.',
+          'Lo que sí podemos decirte, y es lo que nos comprometemos a cumplir: no lo hacemos, no hay ningún proceso que recorra esos datos, no se los damos a nadie y no se usan para nada que no sea devolverte tu casa cuando entras desde otro teléfono. Y si prefieres que esa posibilidad ni siquiera exista, deja la sincronización apagada: entonces tus datos no salen del teléfono y no hay nada que leer.',
+          'Tampoco está cifrado de extremo a extremo, y conviene saber la diferencia. Lo que subes viaja cifrado por el camino, pero se guarda tal cual en la base de datos. Cifrarlo de punta a punta se puede hacer y tiene un precio que hay que aceptar antes: quien olvide la contraseña perdería sus datos, porque ya nadie podría recuperarlos. Si algún día se hace, se dirá aquí.',
+          'Si creas una cuenta, lo único que se guarda de ti como persona es tu correo, tu nombre y tu contraseña cifrada, y eso lo guarda Supabase, que es quien opera el servicio de cuentas.',
           'Sin analítica: no medimos cuánta gente abre la app, ni qué pantallas usa, ni cuánto tiempo pasa dentro.',
           'Sin publicidad y sin rastreadores: no hay anuncios, ni píxeles, ni identificadores de publicidad.',
           'Sin informes de fallos: si la app se rompe, no nos enteramos.',
@@ -89,14 +105,14 @@ export const LEGAL = {
         ]
       },
       {
-        titulo: 'El permiso de internet',
+        titulo: 'El permiso de internet, y cuándo se usa de verdad',
         parrafos: [
-          'La app pide el permiso de internet, y aquí hay que ser exactos, porque la explicación honesta es un poco rara.',
-          'La app no habla con ningún servidor. Ni uno. No hay servidor nuestro, no hay servidor de nadie más, y no hay forma de configurar uno. La app no hace ninguna llamada a internet, ni al abrirse, ni al guardar, ni nunca.',
-          'Funciona entera sin conexión: los alimentos, la canasta, el menú, la compra y el inventario salen todos de tu propio teléfono. Puedes usarla el mes completo en modo avión.',
-          'Entonces, ¿por qué el permiso sigue ahí? Porque está declarado en la app y preferimos decírtelo a quitarlo a ciegas. Ese permiso es de los que hacen falta para que la pantalla interna de la aplicación cargue como debe, y tocarlo sin poder comprobarlo en todos los teléfonos podría romper la app para alguien.',
-          'Lo que importa es esto: el permiso existe, pero no hay ningún código que pueda usarlo. No es una promesa de buena fe, es una cuestión de que la función no está escrita en ninguna parte. Antes hubo una opción avanzada para conectar un servidor propio; se eliminó del producto entero, y con ella el archivo que la hacía.',
-          'Hay una prueba automática que revisa todos los archivos de la app y falla si aparece cualquier forma de salir a la red. Hoy está en verde con la lista vacía.'
+          'La app pide el permiso de internet y lo usa para una sola cosa: las cuentas. Ni una más.',
+          'Sin cuenta, la app no llama a ninguna parte. Ni al abrirse, ni al guardar, ni de fondo. Los alimentos, la canasta, el menú, la compra y el inventario salen todos de tu propio teléfono, y puedes usarla el mes completo en modo avión.',
+          'Esto no es una promesa de buena fe, es cómo está escrito: al arrancar, la app mira si hay una sesión guardada en este teléfono, y si no la hay se detiene ahí mismo, sin tocar la red.',
+          'Si creas una cuenta, la app habla con un sitio y solo con uno: el proyecto de Supabase donde viven las cuentas. Ahí van tu correo y tu contraseña al registrarte y al entrar, y ahí va tu casa solo si además enciendes la sincronización.',
+          'No hay ninguna otra puerta de salida a la red, y hay una prueba automática que se pone en rojo el día que alguien abra una segunda o le cambie la dirección a esta.',
+          'Ninguna analítica, ningún informe de fallos, ninguna publicidad y ninguna librería de terceros llamando a su casa. Esas puertas no existen, y la misma prueba las vigila.'
         ]
       },
       {
@@ -117,26 +133,30 @@ export const LEGAL = {
       {
         titulo: 'Cómo borrar tus datos',
         parrafos: [
-          'Hay dos caminos y los dos los haces tú, desde tu teléfono.',
-          'Desde dentro de la app: Más → Respaldo → Borrar todos mis datos. Te pide confirmación y borra todo lo que la app guardó: alimentos, comidas, personas, compras, revisiones, la copia interna de seguridad y tus preferencias de pantalla.',
-          'Desinstalando la app: al desinstalarla, Android se lleva por delante todo su almacenamiento, incluida la caché del sistema. También puedes hacerlo sin desinstalar, desde los ajustes de Android, en Aplicaciones, ¿Qué comemos?, Almacenamiento, Borrar datos.',
-          'Los dos son inmediatos y no se pueden deshacer. Guarda una copia antes si la quieres.'
+          'Todos los caminos los recorres tú, desde tu teléfono, sin pedirle permiso a nadie ni esperar a que nadie apruebe nada.',
+          'Lo del teléfono, desde dentro de la app: Más → Respaldo → Borrar todos mis datos. Te pide confirmación y borra todo lo que la app guardó: alimentos, comidas, personas, compras, revisiones, la copia interna de seguridad y tus preferencias de pantalla.',
+          'Lo del teléfono, desinstalando: al desinstalar la app, Android se lleva por delante todo su almacenamiento, incluida la caché del sistema. También puedes hacerlo sin desinstalar, desde los ajustes de Android, en Aplicaciones, ¿Qué comemos?, Almacenamiento, Borrar datos.',
+          'La cuenta, si llegaste a crear una: Más → Mi cuenta → Borrar mi cuenta. Eso borra de una vez tu cuenta y todo lo que hubiera subido —tu correo, tu nombre y la casa que tuvieras guardada— y borra además lo que quede en este teléfono.',
+          'Todos son inmediatos y no se pueden deshacer. Guarda una copia antes si la quieres.'
         ]
       },
       {
-        titulo: 'No hay nada que pedirnos',
+        titulo: 'Tus derechos, y por qué casi todos los ejerces tú solo',
         parrafos: [
-          'En las apps con cuenta, uno le escribe a la empresa para que le enseñe sus datos o se los borre. Aquí eso no aplica, y es una buena noticia.',
-          'Nosotros no tenemos ningún dato tuyo: no podemos enseñártelos, ni corregirlos, ni exportarlos, ni borrarlos, porque nunca los tuvimos. Todo eso lo haces tú desde la propia app: los datos del teléfono en Más → Respaldo y en Más → Ajustes, y los de tu cuenta en Más → Mi cuenta → Borrar mi cuenta, que borra a la vez lo del servidor y lo del teléfono.',
-          'Si aun así quieres preguntarnos algo sobre este aviso, escribe a CORREO_DE_CONTACTO y te contestamos.'
+          'En las apps con cuenta, uno le escribe a la empresa para que le enseñe sus datos, los corrija, se los lleve o se los borre. Aquí no hace falta esperar a nadie, porque los botones los tienes tú.',
+          'Verlos y corregirlos: están en la app, en tus propias pantallas, y se cambian ahí mismo.',
+          'Llevártelos: Más → Respaldo escribe un archivo con todo lo tuyo, se descarga a tu teléfono y es tuyo.',
+          'Borrarlos: Más → Respaldo → Borrar todos mis datos para lo del teléfono, y Más → Mi cuenta → Borrar mi cuenta para lo de la cuenta, que se lleva las dos cosas de una vez.',
+          'Si nunca creaste una cuenta, no tenemos absolutamente nada tuyo y no hay nada que pedirnos. Si la creaste, lo que hay es tu correo, tu nombre y la casa que hayas subido, y el botón para borrarlo está en la app.',
+          'Si prefieres escribirnos, o algo de esto no te cuadra, escribe a nexocore.group@gmail.com y te contestamos.'
         ]
       },
       {
         titulo: 'Menores de edad',
         parrafos: [
           'Esta app es una herramienta de organización doméstica pensada para adultos que manejan la casa. No está dirigida a menores de 13 años y no tiene contenido pensado para niños.',
-          'Dicho eso, la app no recoge datos de nadie, sea la edad que sea. No hay forma de que un menor nos entregue información, porque no hay forma de que nadie nos entregue información.',
-          'Si un adulto anota en la app el nombre de un niño de la casa y lo que no puede comer, ese dato se queda en el teléfono de esa familia, igual que todo lo demás.'
+          'La app no le pide datos personales a quien la usa, y la cuenta está pensada para que la cree el adulto que organiza la casa, no un menor.',
+          'Si un adulto anota el nombre de un niño de la casa y lo que no puede comer, ese dato se queda en el teléfono de esa familia. Si ese adulto enciende la sincronización, viaja a su cuenta junto con el resto de la casa, y conviene que lo sepa antes de encenderla.'
         ]
       },
       {
@@ -150,7 +170,7 @@ export const LEGAL = {
         titulo: 'Cambios en este aviso',
         parrafos: [
           'Si algún día cambiamos esto, la versión nueva se publica en la misma dirección de siempre y con su fecha de actualización arriba. No hay versiones escondidas en otro lado.',
-          'Si un cambio futuro hiciera que la app empezara a recoger algo, que hoy no es el caso, se diría aquí con todas las letras y se avisaría dentro de la app antes de que pasara.'
+          'Si un cambio futuro hiciera que la app recogiera algo más de lo que dice esta página, se escribiría aquí con todas las letras y se avisaría dentro de la app antes de que pasara.'
         ]
       },
       {
@@ -158,7 +178,8 @@ export const LEGAL = {
         parrafos: [
           'La app la desarrolla NexoCore, en la República Dominicana, y este aviso se rige por las leyes dominicanas.',
           'La República Dominicana tiene la Ley No. 172-13, sobre protección de datos personales, promulgada el 13 de diciembre de 2013, que protege los datos personales de las personas y su derecho a decidir sobre su propia información.',
-          'El diseño de esta app va en esa misma dirección por la vía más simple que hay: no recogemos datos personales, así que no hay tratamiento, ni transferencia, ni cesión a terceros de la que hablar. Los datos de tu casa se quedan bajo tu control, en tu aparato.',
+          'Sin cuenta no se recoge ningún dato personal, así que no hay tratamiento del que hablar: los datos de tu casa se quedan en tu aparato, bajo tu control.',
+          'Si creas una cuenta, entonces sí hay un tratamiento y hay que nombrarlo con sus nombres. El responsable es NexoCore. El encargado es Supabase, que opera los servidores donde viven las cuentas y, si la enciendes, la sincronización. No hay ninguna otra empresa en medio, no se cede a terceros y no se usa para nada distinto de devolverte tu casa cuando entras desde otro teléfono.',
           'Esto describe lo que la app hace. No es una declaración de certificación ni de conformidad con ninguna norma, y no pretende serlo.'
         ]
       },
@@ -166,7 +187,7 @@ export const LEGAL = {
         titulo: 'Contacto',
         parrafos: [
           'Si algo de esto no te queda claro, o crees que la app hace algo distinto a lo que aquí dice, queremos saberlo.',
-          'CORREO_DE_CONTACTO',
+          'nexocore.group@gmail.com',
           'NexoCore, República Dominicana.'
         ]
       }
@@ -179,7 +200,8 @@ export const LEGAL = {
       {
         titulo: 'En corto',
         parrafos: [
-          'La app es gratis, sirve para organizar las comidas y la compra de tu casa, y funciona en tu teléfono sin mandarle nada a nadie.',
+          'La app es gratis, sirve para organizar las comidas y la compra de tu casa, y funciona entera en tu teléfono sin cuenta y sin conexión.',
+          'La cuenta es opcional y existe para una sola cosa: recuperar tu casa si cambias de aparato.',
           'Los datos son tuyos y las copias también: guárdalas tú. La app hace cuentas con lo que tú escribes; no te dice qué debes comer.'
         ]
       },
@@ -194,7 +216,7 @@ export const LEGAL = {
         titulo: 'Qué hace la app',
         parrafos: [
           'Sirve para organizar las comidas de una casa y calcular la compra del mes. Te deja escribir una sola vez lo habitual de tu casa y luego, cada mes, solo revisar lo que va a ser diferente.',
-          'Funciona entera en tu teléfono, sin cuenta y sin conexión. Todo lo que guarda se queda ahí, como se explica en el aviso de privacidad.'
+          'Funciona entera en tu teléfono, sin cuenta y sin conexión. Si quieres, puedes crear una cuenta para recuperar tu casa al cambiar de aparato: es opcional, viene apagada y se explica con detalle en el aviso de privacidad.'
         ]
       },
       {
@@ -215,12 +237,22 @@ export const LEGAL = {
       {
         titulo: 'Tus datos son tuyos, y las copias también',
         parrafos: [
-          'Lo que escribes en la app es tuyo. No te lo pedimos, no lo recibimos y no reclamamos ningún derecho sobre eso.',
-          'Ahora, como todo vive en tu teléfono, hacer copias te toca a ti. Es importante que lo entiendas antes, no después.',
+          'Lo que escribes en la app es tuyo. No te lo pedimos, no lo recibimos si no enciendes la sincronización, y no reclamamos ningún derecho sobre eso en ningún caso.',
+          'Sin cuenta, todo vive en tu teléfono y hacer copias te toca a ti. Es importante que lo entiendas antes, no después.',
           'Si desinstalas la app, los datos se van con ella. Si pierdes, vendes o se te daña el teléfono, los datos se pierden con él. Si borras los datos de la app desde los ajustes de Android, se borran.',
           'La copia automática de Android está apagada a propósito, para que tus datos no se suban a la nube sin que nadie lo pida. Eso significa que tampoco vuelven solos en un teléfono nuevo.',
           'Por eso Más → Respaldo existe y por eso la app insiste. Guarda una copia de vez en cuando, y guárdala en un sitio que sobreviva al teléfono.',
+          'Con cuenta y sincronización encendida hay además una copia en tu cuenta, y esa sí vuelve sola al entrar desde otro teléfono. Aun así, guarda respaldos: una cuenta no sustituye a una copia que tengas tú en la mano.',
           'Actualizar la app desde la tienda sí conserva los datos: es el mismo almacenamiento.'
+        ]
+      },
+      {
+        titulo: 'La cuenta, si decides crearla',
+        parrafos: [
+          'Crear una cuenta es opcional y sirve para recuperar tu casa al cambiar de teléfono. Guardar la casa en esa cuenta es además una segunda decisión, con su propio interruptor en Más → Mi cuenta, y viene apagada.',
+          'Cuando creas una cuenta te comprometes a dar un correo que sea tuyo, a cuidar tu contraseña y a no usar la cuenta de otra persona.',
+          'Podemos cerrar o suspender una cuenta que se use para algo ilegal o para atacar el servicio. Fuera de eso, la cuenta es tuya y la borras tú cuando quieras, desde Más → Mi cuenta → Borrar mi cuenta.',
+          'El servicio de cuentas lo opera Supabase. No podemos prometerte que esté disponible siempre, y por eso la app funciona entera sin él: si un día no se puede entrar, tu casa sigue en tu teléfono y no deja de servir.'
         ]
       },
       {
@@ -231,9 +263,8 @@ export const LEGAL = {
         ]
       },
       {
-        titulo: 'La app no habla con ningún servidor',
+        titulo: 'La asistente vive aquí dentro',
         parrafos: [
-          'No hay servidor nuestro, no hay servidor de nadie, y no hay nada que configurar. La app no hace ninguna llamada a internet.',
           'La asistente entiende las frases aquí dentro, en tu teléfono, reconociéndolas por su forma. Por eso entiende unas cuantas maneras de decir las cosas y no cualquier frase suelta. Cuando no entiende algo, te dice lo que sí sabe hacer y te lleva a la pantalla que toca: no manda tu frase a ningún lado para que otro la interprete.',
           'Todo lo que la asistente hace se puede hacer también a mano, en su pantalla. Es una comodidad, no un requisito.'
         ]
@@ -272,7 +303,7 @@ export const LEGAL = {
         titulo: 'Contacto',
         parrafos: [
           'Dudas, quejas o algo que no cuadra:',
-          'CORREO_DE_CONTACTO',
+          'nexocore.group@gmail.com',
           'NexoCore, República Dominicana.'
         ]
       }
@@ -285,16 +316,17 @@ export const LEGAL = {
       {
         titulo: 'En corto',
         parrafos: [
-          'No hay que pedirle permiso a nadie ni escribirle a nadie. Los datos están en tu teléfono, así que los borras tú, ahí mismo, y se acabó.',
-          'Hay dos caminos, y los dos son inmediatos.'
+          'No hay que pedirle permiso a nadie ni escribirle a nadie. Los borras tú, desde tu teléfono, y se acabó.',
+          'Hay tres caminos y los tres son inmediatos: dos para lo que está guardado en el teléfono, y uno para la cuenta, si llegaste a crear una.'
         ]
       },
       {
         titulo: 'Por qué esta página dice esto y no otra cosa',
         parrafos: [
-          'Casi todas las apps piden una cuenta, guardan tus datos en su servidor y tienen un formulario para pedir que los borren.',
-          '«¿Qué comemos?» no funciona así. Se puede usar entera sin cuenta, no hay servidor nuestro y no recibimos ningún dato tuyo. Si creas una cuenta y enciendes la sincronización, tus datos se guardan en tu cuenta para que puedas recuperarlos, y siguen sin pasar por nosotros.',
-          'Eso cambia la respuesta a esta pregunta: no tenemos nada tuyo que borrar, y por eso no hay ningún formulario que llenar ni ninguna solicitud que esperar. El botón de borrar lo tienes tú, en la mano.'
+          'Casi todas las apps piden una cuenta, guardan tus datos en su servidor y tienen un formulario para pedir que los borren, con su plazo y su espera.',
+          '«¿Qué comemos?» funciona al revés. Se usa entera sin cuenta, y quien no crea una cuenta no nos entrega absolutamente nada: sus datos están en su teléfono y ahí manda él.',
+          'Quien sí crea una cuenta tiene guardados un correo, un nombre y —solo si encendió la sincronización— su casa, en el proyecto de Supabase que administra NexoCore. Para eso existe el tercer camino de esta página, que lo borra todo de una vez.',
+          'En los dos casos el botón lo tienes tú, en la mano: no hay formulario que llenar ni solicitud que esperar.'
         ]
       },
       {
@@ -317,34 +349,47 @@ export const LEGAL = {
         ]
       },
       {
-        titulo: '¿En qué se diferencian los dos caminos? En casi nada',
+        titulo: 'Camino 3: borrar tu cuenta y lo que hayas subido',
+        parrafos: [
+          'Este camino solo hace falta si creaste una cuenta. Si nunca la creaste, no hay ninguna cuenta tuya que borrar y con los dos caminos de arriba ya está todo.',
+          'Si quieres una copia, guárdala antes desde Más → Respaldo. Después de este paso no hay vuelta atrás.',
+          'Abre la app, toca Más, entra en Mi cuenta y toca «Borrar mi cuenta». Confirma.',
+          'Eso borra de una vez la cuenta entera: tu correo, tu nombre, la contraseña, la casa que tuvieras guardada y el registro de que existías. Y borra además lo que quede en este teléfono, para que no te quedes con media cosa.',
+          'Lo hace el servidor en ese momento. No hay plazo de espera, ni revisión, ni nadie que lo apruebe.',
+          'Si no recuerdas la contraseña, pídela de nuevo desde la pantalla de entrar: te llega un correo para ponerte una nueva, entras y borras la cuenta tú.',
+          'Y si de plano no puedes entrar a la app —perdiste el teléfono, ya no tienes acceso al correo— escríbenos a nexocore.group@gmail.com desde una dirección que podamos relacionar con tu cuenta y la borramos nosotros.'
+        ]
+      },
+      {
+        titulo: '¿En qué se diferencian los dos caminos del teléfono? En casi nada',
         parrafos: [
           'El botón de dentro de la app borra todas las claves que la app escribe, una por una, y eso incluye la copia interna de seguridad: cuando la app cambia el formato en que guarda las cosas, antes de convertir nada deja a un lado una copia de lo que había, por si la conversión saliera mal. Esa copia también se va.',
           'Lo único que desinstalar se lleva además es lo que guarda el sistema, no la app: la caché del navegador interno de Android y cualquier resto suelto que deje el sistema operativo. No son datos de tu casa, pero si quieres que no quede absolutamente nada, ese es el camino.',
-          'Dicho corto: para borrar tus datos, cualquiera de los dos sirve.'
+          'Dicho corto: para borrar los datos del teléfono, cualquiera de los dos sirve. Ninguno de los dos toca la cuenta: para eso está el camino 3.'
         ]
       },
       {
         titulo: 'Qué se borra con cada camino',
         parrafos: [
-          'Los dos caminos borran los alimentos y cantidades, la canasta habitual, las comidas y rutinas, las personas de la casa, las compras, las revisiones, el historial, la copia interna de seguridad y las preferencias de la pantalla.',
+          'Los caminos 1 y 2 borran lo que está en el teléfono: los alimentos y cantidades, la canasta habitual, las comidas y rutinas, las personas de la casa, las compras, las revisiones, el historial, la copia interna de seguridad y las preferencias de la pantalla.',
           'Solo desinstalar borra además la caché del navegador interno de Android, y solo desinstalar quita la app del teléfono: con el botón de dentro, la app se queda instalada y lista para empezar de cero.',
-          'Ninguno de los dos borra el archivo de respaldo que descargaste tú: ese es tuyo y está donde tú lo pusiste. Ni la app ni Android lo tocan. Si quieres deshacerte de él, bórralo tú del teléfono, del correo o de donde lo hayas guardado.'
+          'El camino 3 borra lo que está en la cuenta —correo, nombre, contraseña y la casa que hubieras subido— y también lo del teléfono.',
+          'Ninguno de los tres borra el archivo de respaldo que descargaste tú: ese es tuyo y está donde tú lo pusiste. Ni la app ni Android lo tocan. Si quieres deshacerte de él, bórralo tú del teléfono, del correo o de donde lo hayas guardado.'
         ]
       },
       {
         titulo: 'Cuánto tarda y qué se puede deshacer',
         parrafos: [
-          'Los dos caminos son inmediatos. No hay un plazo de espera ni un periodo de gracia, porque no hay nada que esperar: el borrado ocurre en tu teléfono en ese momento.',
-          'No se puede deshacer, y no podemos recuperarlo nosotros, porque nunca tuvimos una copia. Lo único que devuelve tus datos es un respaldo que hayas guardado antes, que puedes volver a cargar desde Más → Respaldo.'
+          'Los tres caminos son inmediatos. No hay un plazo de espera ni un periodo de gracia: el borrado ocurre en el momento en que confirmas.',
+          'No se puede deshacer, y no podemos recuperarlo nosotros. Lo único que devuelve tus datos es un respaldo que hayas guardado antes, que puedes volver a cargar desde Más → Respaldo.'
         ]
       },
       {
         titulo: 'Y si me escribes pidiendo que borre mis datos',
         parrafos: [
-          'Te vamos a contestar lo mismo que dice esta página, porque es la verdad: no tenemos datos tuyos. Ni tu nombre, ni tu correo, ni tu despensa, ni nada.',
-          'No hay una base de datos donde buscarte. Lo que hay es tu teléfono, y ahí mandas tú.',
-          'Aun así, si tienes dudas o algo no te cuadra, escríbenos y te ayudamos a hacerlo: CORREO_DE_CONTACTO'
+          'Si nunca creaste una cuenta, te vamos a contestar lo mismo que dice esta página, porque es la verdad: no tenemos ningún dato tuyo. Ni tu nombre, ni tu correo, ni tu despensa. No hay una base de datos donde buscarte; lo que hay es tu teléfono, y ahí mandas tú.',
+          'Si creaste una cuenta, sí podemos borrarla, y lo hacemos. Escríbenos desde una dirección que podamos relacionar con ella. Aun así, el camino rápido es el de la propia app: Más → Mi cuenta → Borrar mi cuenta, que es inmediato y no depende de que nadie conteste.',
+          'Para cualquiera de los dos casos: nexocore.group@gmail.com'
         ]
       }
     ]

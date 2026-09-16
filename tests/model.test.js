@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { addDays, addProduct, product, setSlice, setHabitualBasket, setHabitualLine, addPurchase, balances, convert, correctReview, createEmptyState, createReview, exportState, importState, inventoryNow, linkPlan, makeRecipePlan, repeatWeek, saveReview, setAbsence, setEquivalence, shoppingList, todayISO, updatePlan, upsertPerson, upsertRecipe, weekStart } from '../src/model.js';
+import { addDays, addProduct, choquesDeLaComida, deletePlan, product, setSlice, setHabitualBasket, setHabitualLine, addPurchase, balances, convert, correctReview, createEmptyState, createReview, exportState, importState, inventoryNow, linkPlan, makeRecipePlan, repeatWeek, saveReview, setAbsence, setEquivalence, shoppingList, todayISO, updatePlan, upsertPerson, upsertRecipe, weekStart } from '../src/model.js';
 import { loadState, saveState, STORAGE_KEY } from '../src/storage.js';
 
 function setup() {
@@ -115,14 +115,45 @@ test('repetir semana conserva el vínculo y no duplica la necesidad en el día d
   assert.equal(shoppingList(state, '2026-09-15', '2026-09-15', 'menu').lines.length, 0);
 });
 
-test('restricciones y ausencias evitan asignaciones automáticas incompatibles', () => {
+test('una restricción avisa pero no impide poner la comida', () => {
+  // Antes esto lanzaba un error y la comida no se guardaba. En una casa real se
+  // cocina el mismo plátano y a quien no puede comerlo se le hace otra cosa,
+  // así que ahora la app avisa —con la gravedad que toque— y deja decidir.
   const { state, platano, recipeId } = setup();
-  const child = upsertPerson(state, { name: 'Persona', restrictions: [platano], habitual: [] });
-  const other = upsertPerson(state, { name: 'Otra persona', restrictions: [], habitual: [] });
-  assert.throws(() => makeRecipePlan(state, recipeId, todayISO(), 'desayuno'), /incompatible/);
-  setAbsence(state, todayISO(), 'desayuno', child.id, true);
+  const child = upsertPerson(state, { name: 'Persona', restricciones: [{ productId: platano, texto: '', motivo: 'alergia' }], habitual: [] });
+  const other = upsertPerson(state, { name: 'Otra persona', restricciones: [], habitual: [] });
+
   const plan = makeRecipePlan(state, recipeId, todayISO(), 'desayuno');
-  assert.deepEqual(plan.participants, [other.id]);
+  assert.ok(plan, 'la comida se guarda igual');
+  const choques = choquesDeLaComida(state, plan.items, plan.participants);
+  assert.equal(choques.length, 1);
+  assert.equal(choques[0].persona, 'Persona');
+  assert.equal(choques[0].gravedad, 3, 'una alergia es el aviso más fuerte');
+
+  // Y marcar a alguien fuera lo deja fuera de las comidas que se creen después.
+  deletePlan(state, plan.id);
+  setAbsence(state, todayISO(), 'desayuno', child.id, true);
+  const segundo = makeRecipePlan(state, recipeId, todayISO(), 'desayuno');
+  assert.deepEqual(segundo.participants, [other.id]);
+  assert.equal(choquesDeLaComida(state, segundo.items, segundo.participants).length, 0);
+});
+
+test('marcar una ausencia no encoge lo que ya estaba puesto', () => {
+  // La olla de arroz no se achica porque un hijo avise a las seis de que come
+  // fuera, y desde luego la cena de la casa no se cancela por eso.
+  const { state, platano, recipeId } = setup();
+  const child = upsertPerson(state, { name: 'Persona', restricciones: [], habitual: [] });
+  upsertPerson(state, { name: 'Otra persona', restricciones: [], habitual: [] });
+  const plan = makeRecipePlan(state, recipeId, todayISO(), 'desayuno');
+  const antes = structuredClone(plan);
+
+  setAbsence(state, todayISO(), 'desayuno', child.id, true);
+
+  assert.deepEqual(plan.items, antes.items, 'los alimentos no se tocan');
+  assert.deepEqual(plan.participants, antes.participants, 'sigue puesta para los mismos');
+  assert.equal(plan.kind, 'recipe', 'no se convierte en «fuera de casa»');
+  assert.equal(state.plans.length, 1, 'no se borra');
+  assert.equal(inventoryNow(state)[platano], 8 - antes.items[0].quantity + antes.items[0].quantity, 'el inventario no cambia por una ausencia');
 });
 
 test('una comida vinculada protege el alimento reservado ante cambios de cantidad o unidad', () => {

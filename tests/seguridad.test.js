@@ -21,7 +21,7 @@ import {
   makeRecipePlan, setHabitualLine, setMonthChange, todayISO, upsertPerson, upsertRecipe
 } from '../src/model.js';
 import { addRoutine } from '../src/routines.js';
-import { PASOS, emptyMes, modalRutina, renderMes } from '../src/page-mes.js';
+import { BLOQUES, emptyMes, modalDia, modalRutina, renderMes } from '../src/page-mes.js';
 import { emptyCompra, renderCompra } from '../src/page-compra.js';
 import { PAGINAS_MAS, emptyMas, renderMas } from '../src/page-mas.js';
 
@@ -62,9 +62,10 @@ function todasLasPantallas(state) {
   ctx.ui.mes.vista = 'calendario';
   salida.push(['calendario', renderMes(ctx)]);
   ctx.ui.mes.vista = 'resumen';
-  for (const paso of PASOS) { ctx.ui.mes.paso = paso.id; salida.push(['paso ' + paso.id, renderMes(ctx)]); }
-  ctx.ui.mes.paso = null;
+  for (const bloque of BLOQUES) { ctx.ui.mes.bloque = bloque.id; salida.push(['bloque ' + bloque.id, renderMes(ctx)]); }
+  ctx.ui.mes.bloque = null;
   salida.push(['modal rutina', modalRutina(contexto(state), { month: MES })]);
+  salida.push(['modal día', modalDia(contexto(state), { date: MES + '-05' })]);
   salida.push(['compra', renderCompra(contexto(state))]);
   for (const pagina of ['mas', ...PAGINAS_MAS]) salida.push([pagina, renderMas(contexto(state, { page: pagina }))]);
   const revision = contexto(state, { page: 'revision' });

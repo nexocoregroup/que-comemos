@@ -7,7 +7,7 @@ import {
 import {
   addRoutine, applyRoutine, applyRoutines, copyPatternFromMonth, datesForRule, deleteRoutine,
   describeRule, detachPlanFromRoutine, monthProgress, openMonth, ordinalInMonth, routinePlans,
-  routinesFor, updateRoutine, weekdayOf, WEEKDAYS, WEEKDAY_LABELS, WEEKDAY_SHORT
+  extenderAMesesAbiertos, ocupadasEnMesesAbiertos, routinesFor, updateRoutine, weekdayOf, WEEKDAYS, WEEKDAY_LABELS, WEEKDAY_SHORT
 } from '../src/routines.js';
 
 function cocina() {
@@ -281,8 +281,12 @@ test('cambiar un domingo suelto no cambia la rutina de los domingos', () => {
   for (const fecha of ['2026-10-04', '2026-10-18', '2026-10-25']) {
     assert.equal(planFor(state, fecha, 'cena').kind, 'outside', `el ${fecha} se sigue comiendo fuera`);
   }
-  // Y borrar la regla no borra las comidas que puso: solo las suelta.
-  assert.equal(deleteRoutine(state, rutina.id), true);
+  // Y borrar la regla, sin decir otra cosa, no borra las comidas que puso: solo
+  // las suelta. Lo contrario —«quitar»— hay que pedirlo, y se pide en pantalla.
+  const borrado = deleteRoutine(state, rutina.id);
+  assert.equal(borrado.borrada, true);
+  assert.equal(borrado.quitadas, 0, 'sin pedirlo no se borra ninguna comida');
+  assert.ok(borrado.conservadas >= 3);
   assert.equal(planFor(state, '2026-10-04', 'cena').kind, 'outside');
   assert.equal(planFor(state, '2026-10-04', 'cena').routineId, null);
   assert.equal(deleteRoutine(state, rutina.id), false);
@@ -408,4 +412,175 @@ test('un quinto lunes que no existe en el mes nuevo se avisa en vez de perderse'
   assert.equal(resultado.creados.length, 0);
   assert.deepEqual(resultado.saltados, [{ date: '2026-11-30', slot: 'cena', motivo: 'ese día no existe en el mes nuevo' }]);
   assert.throws(() => copyPatternFromMonth(state, '2026-11', '2026-11'), /distintos/);
+});
+
+/* ── Vigencia: desde cuándo vale una rutina ────────────────────────────────
+
+   Sin esto, la única forma de decir «los martes, a partir del 15» era esperar a
+   que llegara el 15, que es justo lo que esta pantalla existe para evitar. */
+
+test('una rutina con fecha de inicio no toca los días anteriores', () => {
+  const { state, mangu } = cocina();
+  const rutina = addRoutine(state, { kind: 'recipe', recipeId: mangu, slots: ['desayuno'], weekdays: [2], desde: '2026-10-13' });
+  applyRoutine(state, rutina.id, '2026-10');
+
+  const martes = diasRealesDe('2026-10', 2);
+  assert.ok(martes.length >= 4);
+  for (const fecha of martes) {
+    const puesto = Boolean(planFor(state, fecha, 'desayuno'));
+    assert.equal(puesto, fecha >= '2026-10-13', `el ${fecha} debería ${fecha >= '2026-10-13' ? 'tener' : 'no tener'} desayuno`);
+  }
+});
+
+test('el inicio y el final se pueden poner a la vez, y el inicio no puede ir después', () => {
+  const { state, mangu } = cocina();
+  const rutina = addRoutine(state, { kind: 'recipe', recipeId: mangu, slots: ['desayuno'], weekdays: [1, 2, 3, 4, 5], desde: '2026-10-06', until: '2026-10-09' });
+  applyRoutine(state, rutina.id, '2026-10');
+  const puestos = state.plans.filter(plan => plan.routineId === rutina.id).map(plan => plan.date).sort();
+  assert.deepEqual(puestos, ['2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09']);
+  assert.throws(() => addRoutine(state, { kind: 'recipe', recipeId: mangu, slots: ['desayuno'], weekdays: [1], desde: '2026-10-20', until: '2026-10-05' }), /no puede ser posterior/);
+});
+
+test('una rutina que aún no ha entrado en vigor no se aplica al abrir su mes', () => {
+  const { state, mangu } = cocina();
+  addRoutine(state, { kind: 'recipe', recipeId: mangu, slots: ['desayuno'], weekdays: [2], desde: '2026-12-01' });
+  assert.equal(routinesFor(state, '2026-10').length, 0, 'octubre no la ve');
+  assert.equal(routinesFor(state, '2026-12').length, 1, 'diciembre sí');
+  openMonth(state, '2026-10');
+  assert.equal(state.plans.length, 0, 'octubre se abrió vacío');
+});
+
+/* ── Una costumbre nueva llega a los meses ya preparados ───────────────────
+
+   Abrir un mes le pasa las rutinas permanentes una sola vez. Quien preparó
+   noviembre en octubre y hoy escribe «los martes, pollo» esperaba que noviembre
+   se enterara, y su único momento de escuchar ya había pasado. */
+
+test('una rutina nueva llega a un mes futuro que ya estaba abierto', () => {
+  const { state, mangu } = cocina();
+  openMonth(state, '2026-10');
+  openMonth(state, '2026-11');
+  openMonth(state, '2026-12');
+
+  const rutina = addRoutine(state, { kind: 'recipe', recipeId: mangu, slots: ['desayuno'], weekdays: [3], scope: 'permanent' });
+  applyRoutine(state, rutina.id, '2026-10');
+  const salida = extenderAMesesAbiertos(state, rutina.id, '2026-10');
+
+  assert.deepEqual(salida.meses, ['2026-11', '2026-12'], 'tenía que llegar a los dos meses de después');
+  for (const mes of ['2026-11', '2026-12']) {
+    const miercoles = diasRealesDe(mes, 3);
+    const puestos = state.plans.filter(plan => plan.routineId === rutina.id && plan.date.slice(0, 7) === mes).length;
+    assert.equal(puestos, miercoles.length, `${mes}: faltan miércoles`);
+  }
+});
+
+test('extender no toca los meses que ya pasaron', () => {
+  const { state, mangu } = cocina();
+  openMonth(state, '2026-08');
+  openMonth(state, '2026-09');
+  openMonth(state, '2026-10');
+  const rutina = addRoutine(state, { kind: 'recipe', recipeId: mangu, slots: ['desayuno'], weekdays: [3], scope: 'permanent' });
+  const salida = extenderAMesesAbiertos(state, rutina.id, '2026-10');
+  assert.deepEqual(salida.meses, [], 'agosto y septiembre ya pasaron: no se reescriben');
+  assert.equal(state.plans.filter(plan => plan.date < '2026-10-01').length, 0);
+});
+
+test('una rutina de un solo mes no se va a los demás', () => {
+  const { state, mangu } = cocina();
+  openMonth(state, '2026-10');
+  openMonth(state, '2026-11');
+  const rutina = addRoutine(state, { kind: 'recipe', recipeId: mangu, slots: ['desayuno'], weekdays: [3], scope: 'month', month: '2026-10' });
+  assert.deepEqual(extenderAMesesAbiertos(state, rutina.id, '2026-10').meses, []);
+});
+
+test('antes de pisar nada se puede contar qué se pisaría', () => {
+  const { state, mangu, revoltillo } = cocina();
+  openMonth(state, '2026-10');
+  openMonth(state, '2026-11');
+  // Noviembre ya tiene revoltillo puesto en dos miércoles.
+  const miercoles = diasRealesDe('2026-11', 3).slice(0, 2);
+  for (const fecha of miercoles) makeRecipePlan(state, revoltillo, fecha, 'desayuno');
+
+  const rutina = addRoutine(state, { kind: 'recipe', recipeId: mangu, slots: ['desayuno'], weekdays: [3], scope: 'permanent' });
+  const ocupadas = ocupadasEnMesesAbiertos(state, rutina.id, '2026-10');
+  assert.equal(ocupadas.length, 2, 'son las dos que ya estaban');
+  assert.ok(ocupadas.every(item => item.mes === '2026-11' && item.titulo === 'Revoltillo'));
+
+  // Rellenando huecos no se pisan; reemplazando, sí.
+  extenderAMesesAbiertos(state, rutina.id, '2026-10', { modo: 'vacios' });
+  assert.equal(planFor(state, miercoles[0], 'desayuno').title, 'Revoltillo', 'se respetó lo que ya estaba');
+  extenderAMesesAbiertos(state, rutina.id, '2026-10', { modo: 'reemplazar' });
+  assert.equal(planFor(state, miercoles[0], 'desayuno').title, 'Mangú', 'con permiso sí se reemplaza');
+});
+
+/* ── Borrar la regla ───────────────────────────────────────────────────── */
+
+test('al borrar se puede elegir qué pasa con las comidas, y las pasadas nunca se tocan', () => {
+  const { state, mangu } = cocina();
+  const rutina = addRoutine(state, { kind: 'recipe', recipeId: mangu, slots: ['desayuno'], weekdays: [3] });
+  applyRoutine(state, rutina.id, '2026-10');
+  const miercoles = diasRealesDe('2026-10', 3);
+  const corte = miercoles[2];
+
+  const salida = deleteRoutine(state, rutina.id, { comidas: 'quitar', desde: corte });
+  assert.equal(salida.borrada, true);
+  assert.equal(salida.quitadas, miercoles.length - 2, 'se quitan las de la fecha de corte en adelante');
+  assert.equal(salida.conservadas, 2, 'las dos anteriores se quedan');
+  for (const fecha of miercoles.slice(0, 2)) assert.ok(planFor(state, fecha, 'desayuno'), `el ${fecha} ya había pasado y se queda`);
+  for (const fecha of miercoles.slice(2)) assert.equal(planFor(state, fecha, 'desayuno'), undefined);
+});
+
+test('una palabra que no está en la lista no borra comidas', () => {
+  const { state, mangu } = cocina();
+  const rutina = addRoutine(state, { kind: 'recipe', recipeId: mangu, slots: ['desayuno'], weekdays: [3] });
+  applyRoutine(state, rutina.id, '2026-10');
+  const miercoles = diasRealesDe('2026-10', 3);
+
+  // Solo la palabra exacta borra. 'Quitar' con mayúscula, 'borrar' o un campo
+  // vacío conservan, y así tiene que seguir siendo: entre equivocarse hacia lo
+  // que se deshace y hacia lo que no, esto se equivoca hacia lo que se deshace.
+  const salida = deleteRoutine(state, rutina.id, { comidas: 'Quitar', desde: '2026-10-01' });
+  assert.equal(salida.borrada, true, 'la regla sí se va');
+  assert.equal(salida.quitadas, 0, 'pero no se lleva ninguna comida por delante');
+  assert.equal(salida.conservadas, miercoles.length);
+  for (const fecha of miercoles) assert.ok(planFor(state, fecha, 'desayuno'), `el ${fecha} sigue puesto`);
+});
+
+/* ── Los criterios de aceptación del encargo, uno por uno ───────────────── */
+
+test('se puede configurar un desayuno los lunes, miércoles y viernes', () => {
+  const { state, mangu } = cocina();
+  const rutina = addRoutine(state, { kind: 'recipe', recipeId: mangu, slots: ['desayuno'], weekdays: [1, 3, 5], scope: 'permanent' });
+  applyRoutine(state, rutina.id, '2026-10');
+  const esperados = [1, 3, 5].flatMap(dia => diasRealesDe('2026-10', dia)).sort();
+  const puestos = state.plans.filter(plan => plan.routineId === rutina.id).map(plan => plan.date).sort();
+  assert.deepEqual(puestos, esperados);
+  assert.equal(describeRule([1, 3, 5], null), 'Todos los lunes, miércoles y viernes');
+});
+
+test('se puede configurar el primer y tercer domingo fuera de casa', () => {
+  const { state } = cocina();
+  const rutina = addRoutine(state, { kind: 'outside', slots: ['almuerzo'], weekdays: [7], weeks: [1, 3], scope: 'permanent' });
+  applyRoutine(state, rutina.id, '2026-10');
+  const domingos = diasRealesDe('2026-10', 7);
+  const puestos = state.plans.filter(plan => plan.routineId === rutina.id).map(plan => plan.date).sort();
+  assert.deepEqual(puestos, [domingos[0], domingos[2]]);
+  assert.ok(puestos.every(fecha => planFor(state, fecha, 'almuerzo').kind === 'outside'));
+  assert.equal(describeRule([7], [1, 3]), 'Primer y tercer domingo');
+});
+
+test('editar la regla cambia lo que pasa en los meses siguientes', () => {
+  const { state, mangu } = cocina();
+  const rutina = addRoutine(state, { kind: 'recipe', recipeId: mangu, slots: ['desayuno'], weekdays: [2], scope: 'permanent' });
+  openMonth(state, '2026-10');
+  applyRoutine(state, rutina.id, '2026-10');
+
+  // La casa cambia de idea: ya no son los martes, son los jueves.
+  updateRoutine(state, rutina.id, { weekdays: [4] });
+  applyRoutine(state, rutina.id, '2026-11');
+
+  const jueves = diasRealesDe('2026-11', 4);
+  const enNoviembre = state.plans.filter(plan => plan.routineId === rutina.id && plan.date.slice(0, 7) === '2026-11').map(plan => plan.date).sort();
+  assert.deepEqual(enNoviembre, jueves, 'noviembre tiene que ir por la regla nueva');
+  assert.deepEqual(state.mealRoutines.find(item => item.id === rutina.id).weekdays, [4], 'la regla de verdad cambió');
 });

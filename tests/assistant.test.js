@@ -404,14 +404,16 @@ test('varias acciones que tocan el inventario a la vez se confirman aunque cada 
   assert.equal(result.preview.length, 2);
 });
 
-test('las herramientas que se le mandan al modelo tienen la forma que el backend espera', () => {
-  // Este desajuste no falla, que es lo peligroso: el backend filtra las
-  // herramientas que no reconoce y el modelo se queda sin poder llamar a nada.
-  // No se nota hasta usarlo. Por eso la forma del contrato se comprueba aquí.
+test('las herramientas del intérprete están bien formadas, una por acción', () => {
+  // Esta lista nació para mandársela a un modelo por un servicio externo. Ese
+  // servicio se quitó —la asistente entiende aquí dentro, reconociendo formas de
+  // frase— pero la comprobación sigue valiendo por sí sola: cada acción tiene su
+  // herramienta, con su descripción y su esquema, y un descuadre aquí es una
+  // acción que el intérprete no sabría nombrar.
   const tools = toolSchemas();
   assert.equal(tools.length, ACTION_NAMES.length, 'una herramienta por acción, ni más ni menos');
   for (const tool of tools) {
-    assert.deepEqual(Object.keys(tool).sort(), ['descripcion', 'nombre', 'parametros'], `${tool.nombre}: las claves del contrato de docs/backend.md`);
+    assert.deepEqual(Object.keys(tool).sort(), ['descripcion', 'nombre', 'parametros'], `${tool.nombre}: las tres claves de una herramienta`);
     assert.ok(ACTION_NAMES.includes(tool.nombre));
     assert.ok(tool.descripcion.length > 12, `${tool.nombre} necesita una descripción que sirva para elegirla`);
     assert.ok(Array.isArray(tool.parametros.required));

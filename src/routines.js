@@ -11,7 +11,7 @@
 // forma cómoda de escribir comidas, no una parte del motor de inventario.
 
 import {
-  SLOTS, dateRange, deletePlan, makeRecipePlan, monthBounds, monthChanges, nextId,
+  SLOTS, SLOTS_PRINCIPALES, dateRange, deletePlan, makeRecipePlan, monthBounds, monthChanges, nextId,
   planFor, setStatusPlan, todayISO, validDate, validMonth, copyPlan
 } from './model.js';
 
@@ -99,11 +99,21 @@ function normalizeRoutine(state, fields, previous = null) {
   const scope = ['permanent', 'month'].includes(fields.scope) ? fields.scope : previous?.scope || 'permanent';
   const month = scope === 'month' ? ('month' in fields ? fields.month : previous?.month) : null;
   if (scope === 'month' && !validMonth(month)) throw new Error('Elige el mes de la rutina.');
+  // Desde cuándo vale, y hasta cuándo. Las dos son fechas de verdad y no meses,
+  // porque «los martes a partir del 15» es una frase que una casa dice.
+  //
+  // `desde` es lo que permite escribir hoy una costumbre que empieza el mes que
+  // viene sin que se meta en lo que queda de este. Sin ella, la única forma de
+  // decirlo era esperar a que llegara el mes, que es justo lo que esta pantalla
+  // existe para evitar.
+  const desde = ('desde' in fields ? fields.desde : previous?.desde) || null;
+  if (desde && !validDate(desde)) throw new Error('Elige desde qué día vale la rutina.');
   const until = ('until' in fields ? fields.until : previous?.until) || null;
   if (until && !validDate(until)) throw new Error('Elige una fecha final válida.');
+  if (desde && until && desde > until) throw new Error('La fecha de inicio no puede ser posterior a la del final.');
   const label = String(('label' in fields ? fields.label : previous?.label) || '').trim() || describeRule(weekdays, weeks);
   const active = 'active' in fields ? Boolean(fields.active) : previous?.active ?? true;
-  return { kind, recipeId: kind === 'recipe' ? recipeId : null, slots, weekdays, weeks, scope, month: month || null, until, label, active };
+  return { kind, recipeId: kind === 'recipe' ? recipeId : null, slots, weekdays, weeks, scope, month: month || null, desde, until, label, active };
 }
 
 export function addRoutine(state, fields) {
@@ -120,26 +130,107 @@ export function updateRoutine(state, id, fields) {
   return routine;
 }
 
-// Borrar la regla no borra las comidas que ya puso: están escritas en el
-// calendario y alguien puede contar con ellas. Solo se les quita la marca, para
-// que no queden apuntando a una rutina que ya no existe.
-export function deleteRoutine(state, id) {
+/* ── Borrar una rutina ─────────────────────────────────────────────────────
+
+   Qué pasa con las comidas que ya puso no lo puede decidir este archivo. Hay
+   dos respuestas razonables y dependen de por qué se borra:
+
+    · `conservar` — la casa deja de repetirlo, pero lo que ya está escrito en el
+      calendario se queda. Es lo que hay que hacer con los días que ya pasaron:
+      se comieron, y borrarlos sería reescribir lo que pasó.
+    · `quitar` — se borran también las comidas futuras. Es lo que espera quien
+      dice «esto ya no se hace en esta casa» antes de que llegue el mes.
+
+   `desde` acota el borrado: por defecto solo se quitan las de hoy en adelante,
+   porque quitar las de la semana pasada no deshace ninguna cena. */
+
+export function deleteRoutine(state, id, { comidas = 'conservar', desde = todayISO() } = {}) {
   const before = state.mealRoutines.length;
   state.mealRoutines = state.mealRoutines.filter(item => item.id !== id);
   if (before === state.mealRoutines.length) return false;
+
+  const suyas = state.plans.filter(plan => plan.routineId === id);
+  const quitadas = [];
+  if (comidas === 'quitar') {
+    for (const plan of [...suyas]) {
+      if (desde && plan.date < desde) continue;
+      // Una comida de la que cuelga otra cosa no se puede tirar sin más:
+      // `deletePlan` lo comprueba y lanza. Si no se deja, se conserva, que es
+      // mejor que un dato roto.
+      try { deletePlan(state, plan.id); quitadas.push(plan.id); }
+      catch { /* se queda, y abajo se le suelta la marca como a las demás */ }
+    }
+  }
   for (const plan of state.plans) if (plan.routineId === id) plan.routineId = null;
-  return true;
+  return { borrada: true, conservadas: suyas.length - quitadas.length, quitadas: quitadas.length };
 }
 
 export function routinesFor(state, month) {
   if (!validMonth(month)) throw new Error('Elige un mes válido.');
-  const { start } = monthBounds(month);
+  const { start, end } = monthBounds(month);
   return state.mealRoutines.filter(routine => {
     if (!routine.active) return false;
     if (routine.scope === 'month' && routine.month !== month) return false;
-    // Una rutina que terminó antes de que empezara el mes ya no pinta nada aquí.
-    return !(routine.until && routine.until < start);
+    // Una rutina que terminó antes de que empezara el mes ya no pinta nada aquí,
+    // y una que todavía no ha entrado en vigor tampoco.
+    if (routine.until && routine.until < start) return false;
+    return !(routine.desde && routine.desde > end);
   });
+}
+
+/* ── Llevar una costumbre nueva a los meses que ya estaban abiertos ────────
+
+   Abrir un mes le pasa las rutinas permanentes por encima una sola vez. Eso
+   deja un hueco: quien preparó noviembre en octubre y hoy escribe «los martes,
+   pollo» esperaba que noviembre se enterara, y noviembre no se enteraba, porque
+   su único momento de escuchar ya había pasado.
+
+   No se aplica a meses que ya pasaron: una costumbre nueva no reescribe cenas
+   que ya se comieron. */
+
+export function mesesAbiertosDesde(state, month) {
+  if (!validMonth(month)) throw new Error('Elige un mes válido.');
+  return Object.keys(state.monthPlans || {})
+    .filter(mes => validMonth(mes) && mes > month)
+    .sort();
+}
+
+export function extenderAMesesAbiertos(state, routineId, mesDeOrigen, options = {}) {
+  const routine = state.mealRoutines.find(item => item.id === routineId);
+  if (!routine) throw new Error('Rutina no encontrada.');
+  const out = { meses: [], creados: [], saltados: [], reemplazados: [] };
+  if (routine.scope !== 'permanent') return out;
+  for (const mes of mesesAbiertosDesde(state, mesDeOrigen)) {
+    if (!routinesFor(state, mes).some(item => item.id === routineId)) continue;
+    const resultado = applyRoutine(state, routineId, mes, options);
+    if (!resultado.creados.length && !resultado.reemplazados.length) continue;
+    out.meses.push(mes);
+    out.creados.push(...resultado.creados);
+    out.saltados.push(...resultado.saltados);
+    out.reemplazados.push(...resultado.reemplazados);
+  }
+  return out;
+}
+
+// Cuántas comidas de esos meses se pisarían al extender. Se pregunta antes de
+// reemplazar nada, que es lo que pide el encargo: rellenar huecos sin avisar,
+// pisar decisiones solo con permiso.
+export function ocupadasEnMesesAbiertos(state, routineId, mesDeOrigen) {
+  const routine = state.mealRoutines.find(item => item.id === routineId);
+  if (!routine || routine.scope !== 'permanent') return [];
+  const ocupadas = [];
+  for (const mes of mesesAbiertosDesde(state, mesDeOrigen)) {
+    if (!routinesFor(state, mes).some(item => item.id === routineId)) continue;
+    for (const date of datesForRule(mes, routine.weekdays, routine.weeks)) {
+      if (routine.desde && date < routine.desde) continue;
+      if (routine.until && date > routine.until) continue;
+      for (const slot of routine.slots) {
+        const plan = planFor(state, date, slot);
+        if (plan) ocupadas.push({ mes, date, slot, titulo: plan.title || plan.kind });
+      }
+    }
+  }
+  return ocupadas;
 }
 
 export function routinePlans(state, routineId, { from = null } = {}) {
@@ -167,9 +258,13 @@ export function applyRoutine(state, routineId, month, options = {}) {
   if (routine.scope === 'month' && routine.month !== month) throw new Error(`Esta rutina es solo de ${routine.month}.`);
   const modo = options.modo === 'reemplazar' ? 'reemplazar' : 'vacios';
   const hasta = [routine.until, options.hasta].filter(Boolean).sort()[0] || null;
+  // De las dos fechas de inicio manda la más tardía: la de la regla dice desde
+  // cuándo la casa hace esto, y la de la llamada acota una aplicación concreta.
+  const desde = [routine.desde, options.desde].filter(Boolean).sort().pop() || null;
 
   const creados = [], saltados = [], reemplazados = [];
   for (const date of datesForRule(month, routine.weekdays, routine.weeks)) {
+    if (desde && date < desde) continue;
     if (hasta && date > hasta) continue;
     for (const slot of SLOTS) {
       if (!routine.slots.includes(slot)) continue;
@@ -255,7 +350,13 @@ export function copyPatternFromMonth(state, from, to) {
     // Un quinto lunes no tiene dónde caer en un mes que solo tiene cuatro.
     if (!date) { saltados.push({ date: plan.date, slot: plan.slot, motivo: 'ese día no existe en el mes nuevo' }); continue; }
     if (planFor(state, date, plan.slot)) { saltados.push({ date, slot: plan.slot, motivo: 'ya tenía plan' }); continue; }
-    try { creados.push(copyPlan(state, plan.id, date, plan.slot).id); }
+    try {
+      const copia = copyPlan(state, plan.id, date, plan.slot);
+      // Traída del mes pasado, y así se dirá en el calendario: es la diferencia
+      // entre «esto lo decidí yo» y «esto venía de antes y puedo cambiarlo».
+      copia.origen = 'mes-anterior';
+      creados.push(copia.id);
+    }
     catch (error) { saltados.push({ date, slot: plan.slot, motivo: error.message }); }
   }
   return { creados, saltados };
@@ -269,17 +370,23 @@ export function monthProgress(state, month) {
   const { start, end } = monthBounds(month);
   const fechas = dateRange(start, end);
   const dias = fechas.length;
-  const huecos = dias * SLOTS.length;
-  let encasa = 0, fuera = 0, pedido = 0, pendientes = 0;
+  // El progreso cuenta lo que una casa espera resolver todos los días. Las
+  // meriendas suman cuando están puestas, pero no restan cuando no lo están:
+  // un mes sin ninguna merienda anotada está al cien por cien, porque hay casas
+  // que no meriendan y no les falta nada.
+  const huecos = dias * SLOTS_PRINCIPALES.length;
+  let encasa = 0, fuera = 0, pedido = 0, pendientes = 0, meriendas = 0;
   for (const date of fechas) for (const slot of SLOTS) {
     const plan = planFor(state, date, slot);
-    if (!plan || plan.kind === 'unplanned') { pendientes += 1; continue; }
+    const opcional = !SLOTS_PRINCIPALES.includes(slot);
+    if (!plan || plan.kind === 'unplanned') { if (!opcional) pendientes += 1; continue; }
+    if (opcional) { meriendas += 1; continue; }
     if (plan.kind === 'outside') { fuera += 1; continue; }
     if (plan.kind === 'order') { pedido += 1; continue; }
     encasa += 1;
   }
   return {
-    month, dias, huecos, encasa, fuera, pedido, pendientes,
+    month, dias, huecos, encasa, fuera, pedido, pendientes, meriendas,
     porcentaje: huecos ? Math.round(((huecos - pendientes) / huecos) * 100) : 0,
     cambiosCanasta: monthChanges(state, month).changes.length
   };

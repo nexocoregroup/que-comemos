@@ -45,11 +45,6 @@ export const emptyCuenta = () => ({
   verificador: ''     // el secreto de PKCE mientras Google contesta
 });
 
-export const TITULOS_CUENTA = {
-  cuenta: 'Mi cuenta',
-  sesion: '¿Qué comemos?'
-};
-
 const cuentaDe = ctx => (ctx.ui.cuenta = ctx.ui.cuenta || emptyCuenta());
 const sesionDe = ctx => ctx.ui.sesion || null;
 const cargando = (cuenta, cual) => cuenta.cargando === cual;

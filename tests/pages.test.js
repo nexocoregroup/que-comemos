@@ -15,9 +15,9 @@ import { readFileSync } from 'node:fs';
 // campo que cambió de forma y el `undefined` que se cuela en la pantalla.
 
 import { createDemoState } from '../src/demo.js';
-import { addProduct, createEmptyState, createReview, saveReview, setHabitualLine, setMonthChange, setPersonActive, todayISO, upsertPerson } from '../src/model.js';
+import { addProduct, createEmptyState, createReview, saveReview, setHabitualLine, setMonthChange, setPersonActive, setReviewScope, todayISO, upsertPerson } from '../src/model.js';
 import { addRoutine } from '../src/routines.js';
-import { PASOS, emptyMes, modalRutina, renderMes } from '../src/page-mes.js';
+import { BLOQUES, emptyMes, modalDia, modalRutina, renderMes } from '../src/page-mes.js';
 import { emptyCompra, renderCompra } from '../src/page-compra.js';
 import { PAGINAS_MAS, emptyMas, estadoDeLaCopia, renderMas } from '../src/page-mas.js';
 
@@ -61,11 +61,11 @@ test('plan mensual se dibuja con datos', () => {
   revisar(renderMes(ctx), 'renderMes (calendario)');
 });
 
-test('los siete pasos de preparar el mes se dibujan', () => {
+test('los tres bloques de preparar el mes se dibujan', () => {
   const ctx = contexto(createDemoState());
-  for (const paso of PASOS) {
-    ctx.ui.mes.paso = paso.id;
-    revisar(renderMes(ctx), `paso «${paso.id}»`);
+  for (const bloque of BLOQUES) {
+    ctx.ui.mes.bloque = bloque.id;
+    revisar(renderMes(ctx), `bloque «${bloque.id}»`);
   }
 });
 
@@ -137,9 +137,9 @@ test('todas las pantallas se dibujan con el estado vacío', () => {
     ctx.ui.page = pagina;
     revisar(renderMas(ctx), `renderMas vacío («${pagina}»)`);
   }
-  for (const paso of PASOS) {
-    ctx.ui.mes.paso = paso.id;
-    revisar(renderMes(ctx), `paso vacío «${paso.id}»`);
+  for (const bloque of BLOQUES) {
+    ctx.ui.mes.bloque = bloque.id;
+    revisar(renderMes(ctx), `bloque vacío «${bloque.id}»`);
   }
 });
 
@@ -212,6 +212,9 @@ test('la revisión ofrece buscar, esconder lo contestado y dictar', () => {
 test('buscar en la revisión no deja fuera lo ya contestado', () => {
   const state = createDemoState();
   const revision = createReview(state, todayISO());
+  // Una revisión empieza por lo de la última compra. Aquí se quiere la despensa
+  // entera, que es donde de verdad duele perder una fila al buscar.
+  setReviewScope(state, revision.id, 'todo');
   assert.ok(revision.productIds.length >= 3, 'el ejemplo debería traer varios alimentos');
   const ctx = contexto(state, { page: 'revision' });
   ctx.ui.reviewId = revision.id;

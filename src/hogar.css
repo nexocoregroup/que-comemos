@@ -142,6 +142,7 @@
 
 /* ── El pie del asistente ──────────────────────────────────────────────── */
 
+.hogar-siguiente { background: var(--surface-soft); border: 1px solid var(--line); border-radius: 14px; padding: 13px 15px; line-height: 1.5; margin: 0 0 18px; }
 .hogar-pie { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 18px; }
 .hogar-final .grid { margin-bottom: 20px; }
 .hogar-tarjeta h3 { margin: 0; font-size: 1.04rem; }

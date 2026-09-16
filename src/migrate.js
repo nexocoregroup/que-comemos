@@ -11,13 +11,24 @@
 
 import { normalizeName } from './nombres.js';
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 7;
+
+// Los momentos en que una preparación suele comerse. Viven aquí, igual que las
+// clases de persona, para que la migración pueda normalizarlas sin arrastrar el
+// modelo entero. `model.js` los reexporta con su etiqueta.
+export const MOMENTOS_DE_PREPARACION = ['desayuno', 'merienda-manana', 'almuerzo', 'merienda-tarde', 'cena'];
 
 // Las tres clasificaciones de una persona de la casa y los tres motivos por los
 // que puede evitar un alimento. Viven aquí y no en model.js porque una
 // migración tiene que poder normalizar datos viejos sin arrastrar el modelo
 // entero —que importa este archivo, no al revés—.
 export const CLASES_DE_PERSONA = ['adulto', 'adolescente', 'nino'];
+
+// De dónde salió una comida del calendario. La lista vive también en el modelo;
+// aquí está repetida a propósito, porque una migración no puede depender de lo
+// que el modelo diga dentro de tres versiones: tiene que seguir convirtiendo
+// igual un respaldo de hoy dentro de dos años.
+export const ORIGENES_DE_COMIDA = ['rutina', 'mes-anterior', 'excepcion', 'manual', 'sugerida'];
 export const MOTIVOS_DE_RESTRICCION = ['alergia', 'intolerancia', 'preferencia'];
 
 const clone = value => structuredClone(value);
@@ -271,7 +282,100 @@ function personaNormalizada(persona, restricciones) {
   };
 }
 
-const STEPS = { 1: v1toV2, 2: v2toV3, 3: v3toV4 };
+// v4 → v5. La preparación deja de decir quién la come.
+//
+// Tenía un campo `covers` —«quiénes la comen normalmente»— que se preguntaba al
+// crearla y se volvía a preguntar al ponerla en el calendario. De las dos
+// respuestas, la buena era siempre la segunda: quién come depende del día, no
+// del plato. La primera solo servía para prerrellenar la segunda, y para que
+// todo el mundo contestara dos veces la misma pregunta.
+//
+// Se borra el campo. No se pierde nada de lo planificado: cada comida del
+// calendario guarda sus propios participantes, y esos no se tocan. Lo único que
+// cambia es de dónde sale la marca por defecto al crear una comida nueva, que
+// ahora es «toda la casa».
+//
+// Los momentos viejos se llamaban igual que los nuevos —desayuno, almuerzo,
+// cena— así que se conservan tal cual. Las dos meriendas nacen vacías: nadie ha
+// dicho que su mangú sea también merienda, y suponerlo llenaría la sección de
+// meriendas de platos que nadie puso ahí.
+function v4toV5(data) {
+  const notes = [];
+  const state = clone(data);
+  let conPersonas = 0;
+  state.recipes = (state.recipes || []).map(receta => {
+    const copia = { ...receta };
+    if (Array.isArray(copia.covers) && copia.covers.length) conPersonas++;
+    delete copia.covers;
+    const marcados = new Set(Array.isArray(receta.uses) ? receta.uses : []);
+    copia.uses = MOMENTOS_DE_PREPARACION.filter(id => marcados.has(id));
+    return copia;
+  });
+  state.version = 5;
+  if (conPersonas) {
+    notes.push(`${conPersonas} preparación(es) tenían anotado quién las comía. Esa pregunta ya no existe: una preparación es para toda la casa, y quien no coma se marca el día que toque. Las comidas que ya estaban en el calendario no cambian.`);
+  }
+  return { state, notes };
+}
+
+// v5 → v6. Cada comida dice de dónde salió.
+//
+// El calendario se llenaba y no decía quién lo había llenado. Delante de un
+// martes con mangú no había forma de saber si lo puso una rutina, si se copió
+// del mes pasado o si alguien lo escribió a mano, y sin saberlo nadie se atreve
+// a cambiarlo: quitarlo podría estar quitando una costumbre.
+//
+// Lo que se sabe de una comida vieja se deduce, y lo que no se sabe no se
+// inventa. `routineId` delata a la rutina. Un «fuera de casa» o un «pedido» es
+// una excepción por definición: nadie tiene de costumbre pedir todos los días
+// sin haber escrito la regla. Y todo lo demás lo puso una persona, que es
+// exactamente lo que significa «cambio manual».
+//
+// Lo que no se puede recuperar es cuáles vinieron del mes anterior: hasta hoy
+// una copia era indistinguible de una comida escrita a mano. Se quedan como
+// cambio manual, que es la respuesta prudente —dice menos de lo que nos
+// gustaría, pero no dice nada falso— y de aquí en adelante sí se marcan.
+function v5toV6(data) {
+  const notes = [];
+  const state = clone(data);
+  let deducidas = 0;
+  state.plans = (state.plans || []).map(plan => {
+    if (ORIGENES_DE_COMIDA.includes(plan?.origen)) return plan;
+    deducidas++;
+    return { ...plan, origen: origenDeducido(plan) };
+  });
+  state.version = 6;
+  if (deducidas) {
+    notes.push(`${deducidas} comida(s) del calendario no decían de dónde venían. Las que puso una rutina y las que estaban marcadas fuera de casa o pedidas se reconocen solas; el resto quedan como cambio manual. Ninguna comida cambia de día, de plato ni de cantidad.`);
+  }
+  return { state, notes };
+}
+
+const origenDeducido = plan => {
+  if (plan?.routineId) return 'rutina';
+  return plan?.kind === 'outside' || plan?.kind === 'order' ? 'excepcion' : 'manual';
+};
+
+// v6 → v7. Los períodos cerrados se guardan en su sitio.
+//
+// La app decía «los meses ya cerrados no cambian» y no era verdad: nada estaba
+// congelado, y la lista de marzo se recalculaba contra la canasta de hoy cada
+// vez que alguien la miraba. Desde aquí hay dónde guardar la fotografía de un
+// período —canasta, excepciones, frecuencia, compras, existencia declarada,
+// lista final y menú si aplica— y la app la lee en vez de volver a sumar.
+//
+// No se cierra nada al convertir. Un respaldo viejo no trae esas fotografías y
+// no hay forma honrada de reconstruirlas: la canasta de entonces ya no existe.
+// Lo que se hace es dejar la lista vacía y que se cierre de aquí en adelante,
+// que es lo único que se puede prometer sin inventar.
+function v6toV7(data) {
+  const state = clone(data);
+  if (!Array.isArray(state.closedPeriods)) state.closedPeriods = [];
+  state.version = 7;
+  return { state, notes: [] };
+}
+
+const STEPS = { 1: v1toV2, 2: v2toV3, 3: v3toV4, 4: v4toV5, 5: v5toV6, 6: v6toV7 };
 
 // Campos que aparecieron dentro de una misma versión del esquema. Un respaldo
 // exportado antes de que existieran se rellena en vez de rechazarse.
@@ -309,6 +413,36 @@ export function migrate(data) {
   // repetirlo sobre datos ya convertidos no cambia nada.
   if (Array.isArray(current.people)) {
     current.people = current.people.map(persona => personaNormalizada(persona, restriccionesNormalizadas(persona)));
+  }
+  if (!Array.isArray(current.closedPeriods)) current.closedPeriods = [];
+  // Y una por las comidas: un respaldo exportado a media tarde puede traer unas
+  // con origen y otras sin él, y una comida sin origen dejaría la pantalla
+  // diciendo «undefined» donde debería decir de dónde vino.
+  if (Array.isArray(current.plans)) {
+    current.plans = current.plans.map(plan =>
+      (ORIGENES_DE_COMIDA.includes(plan?.origen) ? plan : { ...plan, origen: origenDeducido(plan) }));
+  }
+  // Y otra por las preparaciones, por lo mismo: un respaldo exportado a media
+  // tarde puede traer todavía el campo que ya no existe.
+  if (Array.isArray(current.recipes)) {
+    current.recipes = current.recipes.map(receta => {
+      const copia = { ...receta };
+      delete copia.covers;
+      const marcados = new Set(Array.isArray(receta.uses) ? receta.uses : []);
+      copia.uses = MOMENTOS_DE_PREPARACION.filter(id => marcados.has(id));
+      return copia;
+    });
+  }
+  // Y una última por las rutinas. `desde` —desde qué día vale la regla— llegó
+  // después que ellas, así que las guardadas antes no lo traen. Leerlo como
+  // `undefined` funciona por casualidad, porque es falsy y se comporta como
+  // «desde siempre», pero descansar en una casualidad es lo que hace que un día
+  // alguien escriba `rutina.desde.slice(0, 7)` y se caiga la pantalla. Se
+  // escribe el `null` explícito, que es lo que la app guarda desde entonces.
+  if (Array.isArray(current.mealRoutines)) {
+    current.mealRoutines = current.mealRoutines.map(rutina => (
+      rutina && typeof rutina === 'object' && !('desde' in rutina) ? { ...rutina, desde: null } : rutina
+    ));
   }
 
   return { ok: true, state: current, from, to: SCHEMA_VERSION, migrated: from < SCHEMA_VERSION, notes };

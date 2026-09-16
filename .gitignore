@@ -7,11 +7,13 @@ Thumbs.db
 # Caché local de Android Studio: no es contenido del proyecto.
 .idea/caches/
 
-# Claves. `.env.example` pide copiarlo a `.env` y poner ahí la clave del
-# proveedor de IA: sin esta línea, un `git add .` la publicaría en el repositorio.
+# Claves en archivos de entorno. Hoy no hay ninguna: la app no lee `.env` en
+# ninguna parte —lo único que usa del entorno es `PORT`, en `server.js`, que no
+# es un secreto—. La regla se queda de todas formas, porque el día que alguien
+# escriba una clave ahí para probar algo, un `git add .` la publicaría en un
+# repositorio que es público.
 .env
 .env.*
-!.env.example
 
 # La clave de firma de Play Store y sus contraseñas. Quien las tenga puede
 # publicar actualizaciones a tu nombre, y Google no deja cambiarlas una vez

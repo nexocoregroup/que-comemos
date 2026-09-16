@@ -10,10 +10,13 @@
 
 import { CATEGORIES } from './catalog-seed.js';
 import {
-  UNITS, archiveProduct, effectiveBasket, esActiva, findSimilarProducts, habitualLines, inventoryNow,
-  lastStockReview, monthBasketSummary, monthChanges, personasActivas, product, productByName, restoreProduct,
-  restriccionesDe, reviewAvailability, sliceStyle, syncReviewProducts, todayISO
+  FRECUENCIAS, MOMENTOS, UNITS, archiveProduct, cierresDe, etiquetaDeMomento, effectiveBasket, esActiva, findSimilarProducts, frecuenciaDe,
+  nombreEnElCierre, ultimaCompra,
+  habitualLines, historialDeFrecuencia, inventoryNow, lastStockReview, monthBasketSummary, monthChanges,
+  periodosDelMes, personasActivas, product, productByName, restoreProduct, restriccionesDe,
+  reviewAvailability, sliceStyle, syncReviewProducts, todayISO
 } from './model.js';
+import { filaDeReparto } from './setup.js';
 import { claseDe, hogarDe, resumenDeRestricciones } from './hogar.js';
 import { WEEKDAY_LABELS, WEEKDAYS } from './routines.js';
 import { button, cap, empty, esc, fmt, measure, monthName, niceDate, notice, options, shiftMonth, unitText } from './ui-kit.js';
@@ -28,19 +31,47 @@ import { LEGAL } from './legal.js';
 
 const hoy = todayISO();
 
-// El orden no es alfabético ni por categorías: es por cuántas veces al año una
-// casa necesita abrir cada cosa. La canasta se toca a menudo; el respaldo, casi
-// nunca, pero cuando hace falta hace muchísima falta.
+/* ── El índice de Más ──────────────────────────────────────────────────────
+
+   Eran diez filas seguidas, todas iguales, sin una sola separación. Una lista
+   de diez sin jerarquía se lee como un armario sin baldas: para encontrar algo
+   hay que mirarlo entero, y la décima vez que alguien busca «revisar lo que
+   queda» sigue recorriéndola desde arriba.
+
+   Ahora son tres grupos con un rótulo cada uno y, debajo, Ajustes solo. El
+   orden dentro de cada grupo sigue siendo el de siempre: por cuántas veces al
+   año una casa necesita abrir cada cosa.
+
+   Lo único que se movió de sitio es «Funciones avanzadas» —medidas, uniones,
+   correcciones— que ahora se entra desde Ajustes. No se ha quitado nada: son
+   pantallas que se usan una vez cada muchos meses y que estaban compitiendo en
+   la misma lista con la canasta, que se toca todas las semanas. */
+
+export const GRUPOS_MAS = [
+  ['Lo de cada semana', [
+    ['canasta', '🧺', 'Mi canasta habitual', 'Lo que se compra todos los meses'],
+    ['preparaciones', '📖', 'Preparaciones', 'Las comidas que se repiten en casa'],
+    ['revision', '✓', 'Revisar lo que queda', 'Un repaso a la nevera y la despensa']
+  ]],
+  ['Mi casa', [
+    ['familia', '👨‍👩‍👧‍👦', 'Familia y restricciones', 'Quién come y qué evita cada quien'],
+    ['alimentos', '🥬', 'Alimentos de la casa', 'La ficha de cada uno: medidas y existencias']
+  ]],
+  ['Mis datos', [
+    ['historial', '🕘', 'Historial', 'Compras, revisiones y correcciones'],
+    ['respaldo', '💾', 'Respaldo', 'Guardar una copia o traerla de vuelta'],
+    ['cuenta', '👤', 'Mi cuenta', 'Entrar, sincronizar o cerrar sesión']
+  ]],
+  ['', [
+    ['ajustes', '⚙️', 'Ajustes', 'Compra, micrófono, funciones avanzadas y ayuda']
+  ]]
+];
+
+// La lista plana sigue existiendo porque de ella salen las rutas y los títulos.
+// «avanzado» no está en ningún grupo —se entra desde Ajustes— pero es una
+// página de Más como las demás.
 export const ENTRADAS_MAS = [
-  ['canasta', '🧺', 'Mi canasta habitual', 'Lo que se compra todos los meses'],
-  ['preparaciones', '📖', 'Preparaciones', 'Las comidas que se repiten en casa'],
-  ['familia', '👨‍👩‍👧‍👦', 'Familia y restricciones', 'Quién come y qué evita cada quien'],
-  ['revision', '✓', 'Revisar lo que queda', 'Un repaso a la nevera y la despensa'],
-  ['alimentos', '🥬', 'Alimentos de la casa', 'La ficha de cada uno: medidas y existencias'],
-  ['historial', '🕘', 'Historial', 'Compras, revisiones y correcciones'],
-  ['respaldo', '💾', 'Respaldo', 'Guardar una copia o traerla de vuelta'],
-  ['cuenta', '👤', 'Mi cuenta', 'Entrar, sincronizar o cerrar sesión'],
-  ['ajustes', '⚙️', 'Ajustes', 'Día de revisión, micrófono y ayuda'],
+  ...GRUPOS_MAS.flatMap(([, filas]) => filas),
   ['avanzado', '🔧', 'Funciones avanzadas', 'Medidas, correcciones y uniones']
 ];
 
@@ -50,15 +81,27 @@ export const ENTRADAS_MAS = [
 // las pantallas de `page-cuenta.js`, que necesitan cosas —la sesión, el cajón
 // abierto, la sincronización— que solo conoce `app.js`. Por eso se queda fuera
 // de esta lista aunque esté en la de arriba.
-export const PAGINAS_MAS = [...ENTRADAS_MAS.map(([id]) => id).filter(id => id !== 'cuenta'), 'legal'];
+export const PAGINAS_MAS = [...ENTRADAS_MAS.map(([id]) => id).filter(id => id !== 'cuenta'), 'legal', 'organizacion'];
 
-export const TITULOS_MAS = Object.fromEntries(ENTRADAS_MAS.map(([id, , titulo]) => [id, titulo]));
+export const TITULOS_MAS = {
+  ...Object.fromEntries(ENTRADAS_MAS.map(([id, , titulo]) => [id, titulo])),
+  // Tampoco sale en el índice: se llega desde Ajustes, que es donde el usuario
+  // la pidió —«Ajustes → Organización de compra → Frecuencia de compra»—.
+  organizacion: 'Organización de compra'
+};
 
 export function emptyMas() {
   return {
     canastaVista: 'habitual', canastaMes: hoy.slice(0, 7), filtroAlimento: '', verArchivados: false,
     revisionFiltro: '', revisionSoloFaltan: false, revisionAviso: '',
-    documento: 'privacidad'
+    // El buscador de preparaciones y qué bloques están abiertos. Empiezan todos
+    // abiertos: una casa con seis preparaciones no quiere abrir cinco cajones.
+    recetaFiltro: '', recetasPlegadas: [],
+    documento: 'privacidad',
+    // Qué período cerrado se está mirando por dentro, en el Historial.
+    cierreAbierto: '',
+    // El formulario de cambiar la frecuencia, plegado hasta que alguien lo pide.
+    cambiandoFrecuencia: false, frecuenciaNueva: '', frecuenciaDesde: ''
   };
 }
 
@@ -76,6 +119,7 @@ export function renderMas(ctx) {
     historial: renderHistorial,
     respaldo: renderRespaldo,
     ajustes: renderAjustes,
+    organizacion: renderOrganizacion,
     avanzado: renderAvanzado,
     legal: renderLegal
   };
@@ -101,14 +145,15 @@ function renderInicio(ctx) {
     ajustes: ''
   };
   const copia = estadoDeLaCopia(state);
-  return `${copia.urgente ? `<div class="notice warn"><span>!</span><div><strong>${copia.ultima ? `Hace ${copia.dias} días que no guardas una copia.` : 'Todavía no has guardado ninguna copia.'}</strong>Todo lo que has escrito existe solo en este teléfono. <button type="button" class="enlace" data-action="navigate" data-page="respaldo">Guardar una ahora</button></div></div>` : ''}
-    <div class="card mas-lista">${ENTRADAS_MAS.map(([id, icono, titulo, detalle]) => `
+  const fila = ([id, icono, titulo, detalle]) => `
     <button type="button" class="mas-item" data-action="navigate" data-page="${id}">
       <span class="mas-icono" aria-hidden="true">${icono}</span>
       <span class="mas-texto"><strong>${esc(titulo)}</strong><span>${esc(detalle)}</span></span>
       ${pistas[id] ? `<span class="mas-pista ${id === 'respaldo' && copia.urgente ? 'alerta' : ''}">${esc(pistas[id])}</span>` : ''}
       <span class="mas-flecha" aria-hidden="true">›</span>
-    </button>`).join('')}</div>
+    </button>`;
+  return `${copia.urgente ? `<div class="notice warn"><span>!</span><div><strong>${copia.ultima ? `Hace ${copia.dias} días que no guardas una copia.` : 'Todavía no has guardado ninguna copia.'}</strong>Todo lo que has escrito existe solo en este teléfono. <button type="button" class="enlace" data-action="navigate" data-page="respaldo">Guardar una ahora</button></div></div>` : ''}
+    ${GRUPOS_MAS.map(([rotulo, filas]) => `${rotulo ? `<h3 class="mas-grupo">${esc(rotulo)}</h3>` : ''}<div class="card mas-lista">${filas.map(fila).join('')}</div>`).join('')}
     <div class="card soft mas-pie">
       <h3>¿Cómo funciona?</h3>
       <p class="muted small">Lo habitual se escribe una vez. Cada mes empieza ya preparado y tú solo revisas lo diferente. Si algo no te cuadra, nada de lo que toques aquí borra tu historial.</p>
@@ -151,7 +196,8 @@ function vistaHabitual(ctx) {
     if (!porCategoria.has(categoria)) porCategoria.set(categoria, []);
     porCategoria.get(categoria).push({ linea, item });
   }
-  return `<p class="pantalla-intro">Lo que tu casa consume en un mes corriente. Cambiar algo aquí vale <strong>desde ahora y para todos los meses</strong>.</p>
+  return `<p class="pantalla-intro">Lo que tu casa consume en un mes corriente. Lo que <strong>añadas</strong> aquí empieza a contar desde este mes: los que ya pasaron no cambian.</p>
+    <p class="tiny muted">Corregir la cantidad de algo que ya estaba vale para todos los meses en los que lo has tenido, también los pasados. Para cambiar un mes solo, entra en «Cambios de este mes».</p>
     <form data-form="canasta-habitual" class="canasta-form">
       ${[...porCategoria.entries()].sort((a, b) => etiquetaCategoria(a[0]).localeCompare(etiquetaCategoria(b[0]), 'es')).map(([categoria, filas]) => `
         <h3 class="canasta-grupo">${esc(etiquetaCategoria(categoria))}</h3>
@@ -203,7 +249,7 @@ function vistaCambios(ctx, mes, resumen) {
           <div class="list-row-sub">${linea.quantity === null ? 'cantidad pendiente' : esc(measure(linea.quantity, linea.unit))} este mes</div>
         </div>
         <div class="inline">
-          ${button('Dejarlo fijo', 'canasta-promover', 'btn-secondary btn-small', `data-id="${linea.productId}" data-month="${mes}"`)}
+          ${button('Añadir a mi canasta base', 'canasta-promover', 'btn-secondary btn-small', `data-id="${linea.productId}" data-month="${mes}"`)}
           ${button('Quitar', 'canasta-quitar-cambio', 'btn-quiet btn-small', `data-id="${linea.productId}" data-month="${mes}"`)}
         </div>
       </div>`).join('')}
@@ -215,7 +261,8 @@ function vistaCambios(ctx, mes, resumen) {
         ${button('Volver a comprarlo', 'canasta-quitar-cambio', 'btn-quiet btn-small', `data-id="${cambio.productId}" data-month="${mes}"`)}
       </div>`).join('')}
     </div>
-    <p class="small muted">«Dejarlo fijo» lo pasa a tu canasta habitual y desde el mes siguiente aparece solo. Los meses ya cerrados no cambian.</p>`
+    <p class="small muted">«Añadir a mi canasta base» lo pasa a lo de todos los meses, y te pregunta <strong>desde qué mes</strong> entra en vigencia. Los meses anteriores a esa fecha no se tocan: seguirán diciendo lo que dijeron.</p>
+    <p class="tiny muted">Un período que hayas cerrado tampoco cambia, porque no se vuelve a calcular: se lee la fotografía que se guardó al cerrarlo. Los meses abiertos sí se recalculan con tu canasta de hoy, que es lo que se quiere mientras todavía no han pasado.</p>`
     : empty('✓', `${monthName(mes)} es un mes normal`, 'No hay nada diferente. Si este mes van a comprar algo especial —un cangrejo para una cena, o menos arroz porque estarán de viaje—, anótalo aquí.', '')}
     <div class="pantalla-acciones">
       ${button('+ Añadir algo solo para este mes', 'canasta-nuevo-cambio', 'btn-primary', `data-month="${mes}"`)}
@@ -225,27 +272,84 @@ function vistaCambios(ctx, mes, resumen) {
 
 /* ── Preparaciones ─────────────────────────────────────────────────────── */
 
+/* ── Preparaciones ─────────────────────────────────────────────────────────
+
+   Una rejilla plana de tarjetas deja de servir en cuanto hay quince: para
+   encontrar lo que se cena hay que leerlas todas. Ahora van en cinco bloques
+   plegables, uno por momento del día, con la cuenta a la vista.
+
+   Una preparación marcada para dos momentos sale en los dos bloques, y sigue
+   siendo un solo registro: los bloques filtran la misma lista, no la copian.
+   Por eso editarla desde cualquiera de ellos la actualiza en todos, sin nada
+   que sincronizar. */
+
 function renderPreparaciones(ctx) {
-  const { state } = ctx;
-  const nombrePersona = id => state.people.find(persona => persona.id === id)?.name || 'Persona eliminada';
+  const { state, ui } = ctx;
+  const filtro = String(ui.mas.recetaFiltro || '').trim().toLocaleLowerCase('es');
+  const coincide = receta => !filtro
+    || receta.name.toLocaleLowerCase('es').includes(filtro)
+    || (receta.note || '').toLocaleLowerCase('es').includes(filtro)
+    || receta.items.some(item => (product(state, item.productId)?.name || '').toLocaleLowerCase('es').includes(filtro));
+  const visibles = state.recipes.filter(coincide);
+  const plegados = new Set(ui.mas.recetasPlegadas || []);
+  const sinMomento = state.recipes.filter(receta => !receta.uses?.length);
+
+  if (!state.recipes.length) {
+    return `${volver('Preparaciones')}
+      ${empty('📖', 'Todavía no hay ninguna',
+        'Una preparación es algo como «mangú con salami» o «arroz con pollo»: el nombre, en cuáles momentos suele comerse y, si quieres, los alimentos principales. No hace falta anotar la sal ni el aceite.',
+        button('Crear la primera', 'open-recipe', 'btn-primary'))}`;
+  }
+
   return `${volver('Preparaciones')}
     <p class="pantalla-intro">Comidas que se repiten en tu casa. Se guardan una vez y después se ponen en el calendario de golpe, eligiendo los días de la semana.</p>
     <div class="pantalla-acciones">${button('+ Nueva preparación', 'open-recipe', 'btn-primary')}</div>
-    ${state.recipes.length
-      ? `<div class="grid grid-2">${state.recipes.map(receta => `<article class="card">
-          <div class="between"><h3>${esc(receta.name)}</h3><span class="pill warm">${receta.uses.map(cap).join(' · ')}</span></div>
-          <p class="small muted">${receta.covers.length ? receta.covers.map(id => esc(nombrePersona(id))).join(', ') : 'Para quien coma ese día'}${receta.servings ? ` · ${fmt(receta.servings)} raciones` : ''}</p>
-          ${receta.items.length ? `<ul class="food-list">${receta.items.map(item => `<li>${esc(measure(item.quantity, item.unit))} · ${esc(product(state, item.productId)?.name || '—')}</li>`).join('')}</ul>` : '<p class="small muted">Sin alimentos anotados todavía. Puedes añadirlos cuando quieras.</p>'}
-          ${receta.note ? `<p class="small"><strong>Para quien cocina:</strong> ${esc(receta.note)}</p>` : ''}
-          <div class="inline">
-            ${button('Ponerla en el calendario', 'mes-nueva-rutina', 'btn-secondary btn-small', `data-receta="${receta.id}"`)}
-            ${button('Editar', 'open-recipe', 'btn-quiet btn-small', `data-id="${receta.id}"`)}
-            ${button('Eliminar', 'delete-recipe', 'btn-quiet btn-small', `data-id="${receta.id}"`)}
-          </div>
-        </article>`).join('')}</div>`
-      : empty('📖', 'Todavía no hay ninguna',
-          'Una preparación es algo como «mangú con salami» o «arroz con pollo»: el nombre, en qué comida se sirve y, si quieres, los alimentos principales. No hace falta anotar la sal ni el aceite.',
-          button('Crear la primera', 'open-recipe', 'btn-primary'))}`;
+
+    <div class="setup-buscador">
+      <label class="field setup-search"><span class="sr-only">Buscar una preparación</span>
+        <input type="search" id="receta-filtro" value="${esc(ui.mas.recetaFiltro || '')}" placeholder="Buscar entre ${state.recipes.length} preparación(es)…" autocomplete="off" aria-label="Buscar una preparación">
+      </label>
+      ${ui.mas.recetaFiltro ? button('Ver todo', 'receta-limpiar', 'btn-quiet') : ''}
+    </div>
+
+    ${filtro && !visibles.length ? `<p class="muted">Nada coincide con «${esc(ui.mas.recetaFiltro)}».</p>` : ''}
+
+    ${MOMENTOS.map(momento => {
+      const delMomento = visibles.filter(receta => receta.uses?.includes(momento.id));
+      // Un bloque vacío se sigue enseñando cuando no hay búsqueda: saber que
+      // no hay ninguna merienda anotada es información, no ruido.
+      if (filtro && !delMomento.length) return '';
+      const abierto = !plegados.has(momento.id);
+      return `<section class="recetas-bloque">
+        <button type="button" class="recetas-cabecera" data-action="receta-plegar" data-momento="${momento.id}" aria-expanded="${abierto}">
+          <span class="recetas-flecha" aria-hidden="true">${abierto ? '⌄' : '›'}</span>
+          <span class="recetas-titulo">${esc(momento.plural)}</span>
+          <span class="badge-count">${delMomento.length}</span>
+        </button>
+        ${abierto ? (delMomento.length
+          ? `<div class="grid grid-2">${delMomento.map(receta => tarjetaDeReceta(state, receta)).join('')}</div>`
+          : `<p class="small muted recetas-vacio">Todavía no hay ninguna para ${esc(momento.etiqueta.toLocaleLowerCase('es'))}.</p>`) : ''}
+      </section>`;
+    }).join('')}
+
+    ${sinMomento.length ? notice('Hay preparaciones sin momento', `${sinMomento.length} preparación(es) no tienen ningún momento marcado, así que no salen en ningún bloque: ${sinMomento.map(receta => esc(receta.name)).join(', ')}. Ábrelas y marca cuándo se comen.`, 'warn') : ''}`;
+}
+
+function tarjetaDeReceta(state, receta) {
+  const momentos = (receta.uses || []).map(id => MOMENTOS.find(item => item.id === id)?.etiqueta || id);
+  return `<article class="card receta-tarjeta">
+    <div class="between"><h3>${esc(receta.name)}</h3>${receta.servings ? `<span class="pill gray">${fmt(receta.servings)} porciones</span>` : ''}</div>
+    <p class="small muted">${momentos.map(texto => `<span class="pill warm">${esc(texto)}</span>`).join(' ')}</p>
+    ${receta.items.length
+      ? `<ul class="food-list">${receta.items.map(item => `<li>${esc(measure(item.quantity, item.unit))} · ${esc(product(state, item.productId)?.name || '—')}</li>`).join('')}</ul>`
+      : '<p class="small muted receta-incompleta">Sin alimentos anotados. Sirve igual para el calendario; lo que no puede todavía es aportar a la compra.</p>'}
+    ${receta.note ? `<p class="small"><strong>Para quien cocina:</strong> ${esc(receta.note)}</p>` : ''}
+    <div class="inline">
+      ${button('Ponerla en el calendario', 'mes-nueva-rutina', 'btn-secondary btn-small', `data-receta="${receta.id}"`)}
+      ${button('Editar', 'open-recipe', 'btn-quiet btn-small', `data-id="${receta.id}"`)}
+      ${button('Eliminar', 'delete-recipe', 'btn-quiet btn-small', `data-id="${receta.id}"`)}
+    </div>
+  </article>`;
 }
 
 /* ── Familia ───────────────────────────────────────────────────────────── */
@@ -300,7 +404,7 @@ function renderFamilia(ctx) {
       <p class="small muted">Siguen apareciendo en las comidas de antes, porque las comieron. No cuentan para las comidas nuevas.</p>
       <div class="grid grid-2 familia-baja">${fuera.map(persona => tarjeta(persona, false)).join('')}</div>` : ''}
     ${state.absences.length ? `<div class="section-head"><h3 class="plan-sub">Ausencias anotadas</h3></div>
-      <div class="card">${[...state.absences].sort((a, b) => a.date.localeCompare(b.date)).map(item => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${esc(state.people.find(p => p.id === item.personId)?.name || 'Persona eliminada')}</div><div class="list-row-sub">${cap(item.slot)} · ${esc(niceDate(item.date, { weekday: 'long', day: 'numeric', month: 'long' }))}</div></div>${button('Quitar', 'remove-absence', 'btn-quiet btn-small', `data-date="${item.date}" data-slot="${item.slot}" data-id="${item.personId}"`)}</div>`).join('')}</div>` : ''}`;
+      <div class="card">${[...state.absences].sort((a, b) => a.date.localeCompare(b.date)).map(item => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${esc(state.people.find(p => p.id === item.personId)?.name || 'Persona eliminada')}</div><div class="list-row-sub">${esc(etiquetaDeMomento(item.slot))} · ${esc(niceDate(item.date, { weekday: 'long', day: 'numeric', month: 'long' }))}</div></div>${button('Quitar', 'remove-absence', 'btn-quiet btn-small', `data-date="${item.date}" data-slot="${item.slot}" data-id="${item.personId}"`)}</div>`).join('')}</div>` : ''}`;
 }
 
 /* ── Revisar lo que queda ──────────────────────────────────────────────── */
@@ -345,6 +449,7 @@ function tablaDeRevision(ctx, revision) {
   const faltan = revision.productIds.filter(id => !contestado(id)).length;
 
   return `<p class="pantalla-intro">${esc(niceDate(revision.date, { weekday: 'long', day: 'numeric', month: 'long' }))} · ${queda ? 'Escribe lo que ves en casa. La resta la hacemos nosotros.' : 'Escribe lo que se consumió desde la última vez.'}</p>
+    ${editando && revision.status === 'draft' ? bloqueDeAlcance(ctx, revision) : ''}
     ${editando && revision.status === 'draft' ? `<div class="segmented segmented-ancho">
       <button type="button" data-action="review-mode" data-mode="restante" data-id="${revision.id}" class="${queda ? 'active' : ''}">¿Cuánto queda?</button>
       <button type="button" data-action="review-mode" data-mode="consumido" data-id="${revision.id}" class="${queda ? '' : 'active'}">Lo consumido</button>
@@ -376,7 +481,51 @@ function tablaDeRevision(ctx, revision) {
           ? `<button type="submit" name="intent" value="save" class="btn btn-secondary">Guardar y seguir después</button><button type="submit" name="intent" value="confirm" class="btn btn-primary">Terminar</button>`
           : `<button type="submit" name="intent" value="correct" class="btn btn-primary">Guardar la corrección</button>`
         : `<span class="pill">Terminada</span>${button('Corregir', 'toggle-correct-review', 'btn-quiet btn-small')}`}</div>
-    </form>`;
+    </form>
+    ${revision.status === 'confirmed' ? loQueSigue(ctx, revision) : ''}`;
+}
+
+/* ── De qué se pregunta ────────────────────────────────────────────────────
+
+   Preguntar por los cuarenta alimentos con existencias, incluidos los que nadie
+   ha tocado desde marzo, es exactamente donde se abandona una revisión. Se
+   empieza por lo de la última compra —que es lo que se está gastando, y lo que
+   hay que contar antes de volver al colmado— y la despensa entera queda a un
+   toque para quien la quiera. */
+
+function bloqueDeAlcance(ctx, revision) {
+  const { state } = ctx;
+  const compra = revision.purchaseId ? state.purchases.find(item => item.id === revision.purchaseId) : null;
+  if (!compra) return '';
+  const deLaCompra = revision.origen === 'compra';
+  return `<div class="segmented segmented-ancho">
+      <button type="button" data-action="review-scope" data-origen="compra" data-id="${revision.id}" class="${deLaCompra ? 'active' : ''}">Lo de la última compra · ${compra.lines.length}</button>
+      <button type="button" data-action="review-scope" data-origen="todo" data-id="${revision.id}" class="${deLaCompra ? '' : 'active'}">Toda la despensa</button>
+    </div>
+    <p class="small muted">${deLaCompra
+      ? `Lo que trajiste el ${esc(niceDate(compra.date, { day: 'numeric', month: 'long' }))}. Es lo que se está gastando.`
+      : 'Todo lo que la app tiene contado en casa, se haya comprado cuando se haya comprado.'}</p>`;
+}
+
+/* ── Y después de contar, qué ──────────────────────────────────────────────
+
+   Contar lo que queda no es el final de nada: es el paso previo a la compra
+   siguiente. Con dos compras al mes, la segunda; con una, la del mes que
+   entra. Decirlo aquí evita el viaje de vuelta a buscar dónde estaba. */
+
+function loQueSigue(ctx, revision) {
+  const { state } = ctx;
+  const mes = revision.date.slice(0, 7);
+  const quincenal = frecuenciaDe(state, mes) === 'quincenal';
+  const primeraQuincena = Number(revision.date.slice(8)) <= 15;
+  const contados = revision.productIds.filter(id => revision.consumed[id] !== undefined).length;
+  const texto = quincenal
+    ? `La lista de la ${primeraQuincena ? 'primera' : 'segunda'} quincena ya descuenta lo que acabas de contar: no volverá a pedir lo que todavía tienes.`
+    : 'La lista del mes que entra ya parte de lo que acabas de contar.';
+  return `<div class="notice"><span>→</span><div>
+    <strong>Contaste ${contados} alimento(s).</strong>${esc(texto)}
+    <div class="inline" style="margin-top:10px">${button(quincenal ? 'Ver la compra de la quincena' : 'Ver la compra', 'navigate', 'btn-secondary btn-small', 'data-page="compra"')}</div>
+  </div></div>`;
 }
 
 // Filtrar esconde filas, y `saveReview` reconstruye la revisión entera con lo
@@ -466,6 +615,7 @@ function renderHistorial(ctx) {
   ].sort((a, b) => b.fecha.localeCompare(a.fecha) || b.seq - a.seq);
   return `${volver('Historial')}
     <p class="pantalla-intro">Todo lo que ha movido las existencias, de lo más reciente a lo más antiguo.</p>
+    ${periodosCerrados(ctx)}
     ${eventos.length ? `<div class="card">${eventos.slice(0, 60).map(evento => `<div class="list-row">
       <div class="list-row-main">
         <div class="list-row-title">${({ compra: 'Compra', revision: 'Revisión', correccion: 'Corrección' })[evento.tipo]} · ${esc(niceDate(evento.fecha, { day: 'numeric', month: 'long', year: 'numeric' }))}</div>
@@ -487,6 +637,87 @@ function detalleDeEvento(state, evento) {
   }
   const item = product(state, evento.item.productId);
   return `${item?.name || '—'}: ${evento.item.delta >= 0 ? '+' : ''}${fmt(evento.item.delta)} ${item?.controlUnit || ''}${evento.item.reason ? ` · ${evento.item.reason}` : ''}`;
+}
+
+/* ── Los períodos cerrados ─────────────────────────────────────────────────
+
+   Un historial que se recalcula no es un historial. Antes, la lista de marzo se
+   volvía a sumar contra la canasta de hoy cada vez que alguien la miraba: subir
+   el arroz en septiembre cambiaba lo que marzo decía haber necesitado, y no
+   había forma de saber qué se calculó de verdad aquel día.
+
+   Aquí se enseña la fotografía tal cual se guardó: la canasta que se usó, las
+   excepciones de ese mes, la frecuencia que estaba vigente, lo que se compró,
+   lo que la casa declaró que le quedaba y la lista final. Con los nombres que
+   los alimentos tenían entonces. */
+
+function periodosCerrados(ctx) {
+  const { state, ui } = ctx;
+  const cierres = [...(state.closedPeriods || [])].sort((a, b) => b.start.localeCompare(a.start));
+  if (!cierres.length) return '';
+  const abierto = ui.mas.cierreAbierto;
+  return `<div class="section-head"><div><h3 class="plan-sub">Períodos cerrados</h3><p class="small muted">Lo que se calculó y se confirmó entonces, tal cual. No se vuelve a sumar: cambiar tu canasta hoy no los toca.</p></div></div>
+    <div class="card">${cierres.map(cierre => {
+      const esteAbierto = abierto === cierre.id;
+      const compradas = cierre.compras.reduce((suma, compra) => suma + compra.lines.length, 0);
+      return `<div class="list-row cierre-fila">
+        <div class="list-row-main">
+          <div class="list-row-title">${esc(etiquetaDeCierre(cierre))}</div>
+          <div class="list-row-sub">Cerrado el ${esc(niceDate(cierre.closedAt, { day: 'numeric', month: 'long', year: 'numeric' }))} · compra ${esc(cierre.frecuencia === 'quincenal' ? 'quincenal' : 'mensual')} · calculado desde ${esc(cierre.basis === 'menu' ? 'el menú' : 'la canasta')}</div>
+          <div class="list-row-sub">${cierre.lista.length} en la lista · ${compradas} comprado(s) · ${cierre.canasta.length} de canasta · ${cierre.excepciones.length} excepción(es)</div>
+        </div>
+        ${button(esteAbierto ? 'Cerrar' : 'Ver todo', 'cierre-ver', 'btn-quiet btn-small', `data-id="${esc(cierre.id)}"`)}
+      </div>
+      ${esteAbierto ? detalleDelCierre(state, cierre) : ''}`;
+    }).join('')}</div>`;
+}
+
+const etiquetaDeCierre = cierre => ({
+  primera: `1.ª quincena de ${monthName(cierre.month)}`,
+  segunda: `2.ª quincena de ${monthName(cierre.month)}`,
+  mes: monthName(cierre.month)
+})[cierre.periodo] || `${niceDate(cierre.start, { day: 'numeric', month: 'short' })} – ${niceDate(cierre.end, { day: 'numeric', month: 'short' })}`;
+
+function detalleDelCierre(state, cierre) {
+  const nombre = id => esc(nombreEnElCierre(state, cierre, id));
+  const cantidad = (valor, unidad) => (valor === null || valor === undefined ? 'sin cantidad' : esc(measure(valor, unidad)));
+  const seccion = (titulo, cuerpo) => `<div class="cierre-seccion"><h4>${esc(titulo)}</h4>${cuerpo}</div>`;
+  const filas = lista => `<ul class="food-list">${lista.join('')}</ul>`;
+
+  const existencia = cierre.existencia || { origen: 'calculada', valores: {} };
+  const declarados = Object.entries(existencia.valores).filter(([, valor]) => Number(valor) > 0);
+
+  return `<div class="cierre-detalle">
+    ${seccion(`La lista final · ${cierre.lista.length}`, cierre.lista.length
+      ? filas(cierre.lista.map(linea => `<li>${nombre(linea.productId)}: necesitaba ${cantidad(linea.need, product(state, linea.productId)?.controlUnit || '')}, había ${cantidad(linea.available, product(state, linea.productId)?.controlUnit || '')}${linea.shortfall > 0 ? ` → comprar ${linea.purchaseQuantity === null ? 'cantidad sin medida' : cantidad(linea.purchaseQuantity, linea.purchaseUnit)}` : ' → alcanzaba'}</li>`))
+      : '<p class="muted small">La lista salió vacía.</p>')}
+
+    ${seccion(`La canasta que se usó · ${cierre.canasta.length}`, cierre.canasta.length
+      ? filas(cierre.canasta.map(linea => `<li>${nombre(linea.productId)}: ${cantidad(linea.quantity, linea.unit)}${linea.source === 'habitual' ? '' : ` <span class="muted">(${linea.source === 'extra' ? 'extra de ese mes' : 'cantidad cambiada ese mes'})</span>`}</li>`))
+      : '<p class="muted small">No había canasta escrita.</p>')}
+
+    ${cierre.excepciones.length ? seccion(`Las excepciones de ese mes · ${cierre.excepciones.length}`,
+      filas(cierre.excepciones.map(cambio => `<li>${nombre(cambio.productId)}: ${cambio.removed ? 'ese mes no se compró' : cantidad(cambio.quantity, cambio.unit)}</li>`))) : ''}
+
+    ${seccion(`Lo que se compró · ${cierre.compras.length} compra(s)`, cierre.compras.length
+      ? cierre.compras.map(compra => `<p class="small"><strong>${esc(niceDate(compra.date, { day: 'numeric', month: 'long' }))}</strong></p>${filas(compra.lines.map(linea => `<li>${nombre(linea.productId)}: ${cantidad(linea.quantity, linea.unit)}</li>`))}`).join('')
+      : '<p class="muted small">No se anotó ninguna compra en este período.</p>')}
+
+    ${seccion('Lo que quedaba', declarados.length
+      ? `<p class="small muted">${existencia.origen === 'revision'
+          ? `Declarado en la revisión del ${esc(niceDate(existencia.fecha, { day: 'numeric', month: 'long' }))}.`
+          : 'Nadie lo contó: es el saldo que la app tenía calculado al cerrar.'}</p>
+         ${filas(declarados.map(([id, valor]) => `<li>${nombre(id)}: ${cantidad(valor, product(state, id)?.controlUnit || '')}</li>`))}`
+      : '<p class="muted small">No quedaba nada anotado.</p>')}
+
+    ${cierre.menu ? seccion(`El menú que lo produjo · ${cierre.menu.length} comida(s)`,
+      filas(cierre.menu.slice(0, 20).map(plan => `<li>${esc(niceDate(plan.date, { day: 'numeric', month: 'short' }))} · ${esc(etiquetaDeMomento(plan.slot))}: ${esc(plan.title || 'Sin nombre')}</li>`))
+      + (cierre.menu.length > 20 ? `<p class="small muted">Y ${cierre.menu.length - 20} más.</p>` : '')) : ''}
+
+    ${(cierre.sinCantidades || []).length ? seccion('Preparaciones sin cantidades',
+      `<p class="small muted">No se pudieron calcular y no sumaron nada a la lista.</p>
+       ${filas([...new Set(cierre.sinCantidades.map(item => item.title))].map(titulo => `<li>${esc(titulo)}</li>`))}`) : ''}
+  </div>`;
 }
 
 /* ── Respaldo ──────────────────────────────────────────────────────────── */
@@ -566,6 +797,12 @@ function renderAjustes(ctx) {
       ${button('Detalle técnico de este aparato', 'open-diagnostico', 'btn-quiet btn-small')}
     </div>
     <div class="card">
+      <h3>Organización de compra</h3>
+      <p class="muted small">Cada cuánto se hace la compra principal, y cómo se reparte el mes cuando se compra dos veces.</p>
+      <p class="small">Ahora mismo: <strong>${esc(frecuenciaDe(state, hoy.slice(0, 7)) === 'quincenal' ? 'quincenal — dos compras al mes' : 'mensual — una compra al mes')}</strong>.</p>
+      <div class="inline">${button('Frecuencia de compra', 'navigate', 'btn-secondary btn-small', 'data-page="organizacion"')}</div>
+    </div>
+    <div class="card">
       <h3>Las personas de tu hogar</h3>
       <p class="muted small">Quién vive aquí, qué es de la casa cada quien y qué alimentos debe evitar. Desde aquí se añade gente, se corrige y se da de baja a quien ya no vive contigo.</p>
       <p class="small">${personasActivas(state).length
@@ -579,10 +816,107 @@ function renderAjustes(ctx) {
       <div class="inline">${button('Ver el recorrido', 'open-tour', 'btn-secondary btn-small')}${button('Organizar mi casa otra vez', 'setup-open', 'btn-quiet btn-small')}</div>
     </div>
     <div class="card">
+      <h3>Funciones avanzadas</h3>
+      <p class="muted small">Medidas y equivalencias, unir dos alimentos que son el mismo, corregir existencias a mano. Están aquí y no en la lista de Más porque una casa las abre una vez cada muchos meses —y cuando las abre, las necesita enteras.</p>
+      ${button('Abrir funciones avanzadas', 'navigate', 'btn-secondary btn-small', 'data-page="avanzado"')}
+    </div>
+    <div class="card">
       <h3>Privacidad y condiciones</h3>
       <p class="muted small">Qué se guarda, dónde, y qué no sale de aquí. Está dentro de la app a propósito: se puede leer sin conexión y sin abrir el navegador.</p>
       ${button('Leerlo', 'navigate', 'btn-secondary btn-small', 'data-page="legal"')}
     </div>`;
+}
+
+/* ── Organización de compra ────────────────────────────────────────────────
+
+   La frecuencia no es un interruptor: es una lista de tramos con fecha de
+   vigencia. Cambiarla hoy no puede reescribir lo que pasó en marzo —si en marzo
+   se compró una vez al mes, marzo se compró una vez al mes— así que lo único
+   que se puede elegir es desde qué mes de aquí en adelante entra en vigencia, y
+   lo que se recomienda es el mes siguiente: cambiarla a mitad de mes deja el
+   mes en curso partido por la mitad. */
+
+function renderOrganizacion(ctx) {
+  const { state, ui } = ctx;
+  const mesActual = hoy.slice(0, 7);
+  const actual = frecuenciaDe(state, mesActual);
+  const historial = historialDeFrecuencia(state);
+  const periodos = periodosDelMes(state, mesActual);
+  const quincenal = actual === 'quincenal';
+
+  return `${volver('Organización de compra')}
+    <p class="pantalla-intro">Cada cuánto se hace la compra principal de la casa. De esto salen los períodos que ves en la pantalla de la compra.</p>
+
+    <div class="card">
+      <h3>Frecuencia de compra</h3>
+      <p class="small"><strong>${quincenal ? 'Quincenal' : 'Mensual'}</strong> — ${quincenal ? 'dos compras al mes' : 'una compra al mes'} en ${esc(monthName(mesActual))}.</p>
+      <p class="small muted">Este mes se parte así: ${periodos.map(periodo => `${esc(periodo.etiqueta)} (${periodo.dias} días)`).join(' · ')}.</p>
+
+      ${historial.length ? `<div class="section-head"><h3 class="plan-sub">Desde cuándo</h3></div>
+        <div class="organizacion-historial">${historial.map((fila, indice) => {
+          const siguiente = historial[indice + 1];
+          const hasta = siguiente ? ` hasta ${esc(monthName(shiftMonth(siguiente.desde, -1)))}` : '';
+          return `<div class="list-row"><div class="list-row-main">
+            <div class="list-row-title">${fila.tipo === 'quincenal' ? 'Quincenal' : 'Mensual'}</div>
+            <div class="list-row-sub">Desde ${esc(monthName(fila.desde))}${hasta}</div>
+          </div>${fila.desde > mesActual ? '<span class="pill warm">Aún no empieza</span>' : ''}</div>`;
+        }).join('')}</div>` : '<p class="small muted">Nunca se ha cambiado: la app viene con la compra mensual.</p>'}
+
+      ${ui.mas.cambiandoFrecuencia ? formularioDeFrecuencia(ctx, actual, mesActual) : `<div class="inline" style="margin-top:14px">${button('Cambiar la frecuencia', 'frecuencia-abrir', 'btn-secondary')}</div>`}
+      <p class="tiny muted">Cambiarla no toca ninguna compra, revisión ni resultado de los meses anteriores: cada mes se queda con la frecuencia que tenía cuando se compró.</p>
+    </div>
+
+    ${quincenal ? bloqueDeReparto(ctx) : ''}`;
+}
+
+function formularioDeFrecuencia(ctx, actual, mesActual) {
+  const { ui } = ctx;
+  const recomendado = shiftMonth(mesActual, 1);
+  const elegida = ui.mas.frecuenciaNueva || (actual === 'quincenal' ? 'mensual' : 'quincenal');
+  const desde = ui.mas.frecuenciaDesde || recomendado;
+  // Solo de aquí en adelante. Hacia atrás no se ofrece porque cambiaría meses
+  // que ya se compraron, y eso es justamente lo que no puede pasar.
+  const meses = [mesActual, ...Array.from({ length: 5 }, (unused, i) => shiftMonth(mesActual, i + 1))];
+  const opcion = (id, titulo, detalle) => `<button type="button" class="setup-opcion ${elegida === id ? 'activa' : ''}"
+      data-action="frecuencia-tipo" data-frecuencia="${id}" aria-pressed="${elegida === id}">
+      <strong>${esc(titulo)}</strong><small>${esc(detalle)}</small></button>`;
+
+  return `<form data-form="frecuencia" class="stack organizacion-form">
+    <div class="field"><span>¿Cada cuánto hacen la compra principal en tu hogar?</span>
+      <div class="setup-opciones">
+        ${opcion('quincenal', 'Quincenal', 'Del 1 al 15 y del 16 al último día del mes.')}
+        ${opcion('mensual', 'Mensual', 'Una sola compra para el mes completo.')}
+      </div>
+      <input type="hidden" name="tipo" value="${esc(elegida)}">
+    </div>
+    <label class="field"><span>¿Desde qué mes entra en vigencia?</span>
+      <select name="desde">${options(meses.map(mes => [mes, `${monthName(mes)}${mes === recomendado ? ' (recomendado)' : ''}${mes === mesActual ? ' — este mes, ya empezado' : ''}`]), desde)}</select>
+      <small>Lo anterior a ese mes se queda como está. No se puede cambiar hacia atrás.</small>
+    </label>
+    <div class="inline">
+      <button type="submit" class="btn btn-primary">Guardar el cambio</button>
+      ${button('Cancelar', 'frecuencia-cerrar', 'btn-quiet')}
+    </div>
+  </form>`;
+}
+
+// El reparto entre las dos quincenas, el mismo que enseña el asistente. Aquí
+// vive el resto del año, que es cuando de verdad se corrige.
+function bloqueDeReparto(ctx) {
+  const { state } = ctx;
+  const filas = habitualLines(state)
+    .map(linea => ({ linea, item: product(state, linea.productId) }))
+    .filter(fila => fila.item && fila.linea.quantity !== null)
+    .sort((a, b) => a.item.name.localeCompare(b.item.name));
+  if (!filas.length) {
+    return `<div class="card"><h3>Cómo se reparte el mes</h3>
+      <p class="muted small">Cuando escribas cuánto se compra al mes de cada alimento, aquí podrás decir cuánto de eso entra en la primera quincena.</p></div>`;
+  }
+  return `<div class="card">
+    <h3>Cómo se reparte el mes</h3>
+    <p class="muted small">La cantidad del mes no cambia: esto solo dice cuánto de ella entra en la primera compra. Lo que no toques se reparte a la mitad.</p>
+    <div class="setup-reparto">${filas.map(({ linea, item }) => filaDeReparto(ctx, linea, item)).join('')}</div>
+  </div>`;
 }
 
 /* ── Privacidad y condiciones ──────────────────────────────────────────── */
@@ -715,6 +1049,7 @@ export function aplicarDictado(ctx, texto) {
 }
 
 export const MAS_ACTIONS = {
+  'cierre-ver': (el, ctx) => { ctx.ui.mas.cierreAbierto = ctx.ui.mas.cierreAbierto === el.dataset.id ? '' : el.dataset.id; ctx.render(); },
   'revision-solo-faltan': (el, ctx) => { ctx.ui.mas.revisionSoloFaltan = !ctx.ui.mas.revisionSoloFaltan; ctx.render(); },
   // Dictar ya no vive aquí: lo lleva `voz.js`, el mismo panel que usan el
   // asistente, la configuración inicial y la entrada rápida. Cuando la persona
@@ -731,6 +1066,30 @@ export const MAS_ACTIONS = {
     // pide permisos, así que se lanza y se vuelve a pintar cuando conteste: es
     // la diferencia entre decir «no se sabe» y decir la verdad.
     comprobarDictado().then(() => { if (ctx.ui.modal?.type === 'diagnostico') ctx.render(); }).catch(() => {});
+  },
+  'receta-plegar': (el, ctx) => {
+    const plegadas = new Set(ctx.ui.mas.recetasPlegadas || []);
+    const momento = el.dataset.momento;
+    if (plegadas.has(momento)) plegadas.delete(momento); else plegadas.add(momento);
+    ctx.ui.mas.recetasPlegadas = [...plegadas];
+    ctx.render();
+  },
+  'receta-limpiar': (el, ctx) => { ctx.ui.mas.recetaFiltro = ''; ctx.render(); },
+  'frecuencia-abrir': (el, ctx) => {
+    Object.assign(ctx.ui.mas, { cambiandoFrecuencia: true, frecuenciaNueva: '', frecuenciaDesde: '' });
+    ctx.render();
+  },
+  'frecuencia-cerrar': (el, ctx) => {
+    Object.assign(ctx.ui.mas, { cambiandoFrecuencia: false, frecuenciaNueva: '', frecuenciaDesde: '' });
+    ctx.render();
+  },
+  'frecuencia-tipo': (el, ctx) => {
+    if (!FRECUENCIAS.includes(el.dataset.frecuencia)) return;
+    // Lo que ya estuviera elegido en el desplegable no se pierde al cambiar de
+    // botón: se lee de la pantalla antes de redibujar.
+    ctx.ui.mas.frecuenciaDesde = document.querySelector('[data-form="frecuencia"] [name="desde"]')?.value || ctx.ui.mas.frecuenciaDesde;
+    ctx.ui.mas.frecuenciaNueva = el.dataset.frecuencia;
+    ctx.render();
   },
   'archive-product': (el, ctx) => { archiveProduct(ctx.state, el.dataset.id); ctx.closeModal(); ctx.commit('Alimento archivado. Su historial se conserva.'); },
   'restore-product': (el, ctx) => { restoreProduct(ctx.state, el.dataset.id); ctx.commit('Alimento disponible otra vez.'); }

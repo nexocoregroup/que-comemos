@@ -48,21 +48,51 @@
 .setup-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .setup-progress { margin-bottom: 20px; }
 
-/* ── Paso 1: buscar, filtrar y marcar ──────────────────────────────────── */
+/* ── Paso 1: la canasta base, rubro por rubro ──────────────────────────────
 
-.setup-buscador { display: flex; align-items: flex-end; gap: 8px; margin: 16px 0 12px; }
+   Aquí había una tira de catorce categorías que se arrastraba de lado. Se ha
+   ido entera, y con ella el problema que tenía: en un teléfono las últimas
+   categorías quedaban fuera de la pantalla, así que no se visitaban.
+
+   Ahora son ocho pantallas seguidas y lo único que cambia entre una y otra es
+   la lista de en medio. El título, la barra, el buscador y los dos botones
+   están siempre en el mismo píxel, que es lo que permite ir a ciegas: el pulgar
+   aprende dónde está «Continuar» y ya no lo busca más. */
+
+.setup-buscador { display: flex; align-items: flex-end; gap: 8px; margin: 14px 0 12px; }
 .setup-search { flex: 1 1 auto; min-width: 0; margin: 0; }
 
-/* Las categorías son una tira que se desplaza sola en horizontal. Es el único
-   sitio donde el desplazamiento lateral es correcto —son un filtro, no
-   contenido— y aun así se recorre con el teclado. */
-.setup-cats { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 12px; scrollbar-width: thin; }
-.setup-cat { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; padding: 8px 13px; min-height: 44px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: #594d45; font: inherit; font-size: .81rem; cursor: pointer; white-space: nowrap; }
-.setup-cat.active { background: var(--clay); border-color: var(--clay); color: #fff; font-weight: 700; }
-.setup-cat:focus-visible { outline: 3px solid var(--clay); outline-offset: 2px; }
-.setup-cat-count:not(:empty) { display: grid; place-items: center; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 999px; background: var(--sage); color: #fff; font-size: .68rem; font-weight: 800; }
-.setup-cat.active .setup-cat-count:not(:empty) { background: #fff; color: var(--clay-dark); }
-.setup-bulk { margin-bottom: 12px; }
+.setup-rubro {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin: 0 0 10px; font-size: .95rem; color: var(--ink-muted);
+}
+.setup-rubro strong { color: var(--ink); font-size: 1.06rem; letter-spacing: -.02em; }
+.setup-rubro-emoji { font-size: 1.25rem; line-height: 1; }
+.setup-rubro-progreso { margin-bottom: 4px; }
+
+/* Lo que escribió la propia casa, separado de lo que venía en la lista: quien
+   acaba de añadir «Fresa» tiene que verla aparecer, y aparece justo aquí,
+   encima del botón donde estaba su dedo. */
+.setup-tuyos-titulo {
+  margin: 16px 0 6px; font-size: .74rem; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .1em; color: var(--ink-muted);
+}
+.setup-lista.setup-tuyos { max-height: none; overflow: visible; }
+
+/* La ventanita de añadir. No tapa la pantalla: se abre en el sitio del enlace,
+   dentro de la categoría, y al cerrarse deja todo exactamente donde estaba. */
+.setup-ventanita {
+  display: grid; gap: 10px; text-align: left;
+  border: 1px solid var(--clay-line); border-radius: 14px;
+  background: var(--clay-light); padding: 14px;
+  box-shadow: 0 4px 14px #3d2d1d10;
+}
+.setup-ventanita-titulo { margin: 0; font-weight: 800; color: var(--clay-dark); font-size: .95rem; }
+.setup-ventanita .field { margin: 0; }
+.setup-ventanita input { background: var(--surface); }
+.setup-ventanita-acciones { gap: 8px; }
+.setup-ventanita p:last-child { margin: 0; }
+.setup-error { margin: 0; color: #9d3a2e; font-size: .84rem; font-weight: 700; line-height: 1.4; }
 
 .setup-lista { display: flex; flex-wrap: wrap; gap: 8px; max-height: 48vh; overflow-y: auto; padding: 2px; }
 /* Dos renglones dentro de la ficha —nombre y en qué se cuenta—, así que aquí la
@@ -147,3 +177,91 @@
 @media (prefers-reduced-motion: reduce) {
   .setup-progress span { transition: none; }
 }
+
+/* ── Elegir entre dos cosas ────────────────────────────────────────────────
+
+   Dos tarjetas grandes en vez de dos radios diminutos. La pregunta —cada cuánto
+   se compra— se contesta una vez en la vida y se contesta con el pulgar. */
+
+.setup-opciones { display: grid; gap: 10px; margin: 6px 0 4px; }
+.setup-opcion {
+  display: grid; gap: 4px; text-align: left;
+  border: 1px solid var(--line); border-radius: 15px; padding: 16px;
+  background: var(--surface); color: var(--ink); min-height: 74px;
+}
+.setup-opcion strong { font-size: 1.04rem; letter-spacing: -.02em; }
+.setup-opcion small { color: var(--ink-muted); font-size: .8rem; line-height: 1.4; }
+.setup-opcion:hover { border-color: var(--clay-line); }
+.setup-opcion.activa { border-color: var(--clay); background: var(--clay-light); box-shadow: inset 0 0 0 1px var(--clay); }
+.setup-opcion.activa strong { color: var(--clay-dark); }
+
+/* ── El reparto entre las dos quincenas ────────────────────────────────────
+
+   Una fila por alimento, y en cada una lo mismo: cuánto al mes, cuánto en la
+   primera, cuánto queda para la segunda. El número de la segunda no se escribe
+   nunca: es el resto, y enseñarlo como resultado —y no como un campo más— es lo
+   que deja claro que las dos partes suman el mes y no se duplica nada. */
+
+.setup-reparto { display: grid; gap: 4px; }
+.setup-reparto-fila {
+  display: grid; gap: 10px; align-items: center;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr);
+  padding: 13px 0; border-top: 1px solid var(--line);
+}
+.setup-reparto-fila:first-child { border-top: 0; }
+.setup-reparto-nombre { display: grid; gap: 2px; min-width: 0; }
+.setup-reparto-nombre strong { letter-spacing: -.02em; overflow-wrap: anywhere; }
+.setup-reparto-partes { display: flex; align-items: flex-end; gap: 10px; min-width: 0; }
+.setup-reparto-partes .field { margin: 0; min-width: 0; }
+.setup-reparto-partes input { max-width: 96px; font-variant-numeric: tabular-nums; }
+.setup-reparto-segunda { font-size: .82rem; color: var(--ink-muted); padding-bottom: 11px; white-space: nowrap; }
+.setup-reparto-segunda strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+.setup-reparto-modos { display: flex; gap: 6px; flex-wrap: wrap; }
+.setup-reparto-modo {
+  border: 1px solid var(--line); border-radius: 100px; background: var(--surface);
+  color: var(--ink-muted); padding: 7px 12px; font-size: .78rem; font-weight: 700; min-height: 38px;
+}
+.setup-reparto-modo:hover { border-color: var(--clay-line); }
+.setup-reparto-modo.activo { background: var(--clay); border-color: var(--clay); color: #fff; }
+.setup-reparto-nota { grid-column: 1 / -1; margin: 0; }
+
+/* ── Organización de compra ────────────────────────────────────────────── */
+
+.organizacion-historial { margin-top: 4px; }
+.organizacion-form { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 16px; }
+.compra-quincena { margin: 8px 0 14px; }
+
+@media (max-width: 700px) {
+  .setup-reparto-fila { grid-template-columns: 1fr; gap: 8px; }
+  .setup-reparto-partes { align-items: center; }
+  .setup-reparto-segunda { padding-bottom: 0; }
+}
+
+/* ── Quiénes comen aquí, y qué se cocina de costumbre ──────────────────────
+
+   Los dos pasos que faltaban. El primero abre la ficha de siempre —la de
+   `hogar.js`— para cada persona; el segundo escribe preparaciones con lo
+   mínimo: nombre y momentos. Ninguno de los dos estilos inventa un componente
+   nuevo: las filas son `.list-row` y los chips de restricción los pone
+   `hogar.css`, que es donde viven. */
+
+.setup-camino {
+  margin: 0 0 14px;
+  font-size: .86rem;
+  line-height: 1.6;
+  color: var(--ink-muted);
+  max-width: 52ch;
+}
+.setup-personas { padding: 4px 14px; }
+.setup-persona .list-row-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.setup-persona .restricciones { margin-top: 6px; }
+.setup-persona.pendiente .list-row-title { color: var(--ink-muted); }
+.setup-persona.pendiente .list-row-sub { font-style: italic; }
+
+.setup-preparaciones-anadir { display: flex; margin-bottom: 18px; }
+.setup-preparaciones-anadir .btn { width: 100%; }
+
+.setup-repeticiones { padding: 4px 14px; }
+.setup-repeticiones .list-row-sub + .list-row-sub { margin-top: 2px; }
+.setup-resumen-mes { margin-top: 14px; }
+.setup-resumen-mes p { margin: 8px 0 0; }
