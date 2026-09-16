@@ -12,8 +12,13 @@ import { resolve } from 'node:path';
 // calendario. El asistente pedía el menú antes de que existiera con qué
 // llenarlo.
 //
-// Ahora son ocho pasos: el primero pregunta quiénes comen aquí y qué debe
+// Ahora son siete pasos: el primero pregunta quiénes comen aquí y qué debe
 // evitar cada quien, y el penúltimo escribe las comidas que se repiten.
+//
+// Fueron ocho hasta que se quitó el de «dictar varios de corrido». Ese paso
+// tenía su propia implementación del dictado, en paralelo a la que ya usan las
+// otras pantallas, y con la ventanita de cada categoría había dejado de
+// compensar mantener dos.
 
 // El asistente lee la pantalla para no perder lo que se está escribiendo. Aquí
 // no hay pantalla, así que se finge una que puede devolver lo que haga falta.
@@ -67,10 +72,10 @@ function almacenDeMentira() {
   };
 }
 
-/* ── Ocho pasos ────────────────────────────────────────────────────────── */
+/* ── Siete pasos ───────────────────────────────────────────────────────── */
 
-test('el asistente son ocho pasos, y los dos nuevos están en su sitio', () => {
-  assert.equal(PASOS.length, 8);
+test('el asistente son siete pasos, y los dos nuevos están en su sitio', () => {
+  assert.equal(PASOS.length, 7);
   const orden = PASOS.map(paso => paso.id);
   assert.equal(orden[0], PASO.personas, 'quiénes comen aquí va primero: de eso depende todo lo demás');
   assert.equal(orden[orden.length - 1], PASO.mes);
@@ -79,16 +84,16 @@ test('el asistente son ocho pasos, y los dos nuevos están en su sitio', () => {
   assert.ok(orden.indexOf(PASO.preparaciones) < orden.indexOf(PASO.mes));
 });
 
-test('quien compra una vez al mes ve siete, porque el reparto no le pregunta nada', () => {
+test('quien compra una vez al mes ve seis, porque el reparto no le pregunta nada', () => {
   const mensual = { ...emptySetup(), frecuencia: 'mensual' };
   const quincenal = { ...emptySetup(), frecuencia: 'quincenal' };
-  assert.equal(pasosDe(quincenal).length, 8);
-  assert.equal(pasosDe(mensual).length, 7);
+  assert.equal(pasosDe(quincenal).length, 7);
+  assert.equal(pasosDe(mensual).length, 6);
   assert.ok(pasosDe(mensual).some(paso => paso.id === PASO.personas));
   assert.ok(pasosDe(mensual).some(paso => paso.id === PASO.preparaciones));
 });
 
-test('los ocho pasos se dibujan, con la casa vacía y con la casa llena', () => {
+test('los siete pasos se dibujan, con la casa vacía y con la casa llena', () => {
   const llena = createEmptyState();
   const arroz = addProduct(llena, { name: 'Arroz', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
   upsertPerson(llena, { name: 'Sofía', kind: 'nino', restricciones: [{ productId: null, texto: 'Maní', motivo: 'alergia' }] });

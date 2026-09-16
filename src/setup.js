@@ -32,9 +32,8 @@ import {
 // preguntar si un alimento es alergia o manía.
 import { claseDe, resumenDeRestricciones } from './hogar.js';
 import { datesForRule, describeRule, monthProgress, routinesFor } from './routines.js';
-import { normalizeName, parseProductText } from './text-parse.js';
-import { cancelarDictado, capacidad } from './device.js';
-import { panelDeVoz } from './voz.js';
+import { normalizeName } from './text-parse.js';
+import { cancelarDictado } from './device.js';
 import { button, esc, monthName, notice, options } from './ui-kit.js';
 
 // Los pasos se llaman por su nombre y no por su número. Los números cambian
@@ -42,14 +41,13 @@ import { button, esc, monthName, notice, options } from './ui-kit.js';
 // archivo es la forma más rápida de que al insertar un paso se rompa otro sin
 // que salte ninguna prueba.
 export const PASO = {
-  personas: 1, alimentos: 2, dictar: 3, compra: 4,
-  cantidades: 5, reparto: 6, preparaciones: 7, mes: 8
+  personas: 1, alimentos: 2, compra: 3,
+  cantidades: 4, reparto: 5, preparaciones: 6, mes: 7
 };
 
 export const PASOS = [
   { id: PASO.personas, titulo: '¿Quiénes comen en tu casa?', corto: 'Personas' },
   { id: PASO.alimentos, titulo: 'La canasta base de tu hogar', corto: 'Alimentos' },
-  { id: PASO.dictar, titulo: '¿Falta algo por dictar o escribir de corrido?', corto: 'Dictar' },
   { id: PASO.compra, titulo: '¿Cada cuánto hacen la compra principal en tu hogar?', corto: 'Compra' },
   { id: PASO.cantidades, titulo: '¿Cuánto se compra normalmente al mes?', corto: 'Cantidades' },
   { id: PASO.reparto, titulo: 'Cómo se reparte entre las dos quincenas', corto: 'Reparto' },
@@ -78,8 +76,6 @@ export const emptySetup = () => ({
   elegidos: [],        // todos los nombres marcados, del catálogo o escritos
   propios: [],         // [{ nombre, unidad, categoria, origen }] los que no estaban
   cantidades: {},      // nombre → { cantidad, unidad, yaGuardada }
-  texto: '',           // lo que se lleva escrito o dictado en el paso 2
-  filas: null,         // las filas separadas del texto, antes de aceptarlas
   busqueda: '',
   anadiendo: false,    // ¿está abierta la ventanita de «añadir un alimento»?
   nombreNuevo: '',
@@ -120,12 +116,17 @@ export function avanceGuardado(state) {
   const setup = { ...emptySetup(), ...guardado };
   // Un respaldo traído a mano puede venir con cualquier cosa escrita aquí. Se
   // recorta a lo que las pantallas saben pintar, en vez de confiar.
-  setup.paso = Math.min(PASOS.length, Math.max(0, Number(setup.paso) || 0));
+  // El 0 es la portada y no está en `PASOS`. De ahí en adelante, un número que
+  // no corresponda a ningún paso —porque se quitó uno, como pasó con el de
+  // dictar— cae al último que sí existe y no a una pantalla en blanco.
+  const guardadoEnPaso = Math.max(0, Number(setup.paso) || 0);
+  setup.paso = guardadoEnPaso === 0 || PASOS.some(paso => paso.id === guardadoEnPaso)
+    ? guardadoEnPaso
+    : Math.min(guardadoEnPaso, PASOS[PASOS.length - 1].id);
   setup.rubro = Math.min(RUBROS.length - 1, Math.max(0, Number(setup.rubro) || 0));
   setup.elegidos = (Array.isArray(setup.elegidos) ? setup.elegidos : []).map(String);
   setup.propios = (Array.isArray(setup.propios) ? setup.propios : []).filter(item => item && item.nombre);
   setup.cantidades = setup.cantidades && typeof setup.cantidades === 'object' ? setup.cantidades : {};
-  setup.filas = null;
   setup.anadiendo = false;
   setup.frecuencia = FRECUENCIAS.includes(setup.frecuencia) ? setup.frecuencia : null;
   setup.personas = Number(setup.personas) > 0 ? Math.min(20, Math.round(Number(setup.personas))) : null;
@@ -275,67 +276,6 @@ function ventanitaDeAnadir(setup, rubro) {
     </div>
     <p class="tiny muted">Solo el nombre. Queda marcado en ${esc(rubro.titulo.toLocaleLowerCase('es'))} y se mide en ${esc(ETIQUETA_UNIDAD[rubro.unidad] || rubro.unidad)} mientras no digas otra cosa.</p>
   </form>`;
-}
-
-/* ── Paso 2: lo propio de cada casa ────────────────────────────────────── */
-
-function pasoPropios(setup, ctx) {
-  const motor = capacidad('dictar');
-  return `<p class="pantalla-intro">Este paso es opcional. Si te resulta más rápido decirlos de corrido que buscarlos uno por uno, dilos o escríbelos aquí; si ya marcaste todo lo tuyo, pasa de largo.</p>
-
-    <form data-form="setup-propios" class="stack">
-      <label class="field"><span class="sr-only">Alimentos que faltan</span>
-        <textarea name="texto" rows="3" data-setup-texto placeholder="Tortillas de maíz, queso gouda, jamón de pavo y yogurt de fresa." aria-label="Alimentos que faltan" autocapitalize="sentences" spellcheck="true" enterkeyhint="done">${esc(setup.texto)}</textarea>
-      </label>
-
-      ${bloqueDictado(ctx, motor)}
-      ${panelDeVoz(ctx, 'setup')}
-
-      <div class="inline">${button('Separar en filas', 'setup-separar', 'btn-secondary')}</div>
-
-      ${setup.filas === null ? '' : setup.filas.length
-        ? `<p class="plan-sub">Revísalas antes de seguir</p>
-           <div class="setup-propios" data-setup-propios>${setup.filas.map(fila => filaPropia(fila)).join('')}</div>
-           <div class="inline" style="margin-top:12px">${button('+ Añadir uno más', 'setup-anadir-fila', 'btn-quiet btn-small')}</div>`
-        : notice('No se entendió ningún alimento.', 'Escríbelos separados por comas, por ejemplo: «tortillas de maíz, queso gouda, jamón de pavo».')}
-
-      <div class="modal-actions setup-actions">
-        ${button('Atrás', 'setup-atras', 'btn-quiet')}
-        <span class="tour-spacer"></span>
-        <button type="submit" class="btn btn-primary">Continuar</button>
-      </div>
-    </form>`;
-}
-
-// El botón abre el panel de dictado; no abre el micrófono. Todo lo que pasa
-// después —los estados, parar, cancelar, reintentar, escribir en su lugar— lo
-// lleva `voz.js`, que es el mismo en las cuatro pantallas desde donde se dicta.
-function bloqueDictado(ctx, motor) {
-  if (!motor.ok) return `<p class="hint">Este aparato no trae dictado dentro de la aplicación. Escríbelos en el cuadro separados por comas, o toca el 🎤 de tu teclado.</p>`;
-  return `<div class="setup-dictado">
-    <button type="button" class="btn btn-secondary setup-microfono" data-action="voz-abrir" data-destino="setup"
-      aria-label="Dictar o escribir los alimentos que faltan">
-      <span aria-hidden="true">🎤</span><span>Dictar</span>
-    </button>
-    <p class="tiny muted">Dilos de corrido, separados como los dirías en voz alta. Aquí solo hace falta el nombre: cuánto se consume se pregunta en el paso siguiente.</p>
-  </div>`;
-}
-
-// Nombre y, cuando de verdad haga falta, unidad. Si el alimento ya existe en el
-// catálogo o en la casa, su unidad ya está decidida y preguntarla otra vez sería
-// pedir un dato que la app tiene: se enseña y se manda escondida.
-function filaPropia(fila) {
-  const conocido = fila.reconocido || '';
-  return `<div class="item-row setup-propio-row" data-setup-propio>
-    <label class="field"><span class="sr-only">Nombre del alimento</span>
-      <input name="nombre" value="${esc(fila.nombre)}" placeholder="Ej. Queso gouda" autocomplete="off" aria-label="Nombre del alimento"></label>
-    ${conocido
-      ? `<span class="setup-unidad-fija">${esc(ETIQUETA_UNIDAD[fila.unidad] || fila.unidad)}<input type="hidden" name="unidad" value="${esc(fila.unidad)}"></span>`
-      : `<label class="field"><span class="sr-only">Unidad habitual</span><select name="unidad" aria-label="Unidad habitual de ${esc(fila.nombre)}">${unidades(fila.unidad)}</select></label>`}
-    <button type="button" class="btn btn-quiet remove-item" data-action="setup-quitar-fila" aria-label="Quitar ${esc(fila.nombre)}">✕</button>
-    ${conocido ? `<p class="tiny muted setup-fila-nota">Ya está en la lista como «${esc(conocido)}»: se usará ese, no se duplica.</p>` : ''}
-    ${fila.parecido ? `<p class="tiny setup-fila-nota">Se parece a «${esc(fila.parecido)}», que ya tienes. <button type="button" class="enlace" data-action="setup-usar-parecido" data-nombre="${esc(fila.parecido)}">Es el mismo: usar «${esc(fila.parecido)}»</button></p>` : ''}
-  </div>`;
 }
 
 /* ── Paso 3: cuánto al mes ─────────────────────────────────────────────── */
@@ -702,7 +642,6 @@ export function renderSetup(ctx) {
 
   const cuerpo = setup.paso === PASO.personas ? pasoPersonas(ctx, setup)
     : setup.paso === PASO.alimentos ? pantallaDeRubro(setup)
-    : setup.paso === PASO.dictar ? pasoPropios(setup, ctx)
     : setup.paso === PASO.compra ? pasoFrecuencia(ctx, setup)
     : setup.paso === PASO.cantidades ? pasoCantidades(setup)
     : setup.paso === PASO.reparto ? pasoReparto(ctx, setup)
@@ -787,19 +726,9 @@ const leerFilas = (selector, campos) => [...document.querySelectorAll(selector)]
     ['categoria', fila.dataset.categoria || '']
   ]));
 
-// Lo escrito en el paso 2 y lo escrito en el paso 3 vive en el DOM mientras se
-// edita. Cualquier cosa que redibuje tiene que pasar antes por aquí, o se
-// pierde el párrafo que alguien acaba de dictar o la columna de cantidades que
-// acaba de teclear.
-function recordarTexto(ctx) {
-  const setup = ctx.ui.setup;
-  const cuadro = document.querySelector('[data-setup-texto]');
-  if (cuadro) setup.texto = cuadro.value;
-  if (setup.filas) {
-    const escritas = leerFilas('[data-setup-propio]', ['nombre', 'unidad']);
-    if (escritas.length) setup.filas = escritas.map((fila, indice) => ({ ...setup.filas[indice], nombre: fila.nombre, unidad: unidadValida(fila.unidad) || 'unidad' })).filter(fila => fila.nombre.trim());
-  }
-}
+// Las cantidades del paso 3 viven en el DOM mientras se teclean. Cualquier cosa
+// que redibuje tiene que pasar antes por aquí, o se pierde la columna que
+// alguien acaba de escribir.
 
 // El paso 3 se guarda igual por las dos salidas: lo que hay escrito en la
 // pantalla, con las cantidades vacías como pendientes.
@@ -872,7 +801,6 @@ export function aplicarReparto(ctx, campo) {
 function recordarLoEscrito(ctx) {
   const paso = ctx.ui.setup?.paso;
   if (paso === PASO.personas) recordarPersonas(ctx);
-  if (paso === PASO.dictar) recordarTexto(ctx);
   if (paso === PASO.cantidades) recordarCantidades(ctx);
 }
 
@@ -1031,7 +959,7 @@ export const SETUP_ACTIONS = {
   'setup-rubro-seguir': (el, ctx) => {
     const setup = ctx.ui.setup;
     Object.assign(setup, { busqueda: '', anadiendo: false, nombreNuevo: '', errorNuevo: '' });
-    if (setup.rubro >= RUBROS.length - 1) setup.paso = PASO.dictar;
+    if (setup.rubro >= RUBROS.length - 1) setup.paso = PASO.compra;
     else setup.rubro += 1;
     guardarAvance(ctx);
     ctx.render();
@@ -1064,27 +992,6 @@ export const SETUP_ACTIONS = {
     guardarAvance(ctx);
     pintarFicha(el, el.checked);
     refrescarContadores(ctx);
-  },
-  // Paso 2
-  'setup-separar': (el, ctx) => {
-    recordarTexto(ctx);
-    ctx.ui.setup.filas = separarAlimentos(ctx.state, ctx.ui.setup);
-    ctx.render();
-  },
-  'setup-anadir-fila': (el, ctx) => {
-    const lista = document.querySelector('[data-setup-propios]');
-    if (!lista) return;
-    lista.insertAdjacentHTML('beforeend', filaPropia({ nombre: '', unidad: 'unidad' }));
-    lista.lastElementChild?.querySelector('input')?.focus();
-  },
-  'setup-quitar-fila': el => el.closest('[data-setup-propio]')?.remove(),
-  'setup-usar-parecido': el => {
-    const fila = el.closest('[data-setup-propio]');
-    const campo = fila?.querySelector('[name="nombre"]');
-    if (campo) campo.value = el.dataset.nombre;
-    // La nota ya no dice nada útil una vez aceptada: se quita sin redibujar,
-    // que es lo que mantiene quieto el resto de la pantalla.
-    el.closest('.setup-fila-nota')?.remove();
   },
   // Dictar ya no vive aquí: lo lleva `voz.js`, igual que en las otras tres
   // pantallas desde donde se puede dictar. El botón manda `voz-abrir`.
@@ -1161,46 +1068,6 @@ export const SETUP_ACTIONS = {
   }
 };
 
-// `parseProductText` parte por comas y puntos, y por «y» solo cuando alguno de
-// los dos lados trae cantidad («2 panes y atún»): es lo correcto al dictar una
-// compra, porque «arroz y habichuelas» es el nombre de un plato. Aquí no se
-// dictan compras sino nombres sueltos, y sin un solo número en todo el texto la
-// «y» solo puede estar separando alimentos. En ese caso —y solo en ese— se
-// convierte en coma antes de partir, de modo que el separador sigue siendo el
-// de text-parse.js y no hay un segundo separador que mantener.
-const prepararTexto = texto => (/\d/.test(texto) ? texto : String(texto).replace(/\s+[ye]\s+/gi, ', '));
-
-function separarAlimentos(state, setup) {
-  const { lines } = parseProductText(prepararTexto(setup.texto || ''));
-  const yaElegidos = new Set(setup.elegidos.map(normalizeName));
-  const vistos = new Set();
-  const filas = [];
-  for (const linea of lines) {
-    const nombre = String(linea.name || '').trim();
-    if (nombre.length <= 1) continue;
-    const clave = normalizeName(nombre);
-    if (!clave || vistos.has(clave) || yaElegidos.has(clave)) continue;
-    vistos.add(clave);
-    const semilla = semillaPorNombre(nombre);
-    const existente = productByName(state, nombre);
-    // Lo que ya está en el catálogo dominicano no se escribe otra vez: se marca
-    // en el paso 1, que es donde vive, y aquí se dice para que se vea.
-    const reconocido = semilla?.name || existente?.name || '';
-    if (semilla) setup.elegidos = [...new Set([...setup.elegidos, semilla.name])];
-    const parecido = reconocido ? '' : parecidoA(state, nombre);
-    // La cantidad dictada de pasada no se tira: se guarda para el paso 3, que es
-    // donde se pregunta. Aquí no se enseña.
-    if (linea.quantity !== null) setup.cantidades[semilla?.name || nombre] = { cantidad: linea.quantity, unidad: unidadValida(linea.unit) || semilla?.controlUnit || 'unidad', yaGuardada: false };
-    filas.push({
-      nombre: semilla?.name || existente?.name || nombre,
-      unidad: unidadValida(linea.unit) || semilla?.controlUnit || existente?.controlUnit || 'unidad',
-      reconocido,
-      parecido
-    });
-  }
-  return filas;
-}
-
 /* ── Formularios ───────────────────────────────────────────────────────── */
 
 export const SETUP_FORMS = {
@@ -1256,50 +1123,6 @@ export const SETUP_FORMS = {
     if (yaMarcado) ctx.toast(`«${nombre}» ya estaba marcado.`);
     else if (donde && donde.id !== rubro.id) ctx.toast(`«${nombre}» ya estaba en ${donde.titulo}: queda marcado ahí.`);
     else ctx.toast(`«${nombre}» añadido a ${rubro.titulo} y marcado.`);
-  },
-
-  'setup-propios': (form, data, ctx) => {
-    const setup = ctx.ui.setup;
-    recordarTexto(ctx);
-    const escritas = leerFilas('[data-setup-propio]', ['nombre', 'unidad']).filter(fila => fila.nombre.trim());
-
-    // Continuar con el párrafo escrito y ninguna fila a la vista no puede tirar
-    // lo escrito ni colarlo sin mirar: se separa aquí mismo y la pantalla se
-    // queda enseñando las filas, que es lo que había que revisar.
-    if (!escritas.length && setup.texto.trim()) {
-      setup.filas = separarAlimentos(ctx.state, setup);
-      ctx.render();
-      ctx.toast(setup.filas.length ? 'Revisa las filas y vuelve a tocar Continuar.' : 'No se entendió ningún alimento en lo escrito.');
-      return;
-    }
-
-    soltarMicrofono(ctx);
-    const yaElegidos = new Set(setup.elegidos.map(normalizeName));
-    const vistos = new Set();
-    const propios = [];
-    for (const fila of escritas) {
-      const nombre = fila.nombre.trim();
-      const clave = normalizeName(nombre);
-      if (!clave || vistos.has(clave) || yaElegidos.has(clave)) continue;
-      vistos.add(clave);
-      const semilla = semillaPorNombre(nombre);
-      // Un alimento del catálogo escrito a mano no crea un duplicado: se marca
-      // en la lista de siempre, con su categoría y sus alias.
-      if (semilla) { setup.elegidos = [...new Set([...setup.elegidos, semilla.name])]; continue; }
-      // Lo dictado de corrido no dice de qué rubro es, y adivinarlo por el
-      // nombre sería inventar. Va al cajón de «Otros productos habituales», que
-      // es donde se puede encontrar, y se cambia desde la ficha del alimento.
-      propios.push({ nombre, unidad: unidadValida(fila.unidad) || 'unidad', categoria: 'otros', origen: 'texto' });
-      setup.elegidos = [...new Set([...setup.elegidos, nombre])];
-    }
-    // Lo escrito en visitas anteriores no se pierde: se suma sin repetir.
-    const previos = setup.propios.filter(item => !propios.some(nuevo => normalizeName(nuevo.nombre) === normalizeName(item.nombre)));
-    setup.propios = [...previos, ...propios];
-    setup.texto = '';
-    setup.filas = null;
-    setup.paso = PASO.compra;
-    guardarAvance(ctx);
-    ctx.render();
   },
 
   'setup-cantidades': (form, data, ctx) => {

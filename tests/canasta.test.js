@@ -178,7 +178,7 @@ test('se puede continuar sin marcar nada, los ocho rubros seguidos', () => {
     assert.equal(ctx.ui.setup.rubro, i);
     SETUP_ACTIONS['setup-rubro-seguir'](null, ctx);
   }
-  assert.equal(ctx.ui.setup.paso, PASO.dictar, 'el último rubro pasa al paso siguiente');
+  assert.equal(ctx.ui.setup.paso, PASO.compra, 'el último rubro pasa al paso siguiente');
   assert.deepEqual(ctx.ui.setup.elegidos, [], 'no se marcó nada y no pasó nada');
 });
 

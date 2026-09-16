@@ -492,7 +492,7 @@ test('cambiar de mes no deja abierto un tramo que ese mes no tiene', () => {
   assert.equal(ctx.ui.compra.tramo, 'mes');
 });
 
-test('los ocho pasos del asistente se dibujan sin huecos', () => {
+test('los siete pasos del asistente se dibujan sin huecos', () => {
   const { state } = casa();
   const ctx = contexto(state);
   ctx.ui.setup.frecuencia = 'quincenal';

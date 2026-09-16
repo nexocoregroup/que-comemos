@@ -114,14 +114,11 @@ const DESTINOS = {
     leer: ctx => ctx.ui.chat?.borrador || '',
     escribir: (ctx, texto) => { if (ctx.ui.chat) ctx.ui.chat.borrador = texto; }
   },
-  setup: {
-    titulo: 'Dictar lo que falta',
-    ejemplo: 'Ej. tortillas de maíz, queso gouda, jamón de pavo',
-    campo: '[data-setup-texto]',
-    delCampo: true,
-    leer: ctx => ctx.ui.setup?.texto || '',
-    escribir: (ctx, texto) => { if (ctx.ui.setup) ctx.ui.setup.texto = texto; }
-  },
+  // Hubo un destino `setup`, para el paso del asistente de entrada que dejaba
+  // dictar los alimentos de corrido. Ese paso se quitó: con la ventanita de
+  // cada categoría ya no compensaba tener una segunda implementación del mismo
+  // dictado, en paralelo a `bulk`. Si vuelve a hacer falta dictar mientras se
+  // registra la casa, el camino es abrir `bulk` desde ahí, no rehacer esto.
   bulk: {
     titulo: 'Dictar la lista',
     ejemplo: 'Ej. 30 plátanos, 10 libras de arroz, 4 paquetes de salami',
