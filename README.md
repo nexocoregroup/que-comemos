@@ -27,14 +27,19 @@ Las pruebas:
 npm test
 ```
 
-## Las cuatro pantallas
+## Las cinco secciones
 
-La navegación tiene cuatro destinos, y solo cuatro. Antes tenía siete, y cuatro de ellos —Productos y datos, Personas, Preparaciones, Revisión— competían de tú a tú con la pantalla del día. Ninguna casa abre la app para editar una ficha de producto.
+La navegación tiene cinco destinos, y las cinco son cosas que una casa abre. Antes eran cuatro, y el cuarto era **Más**: un cajón con diez filas dentro. Dos de ellas —los productos habituales y las preparaciones— son de lo que más se toca, y estaban a dos pasos por estar guardadas en el sitio donde se guarda lo que no se usa.
 
-- **Hoy** — para quien cocina. El desayuno, el almuerzo y la cena con sus cantidades, para quién es cada cosa, qué hay que apartar para otro día y la nota de quien organizó. Nada de configuraciones ni de cálculos.
-- **Plan mensual** — la pantalla principal. El progreso del mes, lo que falta por decidir, los días que no se cocina en casa, y el calendario para tocarlo.
+- **Hoy** — para quien cocina. El desayuno, el almuerzo y la cena con sus cantidades si las hay, para quién es cada cosa y la nota de quien organizó. Un momento vacío dice *sin decidir*, y no es un error.
+- **Plan semanal** — la pantalla principal. Siete días de lunes a domingo, o catorce si se piden.
 - **Compra** — la lista de un viaje al colmado: se prepara desde los productos habituales y se va tachando.
-- **Más** — todo lo demás, ordenado por la frecuencia real con que hace falta: mis productos habituales, preparaciones, familia y restricciones, alimentos de la casa, historial, respaldo y ajustes.
+- **Mis productos habituales** — lo que esta casa compra de costumbre, por rubros.
+- **Preparaciones** — las comidas que esta casa sabe hacer.
+
+Y un **engranaje**, visible en el celular y en la computadora, que abre **Ajustes**: familia y restricciones, historial, respaldo, mi cuenta, las preferencias de la aplicación —organización de compra y funciones avanzadas— y «cómo funciona». Ajustes no es una sección: es donde se entra una vez cada muchos meses.
+
+**«Alimentos de la casa» se retiró.** Era la ficha técnica de cada producto —su categoría, su unidad de conteo, su equivalencia, cuánto había— y era una segunda manera de administrar lo mismo que ya se administra en *Mis productos habituales*. El modelo sigue guardando categorías y unidades porque las necesita; lo que desapareció es la pantalla que obligaba a gestionarlas. Editar un producto se hace desde su fila en los habituales; archivar y restaurar, desde *Ajustes → Funciones avanzadas*.
 
 El botón **+** tiene cuatro acciones, no once: poner una comida, crear una preparación, preparar la compra, añadir un alimento.
 
@@ -48,13 +53,17 @@ Son cinco pasos, se pueden abandonar y retomar, y en **ninguno se pide una canti
 
 1. **Mi hogar.** Cuántas personas comen en casa y, de cada una, el nombre, si es adulto, adolescente o niño, y qué debe evitar si aplica. Nada más: no se pregunta el peso, ni la fecha de nacimiento, ni nada médico. Es la misma ficha que la de *Familia*, no una segunda escrita aparte.
 2. **Productos habituales.** *Selecciona lo que normalmente compras para tu casa. No tienes que indicar cantidades.* Un catálogo de **productos dominicanos** recorrido **rubro por rubro**, ocho pantallas seguidas en la misma posición, con Atrás y Continuar y sin nada que arrastrar de lado. No hay mínimo: si esta casa no compra vegetales frescos, pasa de largo. *¿No encuentras un alimento? Añadirlo* está siempre a la vista y pide **solo el nombre**.
-3. **Cómo compramos.** Mensual o quincenal. Sirve para saber cuándo toca la próxima lista y qué días cubre; **no divide cantidades ni lleva cuentas**. Se cambia cuando se quiera desde *Más → Ajustes → Organización de compra*, y cada cambio vale desde el mes que se le diga en adelante: lo que ya pasó no se reescribe.
-4. **Comidas habituales.** Nombre, en qué momentos se come, y una nota opcional para quien cocina. Se escriben varias seguidas: al guardar, el formulario queda en blanco para la siguiente. Qué lleva cada plato y cuánto rinde se añade después, si se quiere, desde *Más → Preparaciones* —y editar una comida desde aquí **no** le borra lo que allí se escribió—.
-5. **Ver mi casa.** Lo registrado, línea por línea, con un enlace de vuelta a cada paso. El calendario empieza vacío y lo dice: se llena poniendo comidas, y eso se hace cuando se sabe qué se quiere comer. Se puede terminar y completar las preparaciones después.
+3. **Cómo compramos.** Mensual o quincenal. Sirve para saber cuándo toca la próxima lista y qué días cubre; **no divide cantidades ni lleva cuentas**. Se cambia cuando se quiera desde *Ajustes → Organización de compra*, y cada cambio vale desde el mes que se le diga en adelante: lo que ya pasó no se reescribe.
+4. **Mis preparaciones.** Nombre, en qué momentos se come, y una nota opcional para quien cocina. Se escriben varias seguidas: al guardar, el formulario queda en blanco para la siguiente. Qué lleva cada plato se añade después, si se quiere, desde *Preparaciones* —y editar una comida desde aquí **no** le borra lo que allí se escribió—.
+5. **Crear mi primer plan.** Arriba, lo registrado línea por línea con un enlace de vuelta a cada paso. Debajo, la única pregunta que queda: **¿siete días o catorce?** Elegido el número se enseñan esos días empezando por hoy, cada uno con su desayuno, su almuerzo y su cena, y en cada momento se elige una de las preparaciones escritas, «fuera de casa», «pedimos comida» o «sin decidir». Elegir guarda al momento y solo ese día.
 
-Eran siete. Los dos que se fueron —*«¿cuánto se compra al mes?»* y *«cómo se reparte entre las dos quincenas»*— pedían un número que la casa no tiene por qué saber, y lo pedían justo después de marcar los alimentos: quien marcaba ciento cincuenta se encontraba con ciento cincuenta casillas de cantidad antes de poder terminar. El reparto entre quincenas no desapareció de la app; está en *Más → Ajustes → Organización de compra* para quien lo quiera.
+   **Se puede terminar sin poner ni una comida**, y el paso lo dice con todas las letras: lo que no se ponga aquí se pone cuando se quiera desde *Plan semanal*. Y **no se pregunta ningún día fijo**: aquí no se crea ninguna rutina, ni aquí ni en ningún otro sitio.
 
-El recorrido está también en *Más → Organizar mi casa*. Ya no se planta delante de la primera pantalla, y volver a pasar por él no borra nada: lo ya guardado aparece marcado, lo que una pantalla no pregunta no lo toca, y los cambios de cada mes ni se rozan.
+Eran siete. Los dos que se fueron —*«¿cuánto se compra al mes?»* y *«cómo se reparte entre las dos quincenas»*— pedían un número que la casa no tiene por qué saber, y lo pedían justo después de marcar los alimentos: quien marcaba ciento cincuenta se encontraba con ciento cincuenta casillas de cantidad antes de poder terminar. El reparto entre quincenas no desapareció de la app; está en *Ajustes → Organización de compra* para quien lo quiera.
+
+El recorrido está también en *Ajustes → Organizar mi casa*. Ya no se planta delante de la primera pantalla, y volver a pasar por él no borra nada: lo ya guardado aparece marcado, lo que una pantalla no pregunta no lo toca, y los cambios de cada mes ni se rozan.
+
+Hay quien lo dejó a medias con una numeración anterior —eran siete pasos; luego cinco, con un repaso al final—. Una tabla por numeración vieja dice a qué paso de hoy corresponde cada uno, para que nadie aterrice en una pantalla que no es la que dejó.
 
 ## Mis productos habituales
 
@@ -87,31 +96,43 @@ En la práctica:
 - **Quitar algo también lleva fecha.** Dejar de comprar pollo desde hoy no borra los meses en que sí se compró.
 
 
-## Planificar a mano
+## Planificar a mano, una semana o dos
 
-La pantalla de *Plan mensual* tiene dos caras. El **resumen** dice cuánto hay decidido, qué falta, qué días no se cocina en casa y quién no come. El **calendario** es el mes entero, y cada comida se toca para cambiarla.
+*Plan semanal* enseña **siete días, de lunes a domingo**, uno debajo de otro y con sus comidas escritas enteras. «Ver dos semanas» enseña catorce. Las flechas mueven **una semana cada vez** —aunque se estén viendo dos: quien mira del 14 al 27 y pulsa «siguiente» espera empezar el 21, no el 28— e «Ir a una fecha» lleva a la semana en que cae el día que se le diga.
 
-Poner una comida es elegir el día y el momento. Para no tener que tocar treinta casillas hay **una sola ayuda**, y no adivina nada:
+**No hay vista de mes, y no la hay a propósito.** Un mes entero es más de lo que una casa decide de una sentada, y enseñarlo invita a dejarlo para luego. Las semanas de atrás se pueden mirar; las de adelante están abiertas hasta que alguien las planifique.
 
-> **Poner una comida en varios días** → una preparación → en qué comida del día → se marcan los días.
+Se toca una comida y se elige entre tres maneras de contestar:
 
-Se marcan los siete de la semana que viene, o los catorce de las dos siguientes —hay atajos para las dos cosas—, o los tres viernes que viene tu mamá. Se ponen esos días y **ninguno más**: no se guarda ninguna costumbre y no vuelve a ejecutarse nunca. Todo se puede deshacer.
+- **Una preparación guardada** — las que valen para ese momento del día.
+- **Escribirla** — «lo que quedó del sancocho de la vecina». Se anota ese día y solo ese día, y **no entra en el catálogo de preparaciones**: el catálogo es lo que esta casa sabe hacer, no lo que pasó un jueves.
+- **Lo que sobró** — se elige una comida anterior y se pone otra vez. **Sin preguntar cuánto**: cuánto sobró lo sabe quien cocinó, no una cuenta. Queda anotado de dónde viene, y la app avisa antes de dejar borrar la comida de origen.
+
+Y debajo, las tres que no son comida: **se come fuera**, **se pedirá**, o **todavía no se sabe**.
+
+Lo que se cambie en un día vale **solo para ese día**. No hay nada que se propague, porque no hay ninguna regla que propagar.
+
+Para no tener que tocar veintiuna casillas hay **una sola ayuda**, y no adivina nada:
+
+> **Poner en varios días** → una preparación → en qué comida del día → se marcan los días.
+
+Los días que ofrece son los que están en pantalla, siete o catorce, con atajos para marcar la semana o las dos. Se ponen esos días y **ninguno más**: no se guarda ninguna costumbre y no vuelve a ejecutarse nunca. Todo se puede deshacer.
 
 Las cinco casillas del día son desayuno, merienda de mañana, almuerzo, merienda de tarde y cena. **Las dos meriendas son opcionales**: no cuentan como hueco y un día sin merienda está completo igual. Hay casas que no meriendan y decirles que les falta algo sería reprocharles una costumbre que no tienen.
 
 Una preparación se guarda una vez y se reutiliza cualquier día sin volver a escribirla. Guarda su nombre, en qué momentos suele comerse y una nota para quien cocina. Los alimentos que lleva son **opcionales** —sirven para avisar de una restricción— y sus cantidades también. Las porciones no se piden.
 
-### Meses de 28, 29, 30 y 31 días
+### La semana empieza en lunes
 
-Los días salen del **calendario real del mes**: no se dan 28 ni 30 por supuestos, y ningún día 29, 30 o 31 se queda fuera. Febrero de año bisiesto incluido.
+Siempre, y da igual el día en que se abra la app: si la semana empezara en el día en curso, «la semana que viene» significaría algo distinto cada mañana. Los días salen del **calendario real**, así que una semana a caballo entre dos meses —o entre dos años— sale entera.
 
 ### Comidas fuera de casa
 
-Cada comida puede estar en uno de cuatro estados: **en casa**, **fuera**, **pediremos comida**, o **todavía no sabemos**. Marcar una comida fuera la deja **resuelta**: no cuenta como pendiente y se ve en el calendario. Se puede marcar una comida suelta, un día entero, o varios días a la vez con la misma ventana de arriba.
+Marcar una comida fuera la deja **resuelta**: no cuenta como pendiente y se ve en el calendario. Se puede marcar una comida suelta, un día entero —el botón de los tres puntos de cada día—, o varios días a la vez con la misma ventana de arriba.
 
 ### De dónde vino cada comida
 
-Cada comida del calendario dice quién la puso. Hoy solo hay dos respuestas —*Cambio manual*, *Excepción*—, pero se conservan otras tres —*Rutina*, *Mes anterior*, *Sugerida*— porque hay comidas guardadas con ellas en teléfonos reales, de cuando la app llenaba el calendario sola. Borrarlas dejaría a esas comidas sin poder decir de dónde vinieron.
+Cada comida lleva un punto de color que dice quién la puso. Hoy solo hay dos respuestas —*Cambio manual*, *Excepción*—, pero se conservan otras tres —*Rutina*, *Mes anterior*, *Sugerida*— porque hay comidas guardadas con ellas en teléfonos reales, de cuando la app llenaba el calendario sola. Borrarlas dejaría a esas comidas sin poder decir de dónde vinieron.
 
 ## La compra
 
@@ -164,7 +185,7 @@ Antes de aquello hubo incluso una opción para conectar un servidor propio de mo
 
 No hay servidor propio ni pagos, y la cuenta la opera Supabase con la contraseña cifrada fuera del alcance de la app: buena parte del catálogo habitual de ataques no tiene dónde agarrarse. Lo que sí tiene superficie es el HTML que se dibuja con texto del usuario, dentro de un WebView que lleva al lado el puente de Capacitor. Por eso todo texto se escapa antes de llegar a la pantalla, y `tests/seguridad.test.js` mete un ataque en cada campo escribible y dibuja las 22 pantallas comprobando que no sale sin escapar en ninguna.
 
-Además: el respaldo automático de Android está **apagado** (`allowBackup="false"` y `dataExtractionRules`), porque encendido sube el almacenamiento de la app a la cuenta de Google del dueño. La contrapartida es que perder el teléfono sin copia es perderlo todo, así que la app avisa en «Más» cuando hace más de un mes que no guardas una.
+Además: el respaldo automático de Android está **apagado** (`allowBackup="false"` y `dataExtractionRules`), porque encendido sube el almacenamiento de la app a la cuenta de Google del dueño. La contrapartida es que perder el teléfono sin copia es perderlo todo, así que la app avisa en Ajustes cuando hace más de un mes que no guardas una.
 
 La política de contenido de `index.html` bloquea scripts de otros sitios, `eval` y cualquier salida a un `http://`. **No es una muralla**, y el comentario del archivo lo dice: `script-src` lleva `'unsafe-inline'` a la fuerza porque Capacitor inyecta su puente como script en línea y sin eso la app no arranca dentro del APK.
 
@@ -172,7 +193,7 @@ Lo que ninguna app puede evitar: que alguien coja el teléfono desbloqueado, o q
 
 ## Respaldos y migración
 
-Sin cuenta, los datos se guardan en `localStorage` **solo en ese navegador y dispositivo**. Con cuenta y con el interruptor de sincronizar encendido, suben al servidor para poder bajarlos en otro teléfono; las dos cosas vienen apagadas. *Más → Respaldo* escribe un JSON; traerlo de vuelta reemplaza los datos actuales.
+Sin cuenta, los datos se guardan en `localStorage` **solo en ese navegador y dispositivo**. Con cuenta y con el interruptor de sincronizar encendido, suben al servidor para poder bajarlos en otro teléfono; las dos cosas vienen apagadas. *Ajustes → Respaldo* escribe un JSON; traerlo de vuelta reemplaza los datos actuales.
 
 El esquema va por la **versión 10**. Un respaldo de cualquier versión anterior se convierte al importarlo y al cargarlo, en cadena. Cada paso está escrito y comentado en `src/migrate.js`; estos son los dos primeros y el último:
 
@@ -301,13 +322,14 @@ Esta elección es una hipótesis de diseño, no una afirmación de que un color 
 - **La sincronización entre dispositivos está sin probar en uso real.** El código de la cuenta y del sincronizado existe y tiene pruebas, pero nadie lo ha usado todavía con dos teléfonos de verdad. Viene apagada.
 - **La lectura de facturas por fotografía se eliminó.** No funcionaba lo bastante bien y arrastraba los modelos de OCR dentro del APK. Con ella se fueron el complemento de cámara, el de sistema de archivos, el de reconocimiento de texto y los permisos de cámara y de galería.
 - **La app no propone nada.** No elige platos, no copia semanas, no repite comidas y no rellena meses. Si el calendario está vacío es porque nadie lo ha llenado, y así se queda.
-- **La pantalla del mes sigue siendo mensual.** La decisión de producto es planificar una semana o dos; la ventana de «poner en varios días» ya deja marcar siete o catorce, pero la vista de semana propiamente dicha está pendiente.
+- **Una comida escrita a mano no entra en el catálogo, y eso tiene un precio**: si se repite tres semanas seguidas, hay que escribirla tres veces. Es a propósito —el catálogo es lo que la casa sabe hacer— pero conviene saberlo.
 - Las cantidades habituales de Familia son un dato de consulta y no se aplican solas: hay que pedirlas, y lo que traen es la suma de las personas que la preparación cubre, sin ajustar por quién falta ese día.
 - El grosor de rueda es una etiqueta, no un factor: cambiarlo no recalcula ninguna equivalencia guardada.
 - Los tramos de los productos habituales guardan desde cuándo vale cada cantidad, y nada más.
 - Las equivalencias no se infieren y las unidades incompatibles no se convierten. Sin la equivalencia, la compra avisa de que la lista está incompleta en vez de dar un número equivocado.
 - La lista de la compra no mira ningún período: es la de este viaje al colmado.
 - **Las reglas antiguas se conservan como dato y no las enseña ninguna pantalla.** Están en el respaldo y en la migración; decidir si se muestran o se borran es de una fase siguiente.
+- **«Lo que sobró» no dice cuánto sobró.** Enlaza las dos comidas y avisa antes de borrar la de origen, y nada más. Las comidas vinculadas de versiones anteriores sí traían cantidades apartadas, y se siguen leyendo y pintando tal cual.
 - **La app no tiene voz propia.** Se retiraron el asistente, el chat y el dictado, con el complemento nativo de reconocimiento y el permiso `RECORD_AUDIO`. Los campos de texto siguen admitiendo el micrófono del teclado del teléfono, que no es cosa de esta app.
 - Los alimentos creados desde los habituales o desde un texto nacen sin cantidad y sin existencias, que es lo correcto: la app no lleva la cuenta de lo que hay en casa.
 
@@ -315,7 +337,7 @@ Esta elección es una hipótesis de diseño, no una afirmación de que un color 
 
 **Dominio (puro, sin DOM ni almacenamiento — por eso las pruebas corren en Node a secas)**
 
-- `src/model.js` — reglas de catálogo, productos habituales, cambios del mes, menú, listas de compra y el historial del inventario retirado. También el calendario: los días de la semana, el progreso de un mes y las fechas reales de cada mes. `transaction()` da el todo-o-nada que usan las uniones de alimentos.
+- `src/model.js` — reglas de catálogo, productos habituales, cambios del mes, menú, listas de compra y el historial del inventario retirado. También el calendario: los días de la semana, el lunes de una fecha, las fechas reales de un rango y la cuenta de cuántas comidas hay decididas. `transaction()` da el todo-o-nada que usan las uniones de alimentos.
 - `src/nombres.js` — normalización y parecido de nombres. Vive aparte porque lo necesitan el modelo, la migración (que no puede importar el modelo sin crear un ciclo) y la entrada de texto de corrido.
 - `src/migrate.js` — conversión entre versiones del esquema. No importa el modelo a propósito: una migración tiene que poder leer datos cuyas reglas ya no son las de hoy.
 - `src/text-parse.js` — el intérprete de español dominicano que separa una lista escrita de corrido. Determinista, sin red.
@@ -324,9 +346,9 @@ Esta elección es una hipótesis de diseño, no una afirmación de que un color 
 **Interfaz**
 
 - `src/app.js` — el armazón: estado, navegación, ventanas y reparto de eventos. Las pantallas viven en sus propios archivos.
-- `src/page-mes.js` — Plan mensual: el resumen, el calendario y la ventana de poner una comida en varios días.
+- `src/page-semana.js` — Plan semanal: siete días o catorce, la ventana de un día entero, la de ir a una fecha y la de poner una comida en varios días.
 - `src/page-compra.js` — la compra.
-- `src/page-mas.js` — «Más» y sus pantallas: productos habituales, preparaciones, familia, alimentos, historial, respaldo y ajustes.
+- `src/page-mas.js` — las pantallas que no son del calendario: productos habituales, preparaciones, familia, historial, respaldo, funciones avanzadas y el propio Ajustes. Conserva el nombre de cuando todas vivían dentro de «Más».
 - `src/ui-kit.js` — escapado, formato y los envoltorios de HTML que se repiten. Aquí y no en `app.js` porque los módulos de pantalla también los necesitan, y tener dos versiones de `esc` es la forma más fácil de que a una se le olvide escapar algo.
 - `src/setup.js` — «Organizar mi casa».
 - `src/bulk-entry.js` — escribir varios alimentos de corrido.
@@ -334,11 +356,11 @@ Esta elección es una hipótesis de diseño, no una afirmación de que un color 
 - `src/onboarding.js` — texto de la bienvenida y del recorrido. **Se dibuja con `esc()`: no admite etiquetas HTML.**
 - `src/demo.js` — datos de ejemplo: una casa con doce días planificados a mano, sus productos habituales sin cantidades y una lista de compra a medio escribir.
 
-**Estilos.** Se cargan en orden y las reglas posteriores ganan a igual especificidad: `styles.css` → `sidebar.css` → `onboarding.css` → `quick-add.css` → `calendar.css` → `theme.css` → `setup.css` → `bulk.css` → `plan.css` → `cuenta.css` → `hogar.css` → `sistema.css`. `quick-add.css` documenta el reparto de capas: barra inferior 20, botón **+** 25, modal 30, recorrido 35, aviso 50.
+**Estilos.** Se cargan en orden y las reglas posteriores ganan a igual especificidad: `styles.css` → `sidebar.css` → `onboarding.css` → `quick-add.css` → `theme.css` → `setup.css` → `bulk.css` → `plan.css` → `cuenta.css` → `hogar.css` → `sistema.css`. `quick-add.css` documenta el reparto de capas: barra inferior 20, botón **+** 25, modal 30, recorrido 35, aviso 50.
 
 **Empaquetado.** `build.js` copia el casco a `www/` — es todo el «build» que hay. `sw.js` guarda ese casco para abrir sin conexión; **si añades un archivo a `src/`, añádelo a su lista y sube la versión del caché**. Hay una prueba que lo comprueba. `capacitor.config.json` y `android/` son el envoltorio nativo.
 
-**Pruebas.** `tests/` — modelo, productos habituales, migración, parser, pantallas, seguridad y módulos. `tests/respaldo-v10.test.js` abre una casa congelada de la versión 10 del esquema —con sus reglas antiguas, sus comidas y su período cerrado— y comprueba que no se pierde un solo registro y que **ninguna regla vuelve a poner una comida**. `tests/modules.test.js` es la red de seguridad del refactor: lee las importaciones de cada módulo y comprueba que apuntan a algo que existe, carga cada módulo de verdad en Node, y verifica que no queda ningún nombre del modelo anterior ni ningún resto de la lectura de facturas ni de la voz.
+**Pruebas.** `tests/` — modelo, productos habituales, migración, parser, pantallas, seguridad y módulos. `tests/plan-semanal.test.js` ejercita la semana entera: que se vean siete días o catorce, que las flechas muevan de una en una, que mirar no escriba nada, las cuatro maneras de anotar una comida, y que cambiar el jueves no toque el viernes. `tests/respaldo-v10.test.js` abre una casa congelada de la versión 10 del esquema —con sus reglas antiguas, sus comidas y su período cerrado— y comprueba que no se pierde un solo registro y que **ninguna regla vuelve a poner una comida**. `tests/modules.test.js` es la red de seguridad del refactor: lee las importaciones de cada módulo y comprueba que apuntan a algo que existe, carga cada módulo de verdad en Node, y verifica que no queda ningún nombre del modelo anterior ni ningún resto de la lectura de facturas ni de la voz.
 
 **No queda ninguna dependencia de producción.** La última era el complemento de reconocimiento de voz, y se fue con el dictado. `npm start` y `npm test` funcionan sin instalar nada; `npm install` solo hace falta para compilar el APK, y lo que instala es el andamiaje de Capacitor.
 

@@ -153,7 +153,6 @@
 }
 .chip-check:has(input:focus-visible) { outline: 2px solid var(--clay-dark); outline-offset: 2px; }
 
-
 /* Los días sueltos del mes: siete columnas, como un calendario, para que
    «los viernes» se vean alineados en una misma columna aunque se elijan a mano.
    Cada ficha lleva el número grande y la inicial del día debajo. */
@@ -192,15 +191,7 @@
 .radio-pill:has(input:checked) { background: var(--clay); border-color: var(--clay); color: #fff; }
 .radio-pill:has(input:focus-visible) { outline: 2px solid var(--clay-dark); outline-offset: 2px; }
 
-/* Una respuesta que no se elige porque no hay nada que elegir: unas fechas
-   sueltas solo pueden valer para su mes. Se enseña con la misma forma que las
-   demás para que se lea como una respuesta, y sin cursor de mano para que nadie
-   la toque esperando que cambie. */
-.radio-pill-fijo { cursor: default; margin: 0 0 10px; opacity: .85; }
-
-/* Las dos fechas de vigencia, lado a lado mientras quepan. */
-.rutina-vigencia { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
-@media (max-width: 420px) { .rutina-vigencia { grid-template-columns: 1fr; } }
+@media (max-width: 420px) {  }
 
 /* La versión larga: cuando la opción necesita explicarse, la píldora no sirve. */
 .opcion-larga { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
@@ -236,63 +227,12 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
   font-weight: 700;
   color: var(--ink);
 }
-.rutina-form .hint { margin-top: 9px; }
+.dias-form .hint { margin-top: 9px; }
 
-/* ── Plan mensual ───────────────────────────────────────────────────────── */
-
-.plan-barra { margin-bottom: 16px; }
 .plan-mes-nombre { min-width: 165px; text-align: center; }
-
-.plan-cabecera {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-  align-items: center;
-  justify-content: space-between;
-}
-.plan-cifra { flex: 1 1 230px; min-width: 0; }
-.plan-porcentaje {
-  font-size: 2.7rem;
-  font-weight: 800;
-  line-height: 1;
-  color: var(--clay);
-  letter-spacing: -.03em;
-}
-.plan-porcentaje span { font-size: 1.1rem; font-weight: 700; margin-left: 2px; }
-.plan-progreso { margin: 12px 0 10px; }
-.plan-resumen-texto { margin: 0; font-size: .92rem; color: var(--ink-muted); line-height: 1.6; }
-.plan-resumen-texto strong { color: var(--ink); }
-.plan-acciones { display: flex; flex-wrap: wrap; gap: 10px; }
-
-.plan-slots { margin-top: 18px; }
-.plan-slot-cifra { font-size: 1.7rem; font-weight: 800; margin: 10px 0 2px; letter-spacing: -.02em; }
-.plan-slot-cifra .muted { font-size: 1rem; font-weight: 600; }
-
-.plan-calendario-pie { margin-top: 16px; }
 
 /* Una comida fuera de casa está resuelta, no pendiente: se marca en salvia, que
    en esta paleta es siempre «esto está bien», y nunca en el gris de «falta». */
-.month-meal.fuera { background: #eef0e6; color: var(--sage); border-color: #d8ddc6; }
-
-/* ── El recorrido de preparar el mes ────────────────────────────────────── */
-
-.plan-bloque { max-width: 720px; }
-.plan-bloque-head { margin-bottom: 20px; }
-.plan-bloque-head .progress { margin-bottom: 12px; }
-.plan-bloque-head h2 { margin: 12px 0 0; font-size: 1.45rem; line-height: 1.25; }
-.plan-bloque-texto { margin: 0 0 18px; color: var(--ink-muted); line-height: 1.6; max-width: 58ch; }
-.plan-bloque-texto strong { color: var(--ink); }
-.plan-bloque-pie {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-top: 26px;
-  padding-top: 20px;
-  border-top: 1px solid var(--line);
-}
-
-.plan-pendiente .list-row-title { font-size: .95rem; }
 
 .plan-ok {
   display: flex;
@@ -315,40 +255,7 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 .plan-ok strong { display: block; font-size: 1.1rem; }
 .plan-ok span:not(.plan-ok-icono) { color: var(--ink-muted); font-size: .9rem; }
 
-.plan-lista-final { margin: 18px 0 0; padding-left: 20px; line-height: 2; }
-.plan-lista-final strong { color: var(--clay); }
 .compra-acciones { margin-top: 16px; }
-
-/* ── Más ────────────────────────────────────────────────────────────────── */
-
-.mas-lista { padding: 6px; }
-.mas-item {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  width: 100%;
-  padding: 15px 13px;
-  border: 0;
-  border-radius: 12px;
-  background: none;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  color: var(--ink);
-  min-height: 60px;
-  box-sizing: border-box;
-}
-.mas-item + .mas-item { border-top: 1px solid var(--line); border-radius: 0; }
-.mas-item:hover { background: var(--surface-soft); }
-.mas-item:focus-visible { outline: 2px solid var(--clay); outline-offset: -2px; }
-.mas-icono { font-size: 1.35rem; flex: 0 0 auto; width: 30px; text-align: center; }
-.mas-texto { flex: 1; min-width: 0; }
-.mas-texto strong { display: block; font-size: .98rem; font-weight: 650; }
-.mas-texto span { display: block; font-size: .83rem; color: var(--ink-muted); margin-top: 2px; }
-.mas-pista { flex: 0 0 auto; font-size: .78rem; color: var(--ink-muted); white-space: nowrap; }
-.mas-flecha { flex: 0 0 auto; color: var(--clay-line); font-size: 1.3rem; line-height: 1; }
-.mas-pie { margin-top: 18px; }
-.mas-pie h3 { margin: 0 0 8px; }
 
 .mas-volver {
   display: flex;
@@ -452,7 +359,6 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 /* La pista de «Respaldo» cuando hace demasiado que no se guarda una copia.
    Con el respaldo automático de Android apagado, esta es la única red que hay,
    así que el dato deja de ser gris y pasa a pedir atención. */
-.mas-pista.alerta { color: var(--clay); font-weight: 700; }
 
 /* ── Un documento largo, para leer ──────────────────────────────────────── */
 
@@ -496,39 +402,6 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 .receta-tarjeta .pill { margin-right: 4px; }
 .receta-incompleta { font-style: italic; }
 
-/* ── La ficha y sus reglas, separadas a la vista ───────────────────────────
-
-   Arriba qué es el plato, abajo cuándo se pone. La línea que las separa no es
-   decoración: son dos cosas distintas y leerlas como una era el error de fondo
-   —«mangú de desayuno y de cena, los lunes» ponía mangú dos veces el lunes—. */
-
-.receta-repeticiones {
-  margin-top: var(--aire-4);
-  padding-top: var(--aire-3);
-  border-top: 1px solid var(--line);
-}
-.receta-repeticiones-titulo {
-  margin: 0 0 var(--aire-2);
-  font-size: .74rem; font-weight: 800;
-  text-transform: uppercase; letter-spacing: .1em;
-  color: var(--ink-muted);
-}
-.receta-repeticiones p { margin: 0; }
-
-.receta-reglas { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--aire-2); }
-.receta-reglas li {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: var(--aire-3); flex-wrap: wrap;
-  font-size: .87rem; line-height: 1.4;
-}
-.receta-regla-texto { min-width: 0; }
-.receta-regla-acciones { gap: var(--aire-1); }
-.receta-reglas li.pausada .receta-regla-texto { opacity: .6; }
-
-/* Una regla en pausa se ve apagada, no tachada: no está mal, está esperando. */
-.regla-fila.pausada .list-row-title,
-.regla-fila.pausada .list-row-sub { opacity: .62; }
-
 /* El aviso de lo que no se pudo comprobar. No es una alarma —no se sabe que
    haya un problema— pero tampoco silencio, que se leería como «revisado». */
 .choque-sinsaber { background: var(--surface-soft); border: 1px dashed var(--line); color: var(--ink-muted); }
@@ -540,15 +413,6 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 .receta-form .field > span { font-size: .88rem; line-height: 1.4; }
 .receta-momentos { gap: 8px; }
 
-/* ── Cinco momentos: tres que se cuentan y dos que no ──────────────────────
-
-   Las meriendas se ven menos que las comidas a propósito. No son menos
-   importantes cuando existen; lo que no pueden es parecer un hueco cuando no
-   existen, porque hay casas que no meriendan y no les falta nada. */
-
-.plan-slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
-.plan-slot-opcional { opacity: .88; border-style: dashed; }
-
 .meriendas { margin-top: 16px; }
 .merienda-card { padding: 15px; }
 .merienda-card .slot { color: var(--ink-muted); font-weight: 800; font-size: .72rem; text-transform: uppercase; letter-spacing: .12em; margin-bottom: 8px; }
@@ -556,16 +420,6 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 .merienda-card.vacia { border-style: dashed; }
 .meriendas-vacias { margin: 16px 0 0; }
 .meriendas-vacias .enlace { font-size: .85rem; }
-
-/* En el calendario, la merienda va más fina y en gris: la casilla de un día
-   tiene que seguir leyéndose de un vistazo con cinco cosas dentro. */
-.month-meal-opcional { background: #f7f4ef; color: #7a6c60; font-size: .64rem; }
-.month-meal-merienda {
-  border: 1px dashed #dbcfc0; background: transparent; color: #9a8878;
-  display: block; width: 100%; text-align: left; border-radius: 6px;
-  padding: 3px 5px; margin-top: 5px; font-size: .63rem; line-height: 1.2;
-}
-.month-meal-merienda:hover { background: #f6f1ea; color: var(--clay-dark); }
 
 /* ── Avisos por gravedad ───────────────────────────────────────────────────
 
@@ -594,8 +448,7 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 
 @media (max-width: 700px) {
   .meriendas { grid-template-columns: 1fr; }
-  .plan-slots { grid-template-columns: 1fr 1fr; }
-}
+  }
 
 /* ── De dónde salió cada comida ────────────────────────────────────────────
 
@@ -629,52 +482,13 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
   margin: 0 0 14px; font-size: .84rem; color: var(--ink-muted);
 }
 .origen-linea strong { color: var(--ink); }
-.origen-resumen .plan-sub { margin-top: 0; }
-.origen-lista { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 7px; }
-.origen-lista li { display: flex; align-items: center; gap: 9px; font-size: .9rem; color: var(--ink-muted); }
-.origen-lista strong { color: var(--ink); font-size: 1.05rem; min-width: 2ch; }
 
-/* En el calendario el origen es una barra a la izquierda de la pastilla. Poner
-   ahí la palabra dejaría la casilla ilegible en un teléfono de 360, y el nombre
-   accesible del botón ya la dice entera para quien no distingue el color.
-   El selector repite .calendar-month para ganarle a calendar.css. */
-.month-meal[data-origen] { border-left: 3px solid var(--origen, transparent); }
-.calendar-month .month-meal[data-origen] { border-left: 4px solid var(--origen, transparent); }
 
-/* ── Un día entero ─────────────────────────────────────────────────────── */
 
-.dia-momentos { display: grid; gap: 8px; }
-.dia-momento {
-  display: flex; align-items: center; gap: 11px; text-align: left; width: 100%;
-  border: 1px solid var(--line); border-radius: 14px; padding: 11px 13px;
-  background: var(--surface); color: var(--ink);
-}
-.dia-momento:hover { border-color: var(--clay-line); background: var(--surface-soft); }
-.dia-momento:focus-visible { outline: 2px solid var(--clay); outline-offset: 2px; }
-.dia-momento.vacio { border-style: dashed; }
-.dia-momento-letra {
-  flex: 0 0 auto; min-width: 30px; text-align: center;
-  font-size: .76rem; font-weight: 850; color: var(--clay-dark);
-  background: var(--clay-light); border-radius: 8px; padding: 5px 4px;
-}
-.dia-momento-texto { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
-.dia-momento-texto strong { font-size: .92rem; }
-.dia-momento-texto span { font-size: .8rem; color: var(--ink-muted); overflow-wrap: anywhere; }
-.dia-momento.vacio .dia-momento-letra { color: var(--ink-muted); background: var(--surface-soft); }
 
-/* El recorrido de tres bloques, escrito arriba para que se vea dónde se está. */
-.plan-bloque-pasos { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0 0; font-size: .74rem; }
-.plan-bloque-pasos .strong { color: var(--clay-dark); font-weight: 800; }
-.plan-cerrado { margin: 12px 0 0; }
+
 .radio-bloque.elegida { border-color: var(--clay); background: var(--clay-light); }
 .radio-bloque.elegida strong { color: var(--clay-dark); }
-
-/* Los rótulos que parten el índice de Más en tres. */
-.mas-grupo {
-  margin: 20px 0 8px; font-size: .74rem; font-weight: 800;
-  text-transform: uppercase; letter-spacing: .09em; color: var(--ink-muted);
-}
-.mas-grupo:first-of-type { margin-top: 4px; }
 
 /* ¿Solo este mes, o para siempre? La de siempre nunca viene marcada. */
 .destino-opciones { gap: 8px; }
@@ -796,3 +610,58 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 .compra-acciones { justify-content: stretch; }
 .compra-acciones .btn { flex: 1; }
 .compra-historial { margin-top: var(--aire-7); }
+
+/* ── Plan semanal ──────────────────────────────────────────────────────────
+
+   Siete tarjetas, una por día, una debajo de otra. No es una cuadrícula: en un
+   teléfono, siete columnas obligan a que cada comida quepa en media línea, y
+   media línea no dice «Plátano maduro con acompañamientos».
+
+   En pantalla ancha caben dos columnas de días, que es lo que hace que una
+   semana se vea de un vistazo sin tener que desplazarse. */
+
+.semana-barra { align-items: center; gap: 12px; }
+.semana-mover { gap: 8px; }
+.semana-rango { font-size: 1.05rem; letter-spacing: -.02em; min-width: 12ch; }
+.semana-controles { gap: 8px; flex-wrap: wrap; }
+.semana-vista button { white-space: nowrap; }
+
+.semana-resumen { margin-bottom: 18px; padding: 15px 18px; }
+.semana-resumen p { margin: 0; }
+.semana-resumen p + p { margin-top: 6px; }
+
+.semana-dias { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+.semana-dia { padding: 16px 16px 14px; }
+.semana-dia.ya-paso { opacity: .72; }
+.semana-dia.es-hoy { border-color: var(--clay-line); box-shadow: 0 5px 20px #a04b2218; }
+.semana-dia-cabecera { align-items: flex-start; margin-bottom: 12px; gap: 10px; }
+.semana-dia-semana { display: block; font-size: .7rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--clay); }
+.semana-dia-titulo { font-size: 1.02rem; margin: 3px 0 0; letter-spacing: -.02em; }
+
+.semana-momentos { display: grid; gap: 6px; }
+.semana-momento {
+  display: grid; grid-template-columns: 8.5ch minmax(0, 1fr) 20px;
+  align-items: center; gap: 10px; width: 100%; text-align: left;
+  border: 1px solid transparent; border-radius: 11px; background: var(--surface-soft);
+  padding: 9px 11px; color: inherit; min-height: 44px; line-height: 1.25;
+}
+.semana-momento:hover { background: var(--clay-light); }
+.semana-momento:focus-visible { outline: 3px solid var(--clay); outline-offset: 2px; }
+.semana-momento-nombre { font-size: .7rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-muted); }
+.semana-momento-texto { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.semana-momento-texto em { display: block; font-style: normal; font-weight: 500; font-size: .78rem; color: var(--ink-muted); margin-top: 2px; }
+.semana-momento-marca { text-align: right; color: var(--ink-muted); font-weight: 800; }
+.semana-momento.vacio { background: transparent; border-style: dashed; border-color: var(--line); }
+.semana-momento.vacio .semana-momento-texto { font-weight: 500; color: var(--ink-muted); }
+.semana-momento.fuera .semana-momento-texto { font-weight: 600; color: var(--sage); }
+
+.semana-anadir-merienda { display: inline-block; margin-top: 10px; font-size: .82rem; }
+.semana-pie { margin-top: 18px; }
+
+@media (max-width: 700px) {
+  .semana-barra { flex-direction: column; align-items: stretch; }
+  .semana-mover { justify-content: space-between; }
+  .semana-controles { justify-content: space-between; }
+  .semana-dias { grid-template-columns: 1fr; }
+  .semana-momento { grid-template-columns: 7.5ch minmax(0, 1fr) 18px; gap: 8px; }
+}

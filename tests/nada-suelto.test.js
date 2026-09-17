@@ -77,6 +77,59 @@ test('cada botón tiene quien lo atienda, y cada manejador quien lo dispare', ()
     'botones que al pulsarlos no hacen nada');
 });
 
+/* ── Los seis tipos de comida, y el que se olvida ──────────────────────────
+
+   Una comida puede ser de seis clases: `recipe` (del catálogo), `suelta`
+   (escrita a mano ese día), `linked` (lo que sobró de otra) y las tres que no
+   nombran plato —`outside`, `order`, `unplanned`—.
+
+   `suelta` es la última en llegar, y por eso es la que se cae de las listas.
+   Cae en silencio: una comida escrita a mano que no entra en la lista no
+   revienta nada, simplemente deja de tener nombre, deja de poder reutilizarse o
+   deja de poder editarse, y quien la escribió no entiende por qué su sancocho
+   se comporta distinto del locrio.
+
+   Lo que se busca aquí son las listas blancas de tipos de comida: un arreglo de
+   cadenas que se pregunta por `algo.kind`. La regla es una sola y es la que
+   tiene sentido: **donde entra `recipe` porque la comida tiene nombre propio,
+   tiene que entrar `suelta`**, que también lo tiene.
+
+   No se miran los `kind === 'recipe'` sueltos a propósito. Ahí `recipe` sí
+   significa «del catálogo» y solo eso —cambiar el plato de un día, o
+   «ponerla otros días», necesitan una preparación guardada detrás—, y además
+   `kind` nombra otras dos cosas en este código: la clase de una persona y el
+   tipo de un formulario. Una prueba que cazara esos tres a la vez sería una
+   prueba que nadie podría poner en verde. */
+
+test('ninguna lista de tipos de comida se olvida de la que se escribe a mano', () => {
+  const CLASES = ['recipe', 'suelta', 'linked', 'outside', 'order', 'unplanned'];
+  // Un arreglo hecho solo de tipos de comida, preguntado contra un `.kind`.
+  const patron = new RegExp(String.raw`\[\s*((?:'(?:${CLASES.join('|')})'\s*,?\s*)+)\]\s*\.includes\(\s*[A-Za-z_$][\w$.?]*\.kind`, 'g');
+
+  const listas = [];
+  for (const archivo of ARCHIVOS) {
+    for (const [texto, dentro] of sinComentarios(leer(archivo)).matchAll(patron)) {
+      listas.push({ archivo, texto: texto.replace(/\s+/g, ' '), tipos: [...dentro.matchAll(/'([a-z]+)'/g)].map(hit => hit[1]) });
+    }
+  }
+  // Si el patrón se queda atrás, esta prueba dejaría de poder fallar. Cinco son
+  // las que hay hoy; que aparezcan más está bien, que desaparezcan no.
+  assert.ok(listas.length >= 5, `solo se encontraron ${listas.length} listas de tipos de comida: el patrón se quedó atrás`);
+
+  const olvidadizas = listas
+    .filter(lista => lista.tipos.includes('recipe') && !lista.tipos.includes('suelta'))
+    .map(lista => `${lista.archivo}: ${lista.texto}`);
+  assert.deepEqual(olvidadizas, [],
+    'listas que tratan una comida del catálogo como comida con nombre y dejan fuera la escrita a mano');
+
+  // Y la lista de clases del modelo tiene que seguir nombrando las seis: es de
+  // donde sale todo lo demás.
+  const modelo = sinComentarios(leer('model.js'));
+  assert.ok(/CLASES_DE_COMIDA = \['recipe', 'suelta', 'linked', \.\.\.ESTADOS_SIN_COMIDA\]/.test(modelo),
+    'las seis clases de comida dejaron de estar escritas en un solo sitio');
+  assert.ok(/ESTADOS_SIN_COMIDA = \['outside', 'order', 'unplanned'\]/.test(modelo));
+});
+
 test('cada formulario que se dibuja tiene quien lo guarde', () => {
   const escritos = new Set([...TODO.matchAll(/data-form="([a-z0-9-]+)"/g)].map(hit => hit[1]));
   assert.ok(escritos.size > 25, `solo se encontraron ${escritos.size} formularios: el patrón se quedó atrás`);

@@ -66,11 +66,11 @@ const PANTALLAS = [
     desplazar: 150
   },
   {
-    archivo: '2-plan-mensual.png',
-    titulo: 'Plan mensual — cuánto hay decidido y qué falta',
+    archivo: '2-plan-semanal.png',
+    titulo: 'Plan semanal — siete días, uno debajo de otro',
     // Sin bajar: esta es la que enseña la cabecera de la app, y una cabecera
     // cortada por la mitad es lo primero que se nota en una ficha de tienda.
-    hacer: ir('mes'),
+    hacer: ir('semana'),
     desplazar: 0
   },
   {
@@ -78,9 +78,9 @@ const PANTALLAS = [
     titulo: 'Una comida en varios días — se marcan y se ponen',
     // Con los siete días siguientes ya marcados, que es lo que hay que enseñar:
     // una ventana vacía no explica nada a quien todavía no sabe para qué sirve.
-    hacer: `${ir('mes')};
+    hacer: `${ir('semana')};
       await new Promise(r => setTimeout(r, 400));
-      document.querySelector('[data-action="mes-poner-en-dias"]')?.click();
+      document.querySelector('[data-action="semana-poner-en-dias"]')?.click();
       await new Promise(r => setTimeout(r, 500));
       document.querySelector('[data-action="poner-dias-atajo"][data-cuantos="7"]')?.click();`
   },
@@ -106,9 +106,7 @@ const PANTALLAS = [
   {
     archivo: '6-habituales.png',
     titulo: 'Mis productos habituales — se marcan una sola vez',
-    hacer: `${ir('mas')};
-      await new Promise(r => setTimeout(r, 400));
-      document.querySelector('[data-action="navigate"][data-page="canasta"]')?.click();`,
+    hacer: ir('canasta'),
     desplazar: 500
   }
 ];

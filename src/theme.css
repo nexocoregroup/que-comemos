@@ -133,14 +133,6 @@
 .segmented { background: #eee4da; }
 .segmented button { color: var(--ink-muted); }
 .segmented button.active { background: var(--surface); color: var(--clay-dark); box-shadow: 0 2px 7px #3d2d1d15; }
-.day-head { color: var(--ink-muted); }
-.day-head strong { color: var(--ink); }
-.day-head.today strong, .month-cell.today .number { background: var(--clay); color: white; }
-.month-cell { background: var(--surface); border-color: var(--line); }
-.month-meal span { color: var(--clay-dark); }
-.month-meal { background: #f8efe7; }
-.month-meal:hover { background: #f2dfd1; }
-.month-meal.missing { background: #fcf9f5; color: var(--ink-muted); border-color: #d9c8b8; }
 
 .list-row { border-top-color: #eee4da; }
 .field>span, .field>label { color: #514339; }

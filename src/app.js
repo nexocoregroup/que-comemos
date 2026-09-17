@@ -8,10 +8,10 @@
 // la frecuencia con que hace falta de verdad.
 
 import {
-  MOMENTOS, SLICEABLE, SLICE_STYLES, SLOTS, SLOTS_PRINCIPALES, UNITS, addDays, addProduct, copyPlan, correctReview, correctStock, createEmptyState, dependents, choquesDeLaComida, esOpcional, gravedadDeLaComida,
-  etiquetaDeMomento, exportState, findSimilarProducts, habitualLines, importState, inventoryNow, esActiva, isAbsent, linkPlan, makeRecipePlan, mergeProducts, movePlan, nextId,
+  ESTADOS_SIN_COMIDA, MOMENTOS, SLICEABLE, SLICE_STYLES, SLOTS, SLOTS_PRINCIPALES, UNITS, addDays, addProduct, anotarComidaSuelta, copyPlan, correctReview, correctStock, createEmptyState, dependents, choquesDeLaComida, esOpcional, gravedadDeLaComida,
+  etiquetaDeMomento, exportState, findSimilarProducts, habitualLines, importState, inventoryNow, esActiva, isAbsent, makeRecipePlan, mergeProducts, movePlan, nextId,
   personasActivas, planFor, ponerFrecuencia, product, promoteToHabitual, quantity, removeMonthChange,
-  reservedQuantity, restriccionesDe, resumenDeLista, saveReview, setAbsence, setEquivalence, setHabitualBasket,
+  reservedQuantity, restriccionesDe, resumenDeLista, reutilizarComida, saveReview, setAbsence, setEquivalence, setHabitualBasket,
   setHabitualLine, setMonthChange, detalleDeOrigen, etiquetaDeOrigen, origenDe, setReviewScope, setSlice, setStatusPlan, sliceStyle, todayISO, updatePlan, updateProduct, upsertRecipe
 } from './model.js';
 import { clearAll, hasSavedState, loadStateDetailed, saveState } from './storage.js';
@@ -22,7 +22,7 @@ import { CATEGORIES } from './catalog-seed.js';
 import { SETUP_ACTIONS, SETUP_FORMS, avanceGuardado, emptySetup, renderSetup } from './setup.js';
 import { HOGAR_ACTIONS, HOGAR_FORMS, cuerpoDeFicha, emptyHogar, fichaActiva, renderHogar, tocaConfigurarElHogar } from './hogar.js';
 import { BULK_ACTIONS, BULK_FORMS, emptyBulk, renderBulk } from './bulk-entry.js';
-import { MES_ACTIONS, MES_FORMS, emptyMes, modalDia, modalPonerEnDias, renderMes } from './page-mes.js';
+import { SEMANA_ACTIONS, SEMANA_FORMS, emptySemana, modalDia, modalIrAFecha, modalPonerEnDias, renderSemana, tituloDePlan } from './page-semana.js';
 import { COMPRA_ACTIONS, COMPRA_FORMS, emptyCompra, listaEnCurso, renderCompra } from './page-compra.js';
 import { MAS_ACTIONS, PAGINAS_MAS, TITULOS_MAS, emptyMas, renderMas } from './page-mas.js';
 import { anotar, falloAnterior, fallosRecientes, instalarRed, olvidarFalloAnterior, protegida } from './fallos.js';
@@ -78,7 +78,7 @@ function abrirCajon(cual) {
   ui.welcome = !habiaAlgo;
   ui.tour = null;
   ui.reviewId = null; ui.correctingReview = false; ui.modal = null;
-  ui.mes = emptyMes(mesActual); ui.compra = emptyCompra(mesActual); ui.mas = emptyMas();
+  ui.semana = emptySemana(); ui.compra = emptyCompra(mesActual); ui.mas = emptyMas();
   // El asistente de la canasta se retoma donde se dejó: lo marcado vive en el
   // estado, así que abrir la app en otro momento —u otro teléfono— devuelve el
   // mismo rubro con las mismas casillas marcadas.
@@ -98,7 +98,7 @@ const ui = {
   // pasa por ahí: el estado se lee arriba del todo y esta es su única puerta.
   setup: avanceGuardado(state), bulk: null,
   hogar: emptyHogar(),
-  mes: emptyMes(mesActual),
+  semana: emptySemana(),
   compra: emptyCompra(mesActual),
   mas: emptyMas(),
   reviewId: null, correctingReview: false,
@@ -202,7 +202,7 @@ function traerEstadoDeLaNube(estadoRemoto, revision) {
     ponerSesion(guardarSesion(fundirSesion(sesion, { revision: Number(revision) || 0 })));
     hayCambiosSinSubir = false;
     ui.reviewId = null; ui.modal = null;
-    ui.mes = emptyMes(mesActual); ui.compra = emptyCompra(mesActual); ui.mas = emptyMas();
+    ui.semana = emptySemana(); ui.compra = emptyCompra(mesActual); ui.mas = emptyMas();
     render();
     return true;
   } catch (error) {
@@ -362,25 +362,38 @@ const stockText = (amount, item) => `${measure(amount, item?.controlUnit || '')}
 // en la pantalla de quien cocina, que es peor que no decir nada.
 const sinMedida = item => item.quantity === null || item.quantity === undefined;
 const itemText = item => (sinMedida(item) ? esc(productName(item.productId)) : `${measure(item.quantity, item.unit)} · ${esc(productName(item.productId))}`);
-const planTitle = plan => plan.kind === 'recipe' || plan.kind === 'linked'
-  ? plan.title
-  : ({ outside: 'Fuera de casa', order: 'Pedimos comida', unplanned: 'Sin decidir' }[plan.kind] || 'Sin decidir');
+// El título de una comida lo decide `page-semana.js`, que es quien pinta el
+// calendario. Tenerlo escrito dos veces era tenerlo mal en uno de los dos: al
+// aparecer las comidas escritas a mano, esta copia las llamaba «Sin decidir».
 
+/* ── Las cinco secciones ───────────────────────────────────────────────────
+
+   Cinco, y las cinco son cosas que una casa abre. La cuarta era «Más», que no
+   es un sitio: es un cajón. Dentro estaban los productos habituales y las
+   preparaciones, que son de lo que más se toca, escondidas detrás de una
+   pantalla que solo es una lista de enlaces.
+
+   El nombre corto es para la barra de abajo del teléfono: ahí caben cinco
+   columnas de setenta píxeles, y «Mis productos habituales» no entra en
+   setenta píxeles. Es la misma sección con el nombre que cabe, no una
+   sección distinta. */
 const NAV = [
-  ['hoy', 'sol', 'Hoy'],
-  ['mes', 'calendario', 'Plan mensual'],
-  ['compra', 'canasta', 'Compra'],
-  ['mas', 'puntos', 'Más']
+  ['hoy', 'sol', 'Hoy', 'Hoy'],
+  ['semana', 'calendario', 'Plan semanal', 'Semana'],
+  ['compra', 'canasta', 'Compra', 'Compra'],
+  ['canasta', 'hoja', 'Mis productos habituales', 'Productos'],
+  ['preparaciones', 'libro', 'Preparaciones', 'Preparaciones']
 ];
+const SECCIONES = NAV.map(([id]) => id);
 
 // Cuatro acciones, no once. Las once seguían existiendo en un menú que nadie
 // leía entero: quien abre el «+» quiere anotar una cosa concreta, y tener que
 // escoger entre once formularios es peor que no tener el botón.
 const RAPIDAS = [
-  ['rapida-comida', 'plato', 'Poner una comida', 'En un día, o en todos los lunes'],
+  ['rapida-comida', 'plato', 'Poner una comida', 'En el primer hueco que quede hoy'],
   ['open-recipe', 'libro', 'Crear una preparación', 'Un plato que se repite en casa'],
   ['navigate', 'canasta', 'Preparar la compra', 'Lo que hay que llevar del colmado', 'data-page="compra"'],
-  ['open-product', 'hoja', 'Añadir un alimento', 'Uno nuevo, con su medida']
+  ['open-product', 'hoja', 'Añadir un alimento', 'Uno que no esté todavía']
 ];
 
 let toastTimer;
@@ -427,7 +440,7 @@ function ctxHogar() {
   return { ...ctx(), leerHabitual: form => collectItems(form) };
 }
 
-const TITULOS = { hoy: 'Hoy en casa', mes: 'Plan mensual', compra: 'La compra', mas: 'Más', setup: 'Organizar mi casa', hogar: 'Mi hogar', legal: 'Privacidad y condiciones', cuenta: 'Mi cuenta', ...TITULOS_MAS };
+const TITULOS = { hoy: 'Hoy en casa', semana: 'Plan semanal', compra: 'La compra', setup: 'Organizar mi casa', hogar: 'Mi hogar', legal: 'Privacidad y condiciones', cuenta: 'Mi cuenta', ...TITULOS_MAS };
 function pageTitle() { return TITULOS[ui.page] || '¿Qué comemos?'; }
 
 /* ── Bienvenida y recorrido ────────────────────────────────────────────── */
@@ -461,13 +474,16 @@ function goTour(index) {
 
 const PAGINAS = {
   hoy: renderToday,
-  mes: () => renderMes(ctx()),
+  semana: () => renderSemana(ctx()),
   compra: () => renderCompra(ctx()),
   setup: () => renderSetup(ctx()),
   hogar: () => renderHogar(ctxHogar()),
   cuenta: () => renderCuenta(ctxCuenta())
 };
-const esPaginaDeMas = pagina => pagina === 'mas' || PAGINAS_MAS.includes(pagina);
+// Lo que vive dentro de Ajustes. `canasta` y `preparaciones` siguen saliendo
+// de `page-mas.js` —son pantallas suyas— pero ya no están dentro de nada: son
+// dos de las cinco secciones, y por eso se descuentan aquí.
+const esPaginaDeAjustes = pagina => pagina === 'cuenta' || (PAGINAS_MAS.includes(pagina) && !SECCIONES.includes(pagina));
 
 /* Pintar tampoco puede tumbar la aplicación.
  *
@@ -525,31 +541,37 @@ function pintar() {
     document.querySelector('#modal-root').innerHTML = '';
     return;
   }
-  const activa = id => (ui.page === id || (id === 'mas' && esPaginaDeMas(ui.page))) ? 'active' : '';
-  const cuerpo = PAGINAS[ui.page] ? PAGINAS[ui.page]() : esPaginaDeMas(ui.page) ? renderMas(ctx()) : renderToday();
+  const activa = id => (ui.page === id ? 'active' : '');
+  const enAjustes = esPaginaDeAjustes(ui.page) ? 'active' : '';
+  const cuerpo = PAGINAS[ui.page] ? PAGINAS[ui.page]() : PAGINAS_MAS.includes(ui.page) ? renderMas(ctx()) : renderToday();
+  // El engranaje se dibuja dos veces —en el lateral y arriba en el teléfono—
+  // porque tiene que estar a la vista en los dos sitios, y una sola función
+  // evita que uno de los dos se quede sin poner al día.
+  const engranaje = (clase, etiqueta) => `<button type="button" class="${clase} ${enAjustes}" data-action="navigate" data-page="ajustes" aria-label="Ajustes" title="Ajustes">${icono('ajustes', { tamano: 20 })}${etiqueta}</button>`;
   document.querySelector('#app').innerHTML = `<div class="shell ${ui.sidebarCollapsed ? 'sidebar-collapsed' : ''} ${ui.drawerOpen ? 'drawer-open' : ''}">
     <aside class="sidebar" id="app-sidebar" aria-label="Menú lateral">
       <div class="sidebar-head"><button type="button" class="icon-btn sidebar-close" data-action="close-sidebar" aria-label="Ocultar menú">‹</button><div class="brand"><span class="brand-mark">${BRAND_MARK}</span>¿Qué comemos?</div></div>
       <nav class="nav" aria-label="Navegación principal">${NAV.map(([id, icon, label]) => `<button type="button" class="${activa(id)}" data-action="navigate" data-page="${id}"><span class="nav-icon">${icono(icon)}</span>${label}</button>`).join('')}</nav>
-      <div class="side-foot">Tus datos están solo en este aparato. Guarda una copia de vez en cuando desde Más → Respaldo.</div>
+      <div class="secondary">${engranaje('', 'Ajustes')}</div>
+      <div class="side-foot">Tus datos están solo en este aparato. Guarda una copia de vez en cuando desde Ajustes → Respaldo.</div>
     </aside>
     <button type="button" class="drawer-scrim" data-action="close-sidebar" aria-label="Cerrar menú lateral"></button>
     <main class="main">
-      <div class="mobile-brand"><button type="button" class="menu-toggle" data-action="toggle-sidebar" aria-label="${ui.drawerOpen ? 'Ocultar menú' : 'Abrir menú'}" aria-controls="app-sidebar" aria-expanded="${ui.drawerOpen}">${icono('menu', { tamano: 22 })}</button><span class="brand-mark">${BRAND_MARK}</span><span>¿Qué comemos?</span></div>
+      <div class="mobile-brand"><button type="button" class="menu-toggle" data-action="toggle-sidebar" aria-label="${ui.drawerOpen ? 'Ocultar menú' : 'Abrir menú'}" aria-controls="app-sidebar" aria-expanded="${ui.drawerOpen}">${icono('menu', { tamano: 22 })}</button><span class="brand-mark">${BRAND_MARK}</span><span>¿Qué comemos?</span>${engranaje('icon-btn engranaje-movil', '')}</div>
       <header class="topline"><div class="topline-heading"><button type="button" class="menu-toggle desktop-menu-toggle" data-action="toggle-sidebar" aria-label="${ui.sidebarCollapsed ? 'Abrir menú' : 'Ocultar menú'}" aria-controls="app-sidebar" aria-expanded="${!ui.sidebarCollapsed}">${icono('menu', { tamano: 22 })}</button><div><p class="eyebrow">${esc(eyebrow())}</p><h1>${esc(pageTitle())}</h1></div></div></header>
       ${avisoDeSesion ? notice('Sobre tu cuenta', `${esc(avisoDeSesion)} <button type="button" class="enlace" data-action="navigate" data-page="cuenta">Ir a mi cuenta</button>`, 'warn') : ''}
       ${migratedFrom ? notice('Tus datos se actualizaron al formato nuevo.', 'La canasta que tenías es ahora <strong>tus productos habituales</strong>, y lo que cambiaba en algún mes quedó guardado como cambio de ese mes. Nada se perdió, y lo anterior quedó a salvo por si acaso.') : ''}
-      ${loadError ? notice('No se pudieron leer los datos guardados.', `${esc(loadError)} Trae una copia desde Más → Respaldo, o borra los datos para empezar de nuevo.`, 'error') : ''}
+      ${loadError ? notice('No se pudieron leer los datos guardados.', `${esc(loadError)} Trae una copia desde Ajustes → Respaldo, o borra los datos para empezar de nuevo.`, 'error') : ''}
       ${state.demo ? `<div class="demo-banner">${icono('chispa')}<div><strong>Estás viendo un ejemplo</strong>Las cantidades son inventadas para que veas cómo funciona; no son recomendaciones de alimentación.</div>${button('Borrar el ejemplo', 'clear-demo', 'btn-secondary btn-small')}</div>` : ''}
       ${cuerpo}
     </main>
-    ${ui.modal || ui.page === 'setup' || ui.page === 'hogar' || (ui.page === 'mes' && ui.mes?.bloque) ? '' : `<button type="button" class="fab" data-action="open-quick" aria-label="Anotar algo">${icono('mas', { tamano: 26 })}</button>`}
-    <nav class="mobile-nav" aria-label="Navegación principal">${NAV.map(([id, icon, label]) => `<button type="button" class="${activa(id)}" data-action="navigate" data-page="${id}"><span class="nav-icon">${icono(icon, { tamano: 22 })}</span>${label}</button>`).join('')}</nav>
+    ${ui.modal || ui.page === 'setup' || ui.page === 'hogar' ? '' : `<button type="button" class="fab" data-action="open-quick" aria-label="Anotar algo">${icono('mas', { tamano: 26 })}</button>`}
+    <nav class="mobile-nav" aria-label="Navegación principal">${NAV.map(([id, icon, , corto]) => `<button type="button" class="${activa(id)}" data-action="navigate" data-page="${id}"><span class="nav-icon">${icono(icon, { tamano: 22 })}</span>${corto}</button>`).join('')}</nav>
   </div>`;
   document.querySelector('#modal-root').innerHTML = ui.modal ? renderModal() : ui.tour === null ? '' : tourCard();
 }
 
-const eyebrow = () => esPaginaDeMas(ui.page) && ui.page !== 'mas' ? 'Más' : 'Organización de comidas';
+const eyebrow = () => (esPaginaDeAjustes(ui.page) && ui.page !== 'ajustes' ? 'Ajustes' : 'Organización de comidas');
 
 /* ── Hoy ───────────────────────────────────────────────────────────────── */
 
@@ -563,7 +585,7 @@ function renderToday() {
       <div>
         <div class="eyebrow">${esc(niceDate(today))}</div>
         <h2>Vamos a organizar tu casa</h2>
-        <p>Una sola vez: marcas lo que se come normalmente y qué días se prepara. Desde ahí, cada mes empieza casi hecho y tú solo revisas lo diferente.</p>
+        <p>Una sola vez: quiénes comen aquí, lo que compras de costumbre y lo que sabes preparar. Desde ahí, decidir la semana es elegir, no escribir.</p>
       </div>
       ${button('Organizar mi casa', 'setup-open', 'btn-secondary')}
     </section>
@@ -582,7 +604,7 @@ function renderToday() {
         <h2>${hechas === total ? 'Todo listo para hoy' : hechas ? 'Casi listo' : '¿Qué comemos hoy?'}</h2>
         <p>${hechas} de ${total} comidas decididas${meriendas.length ? ` · ${meriendas.length} merienda(s)` : ''}</p>
       </div>
-      ${hechas === total ? '' : button('Ver el mes', 'navigate', 'btn-secondary', 'data-page="mes"')}
+      ${hechas === total ? '' : button('Ver la semana', 'navigate', 'btn-secondary', 'data-page="semana"')}
     </section>
     <div class="grid grid-3">${SLOTS_PRINCIPALES.map(slot => tarjetaDeComida(slot, today)).join('')}</div>
     ${bloqueDeMeriendas(today)}
@@ -612,7 +634,7 @@ function bloqueDeMeriendas(date) {
         ${button('Anotar', 'open-meal', 'btn-quiet btn-small', `data-date="${date}" data-slot="${slot}"`)}</article>`;
     }
     return `<article class="card soft merienda-card"><div class="slot">${esc(etiquetaDeMomento(slot))}</div>
-      <div class="meal-title">${esc(planTitle(plan))}</div>
+      <div class="meal-title">${esc(tituloDePlan(plan))}</div>
       ${plan.items.length ? cantidades(plan) : ''}
       ${avisoDeAlergias(plan.items, plan.participants)}
       ${button('Ver o cambiar', 'open-meal', 'btn-quiet btn-small', `data-date="${date}" data-slot="${slot}"`)}</article>`;
@@ -626,14 +648,16 @@ function tarjetaDeComida(slot, date) {
       <div class="meal-body"><div class="meal-title">Todavía sin decidir</div><p class="muted small">Elige una comida o marca que hoy no se cocina.</p></div>
       ${button('Decidir', 'open-meal', 'btn-secondary btn-small', `data-date="${date}" data-slot="${slot}"`)}</article>`;
   }
-  if (!['recipe', 'linked'].includes(plan.kind)) {
+  // Las tres que no nombran ningún plato. Una comida escrita a mano sí lo
+  // nombra, así que no entra aquí: se pinta como cualquier otra.
+  if (ESTADOS_SIN_COMIDA.includes(plan.kind)) {
     return `<article class="card meal-card fuera"><div class="slot">${esc(etiquetaDeMomento(slot))}</div>
-      <div class="meal-body"><div class="meal-title">${esc(planTitle(plan))}</div><p class="muted small">${plan.kind === 'outside' ? 'Hoy esta comida no se prepara en casa.' : plan.kind === 'order' ? 'Se pedirá fuera.' : 'Esta comida necesita una decisión.'}</p></div>
+      <div class="meal-body"><div class="meal-title">${esc(tituloDePlan(plan))}</div><p class="muted small">${plan.kind === 'outside' ? 'Hoy esta comida no se prepara en casa.' : plan.kind === 'order' ? 'Se pedirá fuera.' : 'Esta comida todavía está por decidir.'}</p></div>
       ${button('Cambiar', 'open-meal', 'btn-quiet btn-small', `data-date="${date}" data-slot="${slot}"`)}</article>`;
   }
   return `<article class="card meal-card"><div class="slot">${esc(etiquetaDeMomento(slot))}</div>
     <div class="meal-body">
-      <div class="meal-title">${esc(planTitle(plan))}</div>
+      <div class="meal-title">${esc(tituloDePlan(plan))}</div>
       <div class="meal-people">${plan.participants.length ? `Para ${plan.participants.map(id => esc(personName(id))).join(', ')}` : 'Para quien coma en casa'}</div>
       ${cantidades(plan)}
       ${plan.note ? `<p class="small nota-cocina"><strong>Nota:</strong> ${esc(plan.note)}</p>` : ''}
@@ -647,8 +671,17 @@ function tarjetaDeComida(slot, date) {
 function cantidades(plan) {
   if (plan.kind === 'linked') {
     const origen = state.plans.find(item => item.id === plan.sourceId);
-    return `<p class="small muted">Se usa la parte que se apartó de ${esc(origen?.title || 'otra comida')}${origen ? `, del ${esc(niceDate(origen.date, { day: 'numeric', month: 'short' }))}` : ''}.</p>
-      <ul class="food-list">${(plan.reservedItems || []).map(fila => {
+    const apartado = plan.reservedItems || [];
+    // Dos maneras de venir de otra comida, y hay que contarlas distinto.
+    //
+    // Las de antes decían cuánto se apartaba de cada alimento, porque la app
+    // llevaba la cuenta de la despensa. Las de ahora dicen «lo que sobre», sin
+    // número, porque cuánto sobra lo sabe quien cocinó y no una cuenta.
+    // Anunciar «se apartó esto» y no enseñar nada debajo era lo que pasaba
+    // antes con las nuevas, y es peor que no decir nada.
+    const deDonde = `${esc(origen?.title || 'otra comida')}${origen ? `, del ${esc(niceDate(origen.date, { day: 'numeric', month: 'short' }))}` : ''}`;
+    return `<p class="small muted">${apartado.length ? `Se usa la parte que se apartó de ${deDonde}.` : `Es lo que sobre de ${deDonde}.`}</p>
+      <ul class="food-list">${apartado.map(fila => {
         const item = origen?.items.find(row => row.id === fila.sourceItemId);
         return item ? `<li>${esc(measure(fila.quantity, item.unit))} de ${esc(productName(item.productId))}</li>` : '<li>Reserva sin alimento de origen</li>';
       }).join('')}</ul>
@@ -660,7 +693,7 @@ function cantidades(plan) {
     return `<li>${sinMedida(item) ? `<strong>${esc(productName(item.productId))}</strong>` : `<strong>${esc(measure(item.quantity, item.unit))}</strong> de ${esc(productName(item.productId))}`}${item.personId ? ` · para ${esc(personName(item.personId))}` : ''}${reservado ? `<br><span class="muted small">Apartar ${esc(measure(reservado, item.unit))} para otra comida.</span>` : ''}</li>`;
   }).join('');
   const hijos = dependents(state, plan.id);
-  return `<ul class="food-list">${filas}</ul>${hijos.length ? `<p class="small muted">Se aparta una parte para ${hijos.map(hijo => `${cap(hijo.slot)} del ${niceDate(hijo.date, { day: 'numeric', month: 'short' })}`).join(', ')}.</p>` : ''}`;
+  return `<ul class="food-list">${filas}</ul>${hijos.length ? `<p class="small muted">De esta comida se vuelve a comer en ${hijos.map(hijo => `${cap(etiquetaDeMomento(hijo.slot))} del ${niceDate(hijo.date, { day: 'numeric', month: 'short' })}`).join(', ')}. Guarda una parte.</p>` : ''}`;
 }
 
 function pieDeHoy() {
@@ -670,10 +703,10 @@ function pieDeHoy() {
   // app ya no lleva la cuenta de lo que hay en la casa, así que pedir un repaso
   // para afinar un número que no calcula sería pedir trabajo para nada.
   return `${lineaDeCompra()}
-    ${hayManana ? `<div class="section-head"><div><h2>Mañana</h2></div>${button('Ver el mes', 'navigate', 'btn-quiet btn-small', 'data-page="mes"')}</div>
+    ${hayManana ? `<div class="section-head"><div><h2>Mañana</h2></div>${button('Ver la semana', 'navigate', 'btn-quiet btn-small', 'data-page="semana"')}</div>
       <div class="grid grid-3">${SLOTS.filter(slot => !esOpcional(slot) || planFor(state, manana, slot)).map(slot => {
         const plan = planFor(state, manana, slot);
-        return `<div class="card soft"><div class="between"><span class="pill ${esOpcional(slot) ? 'gray' : 'warm'}">${esc(etiquetaDeMomento(slot))}</span></div><h3 style="margin-top:10px">${esc(plan ? planTitle(plan) : 'Sin decidir')}</h3>${plan?.kind === 'linked' ? '<p class="small muted">Usa la parte apartada de hoy.</p>' : ''}</div>`;
+        return `<div class="card soft"><div class="between"><span class="pill ${esOpcional(slot) ? 'gray' : 'warm'}">${esc(etiquetaDeMomento(slot))}</span></div><h3 style="margin-top:10px">${esc(plan ? tituloDePlan(plan) : 'Sin decidir')}</h3>${plan?.kind === 'linked' ? '<p class="small muted">Es lo que sobre de otra comida.</p>' : ''}</div>`;
       }).join('')}</div>` : ''}`;
 }
 
@@ -838,6 +871,8 @@ function renderModal() {
       `<button type="button" class="quick-item" data-action="${action}" ${extra}><span class="quick-icon">${icono(dibujo, { tamano: 24 })}</span><span class="quick-text"><strong>${esc(titulo)}</strong><span>${esc(detalle)}</span></span></button>`).join('')}</div>`);
   }
 
+  if (m.type === 'ir-a-fecha') return modalIrAFecha(ctx());
+
   if (m.type === 'poner-en-dias') return modalPonerEnDias(ctx(), m);
 
   if (m.type === 'dia') return modalDia(ctx(), m);
@@ -864,7 +899,7 @@ function renderModal() {
     const enCasa = personasActivas(state).length;
     return modal(recipe ? 'Editar preparación' : 'Nueva preparación',
       'Con el nombre y cuándo se come ya basta. Lo demás se puede añadir después.',
-      `<form data-form="recipe" data-id="${recipe?.id || ''}" data-volver-poner="${esc(m.volverPoner || '')}" class="receta-form">
+      `<form data-form="recipe" data-id="${recipe?.id || ''}" class="receta-form">
         <label class="field"><span>¿Cómo se llama?</span><input name="name" required value="${esc(recipe?.name || '')}" placeholder="Ej. Mangú con salami"></label>
 
         <div class="field">
@@ -1001,25 +1036,23 @@ function renderModal() {
         <div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar</button></div></form>`);
   }
 
-  if (m.type === 'link') {
+  if (m.type === 'sobras') {
     const source = state.plans.find(item => item.id === m.id);
-    return modal('Apartar para otra comida', `${source?.title || ''} · ${niceDate(source.date, { day: 'numeric', month: 'long' })}`,
-      `<div class="hint">Indica cuánto se aparta y para cuándo. La compra se cuenta una sola vez, el día que se prepara.</div>
-       <form data-form="link" data-id="${source.id}">
+    return modal('Usar lo que sobró', `${source?.title || ''} · ${niceDate(source.date, { day: 'numeric', month: 'long' })}`,
+      `<div class="hint">Elige cuándo se vuelve a comer. <strong>No se pregunta cuánto</strong>: cuánto sobró lo sabes tú, no una cuenta.</div>
+       <form data-form="sobras" data-id="${source.id}">
         <div class="form-grid" style="margin-top:15px">
-          <label class="field"><span>¿Para qué día?</span><input type="date" name="date" min="${addDays(source.date, 1)}" value="${addDays(source.date, 1)}" required></label>
+          <label class="field"><span>¿Para qué día?</span><input type="date" name="date" min="${source.date}" value="${addDays(source.date, 1)}" required></label>
           <label class="field"><span>¿Qué comida?</span><select name="slot">${options(SLOTS.map(slot => [slot, etiquetaDeMomento(slot)]), 'almuerzo')}</select></label>
         </div>
-        <div class="section-head"><h3>¿Cuánto se aparta?</h3></div>
-        ${source.items.map(item => `<div class="list-row"><div>${itemText(item)}<div class="small muted">Ya apartado: ${fmt(reservedQuantity(state, source.id, item.id))} ${esc(item.unit)}</div></div><label class="field" style="max-width:130px"><span class="sr-only">Apartar</span><input type="number" min="0" max="${Math.max(0, item.quantity - reservedQuantity(state, source.id, item.id))}" step="any" inputmode="decimal" name="reserve-${item.id}" value="0" aria-label="Cuánto apartar de ${esc(productName(item.productId))}"></label></div>`).join('')}
-        <div class="field" style="margin-top:15px"><span>¿Quiénes comerán esa parte?</span>${checkPeople('participants', source.participants)}</div>
-        <div data-item-list="ingredient"></div>
-        <div class="modal-actions"><button type="submit" class="btn btn-primary">Apartar</button></div></form>`, true);
+        <div class="field" style="margin-top:15px"><span>¿Quiénes se lo comen?</span>${checkPeople('participants', source.participants)}</div>
+        <p class="tiny muted" style="margin-top:12px">Queda anotado de dónde viene, y la app avisa antes de dejarte borrar la comida de origen.</p>
+        <div class="modal-actions"><button type="submit" class="btn btn-primary">Ponerla</button></div></form>`);
   }
 
   if (m.type === 'move' || m.type === 'copy') {
     const plan = state.plans.find(item => item.id === m.id);
-    return modal(m.type === 'move' ? 'Mover esta comida' : 'Copiar esta comida', planTitle(plan),
+    return modal(m.type === 'move' ? 'Mover esta comida' : 'Copiar esta comida', tituloDePlan(plan),
       `<form data-form="move-copy" data-id="${plan.id}" data-operation="${m.type}" class="stack">
         <div class="form-grid"><label class="field"><span>¿A qué día?</span><input type="date" name="date" value="${m.type === 'copy' ? addDays(plan.date, 1) : plan.date}" required></label>
         <label class="field"><span>¿Qué comida?</span><select name="slot">${options(SLOTS.map(slot => [slot, etiquetaDeMomento(slot)]), plan.slot)}</select></label></div>
@@ -1055,6 +1088,16 @@ function renderModal() {
 // La ventana de una comida es donde se decide entre «solo hoy» y «todos los
 // lunes». Ofrecer las dos cosas aquí es lo que evita tener que tocar dieciocho
 // casillas para poner el mismo desayuno.
+function comidasReutilizables(date, slot) {
+  const desde = addDays(date, -14);
+  const orden = SLOTS.indexOf(slot);
+  return state.plans
+    .filter(plan => ['recipe', 'suelta'].includes(plan.kind))
+    .filter(plan => plan.date >= desde && (plan.date < date || (plan.date === date && SLOTS.indexOf(plan.slot) < orden)))
+    .sort((a, b) => b.date.localeCompare(a.date) || SLOTS.indexOf(b.slot) - SLOTS.indexOf(a.slot))
+    .slice(0, 15);
+}
+
 function modalComida(m) {
   const plan = planFor(state, m.date, m.slot);
   const contexto = `${etiquetaDeMomento(m.slot)} · ${niceDate(m.date, { weekday: 'long', day: 'numeric', month: 'long' })}`;
@@ -1063,14 +1106,30 @@ function modalComida(m) {
     // Sin decir nada, la comida es para toda la casa: se marcan todos los que
     // viven aquí hoy. Quitar a alguien es la excepción, no el trámite.
     const marcados = personasActivas(state).map(person => person.id);
+    const anteriores = comidasReutilizables(m.date, m.slot);
+    // Se abre por donde se puede contestar. Quien todavía no ha escrito
+    // ninguna preparación no puede empezar por un desplegable vacío: empieza
+    // escribiendo lo que se come, que es lo que de verdad quiere hacer.
+    const modoInicial = opciones.length ? 'preparacion' : 'escrita';
+    const pestana = (id, etiqueta) => `<button type="button" data-action="comida-modo" data-modo="${id}" class="${modoInicial === id ? 'active' : ''}" aria-pressed="${modoInicial === id}">${etiqueta}</button>`;
+    const panel = (id, cuerpo) => `<div data-panel="${id}" ${modoInicial === id ? '' : 'hidden'}>${cuerpo}</div>`;
     return modal('¿Qué se come?', contexto, `<form data-form="assign" class="stack">
       <input type="hidden" name="date" value="${m.date}"><input type="hidden" name="slot" value="${m.slot}">
-      <label class="field"><span>Preparación</span><select name="recipeId" id="assign-recipe" ${opciones.length ? '' : 'disabled'}>${options(opciones.map(recipe => [recipe.id, recipe.name]), opciones[0]?.id, opciones.length ? '' : 'Todavía no hay ninguna')}</select></label>
+      <div class="segmented segmented-ancho" role="group" aria-label="Cómo se anota esta comida">
+        ${pestana('preparacion', 'Una preparación')}${pestana('escrita', 'Escribirla')}${anteriores.length ? pestana('sobro', 'Lo que sobró') : ''}
+      </div>
+      ${panel('preparacion', opciones.length
+        ? `<label class="field"><span>¿Cuál?</span><select name="recipeId" id="assign-recipe">${options(opciones.map(recipe => [recipe.id, recipe.name]), opciones[0]?.id)}</select></label>`
+        : `<div class="hint">Todavía no tienes preparaciones para ${esc(etiquetaDeMomento(m.slot).toLocaleLowerCase('es'))}. ${button('Crear una', 'open-recipe', 'btn-secondary btn-small')} O escríbela aquí mismo, en la pestaña de al lado.</div>`)}
+      ${panel('escrita', `<label class="field"><span>¿Qué se come?</span><input name="titulo" placeholder="Ej. lo que quedó del sancocho" autocapitalize="sentences" spellcheck="true"></label>
+        <label class="field"><span>Nota para quien cocina (opcional)</span><input name="nota" placeholder="Ej. calentar a fuego lento" autocapitalize="sentences" spellcheck="true"></label>
+        <p class="hint">Se anota solo en este día. No entra en tus preparaciones: esas son las que sabes hacer y vas a repetir.</p>`)}
+      ${anteriores.length ? panel('sobro', `<label class="field"><span>¿De cuál comida?</span>
+        <select name="sobroDe">${options(anteriores.map(item => [item.id, `${item.title} · ${niceDate(item.date, { weekday: 'short', day: 'numeric', month: 'short' })}, ${etiquetaDeMomento(item.slot).toLocaleLowerCase('es')}`]), anteriores[0]?.id)}</select></label>
+        <p class="hint">No se pregunta cuánto: cuánto sobró lo sabes tú. Queda anotado de dónde viene, y avisamos antes de borrar esa comida.</p>`) : ''}
       ${bloqueDeQuienCome('participants', marcados, m.date, m.slot, { abierto: bloqueDeQuienComeAbierto(ui) })}
       <div data-choque>${avisoDeAlergias(opciones[0]?.items || [], marcados, { conSalidas: true })}</div>
-      ${opciones.length
-        ? `<button type="submit" class="btn btn-primary">Poner esta comida</button>`
-        : `<div class="hint">Todavía no tienes preparaciones para ${esc(etiquetaDeMomento(m.slot).toLocaleLowerCase('es'))}. ${button('Crear una', 'open-recipe', 'btn-secondary btn-small')}</div>`}
+      <button type="submit" class="btn btn-primary">Poner esta comida</button>
       </form>
       <div class="divider"></div>
       <div class="small strong" style="margin-bottom:9px">O marcar que no se cocina</div>
@@ -1078,8 +1137,8 @@ function modalComida(m) {
         button(label, 'mark-status', 'btn-secondary btn-small', `data-date="${m.date}" data-slot="${m.slot}" data-kind="${kind}"`)).join('')}</div>
       <p class="small muted" style="margin:12px 0 0">Un día de paseo no se parte en tres: ${button('marcar el día entero fuera', 'mark-day', 'btn-quiet btn-small', `data-date="${m.date}" data-kind="outside"`)}</p>`);
   }
-  if (!['recipe', 'linked'].includes(plan.kind)) {
-    return modal(planTitle(plan), contexto, `${lineaDeOrigen(plan)}
+  if (ESTADOS_SIN_COMIDA.includes(plan.kind)) {
+    return modal(tituloDePlan(plan), contexto, `${lineaDeOrigen(plan)}
       <p class="muted">Esta comida está resuelta: no cuenta como pendiente y no gasta alimentos.</p>
       <div class="modal-actions">${button('Cambiarla por una comida', 'delete-plan', 'btn-secondary', `data-id="${plan.id}"`)}${button('Quitar la marca', 'delete-plan', 'btn-quiet', `data-id="${plan.id}"`)}</div>`);
   }
@@ -1118,9 +1177,9 @@ function modalComida(m) {
             con esta preparación y este momento ya elegidos. Lo único que queda
             por marcar son los días, que es lo único que esta comida no sabe. */''}
        ${plan.kind === 'recipe' && plan.recipeId
-         ? button('Ponerla otros días', 'mes-poner-en-dias', 'btn-secondary btn-small', `data-receta="${esc(plan.recipeId)}" data-slot="${esc(plan.slot)}" data-kind="recipe"`)
+         ? button('Ponerla otros días', 'semana-poner-en-dias', 'btn-secondary btn-small', `data-receta="${esc(plan.recipeId)}" data-slot="${esc(plan.slot)}" data-kind="recipe"`)
          : ''}
-       ${plan.kind === 'recipe' ? button('Apartar para otro día', 'open-link', 'btn-quiet btn-small', `data-id="${plan.id}"`) : ''}
+       ${['recipe', 'suelta'].includes(plan.kind) ? button('Usar lo que sobró otro día', 'open-sobras', 'btn-quiet btn-small', `data-id="${plan.id}"`) : ''}
        ${button('Mover', 'open-move', 'btn-quiet btn-small', `data-id="${plan.id}"`)}
        ${plan.kind !== 'linked' ? button('Copiar', 'open-copy', 'btn-quiet btn-small', `data-id="${plan.id}"`) : ''}
        ${button('Quitar', 'delete-plan', 'btn-quiet btn-small', `data-id="${plan.id}"`)}
@@ -1150,7 +1209,7 @@ function bloqueDeDestino(item, mensual) {
   // Editando algo que ya está en la canasta, la pregunta ya está contestada: lo
   // que se escriba corrige la costumbre, que es donde vive.
   if (item && mensual) {
-    return `<p class="small muted">Este alimento ya está en tus productos habituales: lo que escribas arriba corrige lo de <strong>todos los meses</strong>. Para cambiar solo un mes, entra en Más → Mis productos habituales → Cambios de este mes.</p>
+    return `<p class="small muted">Este alimento ya está en tus productos habituales: lo que escribas arriba corrige lo de <strong>todos los meses</strong>. Para cambiar solo un mes, entra en Mis productos habituales → Cambios de este mes.</p>
       <input type="hidden" name="destino" value="siempre">`;
   }
   const mesActual = todayISO().slice(0, 7);
@@ -1330,7 +1389,7 @@ document.addEventListener('click', event => {
     }
     if (HOGAR_ACTIONS[action]) { llamarAccion(action, HOGAR_ACTIONS[action], el, ctxHogar()); return; }
     if (BULK_ACTIONS[action]) { llamarAccion(action, BULK_ACTIONS[action], el, { ...ctx(), bulk: ui.bulk }); return; }
-    if (MES_ACTIONS[action]) { llamarAccion(action, MES_ACTIONS[action], el, ctx()); return; }
+    if (SEMANA_ACTIONS[action]) { llamarAccion(action, SEMANA_ACTIONS[action], el, ctx()); return; }
     if (COMPRA_ACTIONS[action]) { llamarAccion(action, COMPRA_ACTIONS[action], el, ctx()); return; }
     if (MAS_ACTIONS[action]) { llamarAccion(action, MAS_ACTIONS[action], el, ctx()); return; }
 
@@ -1349,6 +1408,16 @@ document.addEventListener('click', event => {
     }
     else if (action === 'solo-algunos') { if (ui.modal) ui.modal.soloAlgunos = !ui.modal.soloAlgunos; render(); }
     else if (action === 'open-quick') openModal('quick');
+    else if (action === 'comida-modo') {
+      const form = el.closest('form');
+      for (const pestana of form.parentElement.querySelectorAll('[data-action="comida-modo"]')) {
+        const suya = pestana === el;
+        pestana.classList.toggle('active', suya);
+        pestana.setAttribute('aria-pressed', String(suya));
+      }
+      for (const caja of form.querySelectorAll('[data-panel]')) caja.hidden = caja.dataset.panel !== el.dataset.modo;
+      form.querySelector(`[data-panel="${el.dataset.modo}"] input, [data-panel="${el.dataset.modo}"] select`)?.focus();
+    }
     else if (action === 'rapida-comida') openModal('meal', { date: today, slot: proximaComidaLibre() });
     else if (action === 'open-bulk') { ui.bulk = emptyBulk(el.dataset.destino || 'habitual'); ui.bulk.mes = el.dataset.month || ui.mas.canastaMes; openModal('bulk'); }
     else if (action === 'welcome-demo') { ui.welcome = false; ui.page = TOUR_STEPS[0].page; ui.tour = 0; commit('Este es un ejemplo. Puedes borrarlo cuando quieras.'); }
@@ -1357,7 +1426,7 @@ document.addEventListener('click', event => {
     else if (action === 'welcome-empty') { state = createEmptyState(); ui.welcome = false; ui.tour = null; ui.modal = null; ui.setup = emptySetup(); ui.page = 'setup'; commit(''); }
     else if (action === 'open-tour') { ui.modal = null; goTour(0); }
     else if (action === 'tour-prev') goTour(Math.max(0, ui.tour - 1));
-    else if (action === 'tour-next') { if (ui.tour + 1 < TOUR_STEPS.length) goTour(ui.tour + 1); else { ui.tour = null; render(); toast('Listo. Puedes volver a verlo desde Más → Ajustes.'); } }
+    else if (action === 'tour-next') { if (ui.tour + 1 < TOUR_STEPS.length) goTour(ui.tour + 1); else { ui.tour = null; render(); toast('Listo. Puedes volver a verlo desde Ajustes.'); } }
     else if (action === 'tour-skip') { ui.tour = null; render(); }
     else if (action === 'toggle-sidebar') toggleSidebar();
     else if (action === 'close-sidebar') closeSidebar();
@@ -1367,11 +1436,10 @@ document.addEventListener('click', event => {
     else if (action === 'open-product') openModal('product', { id: el.dataset.id });
     else if (action === 'open-equivalence') openModal('equivalence', { id: el.dataset.id });
     else if (action === 'open-merge') openModal('merge', { id: el.dataset.id });
-    else if (action === 'open-link') openModal('link', { id: el.dataset.id });
+    else if (action === 'open-sobras') openModal('sobras', { id: el.dataset.id });
     else if (action === 'open-move') openModal('move', { id: el.dataset.id });
     else if (action === 'open-copy') openModal('copy', { id: el.dataset.id });
     // Salir del callejón: se escribe la primera preparación y se vuelve aquí.
-    else if (action === 'poner-primera-preparacion') openModal('recipe', { id: '', volverPoner: el.dataset.month || ui.mes.month });
     else if (action === 'open-correction') openModal('correction', { id: el.dataset.id });
     else if (action === 'open-absence') openModal('absence');
     else if (action === 'open-import') openModal('import');
@@ -1442,7 +1510,7 @@ document.addEventListener('click', event => {
       // guardar encima las dejaba todas.
       clearAll();
       state = createEmptyState(); loadError = ''; ui.modal = null; ui.reviewId = null;
-      ui.mes = emptyMes(mesActual); ui.compra = emptyCompra(mesActual); ui.mas = emptyMas();
+      ui.semana = emptySemana(); ui.compra = emptyCompra(mesActual); ui.mas = emptyMas();
       ui.page = 'hoy';
       commit('Datos borrados. Ya puedes empezar con los tuyos.');
     }
@@ -1588,7 +1656,7 @@ document.addEventListener('submit', async event => {
     if (SETUP_FORMS[kind]) { SETUP_FORMS[kind](form, data, ctx()); return; }
     if (HOGAR_FORMS[kind]) { HOGAR_FORMS[kind](form, data, ctxHogar()); return; }
     if (BULK_FORMS[kind]) { await BULK_FORMS[kind](form, data, { ...ctx(), bulk: ui.bulk }); return; }
-    if (MES_FORMS[kind]) { MES_FORMS[kind](form, data, ctx()); return; }
+    if (SEMANA_FORMS[kind]) { SEMANA_FORMS[kind](form, data, ctx()); return; }
     if (COMPRA_FORMS[kind]) { COMPRA_FORMS[kind](form, data, ctx()); return; }
 
     if (kind === 'recipe') {
@@ -1604,15 +1672,7 @@ document.addEventListener('submit', async event => {
       // escribiendo de una sentada las seis comidas de su casa no quiere
       // abrirla, cerrarla y volverla a abrir seis veces.
       const seguir = data.get('seguir') === '1';
-      // Quien llegó aquí desde la ventana de poner una comida porque no tenía
-      // ninguna preparación escrita vuelve por donde vino, y vuelve con la que
-      // acaba de escribir ya elegida. El registro inicial no puede terminar en
-      // una ventana que se cierra y te deja donde no estabas.
-      const volverAPoner = form.dataset.volverPoner || '';
-      ui.modal = seguir ? { type: 'recipe', id: '' }
-        : volverAPoner
-          ? { type: 'poner-en-dias', month: volverAPoner, receta: receta.id, kind: 'recipe' }
-          : null;
+      ui.modal = seguir ? { type: 'recipe', id: '' } : null;
       // Se guarda igual sin alimentos: la preparación ya sirve para llenar el
       // calendario. Lo único que no puede hacer es avisar de las alergias, y eso
       // se dice en voz baja en vez de bloquear el guardado.
@@ -1717,9 +1777,22 @@ document.addEventListener('submit', async event => {
     }
     else if (kind === 'equivalence') { setEquivalence(state, form.dataset.id, data.get('unit'), data.get('factor')); ui.modal = null; commit('Guardado.'); }
     else if (kind === 'assign') {
-      const receta = data.get('recipeId');
-      makeRecipePlan(state, receta, data.get('date'), data.get('slot'), selected(form, 'participants'));
-      ui.modal = null; commit('Comida puesta.');
+      const date = data.get('date'), slot = data.get('slot');
+      const gente = selected(form, 'participants');
+      // Cuál de las tres pestañas está abierta. Se lee del DOM y no de un
+      // campo escondido porque cambiar de pestaña no redibuja: lo que está a
+      // la vista es la única verdad.
+      const modo = form.querySelector('[data-panel]:not([hidden])')?.dataset.panel || 'preparacion';
+      if (modo === 'escrita') {
+        const puesta = anotarComidaSuelta(state, date, slot, { titulo: data.get('titulo'), nota: data.get('nota'), participants: gente });
+        ui.modal = null; commit(`«${puesta.title}» queda anotada solo para ese día.`);
+      } else if (modo === 'sobro') {
+        const puesta = reutilizarComida(state, data.get('sobroDe'), date, slot, gente);
+        ui.modal = null; commit(`Se vuelve a comer «${puesta.title}». No se apunta ninguna cantidad.`);
+      } else {
+        makeRecipePlan(state, data.get('recipeId'), date, slot, gente);
+        ui.modal = null; commit('Comida puesta.');
+      }
     }
     /* ── Cambiar el plato de un solo día ────────────────────────────────────
 
@@ -1754,11 +1827,10 @@ document.addEventListener('submit', async event => {
       updatePlan(state, plan.id, cambios);
       ui.modal = null; commit('Guardado.');
     }
-    else if (kind === 'link') {
-      const origen = state.plans.find(item => item.id === form.dataset.id);
-      const reparto = Object.fromEntries(origen.items.map(item => [item.id, data.get(`reserve-${item.id}`)]));
-      linkPlan(state, origen.id, data.get('date'), data.get('slot'), reparto, collectItems(form), selected(form, 'participants'));
-      ui.modal = null; commit('Apartado. La compra no se cuenta dos veces.');
+    else if (kind === 'sobras') {
+      const puesta = reutilizarComida(state, form.dataset.id, data.get('date'), data.get('slot'), selected(form, 'participants'));
+      ui.modal = null;
+      commit(`«${puesta.title}» se vuelve a comer el ${niceDate(puesta.date, { weekday: 'long', day: 'numeric', month: 'long' })}.`);
     }
     else if (kind === 'move-copy') {
       if (form.dataset.operation === 'move') movePlan(state, form.dataset.id, data.get('date'), data.get('slot'));
@@ -1784,7 +1856,7 @@ document.addEventListener('submit', async event => {
       const traido = importState(await archivo.text());
       if (!window.confirm('¿Reemplazar todo lo que hay ahora con esta copia?')) return;
       state = traido; loadError = ''; ui.modal = null; ui.reviewId = null;
-      ui.mes = emptyMes(mesActual); ui.compra = emptyCompra(mesActual); ui.mas = emptyMas();
+      ui.semana = emptySemana(); ui.compra = emptyCompra(mesActual); ui.mas = emptyMas();
       commit('Copia traída.');
     }
   } catch (error) {

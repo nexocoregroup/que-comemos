@@ -488,3 +488,42 @@ test('partir una rutina vieja dos veces deja exactamente lo mismo', () => {
   assert.equal(una.mealRoutines.length, 3);
   assert.deepEqual(otra.mealRoutines, una.mealRoutines, 'la segunda conversión volvió a partirlas');
 });
+
+/* ── De dónde vino cada comida de un respaldo viejo ────────────────────────
+
+   Un calendario lleno tiene que decir quién lo llenó. Los respaldos de antes no
+   lo guardaban, así que la conversión lo deduce: la rutina deja marca, y un
+   «fuera de casa» es una excepción por definición. Lo demás fue un cambio a
+   mano, que es lo que era. */
+
+test('un respaldo sin orígenes se convierte deduciendo lo que se puede', () => {
+  const viejo = {
+    version: 5, seq: 20, products: [], people: [], recipes: [], absences: [],
+    opening: {}, purchases: [], reviews: [], corrections: [], manualItems: [],
+    habitualBasket: { lines: [], updatedAt: null, history: [] },
+    monthOverrides: {}, mealRoutines: [], monthPlans: {}, activity: [],
+    settings: { reviewWeekday: 5, onboarded: true },
+    plans: [
+      { id: 'comida-1', date: '2026-10-05', slot: 'desayuno', kind: 'recipe', routineId: 'rutina-1', title: 'Mangú', participants: [], items: [] },
+      { id: 'comida-2', date: '2026-10-06', slot: 'almuerzo', kind: 'outside', routineId: null, participants: [], items: [] },
+      { id: 'comida-3', date: '2026-10-07', slot: 'cena', kind: 'recipe', routineId: null, title: 'Locrio', participants: [], items: [] }
+    ]
+  };
+  const { ok, state, to } = migrate(structuredClone(viejo));
+  assert.equal(ok, true);
+  assert.equal(to, SCHEMA_VERSION);
+  assert.deepEqual(state.plans.map(plan => plan.origen), ['rutina', 'excepcion', 'manual']);
+  // Y ninguna comida se movió de sitio, de plato ni de nada.
+  assert.deepEqual(state.plans.map(plan => [plan.id, plan.date, plan.slot, plan.kind]),
+    viejo.plans.map(plan => [plan.id, plan.date, plan.slot, plan.kind]));
+
+  // Repetirla sobre lo ya convertido no cambia nada.
+  const segunda = migrate(structuredClone(state));
+  assert.equal(segunda.ok, true);
+  assert.deepEqual(segunda.state.plans, state.plans);
+
+  // Y un origen escrito a mano se respeta: la deducción solo rellena huecos.
+  const conOrigen = structuredClone(viejo);
+  conOrigen.plans[2].origen = 'mes-anterior';
+  assert.equal(migrate(conOrigen).state.plans[2].origen, 'mes-anterior');
+});

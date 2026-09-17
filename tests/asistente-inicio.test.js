@@ -76,11 +76,11 @@ function almacenDeMentira() {
 test('el recorrido son cinco pasos, y en este orden', () => {
   assert.equal(PASOS.length, 5);
   assert.deepEqual(PASOS.map(paso => paso.id),
-    [PASO.personas, PASO.alimentos, PASO.compra, PASO.preparaciones, PASO.casa]);
+    [PASO.personas, PASO.alimentos, PASO.compra, PASO.preparaciones, PASO.plan]);
   // Quiénes comen aquí va primero: de eso depende todo lo demás. Y las comidas
   // se escriben antes del repaso, que es lo único que hay después.
   assert.equal(PASOS[0].id, PASO.personas);
-  assert.equal(PASOS[PASOS.length - 1].id, PASO.casa);
+  assert.equal(PASOS[PASOS.length - 1].id, PASO.plan);
 });
 
 test('los cinco son los mismos se compre como se compre', () => {
@@ -313,15 +313,12 @@ test('la ventana de una preparación se puede encadenar para escribirlas de una 
   assert.ok(/const seguir = data\.get\('seguir'\) === '1';/.test(codigo));
   assert.ok(/ui\.modal = seguir \? \{ type: 'recipe', id: '' \}/.test(codigo),
     'guardar y seguir no deja la ventana abierta y vacía');
-  // Y quien llegó aquí desde la ventana de poner una comida porque no tenía
-  // ninguna preparación vuelve a esa ventana con la recién escrita ya elegida,
-  // en vez de quedarse en una pantalla que no es la suya.
-  assert.ok(/data-volver-poner="\$\{esc\(m\.volverPoner \|\| ''\)\}"/.test(codigo), 'la ventana no recuerda de dónde se vino');
-  assert.ok(/const volverAPoner = form\.dataset\.volverPoner \|\| '';/.test(codigo));
-  assert.ok(/\? \{ type: 'poner-en-dias', month: volverAPoner, receta: receta\.id, kind: 'recipe' \}/.test(codigo),
-    'escribir la primera preparación desde ahí no devuelve a la ventana de poner una comida');
-  assert.ok(/openModal\('recipe', \{ id: '', volverPoner: el\.dataset\.month \|\| ui\.mes\.month \}\)/.test(codigo),
-    'no hay camino de la ventana vacía a escribir la primera preparación');
+  // Y no vuelve a ninguna otra parte. Había un camino de ida y vuelta entre
+  // esta ventana y la de poner una comida en varios días, de cuando esa
+  // ventana era el único sitio desde donde se llenaba el calendario. Ahora
+  // Preparaciones es una sección de la barra, y volver es tocarla.
+  assert.ok(!/volverPoner|volverARutina|volverRutina/.test(codigo),
+    'volvió el camino de vuelta a una ventana que ya no manda a ningún sitio');
 });
 
 test('quitar una preparación pregunta antes, y avisa si está puesta en el calendario', () => {
@@ -355,7 +352,7 @@ test('el último paso enseña lo registrado, uno por uno, y deja volver a cada c
   setHabitualBasket(ctx.state, [{ productId: arroz, quantity: '', unit: 'lb', priority: 'frecuente' }]);
   upsertPerson(ctx.state, { name: 'Sofía', kind: 'nino', restricciones: [] });
   upsertRecipe(ctx.state, { name: 'Mangú', uses: ['desayuno'], items: [], note: '' });
-  ctx.ui.setup.paso = PASO.casa;
+  ctx.ui.setup.paso = PASO.plan;
   ctx.ui.setup.personas = 1;
   ctx.ui.setup.frecuencia = 'quincenal';
 
@@ -364,7 +361,7 @@ test('el último paso enseña lo registrado, uno por uno, y deja volver a cada c
   assert.ok(html.includes('Mi hogar') && /1 persona</.test(html));
   assert.ok(html.includes('Productos habituales') && /1 producto</.test(html));
   assert.ok(html.includes('Dos compras al mes'));
-  assert.ok(html.includes('Comidas habituales') && /1 preparación</.test(html));
+  assert.ok(html.includes('Mis preparaciones') && /1 preparación</.test(html));
   // Cada línea vuelve a su paso.
   for (const paso of [PASO.personas, PASO.alimentos, PASO.compra, PASO.preparaciones]) {
     assert.ok(html.includes(`data-action="setup-ir" data-paso="${paso}"`), `no se puede volver al paso ${paso}`);
@@ -374,28 +371,32 @@ test('el último paso enseña lo registrado, uno por uno, y deja volver a cada c
   assert.ok(html.includes('data-action="setup-terminar"'));
 });
 
-test('el último paso dice que el calendario empieza vacío, y que se llena a mano', () => {
-  // Es la promesa que no se puede callar. Alguien que acaba de registrar su
-  // casa entera y abre el mes esperando encontrarlo hecho merece saberlo antes
-  // de abrirlo, no después.
+test('el último paso deja terminar sin poner ni una comida, y lo dice', () => {
+  // Es la promesa que no se puede callar. Quien acaba de registrar su casa
+  // entera no tiene por qué planificar catorce días ahí mismo para poder
+  // salir, y tiene que saberlo antes de empezar a elegir.
   const conComidas = contexto();
   upsertRecipe(conComidas.state, { name: 'Mangú', uses: ['desayuno'], items: [], note: '' });
-  conComidas.ui.setup.paso = PASO.casa;
+  conComidas.ui.setup.paso = PASO.plan;
   const html = renderSetup(conComidas);
   revisar(html, 'ver mi casa con una preparación escrita');
-  assert.ok(html.includes('Tu calendario empieza vacío, y así se queda hasta que tú lo llenes.'));
-  // Y se dice cómo se llena, que es lo único que evita quedarse esperando.
-  assert.ok(/marcas los días en que la quieres comer/.test(html), 'no explica cómo se pone una comida');
-  assert.ok(/La aplicación no decide por ti/.test(html), 'deja abierta la idea de que algo se llenará solo');
-  // Pero se puede terminar igual: avisar no es bloquear.
+  assert.ok(html.includes('Puedes terminar sin poner ni una comida'), 'no dice que se puede terminar sin planificar');
+  assert.ok(/Plan semanal/.test(html), 'no dice dónde se pone lo que falte');
+  // Y antes de elegir 7 o 14 no se enseña ni un día: la primera pregunta es
+  // cuántos, no cuál.
+  assert.ok(/¿Cuántos días quieres planificar\?/.test(html));
+  // Terminar está a un toque, sin nada que lo bloquee.
   assert.ok(html.includes('data-action="setup-terminar"'));
   assert.ok(!/disabled/.test(html));
 
+  // Y sin ninguna preparación escrita no se enseñan desplegables vacíos: se
+  // dice, y se ofrece volver al paso donde se escriben.
   const vacia = contexto();
-  vacia.ui.setup.paso = PASO.casa;
+  vacia.ui.setup.paso = PASO.plan;
   const sinNada = renderSetup(vacia);
-  assert.ok(sinNada.includes('Tu calendario empieza vacío, y así se queda hasta que tú lo llenes.'));
-  assert.ok(/no hay ninguna preparación escrita/.test(sinNada));
+  assert.ok(/preparaci[oó]n/i.test(sinNada), 'no explica que faltan preparaciones');
+  assert.ok(sinNada.includes(`data-action="setup-ir" data-paso="${PASO.preparaciones}"`), 'no ofrece volver a escribirlas');
+  assert.ok(sinNada.includes('data-action="setup-terminar"'), 'sin preparaciones tampoco se puede quedar atrapado');
 });
 
 /* ── Y el camino se recorre entero ─────────────────────────────────────── */
@@ -406,11 +407,11 @@ test('se llega del principio al final sin quedarse atascado en ningún paso', ()
   assert.equal(ctx.ui.setup.paso, PASO.personas);
 
   const visitados = [ctx.ui.setup.paso];
-  for (let i = 0; i < 20 && ctx.ui.setup.paso !== PASO.casa; i++) {
+  for (let i = 0; i < 20 && ctx.ui.setup.paso !== PASO.plan; i++) {
     SETUP_ACTIONS['setup-siguiente'](null, ctx);
     visitados.push(ctx.ui.setup.paso);
   }
-  assert.equal(ctx.ui.setup.paso, PASO.casa, `se quedó atascado: ${visitados.join(' → ')}`);
+  assert.equal(ctx.ui.setup.paso, PASO.plan, `se quedó atascado: ${visitados.join(' → ')}`);
   assert.deepEqual(visitados, pasosDe(ctx.ui.setup).map(paso => paso.id));
 
   // Y hacia atrás también, sin saltarse ninguno.
@@ -425,10 +426,10 @@ test('el borrador sobrevive hasta el final, y se borra al terminar', () => {
   ctx.ui.setup.elegidos = ['Arroz'];
   SETUP_ACTIONS['setup-siguiente'](null, ctx);
 
-  assert.equal(ctx.ui.setup.paso, PASO.casa);
+  assert.equal(ctx.ui.setup.paso, PASO.plan);
   const guardado = avanceGuardado(ctx.state);
   assert.ok(guardado, 'el borrador se borró con un paso todavía por delante');
-  assert.equal(guardado.paso, PASO.casa);
+  assert.equal(guardado.paso, PASO.plan);
   assert.equal(guardado.personas, 4);
 
   // Al terminar sí se borra: ya no queda nada que retomar.
@@ -449,12 +450,19 @@ test('un avance guardado con la numeración vieja no aterriza en el paso equivoc
   assert.equal(comoAntes(4), PASO.preparaciones, 'el de las cantidades');
   assert.equal(comoAntes(5), PASO.preparaciones, 'el del reparto');
   assert.equal(comoAntes(6), PASO.preparaciones, 'el de las preparaciones');
-  assert.equal(comoAntes(7), PASO.casa, 'el del mes');
+  assert.equal(comoAntes(7), PASO.plan, 'el del mes');
   assert.equal(comoAntes(1), PASO.personas);
 
-  // Y lo guardado ya con la numeración de ahora se respeta tal cual.
+  // El paso 5 de la numeración anterior era «Ver mi casa»: un repaso, y nada
+  // más. El 5 de ahora crea el primer plan, y crearlo es elegir entre las
+  // preparaciones escritas. Devolver a alguien ahí sin haberlas visto es
+  // pedirle que elija a ciegas, así que aterriza en el paso donde se escriben.
   state.settings.canasta = { paso: 5, esquema: 2, elegidos: [], propios: [], cantidades: {} };
-  assert.equal(avanceGuardado(state).paso, PASO.casa);
+  assert.equal(avanceGuardado(state).paso, PASO.preparaciones, 'el «ver mi casa» de antes no es el plan de ahora');
+
+  // Y lo guardado ya con la numeración de ahora se respeta tal cual.
+  state.settings.canasta = { paso: 5, esquema: 3, elegidos: [], propios: [], cantidades: {} };
+  assert.equal(avanceGuardado(state).paso, PASO.plan);
 });
 
 /* ── Los días se dicen en la propia preparación ────────────────────────── */
@@ -474,9 +482,9 @@ test('la ficha de una preparación no pregunta los días: los días se marcan ap
   assert.ok(!/function rutinaDeLaReceta\(/.test(codigo));
   // Y desde una comida ya puesta se llega a ponerla otros días, con la
   // preparación y el momento que ya se sabían.
-  const desdeLaComida = codigo.slice(codigo.indexOf("'mes-poner-en-dias'"));
+  const desdeLaComida = codigo.slice(codigo.indexOf("'semana-poner-en-dias'"));
   assert.ok(desdeLaComida, 'no hay camino de una comida del calendario a ponerla en otros días');
-  assert.ok(/^'mes-poner-en-dias', 'btn-secondary btn-small', `data-receta=/.test(desdeLaComida),
+  assert.ok(/^'semana-poner-en-dias', 'btn-secondary btn-small', `data-receta=/.test(desdeLaComida),
     'el botón no se lleva la preparación que ya se sabía');
   assert.ok(/data-slot=/.test(desdeLaComida.slice(0, 200)), 'ni el momento, que también se sabía');
   assert.ok(/Ponerla otros días/.test(codigo));
@@ -501,7 +509,7 @@ test('terminar lleva a Hoy y no deja borrador', () => {
   const state = createEmptyState();
   upsertRecipe(state, { name: 'Sancocho', uses: ['almuerzo'], items: [], note: '' });
   const ctx = contexto(state);
-  ctx.ui.setup.paso = PASO.casa;
+  ctx.ui.setup.paso = PASO.plan;
   SETUP_ACTIONS['setup-terminar'](null, ctx);
   assert.equal(ctx.ui.page, 'hoy');
   assert.equal(ctx.ui.setup, null);
@@ -510,7 +518,7 @@ test('terminar lleva a Hoy y no deja borrador', () => {
 
 test('desde el repaso se vuelve a cualquier paso sin perder nada', () => {
   const ctx = contexto();
-  ctx.ui.setup.paso = PASO.casa;
+  ctx.ui.setup.paso = PASO.plan;
   ctx.ui.setup.elegidos = ['Arroz', 'Yuca'];
   ctx.ui.setup.personas = 3;
 

@@ -264,7 +264,7 @@ function v3toV4(data) {
   });
   state.version = 4;
   if (conMotivoPendiente) {
-    notes.push(`${conMotivoPendiente} persona(s) tenían alimentos anotados sin decir por qué. Se conservan y se sigue avisando igual; puedes marcar si es alergia, intolerancia o preferencia desde Más → Familia.`);
+    notes.push(`${conMotivoPendiente} persona(s) tenían alimentos anotados sin decir por qué. Se conservan y se sigue avisando igual; puedes marcar si es alergia, intolerancia o preferencia desde Ajustes → Familia.`);
   }
   return { state, notes };
 }

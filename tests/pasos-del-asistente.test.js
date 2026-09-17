@@ -53,10 +53,10 @@ test('ya no hay ningún paso que dependa de una respuesta anterior', () => {
   }
 });
 
-test('el recorrido es el que se pidió: hogar, productos, compra, comidas y ver mi casa', () => {
-  assert.deepEqual(PASOS.map(paso => paso.id), [PASO.personas, PASO.alimentos, PASO.compra, PASO.preparaciones, PASO.casa]);
+test('el recorrido es el que se pidió: hogar, productos, compra, preparaciones y el primer plan', () => {
+  assert.deepEqual(PASOS.map(paso => paso.id), [PASO.personas, PASO.alimentos, PASO.compra, PASO.preparaciones, PASO.plan]);
   assert.deepEqual(PASOS.map(paso => paso.titulo),
-    ['Mi hogar', 'Productos habituales', 'Cómo compramos', 'Comidas habituales', 'Ver mi casa']);
+    ['Mi hogar', 'Mis productos habituales', 'Cómo compramos', 'Mis preparaciones', 'Crear mi primer plan']);
 });
 
 test('ningún paso se queda sin nombre corto para el indicador', () => {

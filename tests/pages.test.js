@@ -9,16 +9,16 @@ import { readFileSync } from 'node:fs';
 // pantallas «tocan el DOM, no se pueden cargar en Node».
 //
 // Eso era verdad de `app.js`, que lee `document` al arrancar. No lo es de los
-// módulos de pantalla: `renderMes`, `renderCompra` y `renderMas` reciben un
+// módulos de pantalla: `renderSemana`, `renderCompra` y `renderMas` reciben un
 // contexto y devuelven una cadena de HTML. Se pueden llamar aquí mismo, con un
 // estado de verdad, y comprobar qué sale. Eso caza el «no es una función», el
 // campo que cambió de forma y el `undefined` que se cuela en la pantalla.
 
 import { createDemoState } from '../src/demo.js';
 import { addProduct, addPurchase, createEmptyState, createReview, saveReview, setHabitualLine, setMonthChange, setPersonActive, setReviewScope, todayISO, upsertPerson } from '../src/model.js';
-import { emptyMes, modalDia, modalPonerEnDias, renderMes } from '../src/page-mes.js';
+import { emptySemana, modalDia, modalIrAFecha, modalPonerEnDias, renderSemana } from '../src/page-semana.js';
 import { emptyCompra, renderCompra } from '../src/page-compra.js';
-import { PAGINAS_MAS, emptyMas, estadoDeLaCopia, renderMas } from '../src/page-mas.js';
+import { ENTRADAS_MAS, PAGINAS_MAS, emptyMas, estadoDeLaCopia, renderMas } from '../src/page-mas.js';
 
 const MES = todayISO().slice(0, 7);
 
@@ -26,13 +26,13 @@ const MES = todayISO().slice(0, 7);
 // porque aquí solo se pinta: si una pantalla intentara guardar algo al
 // dibujarse, eso sería el fallo, no la prueba.
 function contexto(state, extra = {}) {
+  const ui = {
+    page: 'hoy', modal: null, reviewId: null, correctingReview: false,
+    semana: emptySemana(), compra: emptyCompra(MES), mas: emptyMas(),
+    ...extra
+  };
   return {
-    state,
-    ui: {
-      page: 'hoy', modal: null, reviewId: null, correctingReview: false,
-      mes: emptyMes(MES), compra: emptyCompra(MES), mas: emptyMas(),
-      ...extra
-    },
+    state, ui,
     commit: () => {}, toast: () => {}, render: () => {},
     closeModal: () => {}, openModal: () => {}, startTour: () => {}
   };
@@ -52,31 +52,42 @@ function revisar(html, donde) {
 
 /* ── Con datos ─────────────────────────────────────────────────────────── */
 
-test('plan mensual se dibuja con datos', () => {
+test('el plan semanal se dibuja con datos, en una semana y en dos', () => {
   const ctx = contexto(createDemoState());
-  revisar(renderMes(ctx), 'renderMes (resumen)');
-  ctx.ui.mes.vista = 'calendario';
-  revisar(renderMes(ctx), 'renderMes (calendario)');
+  revisar(renderSemana(ctx), 'renderSemana (siete días)');
+  ctx.ui.semana.vista = 'dos';
+  revisar(renderSemana(ctx), 'renderSemana (catorce días)');
+  revisar(modalDia(ctx, { date: todayISO() }), 'la ventana del día');
+  revisar(modalIrAFecha(ctx), 'la ventana de ir a una fecha');
 });
 
 test('la ventana de poner una comida en varios días se dibuja, venga de donde venga', () => {
   const state = createDemoState();
   const ctx = contexto(state);
-  revisar(modalPonerEnDias(ctx, { month: MES }), 'modalPonerEnDias');
+  revisar(modalPonerEnDias(ctx, {}), 'modalPonerEnDias');
   // Desde una preparación y desde una comida del calendario llega con lo que
   // ya se eligió: la ventana no puede volver a preguntarlo.
-  revisar(modalPonerEnDias(ctx, { month: MES, receta: state.recipes[0].id, slot: 'cena', kind: 'recipe' }), 'modalPonerEnDias (con preparación y momento)');
-  revisar(modalPonerEnDias(ctx, { month: MES, kind: 'outside' }), 'modalPonerEnDias (fuera de casa)');
+  revisar(modalPonerEnDias(ctx, { receta: state.recipes[0].id, slot: 'cena', kind: 'recipe' }), 'modalPonerEnDias (con preparación y momento)');
+  revisar(modalPonerEnDias(ctx, { kind: 'outside' }), 'modalPonerEnDias (fuera de casa)');
 });
 
-test('la ventana de poner en varios días trae los treinta días del mes y sus atajos', () => {
-  const html = modalPonerEnDias(contexto(createDemoState()), { month: MES });
-  const dias = (html.match(/name="fechas"/g) || []).length;
-  assert.equal(dias, 30, 'septiembre tiene 30 días y todos tienen que poder marcarse');
-  for (const cuantos of ['7', '14', '0']) {
-    assert.ok(html.includes(`data-cuantos="${cuantos}"`), `falta el atajo de ${cuantos} días`);
+test('la ventana de poner en varios días pregunta tres cosas y trae los días que se están viendo', () => {
+  const ctx = contexto(createDemoState());
+  const siete = modalPonerEnDias(ctx, {});
+  assert.ok(siete.includes('¿Qué comen?') && siete.includes('¿En qué comida?') && siete.includes('¿Qué días?'),
+    'la ventana dejó de preguntar alguna de las tres cosas');
+  assert.equal((siete.match(/name="fechas"/g) || []).length, 7, 'viendo una semana hay siete días que marcar');
+  for (const cuantos of ['7', '0']) {
+    assert.ok(siete.includes(`data-cuantos="${cuantos}"`), `falta el atajo de ${cuantos} días`);
   }
-  assert.ok(!/weekdays|scope|permanent/.test(html), 'la ventana volvió a preguntar por una costumbre');
+  assert.ok(!siete.includes('data-cuantos="14"'), 'ofrece marcar catorce días viendo solo siete');
+
+  // Y viendo dos semanas, el atajo de las dos.
+  ctx.ui.semana.vista = 'dos';
+  const catorce = modalPonerEnDias(ctx, {});
+  assert.equal((catorce.match(/name="fechas"/g) || []).length, 14);
+  assert.ok(catorce.includes('data-cuantos="14"'), 'falta el atajo de las dos semanas');
+  assert.ok(!/weekdays|scope|permanent/.test(catorce), 'la ventana volvió a preguntar por una costumbre');
 });
 
 test('la compra se dibuja con las dos bases y los tres tramos', () => {
@@ -90,9 +101,9 @@ test('la compra se dibuja con las dos bases y los tres tramos', () => {
   }
 });
 
-test('todas las pantallas de Más se dibujan', () => {
+test('todas las pantallas de dentro de Ajustes se dibujan', () => {
   const ctx = contexto(createDemoState());
-  for (const pagina of ['mas', ...PAGINAS_MAS]) {
+  for (const pagina of PAGINAS_MAS) {
     ctx.ui.page = pagina;
     revisar(renderMas(ctx), `renderMas («${pagina}»)`);
   }
@@ -135,22 +146,105 @@ test('familia se dibuja con alergias, con gente de baja y con motivos sin decir'
 test('todas las pantallas se dibujan con el estado vacío', () => {
   const vacio = createEmptyState();
   const ctx = contexto(vacio);
-  revisar(renderMes(ctx), 'renderMes vacío');
+  revisar(renderSemana(ctx), 'renderSemana vacía');
   revisar(renderCompra(ctx), 'renderCompra vacía');
-  for (const pagina of ['mas', ...PAGINAS_MAS]) {
+  for (const pagina of PAGINAS_MAS) {
     ctx.ui.page = pagina;
     revisar(renderMas(ctx), `renderMas vacío («${pagina}»)`);
   }
-  ctx.ui.mes.vista = 'calendario';
-  revisar(renderMes(ctx), 'renderMes vacío (calendario)');
+  ctx.ui.semana.vista = 'dos';
+  revisar(renderSemana(ctx), 'renderSemana vacía (dos semanas)');
+  revisar(modalPonerEnDias(ctx, {}), 'poner en varios días, sin nada escrito');
+  revisar(modalDia(ctx, { date: todayISO() }), 'la ventana del día, sin nada escrito');
 });
 
 test('un estado vacío ofrece qué hacer, no una pantalla en blanco', () => {
   const ctx = contexto(createEmptyState());
-  const html = renderMes(ctx);
-  assert.ok(/marcas los días|marca los días|varios días/i.test(html), 'el plan mensual vacío no explica cómo se llena');
-  assert.ok(html.includes('data-action='), 'el plan mensual vacío no ofrece ninguna acción');
-  assert.ok(!/rutina/i.test(html), 'el plan mensual vacío vuelve a hablar de rutinas');
+  const html = renderSemana(ctx);
+  assert.ok(/est[áa]n en blanco/i.test(html), 'la semana vacía no dice que lo está');
+  assert.ok(html.includes('data-action='), 'la semana vacía no ofrece ninguna acción');
+  assert.ok(!/rutina/i.test(html), 'la semana vacía vuelve a hablar de rutinas');
+  // Y sin ninguna preparación escrita, la ventana de varios días enseña el
+  // camino para escribir la primera en vez de un desplegable vacío.
+  const ventana = modalPonerEnDias(ctx, {});
+  assert.ok(ventana.includes('Todavía no hay preparaciones'));
+  assert.ok(/Ve a <strong>Preparaciones<\/strong>/.test(ventana), 'no hay forma de salir de la ventana vacía');
+});
+
+test('ninguna pantalla de la semana habla en técnico', () => {
+  // «Instancia», «override» y «sincronización» son palabras de quien escribió el
+  // programa, no de quien cocina. Aquí no pintan nada.
+  const state = createDemoState();
+  const ctx = contexto(state);
+  const pantallas = [['semana', renderSemana(ctx)]];
+  ctx.ui.semana.vista = 'dos';
+  pantallas.push(['dos semanas', renderSemana(ctx)]);
+  pantallas.push(['día', modalDia(ctx, { date: todayISO() })]);
+  pantallas.push(['ir a una fecha', modalIrAFecha(ctx)]);
+  pantallas.push(['poner en varios días', modalPonerEnDias(ctx, {})]);
+
+  for (const [donde, html] of pantallas) {
+    // Sin las etiquetas: `data-slot` y `data-action` son estructura, no texto.
+    const limpio = html.replace(/<[^>]*>/g, ' ');
+    for (const palabra of ['instancia', 'override', 'sincroniza', 'slot', 'schema', 'payload', 'commit']) {
+      assert.ok(!new RegExp(`\\b${palabra}`, 'i').test(limpio), `«${donde}» dice «${palabra}» en pantalla`);
+    }
+  }
+});
+
+/* ── Ajustes es el único índice que queda ──────────────────────────────────
+
+   «Más» era una sección de la barra cuyo único contenido era decir dónde
+   estaban las demás. Se fue, y con ella la lista de alimentos de la casa. Lo
+   que no puede irse es una ruta: una pantalla sin ruta es un enlace que no
+   lleva a ninguna parte en datos que alguien escribió a mano. */
+
+test('las ocho pantallas de siempre siguen teniendo ruta, y «alimentos» ya no es una de ellas', () => {
+  for (const id of ['canasta', 'preparaciones', 'ajustes', 'familia', 'historial', 'respaldo', 'avanzado', 'cuenta']) {
+    // «cuenta» la pintan las pantallas de `page-cuenta.js`, así que está en las
+    // entradas pero no en las rutas de este archivo.
+    assert.ok(PAGINAS_MAS.includes(id) || id === 'cuenta', `la página «${id}» se quedó sin ruta`);
+    assert.ok(ENTRADAS_MAS.some(([entrada]) => entrada === id), `«${id}» ya no está en la lista de entradas`);
+  }
+  // «Revisar lo que queda» salió del índice pero su pantalla sigue existiendo:
+  // el historial de las revisiones viejas se lee desde Ajustes → Historial.
+  assert.ok(PAGINAS_MAS.includes('revision'), 'la pantalla de las revisiones viejas se quedó sin ruta');
+
+  // Y «Alimentos de la casa» se fue entera: editar un producto se hace donde la
+  // persona mira su lista, y archivar o restaurar está en Funciones avanzadas.
+  assert.ok(!PAGINAS_MAS.includes('alimentos'), 'volvió la lista de alimentos de la casa');
+  assert.ok(!ENTRADAS_MAS.some(([entrada]) => entrada === 'alimentos'), 'volvió la entrada de alimentos');
+  // Ni queda «Más»: una pantalla entera para pintar una lista de enlaces.
+  assert.ok(!PAGINAS_MAS.includes('mas'), 'volvió la pantalla «Más»');
+});
+
+test('Ajustes ofrece sus seis destinos, y una ruta que ya no existe aterriza en él', () => {
+  const ctx = contexto(createDemoState(), { page: 'ajustes' });
+  const html = renderMas(ctx);
+  revisar(html, 'ajustes');
+
+  for (const [rotulo, destino] of [
+    ['Familia y restricciones', 'data-page="familia"'],
+    ['Historial', 'data-page="historial"'],
+    ['Respaldo', 'data-page="respaldo"'],
+    ['Mi cuenta', 'data-page="cuenta"'],
+    ['Preferencias de la aplicación', 'data-page="avanzado"'],
+    ['Cómo funciona', 'data-action="open-tour"']
+  ]) {
+    assert.ok(html.includes(rotulo), `Ajustes dejó de ofrecer «${rotulo}»`);
+    assert.ok(html.includes(destino), `«${rotulo}» no lleva a ninguna parte`);
+  }
+  // Lo de cada semana NO está aquí: la canasta y las preparaciones son dos de
+  // las cinco secciones de la barra, y repetirlas dentro sería esconderlas.
+  assert.ok(!html.includes('data-page="canasta"'), 'lo de cada semana volvió a meterse dentro de Ajustes');
+  assert.ok(!html.includes('data-page="preparaciones"'));
+
+  // Una dirección vieja —«mas», «alimentos»— no puede dejar una pantalla en
+  // blanco: aterriza donde están todas.
+  for (const perdida of ['mas', 'alimentos']) {
+    ctx.ui.page = perdida;
+    assert.equal(renderMas(ctx), html, `«${perdida}» no aterriza en Ajustes`);
+  }
 });
 
 /* ── Que no se filtre el vocabulario que se quitó ──────────────────────── */
@@ -162,8 +256,8 @@ test('ninguna pantalla enseña el vocabulario técnico que se retiró', () => {
   const PROHIBIDAS = ['canasta base', 'canasta habitual', 'canasta del mes', 'canasta mensual', 'base de cálculo', 'unidad de control', 'promover a base', 'instancia mensual'];
   const state = createDemoState();
   const ctx = contexto(state);
-  const pantallas = [['mes', () => renderMes(ctx)], ['compra', () => renderCompra(ctx)]];
-  for (const pagina of ['mas', ...PAGINAS_MAS]) pantallas.push([pagina, () => { ctx.ui.page = pagina; return renderMas(ctx); }]);
+  const pantallas = [['semana', () => renderSemana(ctx)], ['compra', () => renderCompra(ctx)]];
+  for (const pagina of PAGINAS_MAS) pantallas.push([pagina, () => { ctx.ui.page = pagina; return renderMas(ctx); }]);
 
   const encontradas = [];
   for (const [nombre, dibujar] of pantallas) {
@@ -291,7 +385,7 @@ test('la tarjeta de una preparación tampoco promete que se repita sola', () => 
   for (const palabra of ['rutina', 'Se repite', 'repetición']) {
     assert.ok(!html.includes(palabra), `la tarjeta vuelve a hablar de «${palabra}»`);
   }
-  assert.ok(html.includes('mes-poner-en-dias'), 'la tarjeta no ofrece ponerla en el calendario');
+  assert.ok(html.includes('semana-poner-en-dias'), 'la tarjeta no ofrece ponerla en el calendario');
 });
 
 /* ── La copia de seguridad, que ahora es la única red que hay ──────────── */
@@ -332,8 +426,8 @@ test('la app avisa de la copia cuando toca, y calla cuando no', () => {
 
 /* ── Los días se eligen mirando un calendario, no una lista ────────────── */
 
-test('los días del mes se ofrecen con su inicial y con el fin de semana marcado', () => {
-  const html = modalPonerEnDias(contexto(createDemoState()), { month: MES });
+test('los días se ofrecen con su inicial y con el fin de semana marcado', () => {
+  const html = modalPonerEnDias(contexto(createDemoState()), {});
   // Elegir «los tres viernes que viene mi mamá» sin la inicial del día obliga a
   // mirar un calendario aparte y contar.
   assert.ok(/<em>[LMXJVSD]<\/em>/.test(html), 'los días no dicen de qué día de la semana son');
@@ -362,8 +456,8 @@ test('los días del mes se ofrecen con su inicial y con el fin de semana marcado
 test('ningún campo de texto apaga el micrófono del teclado', () => {
   const state = createDemoState();
   const ctx = contexto(state);
-  const pantallas = [['mes', () => renderMes(ctx)], ['compra', () => renderCompra(ctx)]];
-  for (const pagina of ['mas', ...PAGINAS_MAS]) pantallas.push([pagina, () => { ctx.ui.page = pagina; return renderMas(ctx); }]);
+  const pantallas = [['semana', () => renderSemana(ctx)], ['compra', () => renderCompra(ctx)]];
+  for (const pagina of PAGINAS_MAS) pantallas.push([pagina, () => { ctx.ui.page = pagina; return renderMas(ctx); }]);
 
   const culpables = [];
   for (const [nombre, dibujar] of pantallas) {
@@ -395,4 +489,81 @@ test('los cuadros de texto libre vienen preparados para escribir de corrido', ()
     }
   }
   assert.deepEqual(sinPreparar, [], 'cuadros de texto sin preparar para escribir de corrido');
+});
+
+/* ── Las ventanas de app.js, que no se pueden dibujar aquí ─────────────────
+
+   `app.js` lee el documento nada más cargar, así que sus ventanas se leen como
+   texto. No es lo mismo que dibujarlas, y por eso solo se vigila aquí lo que
+   costó un fallo de verdad: cada una de las cuatro que siguen estuvo rota en
+   producción. */
+
+// El navegador esconde `[hidden]` con un `display:none` de su propia hoja, que
+// pierde contra cualquier regla nuestra que declare `display`. Un `.field`
+// (grid) o una `.radio-fila` (flex) con el atributo puesto se quedaba a la
+// vista, y con sus campos vivos: alguien podía marcar una opción que la
+// pantalla creía escondida y que sí llegaba al formulario.
+test('«hidden» esconde de verdad, y no solo en las clases que se acordaron', () => {
+  const css = readFileSync('src/theme.css', 'utf8');
+  assert.ok(/\[hidden\]\s*\{\s*display:\s*none\s*!important/.test(css),
+    'sin la regla general, cualquier clase con display propio vuelve a enseñar lo escondido');
+});
+
+test('la ventana de añadir alimento pregunta dónde entra, y lo permanente no viene marcado', () => {
+  const codigo = readFileSync('src/app.js', 'utf8');
+  assert.ok(/name="destino"/.test(codigo), 'la ventana no pregunta dónde entra el alimento');
+  assert.ok(/Añadir a mis habituales/.test(codigo), 'falta la opción de añadirlo para siempre');
+  assert.ok(/Solo para \$\{monthName\(mesActual\)\}/.test(codigo), 'falta la opción de solo este mes');
+  // El destino permanente nunca puede venir marcado de fábrica.
+  const bloque = codigo.slice(codigo.indexOf('const DESTINOS'), codigo.indexOf('function modalProducto'));
+  assert.ok(bloque.includes("['mes'"), 'el destino mensual tiene que existir');
+  assert.ok(bloque.indexOf("['mes'") < bloque.indexOf("['siempre'"), 'el destino de siempre no puede ser el primero, que es el que viene marcado');
+  assert.ok(/indice === 0 \? 'checked' : ''/.test(bloque), 'se marca de fábrica algo que no es el primero');
+  // Y al guardar, cada destino escribe donde dice.
+  assert.ok(/destino === 'siempre'[\s\S]{0,160}setHabitualLine/.test(codigo), 'el destino permanente no escribe en la canasta base');
+  assert.ok(/destino === 'mes'[\s\S]{0,200}setMonthChange/.test(codigo), 'el destino mensual no escribe en los cambios del mes');
+});
+
+test('«para toda la casa» es una respuesta escrita, no una casilla sin marcar', () => {
+  /* El fallo: no se podía poner NI UNA comida en una casa con gente registrada.
+
+     «¿Quiénes comen?» se contesta de dos formas. Abierta, con una casilla por
+     persona. Cerrada —lo normal, porque una comida es de toda la casa—, con un
+     campo oculto por persona y ninguna casilla. Leyendo solo lo marcado, la
+     segunda forma devolvía una lista vacía y el modelo contestaba «Selecciona
+     al menos una persona que comerá en casa» a quien no había desmarcado a
+     nadie. */
+  const codigo = readFileSync('src/app.js', 'utf8');
+  assert.ok(/type="hidden" name="\$\{esc\(name\)\}"/.test(codigo), 'el bloque cerrado ya no escribe la respuesta');
+  assert.ok(/input\.type === 'hidden' \|\| input\.checked/.test(codigo), 'lo oculto vuelve a no contar como respuesta');
+  assert.ok(!/const selected = \(form, name\) => \[\.\.\.form\.querySelectorAll\(`\[name="\$\{name\}"\]:checked`\)\]/.test(codigo),
+    'vuelve a leerse solo lo marcado');
+});
+
+test('un alimento sin cantidad se escribe por su nombre, no como «0»', () => {
+  /* El fallo: desde que una preparación puede llevar alimentos sin decir
+     cuánto, la pantalla de quien cocina pintaba la medida a ciegas y salía
+     «0 · Arroz». `measure(null, null)` devuelve «0 », que es peor que callar. */
+  const codigo = readFileSync('src/app.js', 'utf8');
+  assert.ok(/const sinMedida = item => item\.quantity === null \|\| item\.quantity === undefined;/.test(codigo));
+  assert.ok(/sinMedida\(item\) \? esc\(productName\(item\.productId\)\)/.test(codigo), 'sin cantidad vuelve a pintarse una medida');
+  // Y la lista de la comida tampoco escribe «0 de Arroz».
+  assert.ok(/\$\{sinMedida\(item\) \? `<strong>\$\{esc\(productName\(item\.productId\)\)\}<\/strong>`/.test(codigo));
+});
+
+test('«cambiar solo este día» existe, y deja la comida nueva suelta de cualquier regla', () => {
+  // Antes había que quitar la comida y volver a ponerla, y quien lo intentaba
+  // sobre una comida heredada de una costumbre se topaba con la pregunta del
+  // alcance cuando lo único que quería era cenar otra cosa ese jueves.
+  const codigo = readFileSync('src/app.js', 'utf8');
+  assert.ok(/data-form="sustituir"/.test(codigo), 'no hay forma de cambiar el plato de un solo día');
+  assert.ok(/Cambiar solo este día/.test(codigo));
+  // Solo se ofrecen las preparaciones que valen para ese momento.
+  assert.ok(/recipe\.uses\.includes\(plan\.slot\) && recipe\.id !== plan\.recipeId/.test(codigo));
+  // Y la que se pone nace sin regla y como cambio manual: eso es lo que impide
+  // que una comida heredada siga diciendo que la puso una costumbre.
+  assert.ok(/makeRecipePlan\(state, receta\.id, date, slot, participants, null, 'manual'\)/.test(codigo),
+    'la comida sustituida no queda marcada como cambio de ese día');
+  // Una comida de la que cuelga una parte apartada no se sustituye a ciegas.
+  assert.ok(/if \(dependents\(state, plan\.id\)\.length\) throw new Error/.test(codigo));
 });

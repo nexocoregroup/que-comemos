@@ -11,7 +11,7 @@
 // de empezar, y es justo al revés: se planifica lo que se sabe y lo demás
 // espera.
 
-import { addDays, addProduct, agregarALista, agregarHabitual, crearLista, createEmptyState, linkPlan, makeRecipePlan, setEquivalence, setStatusPlan, todayISO, upsertPerson, upsertRecipe } from './model.js';
+import { addDays, addProduct, agregarALista, agregarHabitual, anotarComidaSuelta, crearLista, createEmptyState, makeRecipePlan, reutilizarComida, setEquivalence, setStatusPlan, todayISO, upsertPerson, upsertRecipe } from './model.js';
 
 export function createDemoState() {
   const state = createEmptyState();
@@ -79,6 +79,7 @@ export function createDemoState() {
   almuerzos.forEach((receta, n) => { if (receta) poner(receta, n, 'almuerzo'); });
 
   const cenas = [plantain, sandwich, eggsHam, null, sandwich, riceMeat, plantain, null, sandwich];
+  // El hueco del cuarto día tampoco es un olvido: ahí va la comida escrita a mano.
   cenas.forEach((receta, n) => { if (receta) poner(receta, n, 'cena'); });
 
   // Dos meriendas y nada más: son opcionales y un día sin merienda está
@@ -90,10 +91,17 @@ export function createDemoState() {
   // ese día, no una costumbre que vuelva sola el mes que viene.
   setStatusPlan(state, dia(5), 'almuerzo', 'outside', null, 'excepcion');
 
-  // Lo que sobra de una preparación y se come al día siguiente. Es lo único que
-  // enlaza dos días, y sigue siendo una decisión de quien cocina.
+  // Lo que sobra de una comida y se come otro día. No se apunta cuánto: eso lo
+  // sabe quien cocinó, y la app dejó de llevar la cuenta de la despensa.
   const cena = state.plans.find(plan => plan.date === dia(0) && plan.slot === 'cena');
-  linkPlan(state, cena.id, dia(1), 'desayuno', { [cena.items.find(item => item.productId === platano).id]: 0.5 }, [], [nina, nino]);
+  reutilizarComida(state, cena.id, dia(1), 'desayuno', [nina, nino]);
+
+  // Y una comida escrita a mano: lo que se come un día suelto y no está en el
+  // catálogo de la casa porque no se va a repetir.
+  anotarComidaSuelta(state, dia(3), 'cena', {
+    titulo: 'Lo que quedó del sancocho de la vecina · ejemplo',
+    nota: 'Calentar a fuego lento y echarle un poco de agua.'
+  });
 
   /* ── Lo que esta casa compra siempre ─────────────────────────────────────
 

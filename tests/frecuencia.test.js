@@ -231,7 +231,7 @@ test('el recorrido ya no tiene ningún paso de cantidades ni de reparto', () => 
   assert.equal(PASO.cantidades, undefined);
   assert.equal(PASO.reparto, undefined);
   assert.equal(PASOS.length, 5);
-  assert.deepEqual(PASOS.map(paso => paso.corto), ['Hogar', 'Productos', 'Compra', 'Comidas', 'Mi casa']);
+  assert.deepEqual(PASOS.map(paso => paso.corto), ['Hogar', 'Productos', 'Compra', 'Preparaciones', 'Mi plan']);
 });
 
 test('ninguna pantalla del recorrido pide una cantidad', () => {

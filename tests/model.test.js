@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { WEEKDAYS, WEEKDAY_LABELS, WEEKDAY_SHORT, addDays, addProduct, habitualLines, choquesDeLaComida, dateRange, deletePlan, effectiveBasket, product, setSlice, setHabitualBasket, setHabitualLine, addPurchase, balances, convert, correctReview, createEmptyState, createReview, exportState, importState, inventoryNow, linkPlan, makeRecipePlan, monthBounds, monthProgress, saveReview, setAbsence, setEquivalence, setReviewScope, setStatusPlan, todayISO, ultimaCompra, updatePlan, upsertPerson, upsertRecipe, weekdayOf } from '../src/model.js';
+import { ORIGENES, ORIGENES_IDS, WEEKDAYS, WEEKDAY_LABELS, WEEKDAY_SHORT, addDays, addProduct, habitualLines, choquesDeLaComida, comidasDecididas, dateRange, deletePlan, dependents, effectiveBasket, etiquetaDeOrigen, origenDe, planFor, product, reutilizarComida, setSlice, setHabitualBasket, setHabitualLine, addPurchase, balances, convert, correctReview, createEmptyState, createReview, exportState, importState, inventoryNow, makeRecipePlan, monthBounds, saveReview, setAbsence, setEquivalence, setReviewScope, setStatusPlan, todayISO, ultimaCompra, updatePlan, upsertPerson, upsertRecipe, weekStart, weekdayOf } from '../src/model.js';
 import { loadState, saveState, STORAGE_KEY } from '../src/storage.js';
 
 function setup() {
@@ -15,9 +15,10 @@ function setup() {
 /* ── El calendario real ────────────────────────────────────────────────────
 
    Estas cuatro venían de las pruebas del motor de rutinas, que se fue entero.
-   La aritmética del calendario no se fue con él: el mes se sigue recorriendo
-   día a día, y quien la equivoque perderá el 29 de febrero o el último lunes
-   de un mes de 31 sin que nada más se queje. */
+   La aritmética del calendario no se fue con él: los días se siguen recorriendo
+   uno a uno —ahora de lunes a domingo, y ya no de mes en mes— y quien la
+   equivoque perderá el 29 de febrero, o enseñará la semana de al lado, sin que
+   nada más se queje. */
 
 // Los días de un mes que de verdad caen en ese día de la semana, contados sobre
 // el calendario y sin pasar por el código que se está probando.
@@ -69,27 +70,52 @@ test('un lunes que cae el 29, el 30 o el 31 sale igual que el del día 5', () =>
   assert.deepEqual(diasRealesDe('2026-03', 7), ['2026-03-01', '2026-03-08', '2026-03-15', '2026-03-22', '2026-03-29']);
 });
 
-test('un mes mal escrito se rechaza en vez de devolver un mes vacío que parece cierto', () => {
-  assert.throws(() => monthProgress(createEmptyState(), '2026-13'), /mes válido/);
-  assert.throws(() => monthProgress(createEmptyState(), 'octubre'), /mes válido/);
-  assert.throws(() => monthProgress(createEmptyState(), ''), /mes válido/);
+// La semana empieza en lunes, y esa cuenta es la que decide qué siete días se
+// ven. Equivocarla no rompe nada a la vista: enseña la semana de al lado.
+test('el lunes de una semana es el mismo aunque la semana cruce de mes o de año', () => {
+  // Fechas escritas contra un calendario, no calculadas como las calcula la app.
+  assert.equal(weekStart('2026-09-14'), '2026-09-14', 'el lunes de un lunes es él mismo');
+  assert.equal(weekStart('2026-09-20'), '2026-09-14', 'el domingo cierra la semana de su lunes');
+
+  // Del lunes 28 de septiembre al domingo 4 de octubre: una semana partida
+  // entre dos meses sigue siendo una semana.
+  for (const dia of dateRange('2026-09-28', '2026-10-04')) {
+    assert.equal(weekStart(dia), '2026-09-28', `el ${dia} debería caer en la semana del 28 de septiembre`);
+  }
+  // Y del lunes 28 de diciembre de 2026 al domingo 3 de enero de 2027, entre
+  // dos años.
+  for (const dia of dateRange('2026-12-28', '2027-01-03')) {
+    assert.equal(weekStart(dia), '2026-12-28', `el ${dia} debería caer en la semana del 28 de diciembre`);
+  }
+  // El 29 de febrero de un bisiesto cae en martes y su semana empieza el 28.
+  assert.equal(weekdayOf('2028-02-29'), 2);
+  assert.equal(weekStart('2028-02-29'), '2028-02-28');
+
+  // Volver a pedir el lunes de un lunes no mueve la semana ni un día: es lo que
+  // pasa cada vez que se guarda y se vuelve a leer el inicio de la vista.
+  for (const lunes of ['2026-09-28', '2026-12-28', '2028-02-28']) {
+    assert.equal(weekStart(weekStart(lunes)), lunes, `el lunes ${lunes} se movió al repetir la cuenta`);
+  }
 });
 
 test('una comida fuera no cuenta como pendiente: ya está decidida', () => {
+  // Sobre treinta y un días seguidos, que es donde se ve si la cuenta suma.
   const state = createEmptyState();
-  const antes = monthProgress(state, '2026-10');
+  const octubre = dateRange('2026-10-01', '2026-10-31');
+  const antes = comidasDecididas(state, octubre);
   assert.equal(antes.dias, 31);
   assert.equal(antes.huecos, 93, 'treinta y un días por las tres comidas que una casa espera resolver');
   assert.equal(antes.pendientes, 93, 'un mes vacío está entero por decidir');
-  assert.equal(antes.porcentaje, 0);
+  assert.equal(antes.decididas, 0);
   setStatusPlan(state, '2026-10-04', 'almuerzo', 'outside');
   setStatusPlan(state, '2026-10-05', 'cena', 'order');
   setStatusPlan(state, '2026-10-06', 'cena', 'unplanned');
-  const despues = monthProgress(state, '2026-10');
+  const despues = comidasDecididas(state, octubre);
   assert.equal(despues.fuera, 1);
   assert.equal(despues.pedido, 1);
   assert.equal(despues.encasa, 0);
   assert.equal(despues.pendientes, 91, 'fuera y pedido dejan de ser huecos; «sin decidir» no');
+  assert.equal(despues.decididas, 2, 'lo decidido y lo pendiente tienen que sumar los huecos');
 });
 
 test('de ocho plátanos quedan dos: la revisión deduce que se consumieron seis', () => {
@@ -208,14 +234,66 @@ test('marcar una ausencia no encoge lo que ya estaba puesto', () => {
   assert.equal(inventoryNow(state)[platano], 8 - antes.items[0].quantity + antes.items[0].quantity, 'el inventario no cambia por una ausencia');
 });
 
-test('una comida vinculada protege el alimento reservado ante cambios de cantidad o unidad', () => {
+// De aquí salía la comida vinculada de antes, la que apartaba cantidades. Ya
+// no se aparta nada —«lo que sobre» no es un número—, pero el enlace sigue
+// existiendo, y sigue siendo lo que impide que una comida quede colgando de
+// otra que alguien borró sin enterarse.
+test('borrar una comida no deja rastro, y la que dependía de ella se va con permiso', () => {
   const { state, recipeId } = setup();
-  const source = makeRecipePlan(state, recipeId, todayISO(), 'cena');
-  linkPlan(state, source.id, addDays(todayISO(), 1), 'desayuno', { [source.items[0].id]: 2 });
-  const original = structuredClone(source.items[0]);
-  assert.throws(() => updatePlan(state, source.id, { title: source.title, note: '', participants: [], items: [{ ...original, quantity: 1 }] }), /menor/);
-  assert.throws(() => updatePlan(state, source.id, { title: source.title, note: '', participants: [], items: [{ ...original, unit: 'paquete' }] }), /vinculada/);
-  assert.deepEqual(source.items[0], original);
+  const origen = makeRecipePlan(state, recipeId, todayISO(), 'cena');
+  const sobras = reutilizarComida(state, origen.id, addDays(todayISO(), 1), 'desayuno');
+  assert.deepEqual(dependents(state, origen.id).map(plan => plan.id), [sobras.id]);
+
+  assert.equal(deletePlan(state, origen.id, true), 1, 'con permiso se lleva también la que dependía de ella');
+  assert.equal(state.plans.length, 0, 'quedó una comida colgando de otra que ya no existe');
+  assert.equal(planFor(state, todayISO(), 'cena'), undefined);
+  assert.equal(planFor(state, addDays(todayISO(), 1), 'desayuno'), undefined);
+});
+
+/* ── De dónde salió cada comida ────────────────────────────────────────────
+
+   Delante de un martes con mangú nadie se atreve a tocar nada si no sabe si lo
+   puso él o si vino de un respaldo de cuando la app decidía sola. */
+
+test('los cuatro orígenes que el usuario tiene que distinguir están todos, y ninguno a medias', () => {
+  const etiquetas = ORIGENES.map(origen => origen.etiqueta);
+  for (const esperada of ['Rutina', 'Mes anterior', 'Excepción', 'Cambio manual']) {
+    assert.ok(etiquetas.includes(esperada), `falta el origen «${esperada}»`);
+  }
+  for (const id of ORIGENES_IDS) {
+    const origen = ORIGENES.find(item => item.id === id);
+    assert.ok(origen.etiqueta && origen.detalle, `el origen «${id}» está a medias`);
+  }
+  // Y uno que no existe no deja la pantalla en blanco.
+  assert.equal(etiquetaDeOrigen('lo-que-sea'), 'Cambio manual');
+  assert.equal(origenDe(null), null);
+});
+
+test('cada forma de poner una comida deja escrito de dónde vino', () => {
+  const { state, recipeId } = setup();
+  // A mano, desde la comida de un día.
+  assert.equal(origenDe(makeRecipePlan(state, recipeId, '2026-10-05', 'cena')), 'manual');
+  // Marcada fuera de casa: eso es una excepción por definición.
+  assert.equal(origenDe(setStatusPlan(state, '2026-10-08', 'cena', 'outside')), 'excepcion');
+  // Y una comida guardada sin decirlo tampoco se queda en «undefined».
+  assert.equal(origenDe({ kind: 'recipe', routineId: null }), 'manual');
+  assert.equal(origenDe({ kind: 'order', routineId: null }), 'excepcion');
+  assert.equal(origenDe({ kind: 'recipe', routineId: 'regla-vieja-1' }), 'rutina');
+});
+
+test('rehacer a mano una comida vieja de una rutina la convierte en un cambio manual', () => {
+  // «Rutina» ya no lo produce nadie, pero sigue guardado en los respaldos de
+  // cuando la app llenaba el calendario sola. Una comida que se reescribe deja
+  // de venir de aquella regla, y tiene que dejar de decirlo.
+  const { state, platano, recipeId } = setup();
+  const plan = makeRecipePlan(state, recipeId, '2026-10-05', 'desayuno', null, 'regla-vieja-1', 'rutina');
+  assert.equal(origenDe(plan), 'rutina');
+
+  updatePlan(state, plan.id, {
+    title: 'Plátano cocido con más plátano', note: '', participants: plan.participants,
+    items: [{ ...plan.items[0], productId: platano, quantity: 9 }]
+  });
+  assert.equal(origenDe(plan), 'manual', 'la comida sigue diciendo que la puso una rutina que ya no reconocería');
 });
 
 test('un producto nuevo arranca con lo que ya hay en casa, no en cero', () => {

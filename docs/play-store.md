@@ -91,7 +91,7 @@ Como la app **sí** permite crear una cuenta, esto pasó de opcional a **obligat
 
 - **¿La app permite crear una cuenta?** → **Sí**.
 - **URL donde se solicita la eliminación de la cuenta** → la de `legal/eliminar-datos.html`. Google exige que esa página se pueda abrir **sin iniciar sesión**, y esta cumple: es una página pública.
-- Esa página explica los tres caminos, y el **camino 3** es el de la cuenta: *Más → Mi cuenta → Borrar mi cuenta*, inmediato, sin formulario y sin espera.
+- Esa página explica los tres caminos, y el **camino 3** es el de la cuenta: *Ajustes → Mi cuenta → Borrar mi cuenta*, inmediato, sin formulario y sin espera.
 - También ofrece un correo de respaldo para quien ya no pueda entrar a la app. Google valora que exista esa salida.
 - **Qué se borra y qué se conserva:** se borra todo —correo, nombre, contraseña, la casa guardada— y no se conserva nada. Si el formulario pide detallar retención, la respuesta es que no hay retención.
 
@@ -266,22 +266,29 @@ Lo que se come cada día lo decides tú, el día que quieras. La app no propone
 platos ni rellena el calendario por su cuenta.
 
 
-CUATRO PANTALLAS, NI UNA MÁS
+CINCO SECCIONES, NI UNA MÁS
 
-HOY, para quien cocina. El desayuno, el almuerzo y la cena con sus cantidades,
-para quién es cada cosa y qué hay que apartar. Nada de configuraciones.
+HOY, para quien cocina. El desayuno, el almuerzo y la cena, para quién es cada
+cosa y la nota de quien organizó. Nada de configuraciones.
 
-PLAN MENSUAL. El progreso del mes, lo que falta por decidir y el calendario
-entero. Para no tocar treinta casillas: eliges una preparación, marcas los días
-—los siete de la semana que viene, o los catorce de las dos siguientes— y se
-ponen esos. Ninguno más.
+PLAN SEMANAL. Siete días de lunes a domingo, o catorce si los pides. Tocas una
+comida y eliges: una de tus preparaciones, algo escrito a mano para ese día, o
+lo que sobró de otra comida. También puedes decir que se come fuera, que se
+pedirá, o dejarla sin decidir. No hay vista de mes y no la hay a propósito.
 
 LA COMPRA. La lista de un viaje al colmado. Tus productos habituales están ahí
 agrupados por rubros para no tener que acordarte de todo: tocas lo que hace
 falta esta vez, dices cuánto, y vas tachando en el supermercado. Si pediste 2 y
 solo había 1, se anota 1 y queda 1 pendiente.
 
-MÁS. Todo lo demás, ordenado por la frecuencia real con que hace falta.
+MIS PRODUCTOS HABITUALES. Lo que tu casa compra de costumbre, por rubros. Se
+marca una vez y no lleva cantidades del mes.
+
+PREPARACIONES. Las comidas que sabes hacer: nombre, en qué momentos se comen y
+una nota para quien cocina. Se guardan una vez y se ponen las veces que quieras.
+
+Y un engranaje para lo de una vez cada muchos meses: la familia, el historial,
+el respaldo, tu cuenta y las preferencias.
 
 
 LO QUE ESTA APP NO HACE
@@ -388,7 +395,7 @@ $bt = Get-ChildItem "$env:LOCALAPPDATA\Android\Sdk\build-tools" -Directory | Sor
 **1. Las seis capturas, y por qué esas.** Las genera `npm run capturas`; el orden es el del archivo y cada una tiene una idea sola:
 
 1. **Hoy** — el desayuno y el almuerzo con sus cantidades. Es lo que la gente va a ver todos los días.
-2. **Plan mensual** — el progreso del mes y lo que falta por decidir.
+2. **Plan semanal** — los siete días, con lo que hay decidido y lo que falta.
 3. **Poner una comida en varios días** — con los siete días siguientes ya marcados. Es la única ayuda que la app da para no tocar treinta casillas, y por eso se enseña con algo marcado en vez de un formulario en blanco.
 4. **Preparar la compra** — los productos habituales por rubros, con el buscador.
 5. **Mi lista** — lo pendiente arriba y lo comprado tachado al final.

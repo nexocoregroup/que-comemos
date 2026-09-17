@@ -118,7 +118,7 @@
 .setup-falta .enlace { min-height: 44px; font-size: .92rem; font-weight: 650; }
 
 
-/* ── Paso 4: una comida habitual ───────────────────────────────────────────
+/* ── Paso 4: una preparación ───────────────────────────────────────────────
 
    Tres campos y uno es opcional. El formulario va dentro de una tarjeta y la
    lista de lo ya escrito va debajo, en otra: quien está escribiendo la cuarta
@@ -131,7 +131,7 @@
 .setup-preparacion-acciones { flex-wrap: wrap; gap: var(--aire-2); margin-top: var(--aire-1); }
 .setup-preparacion-acciones .btn { flex: 1 1 auto; }
 
-/* ── Paso 5: ver mi casa ───────────────────────────────────────────────────
+/* ── El repaso de la casa, arriba del paso 5 ───────────────────────────────
 
    Una fila por cosa registrada, y cada una vuelve a su paso. La marca de la
    izquierda dice de un vistazo qué está completo y qué no, sin regañar: el
@@ -146,7 +146,51 @@
 .setup-repaso.listo::before { background: var(--sage); }
 .setup-repaso.pendiente::before { background: var(--clay); }
 
-/* ── Paso 4 ────────────────────────────────────────────────────────────── */
+/* ── Paso 5: crear mi primer plan ──────────────────────────────────────────
+
+   Los días van uno debajo de otro y nunca en columnas: siete columnas en un
+   teléfono son siete columnas que no se leen. Cada momento del día es un
+   plegable —cerrado dice lo que hay, abierto enseña de dónde elegir—, así que
+   un día entero ocupa cuatro renglones mientras nadie lo toque.
+
+   Ojo con `.card`: la define styles.css, que se carga después, así que lo que
+   aquí le cambie a un día necesita los dos nombres delante. */
+
+.setup-plan-pregunta { margin: 18px 0 8px; font-weight: 700; }
+.setup-plan-cuantos { margin-bottom: 14px; }
+.setup-plan-cuenta { margin: 18px 0 2px; font-weight: 750; letter-spacing: -.01em; }
+.setup-plan-volver { margin: 0; }
+.setup-plan-dias { display: grid; gap: 12px; margin: 14px 0 6px; }
+.setup-plan-dias .setup-plan-dia { padding: 12px 15px; border-radius: 15px; }
+.setup-plan-dias .setup-plan-dia.es-hoy { border-color: var(--clay); box-shadow: inset 0 0 0 1px var(--clay); }
+.setup-plan-dia-cabecera { margin-bottom: 2px; }
+.setup-plan-dia-titulo { margin: 0; font-size: 1rem; letter-spacing: -.025em; }
+.setup-plan-dia-titulo::first-letter { text-transform: uppercase; }
+
+/* El desplegable de una comida. La flecha la pone el texto y no el navegador:
+   el triángulo de serie se dibuja a la izquierda, y aquí lo primero que se lee
+   tiene que ser el momento. */
+.setup-plan-momento { border-top: 1px solid var(--line); }
+.setup-plan-momento > summary {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  min-height: 46px; padding: 8px 0; cursor: pointer; list-style: none;
+}
+.setup-plan-momento > summary::-webkit-details-marker { display: none; }
+.setup-plan-momento-nombre { flex: 0 0 auto; font-size: .82rem; font-weight: 750; color: var(--ink-muted); }
+.setup-plan-momento-texto { flex: 1 1 auto; text-align: right; font-weight: 650; overflow-wrap: anywhere; }
+.setup-plan-momento-texto::after { content: " ▾"; color: var(--ink-muted); font-weight: 400; }
+.setup-plan-momento[open] .setup-plan-momento-texto::after { content: " ▴"; }
+.setup-plan-momento-texto.vacio { color: var(--ink-muted); font-weight: 400; }
+.setup-plan-momento > p { margin: 0 0 12px; }
+
+.setup-plan-opciones { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 0 12px; }
+.setup-plan-opcion {
+  border: 1px solid var(--line); border-radius: 100px; background: var(--surface);
+  color: var(--ink); padding: 9px 14px; font-size: .86rem; font-weight: 650; min-height: 42px;
+}
+.setup-plan-opcion:hover { border-color: var(--clay-line); }
+.setup-plan-opcion.puesta { background: var(--clay); border-color: var(--clay); color: #fff; }
+
 
 
 /* Solo para lectores de pantalla: las etiquetas de las filas apretadas, donde
@@ -198,35 +242,6 @@
 .setup-opcion.activa { border-color: var(--clay); background: var(--clay-light); box-shadow: inset 0 0 0 1px var(--clay); }
 .setup-opcion.activa strong { color: var(--clay-dark); }
 
-/* ── El reparto entre las dos quincenas ────────────────────────────────────
-
-   Una fila por alimento, y en cada una lo mismo: cuánto al mes, cuánto en la
-   primera, cuánto queda para la segunda. El número de la segunda no se escribe
-   nunca: es el resto, y enseñarlo como resultado —y no como un campo más— es lo
-   que deja claro que las dos partes suman el mes y no se duplica nada. */
-
-.setup-reparto { display: grid; gap: 4px; }
-.setup-reparto-fila {
-  display: grid; gap: 10px; align-items: center;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr);
-  padding: 13px 0; border-top: 1px solid var(--line);
-}
-.setup-reparto-fila:first-child { border-top: 0; }
-.setup-reparto-nombre { display: grid; gap: 2px; min-width: 0; }
-.setup-reparto-nombre strong { letter-spacing: -.02em; overflow-wrap: anywhere; }
-.setup-reparto-partes { display: flex; align-items: flex-end; gap: 10px; min-width: 0; }
-.setup-reparto-partes .field { margin: 0; min-width: 0; }
-.setup-reparto-partes input { max-width: 96px; font-variant-numeric: tabular-nums; }
-.setup-reparto-segunda { font-size: .82rem; color: var(--ink-muted); padding-bottom: 11px; white-space: nowrap; }
-.setup-reparto-segunda strong { color: var(--ink); font-variant-numeric: tabular-nums; }
-.setup-reparto-modos { display: flex; gap: 6px; flex-wrap: wrap; }
-.setup-reparto-modo {
-  border: 1px solid var(--line); border-radius: 100px; background: var(--surface);
-  color: var(--ink-muted); padding: 7px 12px; font-size: .78rem; font-weight: 700; min-height: 38px;
-}
-.setup-reparto-modo:hover { border-color: var(--clay-line); }
-.setup-reparto-modo.activo { background: var(--clay); border-color: var(--clay); color: #fff; }
-.setup-reparto-nota { grid-column: 1 / -1; margin: 0; }
 
 /* ── Organización de compra ────────────────────────────────────────────── */
 
@@ -234,10 +249,7 @@
 .organizacion-form { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 16px; }
 
 @media (max-width: 700px) {
-  .setup-reparto-fila { grid-template-columns: 1fr; gap: 8px; }
-  .setup-reparto-partes { align-items: center; }
-  .setup-reparto-segunda { padding-bottom: 0; }
-}
+      }
 
 /* ── Quiénes comen aquí, y qué se cocina de costumbre ──────────────────────
 

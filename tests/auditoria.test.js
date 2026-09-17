@@ -11,11 +11,19 @@ import assert from 'node:assert/strict';
 
 import { SCHEMA_VERSION, migrate } from '../src/migrate.js';
 import {
-  addProduct, addPurchase, agregarALista, cerrarLista, crearLista, createEmptyState, createReview,
+  addProduct, addPurchase, agregarALista, cerrarLista, comidasDecididas, crearLista, createEmptyState, createReview,
   dateRange, effectiveBasket, frecuenciaDe, habitualLines, inventoryNow, makeRecipePlan, marcarComprado,
-  monthBounds, monthProgress, periodosDelMes, planFor, ponerFrecuencia, resumenDeLista, saveReview,
+  monthBounds, periodosDelMes, planFor, ponerFrecuencia, resumenDeLista, saveReview,
   setHabitualBasket, setHabitualLine, todayISO, upsertPerson, upsertRecipe, weekdayOf
 } from '../src/model.js';
+
+// Lo decidido de un mes entero. La app ya no cuenta meses —cuenta los días que
+// se están mirando—, pero la auditoría sigue preguntándose por un mes, que es
+// la unidad en la que una casa compra.
+const decididoEn = (state, mes) => {
+  const { start, end } = monthBounds(mes);
+  return comidasDecididas(state, dateRange(start, end));
+};
 
 /* ══ A. CALENDARIOS ═══════════════════════════════════════════════════════
 
@@ -116,17 +124,17 @@ test('A6 · un mes que nadie ha tocado está entero por decidir, y nada lo llena
   const mangu = upsertRecipe(state, { name: 'Mangú', uses: ['desayuno'], items: [{ productId: platano, quantity: 4, unit: 'unidad' }] }).id;
 
   // Mirar enero no escribe nada: es la resta que hizo esta fase.
-  const enero = monthProgress(state, '2027-01');
+  const enero = decididoEn(state, '2027-01');
   assert.equal(state.plans.length, 0, 'mirar un mes escribió comidas por su cuenta');
   assert.equal(enero.dias, 31);
   assert.equal(enero.pendientes, 31 * 3, 'enero tendría que estar entero por decidir');
-  assert.equal(enero.porcentaje, 0);
+  assert.equal(enero.decididas, 0);
 
   // Y lo que se pone, se pone día a día, en los días que se dijeron y ni uno más.
   const domingos = diasQueCaenEn('2027-01', 7);
   for (const fecha of domingos) makeRecipePlan(state, mangu, fecha, 'desayuno', null, null, 'manual');
   assert.equal(state.plans.length, domingos.length);
-  assert.equal(monthProgress(state, '2027-01').pendientes, 31 * 3 - domingos.length);
+  assert.equal(decididoEn(state, '2027-01').pendientes, 31 * 3 - domingos.length);
   assert.deepEqual(state.mealRoutines, [], 'poner cinco domingos dejó escrita una costumbre');
 });
 
@@ -375,11 +383,11 @@ test('C · los once pasos, de una cuenta nueva a poner el mes siguiente', () => 
   hecho('7 poner el mes', `${esperados.length} desayunos puestos a mano`);
 
   // 8. Lo que falta sigue siendo un hueco, y el mes se mira con huecos.
-  const progreso = monthProgress(state, MES);
-  assert.equal(progreso.dias, diasDelMes(MES));
-  assert.equal(progreso.encasa, esperados.length);
-  assert.equal(progreso.pendientes, diasDelMes(MES) * 3 - esperados.length, 'los huecos no cuadran con lo puesto');
-  hecho('8 mirar el mes', `${progreso.porcentaje}% decidido, ${progreso.pendientes} huecos`);
+  const decidido = decididoEn(state, MES);
+  assert.equal(decidido.dias, diasDelMes(MES));
+  assert.equal(decidido.encasa, esperados.length);
+  assert.equal(decidido.pendientes, diasDelMes(MES) * 3 - esperados.length, 'los huecos no cuadran con lo puesto');
+  hecho('8 mirar el mes', `${decidido.decididas} decididas, ${decidido.pendientes} huecos`);
 
   // 9. La compra: una lista de la salida, escrita desde los habituales.
   const lista = crearLista(state, { nombre: 'La del sábado' });
@@ -402,7 +410,7 @@ test('C · los once pasos, de una cuenta nueva a poner el mes siguiente', () => 
   hecho('10 revisión', 'de 15 lb quedan 9: consumió 6');
 
   // 11. El mes siguiente: nace vacío, y se pone igual que este.
-  const antesDelSiguiente = monthProgress(state, SIGUIENTE);
+  const antesDelSiguiente = decididoEn(state, SIGUIENTE);
   assert.equal(antesDelSiguiente.encasa, 0, 'el mes siguiente se llenó solo con lo de este');
   assert.equal(antesDelSiguiente.pendientes, diasDelMes(SIGUIENTE) * 3);
 
@@ -413,7 +421,7 @@ test('C · los once pasos, de una cuenta nueva a poner el mes siguiente', () => 
   }
   // Y lo del mes en curso no se movió.
   assert.equal(inventoryNow(state)[arroz], 9, 'poner el mes siguiente tocó el inventario de este');
-  assert.equal(monthProgress(state, MES).encasa, esperados.length, 'poner el mes siguiente cambió el de ahora');
+  assert.equal(decididoEn(state, MES).encasa, esperados.length, 'poner el mes siguiente cambió el de ahora');
   hecho('11 mes siguiente', `${delSiguiente.length} desayunos en ${SIGUIENTE} (${diasDelMes(SIGUIENTE)} días)`);
 
   assert.equal(pasos.length, 11, 'no se completaron los once pasos');

@@ -205,24 +205,11 @@
 @media (max-width: 700px) {
   .main { padding-left: var(--margen-pantalla); padding-right: var(--margen-pantalla); }
 
-  /* Los calendarios se salen del margen a propósito para poder deslizarse de
-     lado; si cambia el margen, tiene que cambiar su compensación o aparece una
-     franja en blanco a la derecha. */
-  .calendar-month {
-    margin-right: calc(var(--margen-pantalla) * -1);
-    padding-right: var(--margen-pantalla);
-  }
-
+  
   /* Las tarjetas respiran un punto más y la curva sube con ellas. */
   .card { padding: var(--aire-5); border-radius: var(--curva-3); }
   .topline { margin-bottom: var(--aire-6); }
 }
-
-/* Las filas del menú «Más» estaban a 15 px del borde de su tarjeta mientras el
-   texto de al lado estaba a 20: se veía descolgado. */
-.mas-lista { padding: var(--aire-1); }
-.mas-item { padding: var(--aire-4) var(--aire-3); gap: var(--aire-3); border-radius: var(--curva-2); }
-.mas-icono { width: var(--ico-3); display: grid; place-items: center; color: var(--clay); }
 
 /* Los atajos del «+»: el icono en terracota, separado del texto. */
 .quick-icon { width: var(--ico-3); display: grid; place-items: center; color: var(--clay); }
@@ -279,7 +266,7 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
 
 /* Las flechas de «entrar aquí» y de «desplegar». Se apagan a propósito: dicen
    hacia dónde, no piden que las toques. */
-.mas-flecha, .recetas-flecha {
+.recetas-flecha {
   display: grid;
   place-items: center;
   color: var(--ink-muted);
@@ -287,12 +274,11 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
 
 /* Un icono dentro de una línea de texto corrida. `vertical-align` y no flex:
    la línea tiene que seguir fluyendo como texto. */
-.ico-linea, .enlace .ico {
+.enlace .ico {
   display: inline-block;
   vertical-align: -3px;
   margin-right: 5px;
 }
-.ico-linea { color: var(--clay); }
 
 .setup-rubro-emoji { display: grid; place-items: center; color: var(--clay); }
 
@@ -353,15 +339,7 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
    La pista baja a su propia línea y se alinea bajo el texto, no bajo el dibujo.
    El título recupera 100 px y ya no se parte. */
 @media (max-width: 700px) {
-  .mas-item { flex-wrap: wrap; }
-  .mas-flecha { order: 2; }
-  .mas-pista {
-    order: 3;
-    flex-basis: 100%;
-    margin-left: calc(var(--ico-3) + var(--aire-3));
-    margin-top: 2px;
-  }
-}
+      }
 
 /* La escala de gravedad de las restricciones es una escala tipográfica —«!»,
    «·», «?»— y solo el primer escalón era un emoji: el ⚠ que Android dibuja
@@ -390,3 +368,30 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
    de quitarlo. La ficha ya no pregunta cuánto lleva —eso se decide en la lista
    de cada compra—, así que la cuadrícula de cuatro columnas sobra. */
 .item-row-simple { grid-template-columns: minmax(0, 1fr) var(--toque-chico); }
+
+/* ── Cinco secciones, y un engranaje ───────────────────────────────────────
+
+   La barra de abajo pasó de cuatro columnas a cinco. Con cinco, cada una mide
+   unos setenta píxeles en un teléfono de 360, así que la etiqueta baja de
+   cuerpo y el icono se encoge un punto: lo que no puede pasar es que «Preparo»
+   se parta en dos líneas y descuadre la fila entera.
+
+   El engranaje no está en la barra. Cinco secciones más un sexto botón serían
+   seis columnas de sesenta píxeles, y Ajustes no es una sección: es donde se
+   entra una vez cada muchos meses. Va arriba, junto al nombre de la app, que es
+   donde se busca un engranaje. */
+.mobile-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.mobile-nav button { font-size: .58rem; padding: 5px 1px; gap: 2px; line-height: 1.1; min-width: 0; }
+.mobile-nav button { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mobile-nav button .nav-icon { width: 21px; height: 21px; }
+
+.mobile-brand { position: relative; }
+.engranaje-movil { display: none; margin-left: auto; flex: none; }
+@media (max-width: 700px) { .engranaje-movil { display: grid; } }
+.engranaje-movil.active { background: var(--clay-light); color: var(--clay-dark); }
+
+/* En el lateral, el engranaje es una fila más de la barra: el mismo alto, el
+   mismo relleno y el mismo verde cuando está abierto. Lo separa la línea que
+   `.secondary` ya trae. */
+.sidebar .secondary button { display: flex; align-items: center; gap: 12px; }
+.sidebar .secondary button svg { flex: none; }

@@ -17,10 +17,10 @@ import { resolve } from 'node:path';
 // aplicación, y es el que estas pruebas vigilan.
 
 import {
-  addProduct, addPurchase, agregarALista, agregarOcasional, correctStock, crearLista, createEmptyState,
-  createReview, importState, makeRecipePlan, setHabitualLine, setMonthChange, todayISO, upsertPerson, upsertRecipe
+  addDays, addProduct, addPurchase, agregarALista, agregarOcasional, anotarComidaSuelta, correctStock, crearLista, createEmptyState,
+  createReview, importState, makeRecipePlan, reutilizarComida, setAbsence, setHabitualLine, setMonthChange, todayISO, upsertPerson, upsertRecipe
 } from '../src/model.js';
-import { emptyMes, modalDia, modalPonerEnDias, renderMes } from '../src/page-mes.js';
+import { emptySemana, modalDia, modalIrAFecha, modalPonerEnDias, renderSemana } from '../src/page-semana.js';
 import { emptyCompra, renderCompra } from '../src/page-compra.js';
 import { PAGINAS_MAS, emptyMas, renderMas } from '../src/page-mas.js';
 
@@ -34,11 +34,18 @@ function estadoEnvenenado() {
   p.aliases = [VENENO];
   setHabitualLine(s, p.id, 10, 'lb');
   setMonthChange(s, MES, p.id, { quantity: 4, unit: 'lb' });
-  upsertPerson(s, { name: VENENO, restrictions: [], pendingRestrictions: ['<b>mani</b>'], habitual: [] });
+  const persona = upsertPerson(s, { name: VENENO, restrictions: [], pendingRestrictions: ['<b>mani</b>'], habitual: [] });
   const receta = upsertRecipe(s, { name: VENENO, uses: ['almuerzo', 'cena'], covers: [], items: [{ productId: p.id, quantity: 1, unit: 'lb' }], note: VENENO });
   const plan = makeRecipePlan(s, receta.id, todayISO(), 'almuerzo');
   plan.title = VENENO;
   plan.note = VENENO;
+  // Una comida escrita a mano es la superficie de texto libre más nueva de la
+  // app: un nombre y una nota que nadie pasa por ningún catálogo.
+  anotarComidaSuelta(s, todayISO(), 'cena', { titulo: VENENO, nota: VENENO });
+  // Y lo que sobra de ella, que se lleva el nombre puesto a otro día.
+  reutilizarComida(s, plan.id, addDays(todayISO(), 1), 'almuerzo');
+  // La ventana de un día enseña quién no come en casa, con su nombre.
+  setAbsence(s, todayISO(), 'cena', persona.id, true);
   // El ataque también dentro de una lista de compra, que es donde más texto
   // libre escribe una persona: el nombre de la lista y la nota de cada renglón.
   const lista = crearLista(s, { fecha: todayISO(), nombre: VENENO });
@@ -53,21 +60,22 @@ function estadoEnvenenado() {
 
 const contexto = (state, extra = {}) => ({
   state,
-  ui: { page: 'hoy', modal: null, reviewId: null, correctingReview: false, mes: emptyMes(MES), compra: emptyCompra(MES), mas: emptyMas(), ...extra },
+  ui: { page: 'hoy', modal: null, reviewId: null, correctingReview: false, semana: emptySemana(), compra: emptyCompra(MES), mas: emptyMas(), ...extra },
   commit: () => {}, toast: () => {}, render: () => {}, closeModal: () => {}, openModal: () => {}, startTour: () => {}
 });
 
 function todasLasPantallas(state) {
   const salida = [];
   const ctx = contexto(state);
-  salida.push(['plan mensual', renderMes(ctx)]);
-  ctx.ui.mes.vista = 'calendario';
-  salida.push(['calendario', renderMes(ctx)]);
-  ctx.ui.mes.vista = 'resumen';
-  salida.push(['modal poner en días', modalPonerEnDias(contexto(state), { month: MES })]);
-  salida.push(['modal día', modalDia(contexto(state), { date: MES + '-05' })]);
+  salida.push(['plan semanal', renderSemana(ctx)]);
+  ctx.ui.semana.vista = 'dos';
+  salida.push(['plan semanal (dos semanas)', renderSemana(ctx)]);
+  ctx.ui.semana.vista = 'una';
+  salida.push(['modal poner en días', modalPonerEnDias(contexto(state), {})]);
+  salida.push(['modal día', modalDia(contexto(state), { date: todayISO() })]);
+  salida.push(['modal ir a una fecha', modalIrAFecha(contexto(state))]);
   salida.push(['compra', renderCompra(contexto(state))]);
-  for (const pagina of ['mas', ...PAGINAS_MAS]) salida.push([pagina, renderMas(contexto(state, { page: pagina }))]);
+  for (const pagina of PAGINAS_MAS) salida.push([pagina, renderMas(contexto(state, { page: pagina }))]);
   const revision = contexto(state, { page: 'revision' });
   revision.ui.reviewId = state.reviews[0].id;
   salida.push(['revisión abierta', renderMas(revision)]);
@@ -76,7 +84,11 @@ function todasLasPantallas(state) {
 
 test('ningún texto del usuario llega a la pantalla sin escapar', () => {
   const pantallas = todasLasPantallas(estadoEnvenenado());
-  assert.ok(pantallas.length > 15, 'deberían probarse todas las pantallas');
+  // Las diez pantallas que hay detrás del engranaje, la revisión abierta, las
+  // dos vistas de la semana, sus tres ventanas y la compra. «Más» ya no es una
+  // pantalla: si alguna de las otras se cae del barrido, esto sale en rojo.
+  assert.equal(pantallas.length, PAGINAS_MAS.length + 7, 'alguna pantalla se quedó fuera del barrido');
+  assert.ok(pantallas.length >= 17, `solo se probaron ${pantallas.length} pantallas`);
   const filtradas = pantallas.filter(([, html]) => html.includes(VENENO)).map(([nombre]) => nombre);
   assert.deepEqual(filtradas, [], 'pantallas donde el ataque sale sin escapar');
   // Y que de verdad se esté pintando el texto, no descartándolo en silencio.

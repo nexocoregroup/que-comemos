@@ -82,6 +82,11 @@ export const validDate = date => {
 };
 export const validMonth = month => /^\d{4}-(0[1-9]|1[0-2])$/.test(month || '');
 export const monthBounds = month => ({ start: `${month}-01`, end: addDays(`${month}-01`, new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate() - 1) });
+// El lunes de la semana en que cae una fecha. La semana empieza en lunes
+// porque así se lee un calendario en esta casa, y porque «el fin de semana»
+// tiene que caer junto al final y no partido entre dos filas.
+export const weekStart = date => addDays(date, -(weekdayOf(date) - 1));
+
 // Qué día de la semana es una fecha, en ISO: 1 lunes … 7 domingo.
 //
 // Mediodía y no medianoche: a las 00:00 un cambio de horario de verano puede
@@ -1216,47 +1221,94 @@ export function makeRecipePlan(state, recipeId, date, slot, selected, routineId 
   state.plans.push(plan);
   return plan;
 }
+/* ── Los seis estados de una comida ────────────────────────────────────────
+
+   · `recipe`    — una preparación guardada del catálogo de la casa.
+   · `suelta`    — una comida escrita a mano, ese día y solo ese día. No
+                   entra en el catálogo: no se va a repetir.
+   · `linked`    — lo que sobró de otra comida, comido otro día.
+   · `outside`   — se come fuera.
+   · `order`     — se pide.
+   · `unplanned` — se dejó dicho que todavía no se sabe. No es lo mismo que
+                   un hueco: un hueco es que nadie lo ha mirado.
+
+   `ESTADOS_SIN_COMIDA` son los tres que no nombran ningún plato, y son los
+   únicos que `setStatusPlan` sabe escribir. */
+export const ESTADOS_SIN_COMIDA = ['outside', 'order', 'unplanned'];
+export const CLASES_DE_COMIDA = ['recipe', 'suelta', 'linked', ...ESTADOS_SIN_COMIDA];
+
 export function setStatusPlan(state, date, slot, kind, routineId = null, origen = null) {
-  if (!['outside', 'order', 'unplanned'].includes(kind)) throw new Error('Estado de comida no válido.');
+  if (!ESTADOS_SIN_COMIDA.includes(kind)) throw new Error('Estado de comida no válido.');
   if (planFor(state, date, slot)) throw new Error('Elimina o cambia primero el plan existente.');
   const plan = { id: nextId(state, 'comida'), date, slot, kind, routineId: routineId || null, origen: normalizarOrigen(origen, routineId, kind), participants: [], items: [] };
   state.plans.push(plan);
   return plan;
 }
+/* ── Una comida escrita a mano ─────────────────────────────────────────────
+
+   Lo único obligatorio es el nombre. Ni alimentos, ni cantidades, ni
+   momentos en los que suele comerse: nada de eso hace falta para decir lo
+   que se cena el jueves, y pedirlo convertiría una frase en un formulario.
+
+   No se guarda en `state.recipes` a propósito. El catálogo es lo que esta
+   casa **sabe preparar**; una comida suelta es lo que pasó un día. Mezclarlas
+   llenaría el catálogo de cosas que nadie va a volver a elegir, y la lista de
+   preparaciones es justo la que tiene que poder leerse entera. */
+export function anotarComidaSuelta(state, date, slot, fields = {}) {
+  if (!validDate(date)) throw new Error('Elige una fecha válida.');
+  if (!SLOTS.includes(slot)) throw new Error('Elige en qué comida del día.');
+  const title = String(fields.titulo ?? fields.title ?? '').trim();
+  if (!title) throw new Error('Escribe qué se come.');
+  if (planFor(state, date, slot)) throw new Error('Esa comida ya tiene un plan.');
+  const participants = fields.participants || personasActivas(state).map(persona => persona.id);
+  const plan = {
+    id: nextId(state, 'comida'), date, slot, kind: 'suelta',
+    recipeId: null, routineId: null, origen: 'manual',
+    title, note: String(fields.nota ?? fields.note ?? '').trim(),
+    participants: participants.filter(id => !isAbsent(state, date, slot, id)),
+    items: []
+  };
+  state.plans.push(plan);
+  return plan;
+}
+
 export function dependents(state, sourceId) { return state.plans.filter(plan => plan.kind === 'linked' && plan.sourceId === sourceId); }
 export function reservedQuantity(state, sourceId, itemId) {
   return round(dependents(state, sourceId).flatMap(plan => plan.reservedItems || []).filter(item => item.sourceItemId === itemId).reduce((sum, item) => sum + item.quantity, 0));
 }
-export function linkPlan(state, sourceId, date, slot, allocation, extraItems = [], participants = []) {
-  const source = state.plans.find(item => item.id === sourceId);
-  if (!source || source.kind !== 'recipe') throw new Error('Selecciona una preparación del menú.');
-  if (date <= source.date || planFor(state, date, slot)) throw new Error('La comida vinculada debe ser posterior y estar libre.');
-  const reservedItems = Object.entries(allocation).filter(([, amount]) => Number(amount) > 0).map(([sourceItemId, amount]) => {
-    const item = source.items.find(row => row.id === sourceItemId);
-    if (!item) throw new Error('El alimento de origen ya no existe.');
-    // Reservar la mitad de algo que no dice cuánto es no significa nada. Se
-    // dice así, en vez de dejar que la comparación de abajo lo rechace con un
-    // «no puedes reservar más» que no explicaría por qué.
-    if (item.quantity === null || item.quantity === undefined) throw new Error(`${product(state, item.productId)?.name || 'Ese alimento'} no tiene cantidad anotada en la preparación, así que no se puede reservar una parte.`);
-    const total = quantity(amount) + reservedQuantity(state, sourceId, sourceItemId);
-    if (total > item.quantity + EPS) throw new Error(`No puedes reservar más ${product(state, item.productId)?.name || 'alimento'} del preparado.`);
-    return { sourceItemId, quantity: quantity(amount) };
-  });
-  if (!reservedItems.length) throw new Error('Indica qué cantidad vas a reservar.');
-  if (personasActivas(state).length && !participants.length) throw new Error('Selecciona quién comerá la parte reservada.');
-  if (participants.some(id => isAbsent(state, date, slot, id))) throw new Error('Una persona seleccionada está marcada fuera de casa en esa comida.');
-  const items = extraItems.map(item => {
-    if (!product(state, item.productId) || !UNITS.includes(item.unit)) throw new Error('Selecciona alimentos y unidades válidas.');
-    return { ...item, id: nextId(state, 'alimento'), quantity: quantity(item.quantity) };
-  });
+/* ── Usar lo que sobró ─────────────────────────────────────────────────────
 
-  const plan = { id: nextId(state, 'comida'), date, slot, kind: 'linked', sourceId, routineId: null, title: source.title, participants, reservedItems, items, note: '' };
+   Se elige una comida que ya está puesta y se pone otra vez en otro momento.
+   No se pregunta cuánto: la app no sabe cuánto sobró, quien cocinó sí, y
+   pedirle un número que va a inventar para poder seguir es pedirle que
+   mienta.
+
+   Queda enlazada a la de origen —`sourceId`— y eso sirve para dos cosas: el
+   calendario puede decir de dónde sale, y borrar la de origen avisa antes
+   en vez de dejar una comida colgando de algo que ya no existe.
+
+   Las comidas vinculadas de antes llevaban `reservedItems` con las cantidades
+   apartadas de cada alimento. Se siguen leyendo y se siguen pintando; las
+   nuevas nacen con esa lista vacía, que es lo que significa «lo que sobre». */
+export function reutilizarComida(state, sourceId, date, slot, participants = null) {
+  const source = state.plans.find(item => item.id === sourceId);
+  if (!source || !['recipe', 'suelta'].includes(source.kind)) throw new Error('Elige una comida del calendario.');
+  if (!validDate(date) || !SLOTS.includes(slot)) throw new Error('Elige cuándo se come.');
+  if (date < source.date || (date === source.date && SLOTS.indexOf(slot) <= SLOTS.indexOf(source.slot))) throw new Error('Lo que sobra se come después, no antes.');
+  if (planFor(state, date, slot)) throw new Error('Esa comida ya tiene un plan.');
+  const gente = (participants || personasActivas(state).map(persona => persona.id)).filter(id => !isAbsent(state, date, slot, id));
+  const plan = {
+    id: nextId(state, 'comida'), date, slot, kind: 'linked', sourceId,
+    routineId: null, origen: 'manual', title: source.title, note: source.note || '',
+    participants: gente, reservedItems: [], items: []
+  };
   state.plans.push(plan);
   return plan;
 }
+
 export function updatePlan(state, planId, fields) {
   const plan = state.plans.find(item => item.id === planId);
-  if (!plan || !['recipe', 'linked'].includes(plan.kind)) throw new Error('Comida no encontrada.');
+  if (!plan || !['recipe', 'suelta', 'linked'].includes(plan.kind)) throw new Error('Comida no encontrada.');
   // Opcional, igual que en la preparación de la que salió: una comida puede
   // llevar un alimento del que todavía no se sabe cuánto.
   const items = fields.items.map(item => ({ ...item, quantity: optionalQuantity(item.quantity) }));
@@ -1314,27 +1366,24 @@ export function copyPlan(state, id, date, slot) {
   return copy;
 }
 
-/* ── Cuánto le falta al mes ────────────────────────────────────────────────
 
-   Contar no es proponer. Esta función mira el calendario y dice cuántas
-   comidas están decididas y cuántas no; no elige ninguna, no rellena ninguna y
-   no sugiere nada. Es lo único que sobrevivió del archivo de rutinas.
+/* ── Cuánto hay decidido ───────────────────────────────────────────────────
+
+   Contar no es proponer. Esta función mira unos días y dice cuántas comidas
+   están decididas y cuántas no; no elige ninguna, no rellena ninguna y no
+   sugiere nada.
+
+   Cuenta las tres de todos los días. Las meriendas suman cuando están
+   puestas, pero no restan cuando no lo están: un día sin merienda está
+   completo, porque hay casas que no meriendan y no les falta nada.
 
    Una comida fuera o pedida está decidida: no es un hueco. Contarla como
    pendiente empujaría a planificar un almuerzo que ya se sabe que nadie va a
    cocinar. */
-export function monthProgress(state, month) {
-  if (!validMonth(month)) throw new Error('Elige un mes válido.');
-  const { start, end } = monthBounds(month);
-  const fechas = dateRange(start, end);
-  const dias = fechas.length;
-  // El progreso cuenta lo que una casa espera resolver todos los días. Las
-  // meriendas suman cuando están puestas, pero no restan cuando no lo están:
-  // un mes sin ninguna merienda anotada está al cien por cien, porque hay casas
-  // que no meriendan y no les falta nada.
-  const huecos = dias * SLOTS_PRINCIPALES.length;
+export function comidasDecididas(state, dias) {
+  const huecos = dias.length * SLOTS_PRINCIPALES.length;
   let encasa = 0, fuera = 0, pedido = 0, pendientes = 0, meriendas = 0;
-  for (const date of fechas) for (const slot of SLOTS) {
+  for (const date of dias) for (const slot of SLOTS) {
     const plan = planFor(state, date, slot);
     const opcional = !SLOTS_PRINCIPALES.includes(slot);
     if (!plan || plan.kind === 'unplanned') { if (!opcional) pendientes += 1; continue; }
@@ -1343,10 +1392,7 @@ export function monthProgress(state, month) {
     if (plan.kind === 'order') { pedido += 1; continue; }
     encasa += 1;
   }
-  return {
-    month, dias, huecos, encasa, fuera, pedido, pendientes, meriendas,
-    porcentaje: huecos ? Math.round(((huecos - pendientes) / huecos) * 100) : 0
-  };
+  return { dias: dias.length, huecos, encasa, fuera, pedido, pendientes, meriendas, decididas: huecos - pendientes };
 }
 
 /* ── Inventario: compras, revisiones y correcciones ────────────────────── */

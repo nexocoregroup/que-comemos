@@ -125,7 +125,7 @@ function vistaPreparar(ctx, lista) {
       : habitualesPorRubro(state).length
         ? `<p class="muted">Nada coincide con «${esc(ui.compra.busqueda)}». Puedes añadirlo aquí abajo.</p>`
         : notice('Todavía no tienes productos habituales.',
-            'Son los que tu casa compra de costumbre, y sirven para no acordarte de todo de cero cada vez. Se marcan en Más → Mis productos habituales, o puedes apuntar aquí mismo lo de esta compra.')}
+            'Son los que tu casa compra de costumbre, y sirven para no acordarte de todo de cero cada vez. Se marcan en Mis productos habituales, o puedes apuntar aquí mismo lo de esta compra.')}
 
     ${bloqueOcasional(ctx)}
     ${total ? `<p class="tiny muted">${total} producto(s) habituales a la vista. No hace falta marcarlos todos: solo lo de esta compra.</p>` : ''}`;

@@ -22,8 +22,8 @@
 // ── Qué se guarda, y qué no ────────────────────────────────────────────────
 //
 // El mensaje del error, de dónde salió y cuándo. Ni el estado de la casa, ni
-// nada que haya escrito una persona. Se lee desde «Más → Detalle de este
-// aparato», que es donde sirve para arreglar algo a distancia sin pedirle a
+// nada que haya escrito una persona. Se lee desde «Ajustes → Si algo se
+// rompe», que es donde sirve para arreglar algo a distancia sin pedirle a
 // nadie que describa un error.
 //
 // ── Y lo que se rompió antes de que esto existiera ─────────────────────────

@@ -28,7 +28,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import { SCHEMA_VERSION, migrate } from '../src/migrate.js';
-import { exportState, importState, monthProgress, planFor } from '../src/model.js';
+import { addDays, comidasDecididas, dateRange, exportState, importState, planFor, weekStart } from '../src/model.js';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const FIXTURES = join(AQUI, 'fixtures');
@@ -113,14 +113,14 @@ test('abrir esta casa no pone ni una comida: las reglas ya no rellenan nada', ()
   const primera = importState(CRUDO);
   assert.equal(primera.plans.length, antes.plans.length);
 
-  // El mes que las reglas cubren —todas son de domingos, lunes, miércoles y
-  // viernes— y los dos siguientes, que nunca se abrieron. Abrir, leer el
-  // progreso y volver a mirar no puede crear nada.
-  for (const mes of ['2026-08', '2026-09', '2026-10']) {
-    monthProgress(primera, mes);
+  // Las semanas que las reglas cubren —todas son de domingos, lunes, miércoles
+  // y viernes— y las que vienen detrás, que nunca se miraron. Contar lo que hay
+  // decidido y volver a mirar no puede crear nada.
+  for (let semana = weekStart('2026-08-03'); semana <= '2026-10-26'; semana = addDays(semana, 7)) {
+    comidasDecididas(primera, dateRange(semana, addDays(semana, 6)));
   }
   assert.equal(primera.plans.length, antes.plans.length,
-    'mirar el mes puso comidas');
+    'mirar el calendario puso comidas');
 
   // Septiembre y octubre son meses que las reglas permanentes habrían llenado.
   // Tienen que seguir como estaban: vacíos.

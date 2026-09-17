@@ -240,7 +240,7 @@ function pantallaCuantos(hogar) {
       ${button('+', 'hogar-mas', 'hogar-paso', 'aria-label="Una persona más"')}
       <button type="submit" class="btn btn-primary">Continuar</button>
     </form>
-    <p class="tiny muted">Puedes añadir o quitar personas después, desde Más → Familia y restricciones.</p>
+    <p class="tiny muted">Puedes añadir o quitar personas después, desde Ajustes → Familia y restricciones.</p>
     <div class="pantalla-acciones">${button('Salir', 'hogar-salir', 'btn-quiet btn-small')}</div>
   </section>`;
 }
@@ -297,7 +297,7 @@ function pantallaFinal(ctx) {
           <div class="between"><h3>${esc(persona.name)}</h3><span class="pill gray">${esc(claseDe(persona.kind).etiqueta)}</span></div>
           ${resumenDeRestricciones(state, persona)}
         </article>`).join('')}</div>`
-      : `<p class="muted">No quedó nadie registrado. Puedes hacerlo cuando quieras desde Más → Familia y restricciones.</p>`}
+      : `<p class="muted">No quedó nadie registrado. Puedes hacerlo cuando quieras desde Ajustes → Familia y restricciones.</p>`}
     ${conAlergia.length
       ? notice('Las alergias quedan avisadas', `Si una comida lleva algo que ${conAlergia.map(persona => esc(persona.name)).join(' o ')} no puede comer, la app no te deja guardarla sin decírtelo.`, 'warn')
       : ''}
@@ -419,7 +419,7 @@ export const HOGAR_ACTIONS = {
     // Salir no descarta nada: el borrador se queda escrito donde estaba.
     ctx.ui.page = 'hoy';
     ctx.commit('');
-    ctx.toast('Guardado. Puedes retomarlo desde Más → Familia.');
+    ctx.toast('Guardado. Puedes retomarlo desde Ajustes → Familia.');
   },
   'hogar-terminar': (el, ctx) => {
     guardarHogar(ctx.state, { estado: 'listo', borrador: null });

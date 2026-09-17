@@ -49,7 +49,7 @@ export const LEGAL = {
         parrafos: [
           'Todo lo que escribes en esta app se queda guardado en tu teléfono.',
           'Puedes usarla sin cuenta, y entonces no sale nada de tu teléfono: la app no llama a ninguna parte. También puedes crear una cuenta, que sirve para recuperar tu casa si cambias de aparato.',
-          'Tener cuenta no significa subir tus datos. Guardar la casa en la cuenta es una segunda decisión, con su propio interruptor en Más → Mi cuenta, y mientras esté apagado no viaja nada.',
+          'Tener cuenta no significa subir tus datos. Guardar la casa en la cuenta es una segunda decisión, con su propio interruptor en Ajustes → Mi cuenta, y mientras esté apagado no viaja nada.',
           'No hay analítica, ni publicidad, ni rastreadores: nadie mide cuánto usas la app ni qué haces dentro, ni con cuenta ni sin ella.',
           'Si enciendes la sincronización, tu casa se guarda en tu cuenta. Más abajo se dice exactamente dónde queda y quién puede llegar a ella, sin adornos.'
         ]
@@ -71,7 +71,7 @@ export const LEGAL = {
           'Con la sincronización apagada —que es como viene— no se copia a ninguna parte. Si abres la app en otro teléfono, ahí empiezas de cero.',
           'Si la enciendes, ese mismo contenido se guarda además en tu cuenta, en servidores de Supabase, y vuelve solo cuando entras desde otro teléfono. Puedes apagarla cuando quieras, y borrar la cuenta borra lo que hubiera subido.',
           'La copia automática de Android está apagada a propósito. Android suele subir solo los datos de las aplicaciones a la cuenta de Google del dueño del teléfono; en esta app eso está desactivado, para que tu despensa no acabe en un servidor sin que nadie lo pidiera.',
-          'El precio de esa decisión hay que decirlo claro: si no usas cuenta y pierdes el teléfono sin haber guardado una copia, se pierde todo. Por eso existe Más → Respaldo, y por eso la app insiste en que la uses.'
+          'El precio de esa decisión hay que decirlo claro: si no usas cuenta y pierdes el teléfono sin haber guardado una copia, se pierde todo. Por eso existe Ajustes → Respaldo, y por eso la app insiste en que la uses.'
         ]
       },
       {
@@ -103,7 +103,7 @@ export const LEGAL = {
       {
         titulo: 'El respaldo lo guardas tú',
         parrafos: [
-          'En Más → Respaldo puedes escribir una copia de tus datos. Es un archivo que se descarga a tu teléfono y que tú guardas donde quieras.',
+          'En Ajustes → Respaldo puedes escribir una copia de tus datos. Es un archivo que se descarga a tu teléfono y que tú guardas donde quieras.',
           'La app no sube ese archivo a ningún sitio. Una vez descargado, esa copia es tuya y su cuidado también: si la mandas por chat o la subes a una nube, esos datos van a donde tú los mandes.',
           'El respaldo lleva lo de tu casa y nada más: alimentos, cantidades, comidas, personas, compras y revisiones. No lleva identificadores tuyos ni nada que te señale a ti.'
         ]
@@ -119,9 +119,9 @@ export const LEGAL = {
         titulo: 'Cómo borrar tus datos',
         parrafos: [
           'Todos los caminos los recorres tú, desde tu teléfono, sin pedirle permiso a nadie ni esperar a que nadie apruebe nada.',
-          'Lo del teléfono, desde dentro de la app: Más → Respaldo → Borrar todos mis datos. Te pide confirmación y borra todo lo que la app guardó: alimentos, comidas, personas, compras, revisiones, la copia interna de seguridad y tus preferencias de pantalla.',
+          'Lo del teléfono, desde dentro de la app: Ajustes → Respaldo → Borrar todos mis datos. Te pide confirmación y borra todo lo que la app guardó: alimentos, comidas, personas, compras, revisiones, la copia interna de seguridad y tus preferencias de pantalla.',
           'Lo del teléfono, desinstalando: al desinstalar la app, Android se lleva por delante todo su almacenamiento, incluida la caché del sistema. También puedes hacerlo sin desinstalar, desde los ajustes de Android, en Aplicaciones, ¿Qué comemos?, Almacenamiento, Borrar datos.',
-          'La cuenta, si llegaste a crear una: Más → Mi cuenta → Borrar mi cuenta. Eso borra de una vez tu cuenta y todo lo que hubiera subido —tu correo, tu nombre y la casa que tuvieras guardada— y borra además lo que quede en este teléfono.',
+          'La cuenta, si llegaste a crear una: Ajustes → Mi cuenta → Borrar mi cuenta. Eso borra de una vez tu cuenta y todo lo que hubiera subido —tu correo, tu nombre y la casa que tuvieras guardada— y borra además lo que quede en este teléfono.',
           'Todos son inmediatos y no se pueden deshacer. Guarda una copia antes si la quieres.'
         ]
       },
@@ -130,8 +130,8 @@ export const LEGAL = {
         parrafos: [
           'En las apps con cuenta, uno le escribe a la empresa para que le enseñe sus datos, los corrija, se los lleve o se los borre. Aquí no hace falta esperar a nadie, porque los botones los tienes tú.',
           'Verlos y corregirlos: están en la app, en tus propias pantallas, y se cambian ahí mismo.',
-          'Llevártelos: Más → Respaldo escribe un archivo con todo lo tuyo, se descarga a tu teléfono y es tuyo.',
-          'Borrarlos: Más → Respaldo → Borrar todos mis datos para lo del teléfono, y Más → Mi cuenta → Borrar mi cuenta para lo de la cuenta, que se lleva las dos cosas de una vez.',
+          'Llevártelos: Ajustes → Respaldo escribe un archivo con todo lo tuyo, se descarga a tu teléfono y es tuyo.',
+          'Borrarlos: Ajustes → Respaldo → Borrar todos mis datos para lo del teléfono, y Ajustes → Mi cuenta → Borrar mi cuenta para lo de la cuenta, que se lleva las dos cosas de una vez.',
           'Si nunca creaste una cuenta, no tenemos absolutamente nada tuyo y no hay nada que pedirnos. Si la creaste, lo que hay es tu correo, tu nombre y la casa que hayas subido, y el botón para borrarlo está en la app.',
           'Si prefieres escribirnos, o algo de esto no te cuadra, escribe a nexocore.group@gmail.com y te contestamos.'
         ]
@@ -226,7 +226,7 @@ export const LEGAL = {
           'Sin cuenta, todo vive en tu teléfono y hacer copias te toca a ti. Es importante que lo entiendas antes, no después.',
           'Si desinstalas la app, los datos se van con ella. Si pierdes, vendes o se te daña el teléfono, los datos se pierden con él. Si borras los datos de la app desde los ajustes de Android, se borran.',
           'La copia automática de Android está apagada a propósito, para que tus datos no se suban a la nube sin que nadie lo pida. Eso significa que tampoco vuelven solos en un teléfono nuevo.',
-          'Por eso Más → Respaldo existe y por eso la app insiste. Guarda una copia de vez en cuando, y guárdala en un sitio que sobreviva al teléfono.',
+          'Por eso Ajustes → Respaldo existe y por eso la app insiste. Guarda una copia de vez en cuando, y guárdala en un sitio que sobreviva al teléfono.',
           'Con cuenta y sincronización encendida hay además una copia en tu cuenta, y esa sí vuelve sola al entrar desde otro teléfono. Aun así, guarda respaldos: una cuenta no sustituye a una copia que tengas tú en la mano.',
           'Actualizar la app desde la tienda sí conserva los datos: es el mismo almacenamiento.'
         ]
@@ -234,9 +234,9 @@ export const LEGAL = {
       {
         titulo: 'La cuenta, si decides crearla',
         parrafos: [
-          'Crear una cuenta es opcional y sirve para recuperar tu casa al cambiar de teléfono. Guardar la casa en esa cuenta es además una segunda decisión, con su propio interruptor en Más → Mi cuenta, y viene apagada.',
+          'Crear una cuenta es opcional y sirve para recuperar tu casa al cambiar de teléfono. Guardar la casa en esa cuenta es además una segunda decisión, con su propio interruptor en Ajustes → Mi cuenta, y viene apagada.',
           'Cuando creas una cuenta te comprometes a dar un correo que sea tuyo, a cuidar tu contraseña y a no usar la cuenta de otra persona.',
-          'Podemos cerrar o suspender una cuenta que se use para algo ilegal o para atacar el servicio. Fuera de eso, la cuenta es tuya y la borras tú cuando quieras, desde Más → Mi cuenta → Borrar mi cuenta.',
+          'Podemos cerrar o suspender una cuenta que se use para algo ilegal o para atacar el servicio. Fuera de eso, la cuenta es tuya y la borras tú cuando quieras, desde Ajustes → Mi cuenta → Borrar mi cuenta.',
           'El servicio de cuentas lo opera Supabase. No podemos prometerte que esté disponible siempre, y por eso la app funciona entera sin él: si un día no se puede entrar, tu casa sigue en tu teléfono y no deja de servir.'
         ]
       },
@@ -302,7 +302,7 @@ export const LEGAL = {
       {
         titulo: 'Camino 1: borrar desde dentro de la app',
         parrafos: [
-          'Abre la app y toca Más, abajo a la derecha. Entra en Respaldo.',
+          'Abre la app y toca el engranaje de Ajustes. Entra en Respaldo.',
           'Si quieres conservar una copia, toca primero «Guardar una copia»: se descarga un archivo a tu teléfono.',
           'Toca «Borrar todos mis datos» y confirma.',
           'Esto borra todo lo que la app guardó en tu teléfono: los alimentos, las cantidades, los productos habituales, las comidas planificadas, las rutinas, las personas, las compras, las revisiones, el historial, la copia interna de seguridad y tus preferencias de pantalla. La app queda como recién instalada.',
@@ -312,7 +312,7 @@ export const LEGAL = {
       {
         titulo: 'Camino 2: desinstalar la app',
         parrafos: [
-          'Si quieres una copia, guárdala antes desde Más → Respaldo. Después de este paso no hay vuelta atrás.',
+          'Si quieres una copia, guárdala antes desde Ajustes → Respaldo. Después de este paso no hay vuelta atrás.',
           'Mantén pulsado el ícono de «¿Qué comemos?», elige Desinstalar y confirma.',
           'Al desinstalar, Android elimina todo el almacenamiento de la app. No queda nada en el teléfono.',
           'Si prefieres no desinstalarla, consigues lo mismo desde los ajustes de Android, en Aplicaciones, ¿Qué comemos?, Almacenamiento, Borrar datos.'
@@ -322,8 +322,8 @@ export const LEGAL = {
         titulo: 'Camino 3: borrar tu cuenta y lo que hayas subido',
         parrafos: [
           'Este camino solo hace falta si creaste una cuenta. Si nunca la creaste, no hay ninguna cuenta tuya que borrar y con los dos caminos de arriba ya está todo.',
-          'Si quieres una copia, guárdala antes desde Más → Respaldo. Después de este paso no hay vuelta atrás.',
-          'Abre la app, toca Más, entra en Mi cuenta y toca «Borrar mi cuenta». Confirma.',
+          'Si quieres una copia, guárdala antes desde Ajustes → Respaldo. Después de este paso no hay vuelta atrás.',
+          'Abre la app, toca el engranaje de Ajustes, entra en Mi cuenta y toca «Borrar mi cuenta». Confirma.',
           'Eso borra de una vez la cuenta entera: tu correo, tu nombre, la contraseña, la casa que tuvieras guardada y el registro de que existías. Y borra además lo que quede en este teléfono, para que no te quedes con media cosa.',
           'Lo hace el servidor en ese momento. No hay plazo de espera, ni revisión, ni nadie que lo apruebe.',
           'Si no recuerdas la contraseña, pídela de nuevo desde la pantalla de entrar: te llega un correo para ponerte una nueva, entras y borras la cuenta tú.',
@@ -351,14 +351,14 @@ export const LEGAL = {
         titulo: 'Cuánto tarda y qué se puede deshacer',
         parrafos: [
           'Los tres caminos son inmediatos. No hay un plazo de espera ni un periodo de gracia: el borrado ocurre en el momento en que confirmas.',
-          'No se puede deshacer, y no podemos recuperarlo nosotros. Lo único que devuelve tus datos es un respaldo que hayas guardado antes, que puedes volver a cargar desde Más → Respaldo.'
+          'No se puede deshacer, y no podemos recuperarlo nosotros. Lo único que devuelve tus datos es un respaldo que hayas guardado antes, que puedes volver a cargar desde Ajustes → Respaldo.'
         ]
       },
       {
         titulo: 'Y si me escribes pidiendo que borre mis datos',
         parrafos: [
           'Si nunca creaste una cuenta, te vamos a contestar lo mismo que dice esta página, porque es la verdad: no tenemos ningún dato tuyo. Ni tu nombre, ni tu correo, ni tu despensa. No hay una base de datos donde buscarte; lo que hay es tu teléfono, y ahí mandas tú.',
-          'Si creaste una cuenta, sí podemos borrarla, y lo hacemos. Escríbenos desde una dirección que podamos relacionar con ella. Aun así, el camino rápido es el de la propia app: Más → Mi cuenta → Borrar mi cuenta, que es inmediato y no depende de que nadie conteste.',
+          'Si creaste una cuenta, sí podemos borrarla, y lo hacemos. Escríbenos desde una dirección que podamos relacionar con ella. Aun así, el camino rápido es el de la propia app: Ajustes → Mi cuenta → Borrar mi cuenta, que es inmediato y no depende de que nadie conteste.',
           'Para cualquiera de los dos casos: nexocore.group@gmail.com'
         ]
       }
