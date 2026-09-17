@@ -355,7 +355,7 @@ function tablaDeRevision(ctx, revision) {
   const visibles = revision.productIds;
 
   return `<p class="pantalla-intro">${esc(niceDate(revision.date, { weekday: 'long', day: 'numeric', month: 'long' }))} · lo que se contó aquel día. ${queda ? 'La cifra de la derecha es lo que quedaba.' : 'La cifra de la derecha es lo que se había consumido.'}</p>
-    <form data-form="review" data-id="${revision.id}">
+    <div class="revision-cuerpo">
       <div class="card revision-lista">${(visibles.length ? visibles : []).map(id => {
         const item = product(state, id);
         const habia = disponible[id] || 0;
@@ -374,7 +374,7 @@ function tablaDeRevision(ctx, revision) {
       }).join('')}</div>
       <p class="small muted">Es lo que se anotó aquel día, tal cual. La app dejó de llevar la cuenta de la despensa y esto ya no se vuelve a calcular.</p>
       <div class="pantalla-acciones"><span class="pill">Terminada</span></div>
-    </form>`;
+    </div>`;
 }
 
 const corte = (item, cantidad) => {
@@ -638,7 +638,7 @@ function renderAjustes(ctx) {
     </div>
     <div class="card">
       <h3>Preferencias de la aplicación</h3>
-      <p class="muted small">Cada cuánto se hace la compra principal —y cómo se reparte el mes cuando se compra dos veces—, y las herramientas de reparar: medidas de compra, unir dos alimentos que son el mismo, corregir un conteo viejo.</p>
+      <p class="muted small">Cada cuánto se hace la compra principal —y cómo se reparte el mes cuando se compra dos veces—, y las herramientas de reparar: medidas de compra, unir dos alimentos que son el mismo, archivar lo que la casa dejó de comprar.</p>
       <p class="small">Compra <strong>${esc(frecuenciaDe(state, hoy().slice(0, 7)) === 'quincenal' ? 'quincenal — dos veces al mes' : 'mensual — una vez al mes')}</strong>.</p>
       <div class="inline">${button('Organización de compra', 'navigate', 'btn-secondary btn-small', 'data-page="organizacion"')}${button('Funciones avanzadas', 'navigate', 'btn-secondary btn-small', 'data-page="avanzado"')}</div>
     </div>
@@ -725,9 +725,6 @@ function formularioDeFrecuencia(ctx, actual, mesActual) {
     </div>
   </form>`;
 }
-
-// El reparto entre las dos quincenas, el mismo que enseña el recorrido guiado.
-// Aquí vive el resto del año, que es cuando de verdad se corrige.
 
 /* ── Privacidad y condiciones ──────────────────────────────────────────── */
 

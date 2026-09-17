@@ -42,8 +42,34 @@ const PROMESAS_RETIRADAS = [
   ['la canasta, el menú, la compra y el inventario', 'ni canasta, ni menú, ni inventario'],
   ['más → respaldo', 'la sección «Más» no existe'],
   ['corregir lo que hay', 'la app no sabe lo que hay'],
+  ['corregir un conteo', 'esa herramienta se retiró en la Fase 3'],
   ['plan mensual', 'la sección se llama Plan semanal']
 ];
+
+/* La lista de arriba es una lista blanca, y las listas blancas solo cazan lo
+   que ya se cazó una vez. Esta segunda comprobación es al revés: se parte de
+   los controles que **existen** y se exige que nadie nombre uno que no esté.
+   Fue lo que se escapó en la Fase 3 —Ajustes anunciaba «corregir un conteo
+   viejo» en la misma versión en que el botón desapareció—. */
+
+const HERRAMIENTAS_QUE_EXISTEN = ['medidas de compra', 'unir dos alimentos', 'archivar'];
+
+test('lo que Ajustes anuncia es lo que Funciones avanzadas ofrece', () => {
+  const fuente = readFileSync('src/page-mas.js', 'utf8');
+  const tarjeta = fuente.slice(fuente.indexOf('Preferencias de la aplicación'), fuente.indexOf('Preferencias de la aplicación') + 600);
+  const anunciadas = tarjeta.toLocaleLowerCase('es');
+  for (const [frase, porque] of PROMESAS_RETIRADAS) {
+    assert.ok(!anunciadas.includes(frase), `Ajustes anuncia «${frase}» — ${porque}`);
+  }
+  // Y lo que anuncia tiene que estar de verdad en la pantalla que abre.
+  const avanzado = fuente.slice(fuente.indexOf('function renderAvanzado'));
+  for (const herramienta of HERRAMIENTAS_QUE_EXISTEN) {
+    if (!anunciadas.includes(herramienta)) continue;
+    const palabra = herramienta.split(' ')[0];
+    assert.ok(avanzado.toLocaleLowerCase('es').includes(palabra),
+      `Ajustes anuncia «${herramienta}» y Funciones avanzadas no la tiene`);
+  }
+});
 
 // En el código, los comentarios sí pueden nombrar lo retirado: explicar por qué
 // una función se fue es justo lo que hay que dejar escrito para quien venga

@@ -8,7 +8,7 @@
 
 import {
   ESTADOS_SIN_COMIDA, MOMENTOS, SLOTS, SLOTS_PRINCIPALES, UNITS, addDays, actualizarHabitual, agregarHabitual, anotarComidaSuelta, copyPlan, createEmptyState, dependents, esOpcional,
-  etiquetaDeMomento, exportState, findSimilarProducts, habitualLines, importState, inventoryNow, esActiva, isAbsent, makeRecipePlan, mergeProducts, movePlan, nextId,
+  etiquetaDeMomento, exportState, findSimilarProducts, habitualLines, importState, esActiva, isAbsent, makeRecipePlan, mergeProducts, movePlan, nextId,
   personasActivas, planFor, ponerFrecuencia, product, removeHabitualLine, rubroDe,
   resumenDeLista, reutilizarComida, setAbsence, setEquivalence,
   detalleDeOrigen, etiquetaDeOrigen, origenDe, setStatusPlan, sliceStyle, todayISO, updatePlan, updateProduct, upsertRecipe
@@ -30,7 +30,7 @@ import { CUENTA_ACTIONS, CUENTA_FORMS, emptyCuenta, renderCuenta, volvimosDeGoog
 import { CAJON_DE_ESTE_TELEFONO, arrancarSesion, cajonDe, fundirSesion, guardarSesion, olvidarSesion } from './sesion.js';
 import { guardarCopiaAntesDeBajar, mereceLaPenaVincular, sincronizar } from './sincronizar.js';
 import { hayNube } from './config-nube.js';
-import { button, cap, empty, esc, fmt, measure, modal, monthName, niceDate, notice, options, unitText } from './ui-kit.js';
+import { button, cap, empty, esc, measure, modal, monthName, niceDate, notice, options, unitText } from './ui-kit.js';
 
 /* ── De qué cajón salen los datos ──────────────────────────────────────────
 
@@ -560,7 +560,7 @@ function pintar() {
     <button type="button" class="drawer-scrim" data-action="close-sidebar" aria-label="Cerrar menú lateral"></button>
     <main class="main">
       <div class="mobile-brand"><button type="button" class="menu-toggle" data-action="toggle-sidebar" aria-label="${ui.drawerOpen ? 'Ocultar menú' : 'Abrir menú'}" aria-controls="app-sidebar" aria-expanded="${ui.drawerOpen}">${icono('menu', { tamano: 22 })}</button><span class="brand-mark">${BRAND_MARK}</span><span>¿Qué comemos?</span>${engranaje('icon-btn engranaje-movil', '')}</div>
-      <header class="topline"><div class="topline-heading"><button type="button" class="menu-toggle desktop-menu-toggle" data-action="toggle-sidebar" aria-label="${ui.sidebarCollapsed ? 'Abrir menú' : 'Ocultar menú'}" aria-controls="app-sidebar" aria-expanded="${!ui.sidebarCollapsed}">${icono('menu', { tamano: 22 })}</button><div><p class="eyebrow">${esc(eyebrow())}</p><h1>${esc(pageTitle())}</h1></div></div></header>
+      <header class="topline"><div class="topline-heading"><button type="button" class="menu-toggle desktop-menu-toggle" data-action="toggle-sidebar" aria-label="${ui.sidebarCollapsed ? 'Abrir menú' : 'Ocultar menú'}" aria-controls="app-sidebar" aria-expanded="${!ui.sidebarCollapsed}">${icono('menu', { tamano: 22 })}</button><div><p class="eyebrow">${esc(eyebrow())}</p><h1>${esc(pageTitle())}</h1></div></div>${engranaje('icon-btn engranaje-plegado', '')}</header>
       ${avisoDeSesion ? notice('Sobre tu cuenta', `${esc(avisoDeSesion)} <button type="button" class="enlace" data-action="navigate" data-page="cuenta">Ir a mi cuenta</button>`, 'warn') : ''}
       ${migratedFrom ? notice('Tus datos se actualizaron al formato nuevo.', 'La canasta que tenías es ahora <strong>tus productos habituales</strong>, y lo que cambiaba en algún mes quedó guardado como cambio de ese mes. Nada se perdió, y lo anterior quedó a salvo por si acaso.') : ''}
       ${loadError ? notice('No se pudieron leer los datos guardados.', `${esc(loadError)} Trae una copia desde Ajustes → Respaldo, o borra los datos para empezar de nuevo.`, 'error') : ''}
@@ -1391,7 +1391,6 @@ document.addEventListener('change', event => {
     const form = el.closest('form'), date = form.querySelector('[name="date"]').value, slot = form.querySelector('[name="slot"]').value;
     form.querySelectorAll('[name="absent"]').forEach(input => input.checked = isAbsent(state, date, slot, input.value));
   }
-  if (el.name === 'productId' && el.closest('[data-form="correction"]')) el.form.querySelector('[name="actual"]').value = inventoryNow(state)[el.value] || 0;
   // El grosor solo aparece en lo que se corta; se oculta sin volver a dibujar
   // el formulario para no perder lo ya escrito.
 
@@ -1436,17 +1435,6 @@ document.addEventListener('input', event => {
       : '';
     return;
   }
-  const input = event.target;
-  if (!input.name?.startsWith('consume-')) return;
-  const fila = input.closest('[data-review-product]');
-  const celda = fila?.querySelector('.revision-derivado');
-  if (!celda) return;
-  const queda = fila.dataset.mode === 'restante';
-  if (input.value === '') { celda.textContent = 'pendiente'; celda.className = 'revision-derivado remaining pending'; return; }
-  const derivado = Number(fila.dataset.available) - Number(input.value);
-  const excede = derivado < 0;
-  celda.textContent = excede ? (queda ? 'queda más de lo que había anotado' : 'revisa la cantidad') : `${queda ? 'se consumió' : 'queda'} ${fmt(derivado)}`;
-  celda.className = `revision-derivado remaining ${excede ? 'pending' : 'good'}`;
 });
 
 document.addEventListener('keydown', event => {

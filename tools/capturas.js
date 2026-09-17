@@ -76,21 +76,30 @@ const PANTALLAS = [
   {
     archivo: '3-poner-en-dias.png',
     titulo: 'Una comida en varios días — se marcan y se ponen',
-    // Con los siete días siguientes ya marcados, que es lo que hay que enseñar:
-    // una ventana vacía no explica nada a quien todavía no sabe para qué sirve.
+    // Con una preparación elegida y los siete días siguientes ya marcados, que
+    // es lo que hay que enseñar: una ventana vacía no explica nada a quien
+    // todavía no sabe para qué sirve. El desplazamiento baja dentro de la
+    // ventana —no de la página— hasta las casillas de los días.
     hacer: `${ir('semana')};
       await new Promise(r => setTimeout(r, 400));
       document.querySelector('[data-action="semana-poner-en-dias"]')?.click();
       await new Promise(r => setTimeout(r, 500));
-      document.querySelector('[data-action="poner-dias-atajo"][data-cuantos="7"]')?.click();`
+      const receta = document.querySelector('[data-form="poner-en-dias"] [name="recipeId"]');
+      if (receta) {
+        const opcion = [...receta.options].find(o => o.value);
+        if (opcion) { receta.value = opcion.value; receta.dispatchEvent(new Event('change', { bubbles: true })); }
+      }
+      await new Promise(r => setTimeout(r, 300));
+      document.querySelector('[data-action="poner-dias-atajo"][data-cuantos="7"]')?.click();`,
+    desplazar: 430
   },
   {
     archivo: '4-compra.png',
     titulo: 'Preparar la compra — tus productos, por rubros',
-    // Hasta los rubros. Arriba solo hay avisos, y un aviso no enseña para qué
-    // sirve la pantalla.
+    // Hasta el buscador y el primer rubro. Más abajo se pierde de vista que
+    // esto se puede buscar, que es la mitad de para qué sirve la pantalla.
     hacer: ir('compra'),
-    desplazar: 620
+    desplazar: 430
   },
   {
     archivo: '5-mi-lista.png',
@@ -101,7 +110,10 @@ const PANTALLAS = [
         .find(b => /mi lista/i.test(b.textContent))?.click();
       await new Promise(r => setTimeout(r, 500));
       ${MARCAR_COMPRADO}`,
-    desplazar: 260
+    // Lo que esta captura tiene que enseñar son las dos mitades a la vez: un
+    // renglón por buscar arriba y, debajo, «Ya en el carrito» con lo tachado.
+    // Bajar hasta el final enseña solo la segunda.
+    desplazar: 640
   },
   {
     archivo: '6-habituales.png',

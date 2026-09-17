@@ -8,7 +8,7 @@ Todo lo de aquí sale de leer el código de la app, no de suponer. Cuando algo d
 - **Identificador:** `com.nexocore.quecomemos`
 - **Categoría sugerida:** Estilo de vida (alternativa razonable: Productividad)
 - **Precio:** gratis, sin compras dentro de la app
-- **Actualizado:** 16 de septiembre de 2026
+- **Actualizado:** 17 de septiembre de 2026
 - **Correo de contacto:** `nexocore.group@gmail.com` — **provisional**
 
 Ese correo ya está escrito en las cuatro páginas de `legal/` y en `src/legal.js`, y va también en la ficha de la tienda, donde **es público**: lo ve cualquiera que abra la ficha. Está marcado como provisional a la espera del buzón oficial de NexoCore; cuando cambie, cambia en seis archivos a la vez:
@@ -395,9 +395,9 @@ $bt = Get-ChildItem "$env:LOCALAPPDATA\Android\Sdk\build-tools" -Directory | Sor
 
 **1. Las seis capturas, y por qué esas.** Las genera `npm run capturas`; el orden es el del archivo y cada una tiene una idea sola:
 
-1. **Hoy** — el desayuno y el almuerzo con sus cantidades. Es lo que la gente va a ver todos los días.
+1. **Hoy** — el desayuno, el almuerzo y la cena, con qué lleva cada uno y la nota de quien cocina. Es lo que la gente va a ver todos los días.
 2. **Plan semanal** — los siete días, con lo que hay decidido y lo que falta.
-3. **Poner una comida en varios días** — con los siete días siguientes ya marcados. Es la única ayuda que la app da para no tocar treinta casillas, y por eso se enseña con algo marcado en vez de un formulario en blanco.
+3. **Poner una comida en varios días** — con una preparación elegida y los días que quedan de la semana ya marcados. Es la única ayuda que la app da para no tocar treinta casillas, y por eso se enseña con algo marcado en vez de un formulario en blanco.
 4. **Preparar la compra** — los productos habituales por rubros, con el buscador.
 5. **Mi lista** — lo pendiente arriba y lo comprado tachado al final.
 6. **Mis productos habituales** — lo que se marca una sola vez.
@@ -418,7 +418,9 @@ Por orden, y con lo que ya está hecho marcado.
 
 > **Compruébalo antes de contar con la fecha:** desde hace un tiempo Google exige a las **cuentas personales nuevas** hacer una prueba cerrada con un mínimo de participantes durante un número de días seguidos antes de poder publicar en producción. Las cuentas de organización tienen otro camino, pero piden un número D-U-N-S. El requisito exacto cambia cada tanto, así que míralo en la Play Console del día en que abras la cuenta y **cuenta ese tiempo en el plan**.
 
-**2. La clave de firma. No existe todavía.** Es el paso que no se puede deshacer.
+**2. La clave de firma. Ya existe** (`android/que-comemos.jks`, con su `keystore.properties` al lado, los dos fuera de git). Las versiones 2.0 en adelante salen firmadas con ella; sus huellas están en el apartado 9.
+
+Si alguna vez hay que crear una desde cero —en otra máquina, para otra app— este es el comando. **Es el paso que no se puede deshacer.**
 
 ```powershell
 cd android
@@ -429,7 +431,7 @@ Después, copia `android/keystore.properties.example` a `android/keystore.proper
 
 > **Google no deja cambiar esa clave una vez publicada la primera versión.** Si pierdes el `.jks` o su contraseña, no puedes actualizar tu propia app nunca más: hay que publicarla de cero con otro identificador, y quien ya la tuviera no recibe la actualización. Guarda una copia en un sitio que sobreviva a que se te dañe la computadora. El `.jks` y el `keystore.properties` están en `.gitignore` a propósito.
 
-**3. `versionCode`.** Ahora mismo está en `1` en `android/app/build.gradle`, con `versionName "1.0"`. Para la primera subida está bien. **A partir de ahí tiene que crecer con cada publicación**: Play rechaza un número repetido, y el error aparece al subir, no al compilar.
+**3. `versionCode`.** Ahora mismo está en `5` en `android/app/build.gradle`, con `versionName "3.0"`. **Tiene que crecer con cada publicación**: Play rechaza un número repetido, y el error aparece al subir, no al compilar. La cuenta hasta aquí: 1 → 1.0, 2 → 2.0, 3 → 2.1, 4 → 2.2, 5 → 3.0.
 
 **4. El AAB.** Play no acepta APK desde 2021.
 

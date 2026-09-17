@@ -5,7 +5,7 @@ encontré roto por el camino, cómo probarlo tú mismo en local, y qué APK es l
 buena.
 
 **Versión entregada:** 3.0 (`versionCode` 5) · `com.nexocore.quecomemos`
-**Pruebas:** 587, todas en verde (`node --test tests/*.test.js`)
+**Pruebas:** 589, todas en verde (`node --test tests/*.test.js`)
 
 ---
 
@@ -39,7 +39,7 @@ línea, o una prueba que falla si eso deja de ser verdad.
 | 2.1 | Cinco secciones exactas, en orden: Hoy · Plan semanal · Compra · Mis productos habituales · Preparaciones | HECHO | `src/app.js` `NAV`; `tests/pages.test.js` |
 | 2.2 | Sin «Más» y sin «Plan mensual» | HECHO | `tests/textos-retirados.test.js` |
 | 2.3 | Productos y Preparaciones abren sus pantallas existentes, sin copias | HECHO | Las dos entran por `renderMas`, el mismo módulo de siempre |
-| 2.4 | Engranaje visible que abre Ajustes, en móvil y en escritorio | HECHO | `src/app.js` `engranaje()`; comprobado a 375 px y en escritorio |
+| 2.4 | Engranaje visible que abre Ajustes, en móvil y en escritorio | HECHO | `src/app.js` `engranaje()`, tres instancias. **La verificación encontró que con el menú plegado no había ninguna**: arreglado con el de la cabecera |
 | 2.5 | Ajustes agrupa los seis destinos pedidos | HECHO | `src/page-mas.js` `renderAjustes`; `tests/pages.test.js` |
 | 2.6 | «Alimentos de la casa» retirada como ficha técnica y como segunda vía | HECHO | Editar se hace desde la fila del producto; archivar y unir, desde Funciones avanzadas |
 | 2.7 | Registro inicial de cinco pasos, escrito para esta versión | HECHO | `src/setup.js` `PASO`; recorrido entero comprobado a mano |
@@ -86,7 +86,9 @@ línea, o una prueba que falla si eso deja de ser verdad.
 
 ## 2. Lo que encontré roto, y arreglé
 
-Ninguna de estas siete la pediste: salieron auditando.
+Ninguna la pediste: salieron auditando. Las siete primeras las encontré yo; las
+nueve del apartado 2b las encontró la verificación independiente **después** de
+que yo diera la fase por lista.
 
 1. **El buscador de «Preparar la compra» no hacía nada.** El campo estaba
    dibujado y ningún manejador lo escuchaba: se tecleaba y la lista no se
@@ -120,6 +122,43 @@ Ahora está en `src/avisos.js` con doce pruebas.
 
 ---
 
+## 2b. Lo que encontró la verificación independiente
+
+Un segundo agente revisó los 27 criterios sin fiarse de nada de lo anterior.
+Encontró **nueve cosas**, y una de ellas rompía un criterio de la Fase 2 que yo
+daba por bueno. Las nueve están arregladas.
+
+1. **En escritorio, con el menú lateral plegado, no había ningún engranaje.** El
+   engranaje vivía en dos sitios: dentro del lateral, y arriba en el teléfono.
+   Al plegar el lateral el primero se esconde con él y el segundo está apagado
+   por encima de 700 px: cero puertas a Ajustes. Y el plegado **se recuerda
+   entre sesiones**, así que quien lo plegaba una vez se quedaba sin Ajustes
+   para siempre. Hay un tercer engranaje en la cabecera, que aparece solo en ese
+   caso.
+2. **Ajustes anunciaba una herramienta que se acababa de retirar**: «corregir un
+   conteo viejo», en el mismo commit que borró el botón.
+3. **El README repetía lo mismo.**
+4. **La ficha de Play decía que la primera captura enseña «las cantidades»** de
+   una comida, que se retiraron hace dos commits.
+5. **Tres de las seis capturas no enseñaban lo que su propia ficha promete**: la
+   de poner en varios días salía con el desplegable vacío y los días fuera del
+   corte; la de «Mi lista» no enseñaba ni un renglón tachado; la de la compra se
+   comía el buscador. Las tres, regeneradas.
+6. **Un `<form>` sin nadie que lo atendiera** en la pantalla de una revisión
+   vieja: el único `data-form` huérfano del proyecto.
+7. **Fontanería muerta del inventario en `app.js`**: dos oyentes de campos que
+   ya no se dibujan, y el import que los sostenía.
+8. **La ficha de Play decía que la clave de firma «no existe todavía»** y que el
+   `versionCode` estaba en 1. Existe desde la versión 2.0, y va por 5.
+9. **Un comentario huérfano** describiendo el reparto por quincenas.
+
+Y una décima que no era un fallo sino una decisión mal puesta: **destachar un
+renglón borraba una cantidad parcial escrita a mano**. Un dedo de más sobre
+«traje 1 de 5» tiraba ese 1 sin avisar y sin deshacer. Ahora destachar solo
+borra lo que el propio toque había escrito.
+
+---
+
 ## 3. La limpieza, una por una
 
 | Función retirada | Qué quedaba | Cómo quedó |
@@ -148,7 +187,7 @@ escribirlos.
 npm test
 ```
 
-587 pruebas. Después:
+589 pruebas. Después:
 
 ```bash
 npm start

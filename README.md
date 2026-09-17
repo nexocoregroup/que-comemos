@@ -163,9 +163,12 @@ cuenta saliera, y una casa no lleva inventario: mira la nevera y decide.
 Lo que se escribió con aquella versión **no se borró**. El historial se lee tal
 cual, con un aviso encima que dice lo que es: cantidades anotadas entonces, que
 no dicen lo que hay hoy en la despensa. La pantalla de las revisiones viejas
-sigue accesible y en solo lectura; unir dos alimentos repetidos y corregir un
-conteo a mano siguen existiendo dentro de *Funciones avanzadas*, porque quien
-tenga aquellos datos puede necesitar arreglarlos.
+sigue accesible y en solo lectura. Arreglar a mano aquellas cifras **se
+retiró**: lo que se escribiera ahí no alimentaba ninguna pantalla, y un botón
+que promete arreglar «lo que hay» afirma que la app sabe lo que hay. Lo que
+sí queda en
+*Funciones avanzadas* es unir dos alimentos repetidos, decir cómo se compra uno,
+y archivar lo que la casa dejó de comprar.
 
 
 ### Una sola puerta de salida a la red

@@ -388,6 +388,15 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
 .mobile-brand { position: relative; }
 .engranaje-movil { display: none; margin-left: auto; flex: none; }
 @media (max-width: 700px) { .engranaje-movil { display: grid; } }
+
+/* El tercero: la cabecera. Solo aparece en escritorio con el menú plegado, que
+   es el único momento en que los otros dos no están. El lateral se esconde con
+   el menú y el del teléfono está apagado por encima de 700 px, así que sin este
+   quien pliega el menú se queda sin puerta a Ajustes —y el plegado se recuerda
+   entre sesiones, así que se quedaba sin ella para siempre—. */
+.engranaje-plegado { display: none; flex: none; }
+@media (min-width: 701px) { .shell.sidebar-collapsed .engranaje-plegado { display: grid; } }
+.engranaje-plegado.active { background: var(--clay-light); color: var(--clay-dark); }
 .engranaje-movil.active { background: var(--clay-light); color: var(--clay-dark); }
 
 /* En el lateral, el engranaje es una fila más de la barra: el mismo alto, el

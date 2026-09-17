@@ -305,7 +305,23 @@ test('tachar un renglón no reescribe lo que se anotó a mano', () => {
     'tachar pisó la cantidad que la persona había escrito');
   assert.equal(listaDeCompra(state, lista.id).lineas[0].comprado, true);
 
-  // Y destachar sigue queriendo decir «al final no traje nada».
+  // Y destachar tampoco la tira: ese 1 lo escribió una persona en el pasillo
+  // del supermercado, y un dedo de más no puede borrarlo sin avisar.
+  marcarComprado(state, lista.id, linea.id, false);
+  assert.equal(listaDeCompra(state, lista.id).lineas[0].comprado, false);
+  assert.equal(listaDeCompra(state, lista.id).lineas[0].comprada, 1,
+    'destachar borró una cantidad parcial que nadie pidió borrar');
+});
+
+test('destachar lo que el toque puso sí lo borra', () => {
+  // La otra mitad: si la cantidad la escribió el propio toque —porque no había
+  // ninguna—, destachar quiere decir «al final no traje nada de esto».
+  const { state, arroz } = casa();
+  const lista = crearLista(state);
+  const linea = agregarALista(state, lista.id, { productId: arroz, cantidad: 25, unidad: 'lb' });
+
+  marcarComprado(state, lista.id, linea.id, true);
+  assert.equal(listaDeCompra(state, lista.id).lineas[0].comprada, 25);
   marcarComprado(state, lista.id, linea.id, false);
   assert.equal(listaDeCompra(state, lista.id).lineas[0].comprada, null);
 });

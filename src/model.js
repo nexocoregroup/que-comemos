@@ -1707,8 +1707,11 @@ export function marcarComprado(state, listaId, lineaId, comprado = true) {
   // busca más. Sobrescribir ese 1 con un 2 metería en el historial una compra
   // que no ocurrió.
   //
-  // Destachar sí lo borra: es «al final no traje nada de esto».
-  if (!comprado) linea.comprada = null;
+  // Destachar borra lo que el toque había puesto —«al final no traje nada de
+  // esto»— pero respeta una cantidad parcial escrita a mano: esa no la puso el
+  // toque, y un dedo de más no puede tirar lo que alguien contó en el pasillo
+  // del supermercado.
+  if (!comprado && (linea.comprada === null || linea.comprada === linea.cantidad)) linea.comprada = null;
   else if (linea.comprada === null || linea.comprada === undefined) linea.comprada = linea.cantidad;
   lista.updatedAt = todayISO();
   return linea;
