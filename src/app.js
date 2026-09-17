@@ -34,7 +34,7 @@ import { CUENTA_ACTIONS, CUENTA_FORMS, emptyCuenta, renderCuenta, volvimosDeGoog
 import { CAJON_DE_ESTE_TELEFONO, arrancarSesion, cajonDe, fundirSesion, guardarSesion, olvidarSesion } from './sesion.js';
 import { guardarCopiaAntesDeBajar, mereceLaPenaVincular, sincronizar } from './sincronizar.js';
 import { hayNube } from './config-nube.js';
-import { button, cap, empty, esc, fmt, measure, modal, monthName, niceDate, notice, options, productDatalist, unitText } from './ui-kit.js';
+import { button, cap, empty, esc, fmt, measure, modal, monthName, niceDate, notice, options, productDatalist, shiftMonth, unitText } from './ui-kit.js';
 
 /* ── De qué cajón salen los datos ──────────────────────────────────────────
 
@@ -854,7 +854,7 @@ function checkPeople(name, selected, date = null, slot = null) {
   if (!gente.length) return '<p class="muted small">Todavía no hay personas registradas. Puedes seguir sin ellas.</p>';
   return `<div class="checks">${gente.map(person => {
     const ausente = date && isAbsent(state, date, slot, person.id);
-    return `<label class="check-chip ${ausente ? 'disabled' : ''}"><input type="checkbox" name="${name}" value="${person.id}" ${selected.includes(person.id) ? 'checked' : ''} ${ausente ? 'disabled' : ''}>${esc(person.name)}${ausente ? ' <span class="muted">(fuera)</span>' : ''}</label>`;
+    return `<label class="chip-check ${ausente ? 'disabled' : ''}"><input type="checkbox" name="${name}" value="${person.id}" ${selected.includes(person.id) ? 'checked' : ''} ${ausente ? 'disabled' : ''}>${esc(person.name)}${ausente ? ' <span class="muted">(fuera)</span>' : ''}</label>`;
   }).join('')}</div>`;
 }
 
@@ -962,7 +962,7 @@ function renderModal() {
 
         <div class="field">
           <span>¿En cuáles momentos suelen comer esta preparación? Puedes seleccionar más de uno.</span>
-          <div class="checks receta-momentos">${MOMENTOS.map(momento => `<label class="check-chip"><input type="checkbox" name="uses" value="${momento.id}" ${recipe?.uses?.includes(momento.id) ? 'checked' : ''}>${esc(momento.etiqueta)}</label>`).join('')}</div>
+          <div class="checks receta-momentos">${MOMENTOS.map(momento => `<label class="chip-check"><input type="checkbox" name="uses" value="${momento.id}" ${recipe?.uses?.includes(momento.id) ? 'checked' : ''}>${esc(momento.etiqueta)}</label>`).join('')}</div>
           <small>El mangú con salami, por ejemplo, suele estar en Desayuno y en Cena.</small>
         </div>
 
@@ -1056,7 +1056,7 @@ function renderModal() {
           <small>«Solo este mes» es lo normal para algo extraordinario: una cena, una visita. «Todos los meses» es para cuando el hábito de la casa cambió de verdad.</small>
         </div>
         ${enCanasta.size ? `<details class="more"><summary>O quitar algo que este mes no se compra</summary>
-          <div class="checks" style="margin-top:10px">${habitualLines(state).map(linea => `<label class="check-chip"><input type="checkbox" name="quitar" value="${linea.productId}">${esc(productName(linea.productId))}</label>`).join('')}</div></details>` : ''}
+          <div class="checks" style="margin-top:10px">${habitualLines(state).map(linea => `<label class="chip-check"><input type="checkbox" name="quitar" value="${linea.productId}">${esc(productName(linea.productId))}</label>`).join('')}</div></details>` : ''}
         <div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar el cambio</button></div>
       </form>`, true);
   }
@@ -1296,7 +1296,7 @@ function modalProducto(m) {
           : `<label class="field"><span>¿Cuánto tienes ahora mismo?</span><input name="opening" type="number" min="0" step="any" inputmode="decimal" value="0" placeholder="0"><small>Déjalo en 0 si no tienes nada.</small></label>`}
         <div class="field" data-cut-field ${SLICEABLE.includes(controlUnit) ? '' : 'hidden'}>
           <span>¿De qué grosor lo cortan en casa?</span>
-          <div class="checks">${SLICE_STYLES.map(style => `<label class="check-chip"><input type="radio" name="slice" value="${style.id}" ${(item?.slice || 'media') === style.id ? 'checked' : ''}><span class="cut-option"><strong>${esc(style.label)}</strong><span class="muted tiny">${esc(style.range)}</span></span></label>`).join('')}</div>
+          <div class="checks">${SLICE_STYLES.map(style => `<label class="chip-check"><input type="radio" name="slice" value="${style.id}" ${(item?.slice || 'media') === style.id ? 'checked' : ''}><span class="cut-option"><strong>${esc(style.label)}</strong><span class="muted tiny">${esc(style.range)}</span></span></label>`).join('')}</div>
           <small>Cada casa corta distinto. Esto no convierte nada: deja escrito qué significa una rueda aquí.</small>
         </div>
         <div class="form-grid">

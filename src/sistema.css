@@ -97,7 +97,6 @@
 /* Un icono dentro de un botón se alinea con la palabra, no con la caja. */
 .btn .ico { margin-block: -2px; }
 
-
 /* ═══════════════════════════════════════════════════════════════════════════
    CORRECCIONES
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -148,7 +147,6 @@
 #app > .cuenta .cuenta-sin { padding-top: var(--aire-6); gap: var(--aire-3); }
 #app > .cuenta .cuenta-marca { padding-block: var(--aire-2) var(--aire-4); gap: var(--aire-3); }
 
-
 /* ── 2. Lo que se toca era demasiado pequeño ──────────────────────────────
    `.btn-small` medía 35 px de alto. Está por debajo de lo que recomienda
    cualquier guía —44 en iOS, 48 en Android— y se nota justo donde peor cae:
@@ -183,7 +181,6 @@
   inset: -6px -6px;
 }
 
-
 /* ── 3. El botón + tapaba lo que había debajo ─────────────────────────────
    El «+» flota sobre el contenido, que es lo que tiene que hacer. El problema
    era que no se leía como que flotaba: un círculo terracota sobre una tarjeta
@@ -201,7 +198,6 @@
   .main { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
 }
 
-
 /* ── 4. Aire ──────────────────────────────────────────────────────────────
    El margen lateral del teléfono era 16 px. A 20 la aplicación deja de verse
    apretada contra el cristal, y sigue habiendo 335 px de contenido en el
@@ -212,7 +208,7 @@
   /* Los calendarios se salen del margen a propósito para poder deslizarse de
      lado; si cambia el margen, tiene que cambiar su compensación o aparece una
      franja en blanco a la derecha. */
-  .calendar-week, .calendar-month {
+  .calendar-month {
     margin-right: calc(var(--margen-pantalla) * -1);
     padding-right: var(--margen-pantalla);
   }
@@ -232,7 +228,6 @@
 .quick-icon { width: var(--ico-3); display: grid; place-items: center; color: var(--clay); }
 .quick-item { border-radius: var(--curva-2); gap: var(--aire-3); }
 
-
 /* ── 5. Sombras y curvas, de la escala ────────────────────────────────────
    Las mismas cajas que antes, con las alturas del sistema. Cambia poco de una
    en una y cambia bastante todo junto: es la diferencia entre una pantalla que
@@ -250,7 +245,6 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
 @media (max-width: 700px) {
   .modal { border-radius: var(--curva-4) var(--curva-4) 0 0; }
 }
-
 
 /* ── 6. Los huecos donde antes iba un emoji ───────────────────────────────
    Un emoji es texto: se centraba solo con `text-align` y se medía con
@@ -306,7 +300,6 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
 .fab { font-size: 0; }
 .icon-btn { color: var(--clay-dark); }
 
-
 /* ── 7. Los dos que quedaban por debajo de la medida ──────────────────────
    Las flechas de mes medían 31 px de ancho —el alto ya estaba bien— y el
    interruptor de quincena medía 35 de alto. Los dos son controles que se tocan
@@ -314,7 +307,6 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
 .btn-flecha { min-width: var(--toque-chico); padding-inline: var(--aire-2); }
 .segmented button { min-height: var(--toque-chico); padding: var(--aire-2) var(--aire-4); border-radius: var(--curva-1); }
 .segmented { border-radius: var(--curva-2); }
-
 
 /* ── 8. Enlaces que se apilaban unos sobre otros ──────────────────────────
    «¿Hay merienda hoy? Anotar la merienda de mañana · Anotar la de tarde» es
@@ -349,7 +341,6 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
 /* Una ficha ya es suficientemente grande: la zona ampliada de `.enlace` sobra,
    y es justo lo que hacía que una robara los toques de la de al lado. */
 .ficha-toque::after { content: none; }
-
 
 /* ── 9. Los títulos del menú se partían en dos líneas ─────────────────────
    La fila es [dibujo] [título + explicación] [pista] [flecha], los cuatro en
@@ -392,9 +383,7 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
 }
 /* Y lo mismo en las filas de la canasta y de los alimentos sueltos. */
 .item-row { grid-template-columns: minmax(110px, 2fr) minmax(70px, .7fr) minmax(90px, 1fr) minmax(105px, 1.1fr) var(--toque-chico); }
-.basket-row { grid-template-columns: minmax(120px, 2.1fr) minmax(70px, .75fr) minmax(90px, 1fr) minmax(110px, 1.1fr) var(--toque-chico); }
 @media (max-width: 700px) {
-  .basket-row { grid-template-columns: minmax(0, 1fr) 100px var(--toque-chico); }
 }
 
 /* La fila de un alimento dentro de una preparación: solo el alimento y el botón

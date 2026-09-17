@@ -404,7 +404,7 @@ function pasoRevisar(ctx, bulk) {
       ${bulk.destino === 'compra' ? notice('Una compra necesita cantidades', 'Las filas sin cantidad no pueden entrar en una compra: escribe cuánto compraste o márcalas para ignorar.', 'warn') : ''}
       ${tabla.length ? tablaFilas(ctx, bulk, tabla) : `<p class="muted">No queda ninguna fila. Vuelve a escribir el texto o añade una a mano.</p>`}
       ${negadas.length ? bloqueNegadas(negadas) : ''}
-      ${bulk.destino === 'compra' ? `<label class="check-chip bulk-confirma"><input type="checkbox" name="confirmo" value="si" required> Sí: esta compra ya se hizo y quiero que quede en el historial.</label>` : ''}
+      ${bulk.destino === 'compra' ? `<label class="bulk-confirma"><input type="checkbox" name="confirmo" value="si" required> Sí: esta compra ya se hizo y quiero que quede en el historial.</label>` : ''}
       <div class="modal-actions">
         ${button('Volver a escribir', 'bulk-escribir', 'btn-quiet')}
         <button type="submit" class="btn btn-primary" data-bulk-guardar>${esc(textoGuardar(tabla, bulk.destino, bulk.mes))}</button>

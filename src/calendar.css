@@ -1,15 +1,16 @@
 /* El calendario, sobre todo en el celular.
 
-   Las dos vistas mantenían siete columnas de ancho fijo en cualquier pantalla,
-   así que en un teléfono de 375 px la semana medía 854 px: se veía poco más de
-   un tercio y había que arrastrar de lado para leer el resto. El texto, además,
-   quedaba diminuto para caber en columnas de 112 px.
+   La retícula mantenía siete columnas de ancho fijo en cualquier pantalla, así
+   que en un teléfono de 375 px medía 854 px: se veía poco más de un tercio y
+   había que arrastrar de lado para leer el resto.
 
-   La corrección no es encoger más: es dejar de pedir siete columnas donde no
-   caben. La semana pasa a un día debajo de otro, con sus tres comidas a lo
-   ancho de la pantalla. El mes conserva la retícula —sin ella no es un mes—
-   pero cada comida se reduce a su inicial, que es lo que cabe honestamente en
-   una columna de 40 px; para leer los nombres está la vista de semana.
+   La corrección no es encoger más: es repartir el ancho que hay entre las siete
+   columnas. El mes conserva la retícula —sin ella no es un mes— pero cada
+   comida se reduce a su inicial, que es lo que cabe honestamente en una columna
+   de 40 px; el nombre completo se lee tocando el día.
+
+   (Hubo una vista de semana, con un día debajo de otro. Se retiró con el resto
+   del calendario semanal, y sus estilos se fueron detrás.)
 
    Este archivo se carga después de styles.css a propósito: sus reglas tienen la
    misma especificidad que las de allí y ganan por orden. */
@@ -27,44 +28,7 @@
 @media (max-width: 700px) {
   .calendar-card { padding: 12px; }
 
-  /* ── Semana: una fila por día ───────────────────────────────────────── */
-  .calendar-week {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 17px;
-    margin-right: 0;
-    padding-right: 0;
-  }
-  .calendar-week .day-head {
-    display: flex;
-    align-items: baseline;
-    gap: 9px;
-    text-align: left;
-    padding: 0 2px 9px;
-    font-size: .88rem;
-  }
-  .calendar-week .day-head strong { display: inline; font-size: 1.15rem; }
-  .calendar-week .day-head.today strong {
-    display: inline-grid;
-    place-items: center;
-    width: 28px;
-    height: 28px;
-    margin: 0;
-    font-size: .95rem;
-  }
-  /* La comida deja de ser una tarjeta cuadrada y se convierte en una línea:
-     la etiqueta a la izquierda, el nombre ocupando todo el ancho que queda. */
-  .day-cell {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-height: 54px;
-    margin-bottom: 8px;
-    padding: 10px 13px;
-  }
-  .day-cell .mini-slot { flex: 0 0 64px; }
-  .day-cell .mini-title { min-width: 0; margin-top: 0; font-size: .92rem; }
-
-  /* ── Mes: la retícula completa, sin arrastrar ───────────────────────── */
+  /* ── El mes: la retícula completa, sin arrastrar ────────────────────── */
   .calendar-month {
     grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 3px;

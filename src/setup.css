@@ -116,14 +116,7 @@
   background: linear-gradient(to bottom, #fffefd00, var(--surface) 35%);
 }
 .setup-falta .enlace { min-height: 44px; font-size: .92rem; font-weight: 650; }
-
-/* ── Paso 2: lo propio de cada casa ────────────────────────────────────── */
-
-.setup-dictado { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
-.setup-microfono { align-self: flex-start; min-height: 46px; }
-.setup-microfono.escuchando { background: var(--clay); border-color: var(--clay); color: #fff; }
-
-.setup-propios { display: grid; gap: 9px; margin-top: 6px; }
+
 
 /* ── Paso 4: una comida habitual ───────────────────────────────────────────
 
@@ -239,7 +232,6 @@
 
 .organizacion-historial { margin-top: 4px; }
 .organizacion-form { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 16px; }
-.compra-quincena { margin: 8px 0 14px; }
 
 @media (max-width: 700px) {
   .setup-reparto-fila { grid-template-columns: 1fr; gap: 8px; }

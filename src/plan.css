@@ -271,8 +271,6 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 .plan-slot-cifra { font-size: 1.7rem; font-weight: 800; margin: 10px 0 2px; letter-spacing: -.02em; }
 .plan-slot-cifra .muted { font-size: 1rem; font-weight: 600; }
 
-.plan-cambios { margin: 0 0 8px; font-size: .95rem; line-height: 1.6; }
-
 .plan-calendario-pie { margin-top: 16px; }
 
 /* Una comida fuera de casa está resuelta, no pendiente: se marca en salvia, que
@@ -322,31 +320,6 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 
 .plan-lista-final { margin: 18px 0 0; padding-left: 20px; line-height: 2; }
 .plan-lista-final strong { color: var(--clay); }
-
-.plan-canasta-cifras {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-  gap: 16px;
-  text-align: center;
-}
-.plan-canasta-cifras strong { display: block; font-size: 1.6rem; font-weight: 800; color: var(--clay); }
-.plan-canasta-cifras span { font-size: .8rem; color: var(--ink-muted); line-height: 1.4; display: block; margin-top: 3px; }
-
-/* ── Compra ─────────────────────────────────────────────────────────────── */
-
-.compra-periodo { margin-bottom: 10px; }
-.compra-mes { min-width: 165px; text-align: center; }
-.compra-otras { margin: 0 0 18px; }
-.compra-fechas { margin-bottom: 18px; align-items: flex-end; }
-
-.compra-fila { align-items: center; gap: 14px; }
-.compra-cantidad {
-  flex: 0 0 auto;
-  text-align: right;
-  font-size: 1.02rem;
-  font-variant-numeric: tabular-nums;
-}
-.compra-cantidad strong { color: var(--clay-dark); }
 .compra-acciones { margin-top: 16px; }
 
 /* ── Más ────────────────────────────────────────────────────────────────── */
@@ -575,19 +548,6 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 .receta-form .field { gap: 8px; }
 .receta-form .field > span { font-size: .88rem; line-height: 1.4; }
 .receta-momentos { gap: 8px; }
-
-/* La casilla de una ficha marcable no crece con la ficha.
-   `.check-chip` es un flex y el `input` no trae tamaño propio, así que con una
-   etiqueta larga —«Merienda de mañana»— el navegador le daba a la casilla todo
-   el ancho sobrante: un cuadro de 85 píxeles al lado de un texto de tres
-   renglones. Con las etiquetas cortas de siempre no se notaba. */
-.check-chip input[type="checkbox"], .check-chip input[type="radio"] {
-  flex: 0 0 auto;
-  width: 16px;
-  height: 16px;
-  margin: 0;
-}
-.receta-momentos .check-chip { align-items: center; }
 
 /* ── Cinco momentos: tres que se cuentan y dos que no ──────────────────────
 
