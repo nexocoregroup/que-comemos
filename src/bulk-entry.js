@@ -139,13 +139,6 @@ function cerrarPanelDeVoz(ctx) {
   Promise.resolve(cancelarDictado()).catch(() => { /* Cerrar el micrófono no puede fallar hacia fuera. */ });
 }
 
-const cuadroDeTexto = () => globalThis.document?.querySelector('[data-form="bulk-texto"] [name="texto"]') || null;
-
-// Lo dictado se añade a lo que ya hubiera escrito. Una compra se dicta en tandas
-// —«ah, y también dos latas de atún»—, y empezar de cero en cada tanda obligaría
-// a repetir la lista entera.
-const juntar = (...trozos) => trozos.map(trozo => String(trozo ?? '').trim()).filter(Boolean).join(' ');
-
 // Se dice entero: «pasa por sus servidores» es exactamente lo que pasa, y quien
 // lo lee tiene que poder decidir si prefiere escribirlo a mano.
 

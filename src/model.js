@@ -1675,7 +1675,6 @@ export const basisLabel = basis => ({ casa: 'mi canasta habitual', menu: 'el men
    por ella de lo que esta casa siempre compra —ver `sugerenciasDeLista`—, que
    es la ayuda que se pidió y no más que esa. */
 
-export const ESTADOS_DE_LISTA = ['abierta', 'cerrada'];
 export const listaDeCompra = (state, id) => state.listasDeCompra.find(item => item.id === id) || null;
 export const listasAbiertas = state => state.listasDeCompra.filter(item => item.estado === 'abierta');
 

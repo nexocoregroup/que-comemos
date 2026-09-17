@@ -683,6 +683,19 @@ export function migrate(data) {
   // El andamio de aquella conversión, por si un respaldo se exportó a media
   // tarde con él puesto.
   quitarElAndamio(current);
+  // Y la clave con la que se reconoce un alimento repetido, que se guarda junto
+  // al producto. Se recalcula siempre porque la gramática de los plurales se
+  // corrigió —«galletas dulces» se guardaba como «galleta dulz», así que quien
+  // escribía «galleta dulce» se encontraba creando el alimento otra vez— y las
+  // claves escritas con la gramática vieja tenían que ponerse al día solas. Es
+  // repetible por construcción: sale del nombre, que no se toca.
+  if (Array.isArray(current.products)) {
+    current.products = current.products.map(item => (
+      item && typeof item === 'object' && item.name !== undefined
+        ? { ...item, normalized: normalizeName(item.name) }
+        : item
+    ));
+  }
 
   return { ok: true, state: current, from, to: SCHEMA_VERSION, migrated: from < SCHEMA_VERSION, notes };
 }

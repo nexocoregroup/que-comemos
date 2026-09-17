@@ -695,37 +695,12 @@ function ejecutar(ctx, acciones, requestId, confirmado = false, texto = '') {
   else ctx.commit(resultado.summary);
 }
 
-/* ── Salir de casa: solo cuando hace falta y con permiso ───────────────── */
-
-// Lo único que sale del dispositivo. Nombres para entender la frase y el mes
-// para situarla; ni existencias, ni compras, ni revisiones, ni el estado
-// entero. Si mañana hace falta algo más, se añade aquí y se explica por qué.
-function contextoMinimo(state) {
-  return {
-    mes: mesActual(),
-    alimentos: (state.products || []).filter(item => !item.archived).map(item => item.name),
-    personas: (state.people || []).map(item => item.name),
-    preparaciones: (state.recipes || []).map(item => item.name)
-  };
-}
-
-// La conversación en la forma que usa el panel: la persona es «persona» y él
-// «asistente», y tiene que empezar por la persona.
-function conversacionPara(chat) {
-  const filas = chat.mensajes
-    .filter(mensaje => mensaje.texto)
-    .slice(-12)
-    .map(mensaje => ({ rol: mensaje.quien === 'persona' ? 'persona' : 'asistente', contenido: mensaje.texto }));
-  while (filas.length && filas[0].rol !== 'persona') filas.shift();
-  return filas;
-}
-
 // El asistente es una comodidad, no la puerta de entrada: todo lo que hace se
 // puede hacer a mano. Cuando no entiende, lo que toca no es disculparse, es
 // llevar a la pantalla donde eso se escribe en tres toques.
 function sugerirFormulario(llano, state) {
   if (/\bcompr|\bqueda|\bconsum|\brevis/.test(llano)) return { etiqueta: 'Preparar la compra', accion: 'navigate', datos: { page: 'compra' } };
-  if (/\bno\s+(?:puede|come|cena|almuerza|desayuna)\b|\bpersona\b/.test(llano)) return { etiqueta: 'Editar una persona', accion: 'open-person' };
+  if (/\bno\s+(?:puede|come|cena|almuerza|desayuna)\b|\bpersona\b/.test(llano)) return { etiqueta: 'Editar una persona', accion: 'navigate', datos: { page: 'familia' } };
   // Una rutina necesita una preparación escrita; sin ninguna no hay nada que
   // repetir, así que ahí se manda a crearla primero. Con preparaciones ya
   // guardadas, el sitio correcto es el formulario de la rutina.
@@ -961,14 +936,7 @@ export const CHAT_ACTIONS = {
     chat.pendiente = null;
     decir(chat, 'app', 'Listo, lo dejé como estaba antes.');
     ctx.commit('Se deshizo el último cambio.');
-  },
-  // Dictar ya no vive aquí. El asistente, la configuración inicial, la entrada
-  // rápida y la revisión tenían cada uno su propia versión de lo mismo, y por
-  // eso el arreglo de un fallo llegaba a unos y no a otros. Ahora las cuatro
-  // usan `voz.js`: `voz-abrir` abre el panel y este archivo solo dice, en el
-  // registro de destinos, que lo dictado va a parar al borrador del chat.
-  'chat-guardar-antes-de-dictar': (el, ctx) => guardarBorrador(ctx)
-};
+  }};
 
 // Cierra el micrófono si estaba abierto. Se llama al cerrar el panel del
 // asistente: dejar el micrófono escuchando detrás de una pantalla cerrada es lo

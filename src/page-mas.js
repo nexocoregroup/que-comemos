@@ -10,9 +10,8 @@
 
 import { CATEGORIES } from './catalog-seed.js';
 import {
-  FRECUENCIAS, MOMENTOS, UNITS, archiveProduct, cierresDe, etiquetaDeMomento, effectiveBasket, esActiva, findSimilarProducts, frecuenciaDe,
-  nombreEnElCierre, ultimaCompra,
-  corregirHaciaAtras, habitualLines, historialDeFrecuencia, inventoryNow, lastStockReview, monthBasketSummary, monthChanges,
+  FRECUENCIAS, MOMENTOS, UNITS, archiveProduct, etiquetaDeMomento, effectiveBasket, esActiva, findSimilarProducts, frecuenciaDe,
+  nombreEnElCierre, corregirHaciaAtras, habitualLines, historialDeFrecuencia, inventoryNow, lastStockReview, monthBasketSummary, monthChanges,
   periodosDelMes, personasActivas, product, productByName, restoreProduct, restriccionesDe, listasCerradas, resumenDeLista,
   reviewAvailability, sliceStyle, syncReviewProducts, todayISO
 } from './model.js';
@@ -83,7 +82,7 @@ export const ENTRADAS_MAS = [
   // semana al retirarse el inventario, pero quien tenga revisiones viejas las
   // sigue abriendo desde el historial: quitarle la ruta sería dejar un enlace
   // que lleva a ninguna parte en datos que ya existen.
-  ['revision', 'visto', 'Revisar lo que queda', 'Un repaso a la nevera y la despensa']
+  ['revision', 'visto', 'Lo que revisaste antes', 'Las revisiones de la despensa que quedaron guardadas']
 ];
 
 // «legal» no sale en el índice —se llega desde Ajustes— pero es una página de
@@ -499,24 +498,24 @@ function renderFamilia(ctx) {
       <div class="card">${[...state.absences].sort((a, b) => a.date.localeCompare(b.date)).map(item => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${esc(state.people.find(p => p.id === item.personId)?.name || 'Persona eliminada')}</div><div class="list-row-sub">${esc(etiquetaDeMomento(item.slot))} · ${esc(niceDate(item.date, { weekday: 'long', day: 'numeric', month: 'long' }))}</div></div>${button('Quitar', 'remove-absence', 'btn-quiet btn-small', `data-date="${item.date}" data-slot="${item.slot}" data-id="${item.personId}"`)}</div>`).join('')}</div>` : ''}`;
 }
 
-/* ── Revisar lo que queda ──────────────────────────────────────────────── */
+/* ── Lo que revisaste antes ────────────────────────────────────────────── */
 
-// «¿Cuánto queda?» en vez de «¿cuánto se consumió?». La diferencia parece
-// pequeña y no lo es: lo primero se contesta abriendo la nevera y mirando; lo
-// segundo obliga a recordar toda la semana y a restar de cabeza.
+// Un archivo, no una tarea. La app dejó de llevar la cuenta de lo que queda en
+// casa, así que aquí no se empieza nada: se lee lo que se anotó cuando sí se
+// llevaba. Quitar la pantalla habría dejado sin abrir unos datos que el usuario
+// escribió a mano, y eso es peor que una pantalla de solo lectura.
 function renderRevision(ctx) {
   const { state, ui } = ctx;
   const abierta = state.reviews.find(item => item.id === ui.reviewId) || [...state.reviews].reverse().find(item => item.status === 'draft');
   if (abierta) syncReviewProducts(state, abierta);
   const ultima = lastStockReview(state);
   if (!abierta) {
-    return `${volver('Revisar lo que queda')}
-      ${empty('visto', ultima ? `Última revisión: ${niceDate(ultima, { day: 'numeric', month: 'long' })}` : 'Todavía no has revisado nada',
-        'Abre la nevera y la despensa y escribe lo que ves. La app calcula sola lo que se consumió y afina la lista de la compra.',
-        button('Empezar una revisión', 'open-new-review', 'btn-primary'))}
+    return `${volver('Lo que revisaste antes')}
+      ${empty('visto', ultima ? `Última revisión: ${niceDate(ultima, { day: 'numeric', month: 'long' })}` : 'No hay revisiones guardadas',
+        'Esta pantalla ya no empieza revisiones nuevas: la app dejó de llevar la cuenta de lo que queda en casa. Se conserva para poder leer lo que anotaste en su día.')}
       ${state.reviews.filter(item => item.status === 'confirmed').length ? `<div class="section-head"><h3 class="plan-sub">Revisiones anteriores</h3></div><div class="card">${[...state.reviews].filter(item => item.status === 'confirmed').reverse().slice(0, 8).map(item => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${esc(niceDate(item.date, { day: 'numeric', month: 'long', year: 'numeric' }))}</div><div class="list-row-sub">${item.productIds.filter(id => item.consumed[id] !== undefined).length} de ${item.productIds.length} alimentos</div></div>${button('Ver', 'select-review', 'btn-quiet btn-small', `data-id="${item.id}"`)}</div>`).join('')}</div>` : ''}`;
   }
-  return `${volver('Revisar lo que queda')}${tablaDeRevision(ctx, abierta)}`;
+  return `${volver('Lo que revisaste antes')}${tablaDeRevision(ctx, abierta)}`;
 }
 
 function tablaDeRevision(ctx, revision) {

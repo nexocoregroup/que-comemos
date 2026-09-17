@@ -539,7 +539,6 @@ function bloquePendientes(ctx, progreso) {
     ${pendientes.length > tope ? `<div class="inline" style="margin-top:12px">${button(`Ver ${Math.min(12, pendientes.length - tope)} más`, 'mes-ver-mas-pendientes', 'btn-quiet btn-small')}</div>` : ''}`;
 }
 
-const nombreProducto = (state, id) => state.products.find(item => item.id === id)?.name || 'Alimento eliminado';
 
 const LETRAS_DE_MOMENTO = { desayuno: 'D', 'merienda-manana': 'M↑', almuerzo: 'A', 'merienda-tarde': 'M↓', cena: 'C' };
 const letraDeMomento = slot => LETRAS_DE_MOMENTO[slot] || String(slot).charAt(0).toUpperCase();

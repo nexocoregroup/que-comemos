@@ -414,10 +414,4 @@ export const COMPRA_FORMS = {
   }
 };
 
-// El período de compra que toca, para la línea que la pantalla de Hoy enseña.
-// Sale de la lista abierta: si hay una, es esa; si no, no hay nada que decir.
-export function periodoDeCompra(compra) {
-  return compra?.periodo || null;
-}
-
 

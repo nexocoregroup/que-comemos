@@ -336,10 +336,6 @@ export async function actualizar(tabla, consulta, cambios, token) {
   return { ok: true, filas: Array.isArray(salida.datos) ? salida.datos : [] };
 }
 
-export async function borrar(tabla, consulta, token) {
-  return llamar(`/rest/v1/${tabla}?${consulta}`, { metodo: 'DELETE', token });
-}
-
 // Llamar a una función guardada en la base de datos. Se usa para borrar la
 // cuenta: eso no lo puede hacer un cliente por su cuenta —haría falta la clave
 // de servicio, que no está aquí ni debe estarlo—, así que lo hace una función

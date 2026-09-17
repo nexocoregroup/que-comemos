@@ -27,7 +27,7 @@
 
 import { RUBROS, SEED_PRODUCTS, categoriaDelRubro, rubroDeCategoria, rubroPorIndice, seedByRubro } from './catalog-seed.js';
 import {
-  FRECUENCIAS, MOMENTOS, UNITS, addProduct, deleteRecipe, etiquetaDeMomento, findSimilarProducts, frecuenciaDe, habitualLines,
+  FRECUENCIAS, MOMENTOS, UNITS, addProduct, deleteRecipe, etiquetaDeMomento, frecuenciaDe, habitualLines,
   historialDeFrecuencia, personasActivas, ponerFrecuencia, ponerReparto, product, productByName, repartoDe,
   setHabitualBasket, todayISO, upsertRecipe
 } from './model.js';
@@ -194,17 +194,6 @@ for (const semilla of SEED_PRODUCTS) {
   for (const alias of semilla.aliases) if (!POR_CLAVE.has(normalizeName(alias))) POR_CLAVE.set(normalizeName(alias), semilla);
 }
 const semillaPorNombre = nombre => POR_CLAVE.get(normalizeName(nombre)) || null;
-
-// `findSimilarProducts` compara contra los alimentos de una casa, y el primer
-// día no hay ninguno: sin esto, «pan pita» el primer día no se parecería a nada
-// y «yogur de fresa» tampoco. El catálogo se le presenta con la forma que esa
-// función lee —nombre y alias— para que el parecido lo calcule el comparador
-// del modelo y no una segunda versión escrita aquí.
-const CATALOGO_COMO_CASA = { products: SEED_PRODUCTS.map(item => ({ id: item.name, name: item.name, aliases: item.aliases })) };
-const parecidoA = (state, nombre) =>
-  findSimilarProducts(state, nombre, { limit: 1 })[0]?.product?.name
-  || findSimilarProducts(CATALOGO_COMO_CASA, nombre, { limit: 1 })[0]?.product?.name
-  || '';
 
 /* ── Pantalla inicial ──────────────────────────────────────────────────── */
 

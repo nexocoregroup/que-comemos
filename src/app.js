@@ -8,14 +8,11 @@
 // la frecuencia con que hace falta de verdad.
 
 import {
-  MOMENTOS, SLICEABLE, SLICE_STYLES, SLOTS, SLOTS_PRINCIPALES, UNITS, addDays, addProduct, archiveProduct,
-  copyPlan, correctReview, correctStock, createEmptyState, dependents, choquesDeLaComida, esOpcional,
-  etiquetaDeMomento, exportState, findSimilarProducts, habitualLines, importState, incompatibleItems,
-  inventoryNow, esActiva, isAbsent, linkPlan, makeRecipePlan, mergeProducts, monthBounds, movePlan, nextId,
+  MOMENTOS, SLICEABLE, SLICE_STYLES, SLOTS, SLOTS_PRINCIPALES, UNITS, addDays, addProduct, copyPlan, correctReview, correctStock, createEmptyState, dependents, choquesDeLaComida, esOpcional,
+  etiquetaDeMomento, exportState, findSimilarProducts, habitualLines, importState, inventoryNow, esActiva, isAbsent, linkPlan, makeRecipePlan, mergeProducts, movePlan, nextId,
   personasActivas, planFor, ponerFrecuencia, product, promoteToHabitual, quantity, removeMonthChange,
-  restoreProduct, reservedQuantity, restriccionesDe, saveReview, setAbsence, setEquivalence, setHabitualBasket,
-  setHabitualLine, setMonthChange, detalleDeOrigen, etiquetaDeOrigen, origenDe, setReviewScope, ultimaCompra,
-  setSlice, setStatusPlan, sliceStyle, todayISO, updatePlan, updateProduct, upsertRecipe
+  reservedQuantity, restriccionesDe, saveReview, setAbsence, setEquivalence, setHabitualBasket,
+  setHabitualLine, setMonthChange, detalleDeOrigen, etiquetaDeOrigen, origenDe, setReviewScope, setSlice, setStatusPlan, sliceStyle, todayISO, updatePlan, updateProduct, upsertRecipe
 } from './model.js';
 import { clearAll, hasSavedState, loadStateDetailed, saveState } from './storage.js';
 import { BRAND_MARK } from './brand.js';
@@ -114,7 +111,7 @@ const ui = {
   cuenta: emptyCuenta(),
   sesion: null,
   sidebarCollapsed: sidebarInitiallyCollapsed, drawerOpen: false,
-  welcome: firstRun, tour: null, justStarted: false,
+  welcome: firstRun, tour: null,
   // Lo que hay que contarle a la persona nada más abrir: que la vez anterior la
   // aplicación se cerró sola mientras dictaba. Se llena en el arranque.
   avisoDeArranque: ''
@@ -1019,7 +1016,7 @@ function renderModal() {
      algo a la canasta base lo metía hacia atrás en todos los meses que ya
      habían pasado —incluido el historial— y eso es reescribir lo que la casa
      compró de verdad. */
-  if (m.type === 'promoter') {
+  if (m.type === 'promover') {
     const item = product(state, m.id);
     const mesActual = today.slice(0, 7);
     const siguiente = shiftMonth(mesActual, 1);
@@ -1512,8 +1509,7 @@ document.addEventListener('click', event => {
     // Empezar de cero lleva directo a organizar la casa: es lo único que hay
     // que hacer para que la app sirva, y de ahí sale todo lo demás.
     else if (action === 'welcome-empty') { state = createEmptyState(); ui.welcome = false; ui.tour = null; ui.modal = null; ui.setup = emptySetup(); ui.page = 'setup'; commit(''); }
-    else if (action === 'dismiss-start') { ui.justStarted = false; render(); }
-    else if (action === 'open-tour') { ui.justStarted = false; ui.modal = null; goTour(0); }
+    else if (action === 'open-tour') { ui.modal = null; goTour(0); }
     else if (action === 'tour-prev') goTour(Math.max(0, ui.tour - 1));
     else if (action === 'tour-next') { if (ui.tour + 1 < TOUR_STEPS.length) goTour(ui.tour + 1); else { ui.tour = null; render(); toast('Listo. Puedes volver a verlo desde Más → Ajustes.'); } }
     else if (action === 'tour-skip') { ui.tour = null; render(); }
