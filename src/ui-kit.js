@@ -1,8 +1,8 @@
 // Los ladrillos con que se dibuja todo: escapado, formato de números y fechas,
 // y los cuatro o cinco envoltorios de HTML que se repiten en cada pantalla.
 //
-// Están aquí y no en app.js porque las pantallas nuevas —la configuración
-// inicial, el plan del mes, el asistente— también los necesitan, y tener
+// Están aquí y no en app.js porque las demás pantallas —la configuración
+// inicial, el plan semanal, la compra— también los necesitan, y tener
 // dos versiones de `esc` es la forma más fácil de que a una se le olvide escapar
 // algo. Ninguna de estas funciones sabe nada del estado: reciben lo que pintan.
 

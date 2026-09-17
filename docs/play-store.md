@@ -142,7 +142,7 @@ Es una herramienta para quien maneja la casa, la compra y el presupuesto. Marcar
 
 Cuida que la ficha acompañe a esa respuesta: nada de personajes infantiles, colores de caramelo ni lenguaje de dibujos animados en el ícono ni en las capturas. La identidad de la app —terracota, crema, una mesa de casa— ya va por ahí, así que no hay nada que cambiar.
 
-La política de privacidad dice que **la app no está dirigida a menores de 13 años y no recoge datos de nadie**. Las dos frases son coherentes con marcar 18+.
+La política de privacidad dice que **la app no está dirigida a menores de 13 años y no le pide datos personales a quien la usa**. Las dos frases son coherentes con marcar 18+.
 
 ### El micrófono: ya no se pide
 
@@ -236,10 +236,10 @@ publicidad, ni informes de fallos, ni SDK de terceros.
 ### Descripción breve (máximo 80 caracteres)
 
 ```
-Organiza lo habitual de tu casa y cada mes revisa solo lo que será diferente.
+Organiza lo habitual de tu casa y decide con calma qué se come esta semana.
 ```
 
-*77 caracteres.* Es la frase que sale bajo el nombre en los resultados, así que dice la idea completa de la app en una línea.
+*75 caracteres.* Es la frase que sale bajo el nombre en los resultados, así que dice la idea completa de la app en una línea.
 
 ### Descripción completa (máximo 4000 caracteres)
 
@@ -249,7 +249,8 @@ hay que llenar noventa y tres casillas al mes, y eso no lo hace nadie dos
 veces.
 
 ¿Qué comemos? parte de otra idea: lo habitual de tu casa se escribe UNA vez.
-Cada mes empieza ya preparado, y tú solo revisas lo que va a ser diferente.
+Y no hay que llenar un mes: se planifica la semana que viene, o las dos
+siguientes.
 
 
 LO QUE SE ESCRIBE UNA SOLA VEZ
@@ -320,8 +321,8 @@ Esto no es un eslogan, es cómo está hecha:
 - Sin anuncios, sin analítica, sin rastreadores. Nunca.
 - La copia automática de Android está desactivada a propósito.
 
-Como todo vive en tu teléfono, las copias te tocan a ti: Más, Respaldo, y
-guardas el archivo donde quieras.
+Como todo vive en tu teléfono, las copias te tocan a ti: el engranaje,
+Respaldo, y guardas el archivo donde quieras.
 
 
 HECHA PARA UNA CASA DOMINICANA
@@ -337,7 +338,7 @@ las del ejemplo son datos inventados para enseñarte cómo funciona. No son
 recomendaciones nutricionales ni consejo médico: para eso, un profesional de la
 salud.
 
-No sincroniza entre dispositivos, y no lo promete.
+No sube nada sola: la cuenta y la sincronización vienen apagadas.
 
 
 Gratis, sin compras dentro de la app.
@@ -345,7 +346,7 @@ Gratis, sin compras dentro de la app.
 NexoCore, República Dominicana.
 ```
 
-*3.178 caracteres, por debajo del límite de 4.000.* Queda sitio de sobra si quieres añadir algo; cuenta los caracteres antes de pegar, porque Play corta sin avisar.
+*3.904 caracteres, por debajo del límite de 4.000.* Queda poco margen: para añadir algo hay que quitar otro tanto. Cuenta los caracteres antes de pegar, porque Play corta sin avisar.
 
 ### Otros campos de la ficha
 
@@ -461,7 +462,7 @@ Instala ese APK en un teléfono y recorre la app entera, sobre todo el inicio de
 - **`targetSdk 36`, `minSdk 24`** — al día con lo que Play exige.
 - **Respaldo automático desactivado** — `allowBackup="false"`, `fullBackupContent="false"` y `dataExtractionRules`. Es lo que impide que Android suba la despensa a la cuenta de Google del dueño del teléfono sin que nadie lo pida.
 - **Tráfico sin cifrar bloqueado** — `networkSecurityConfig` con `cleartextTrafficPermitted="false"` y solo las autoridades del sistema.
-- **Permisos al mínimo** — dos, con una prueba que falla si entra un tercero.
+- **Permisos al mínimo** — uno, `INTERNET`, con una prueba que falla si entra un segundo.
 - **Ícono de 512×512** — `src/icon-512.png`.
 
 ---

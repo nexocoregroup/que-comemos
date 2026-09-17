@@ -125,7 +125,6 @@ export const emptySetup = () => ({
   rubro: 0,            // cuál de los ocho rubros se está preguntando (0…7)
   elegidos: [],        // todos los nombres marcados, del catálogo o escritos
   propios: [],         // [{ nombre, unidad, categoria, origen }] los que no estaban
-  cantidades: {},      // nombre → { cantidad, unidad, yaGuardada }
   busqueda: '',
   anadiendo: false,    // ¿está abierta la ventanita de «añadir un alimento»?
   nombreNuevo: '',
@@ -157,7 +156,7 @@ const fichaVacia = () => ({ id: '', nombre: '', momentos: [], nota: '', error: '
    guardan los campos que costó rellenar y ninguno más: lo que está a medio
    buscar o la ventanita abierta no hacen falta mañana. */
 
-const CAMPOS_GUARDADOS = ['paso', 'esquema', 'precargado', 'rubro', 'elegidos', 'propios', 'cantidades', 'texto', 'frecuencia', 'personas', 'horizonte', 'guardados'];
+const CAMPOS_GUARDADOS = ['paso', 'esquema', 'precargado', 'rubro', 'elegidos', 'propios', 'texto', 'frecuencia', 'personas', 'horizonte', 'guardados'];
 
 export function guardarAvance(ctx) {
   const setup = ctx.ui.setup;
@@ -197,7 +196,6 @@ export function avanceGuardado(state) {
   setup.rubro = Math.min(RUBROS.length - 1, Math.max(0, Number(setup.rubro) || 0));
   setup.elegidos = (Array.isArray(setup.elegidos) ? setup.elegidos : []).map(String);
   setup.propios = (Array.isArray(setup.propios) ? setup.propios : []).filter(item => item && item.nombre);
-  setup.cantidades = setup.cantidades && typeof setup.cantidades === 'object' ? setup.cantidades : {};
   setup.anadiendo = false;
   setup.frecuencia = FRECUENCIAS.includes(setup.frecuencia) ? setup.frecuencia : null;
   setup.personas = Number(setup.personas) > 0 ? Math.min(20, Math.round(Number(setup.personas))) : null;
@@ -371,7 +369,7 @@ function pasoFrecuencia(ctx, setup) {
   const opcion = (id, titulo, detalle) => `<button type="button" class="setup-opcion ${elegida === id ? 'activa' : ''}"
       data-action="setup-frecuencia" data-frecuencia="${id}" aria-pressed="${elegida === id}">
       <strong>${esc(titulo)}</strong><small>${esc(detalle)}</small></button>`;
-  return `<p class="pantalla-intro">Sirve para saber cuándo toca la próxima lista y qué días cubre. <strong>No divide cantidades ni lleva cuentas de nada</strong>: lo que lleves en cada compra lo decides tú al escribir la lista.</p>
+  return `<p class="pantalla-intro">Es para acordarnos de cómo se organiza tu casa. <strong>No divide cantidades, no calcula nada y no te impide salir otro día</strong>: cada lista de compra la escribes tú, cuando vayas.</p>
     <div class="setup-opciones">
       ${opcion('quincenal', 'Quincenal', 'Dos compras: del 1 al 15 y del 16 al último día del mes.')}
       ${opcion('mensual', 'Mensual', 'Una sola compra que cubre el mes completo.')}
@@ -661,7 +659,7 @@ function pasoPreparaciones(ctx, setup) {
     </div>
   </div>`;
 
-  return `<p class="pantalla-intro">Escribe las comidas que se cocinan de costumbre en tu casa: son las que vas a poder elegir en el paso siguiente. Con el nombre y en qué momentos se comen basta: qué lleva cada una y cuánto rinde se añade después, si quieres, desde Preparaciones.</p>
+  return `<p class="pantalla-intro">Escribe las comidas que se cocinan de costumbre en tu casa: son las que vas a poder elegir en el paso siguiente. Con el nombre y en qué momentos se comen basta. Los alimentos que lleva se añaden después si quieres, desde Preparaciones, y sirven para avisarte de las alergias de la casa.</p>
 
     <form data-form="setup-preparacion" class="setup-preparacion card">
       <label class="field">
@@ -875,9 +873,9 @@ function ajustarPersonas(ctx, delta) {
   ctx.render();
 }
 
-// Lo que ya está guardado se enseña marcado y con su cantidad escrita. Es la
-// única forma de que volver a pasar por el asistente no pise en silencio lo que
-// costó escribir la primera vez: se ve antes de tocarlo.
+// Lo que ya está guardado se enseña marcado. Es la única forma de que volver a
+// pasar por el asistente no pise en silencio lo que costó escribir la primera
+// vez: se ve antes de tocarlo.
 function precargar(ctx) {
   const setup = ctx.ui.setup;
   if (setup.precargado) return;
@@ -886,7 +884,6 @@ function precargar(ctx) {
     const item = product(ctx.state, linea.productId);
     if (!item) continue;
     const semilla = semillaPorNombre(item.name);
-    setup.cantidades[item.name] = { cantidad: linea.quantity === null ? '' : linea.quantity, unidad: linea.unit, yaGuardada: true };
     const nombre = semilla?.name || item.name;
     setup.elegidos = [...new Set([...setup.elegidos, nombre])];
     if (!semilla) {

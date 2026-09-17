@@ -290,19 +290,8 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 .canasta-nota { display: block; font-size: .78rem; font-weight: 500; color: var(--ink-muted); }
 .canasta-editar { font-size: .84rem; }
 
-/* ── Revisión: buscar y filtrar ─────────────────────────────────────────── */
-
-.revision-herramientas {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 14px;
-}
-.revision-buscar { flex: 1 1 200px; min-width: 0; }
-/* La ficha de «solo lo que falta» se enciende como cualquier otra ficha, y el
-   estado se anuncia además con aria-pressed: un botón que solo cambia de color
-   no existe para quien no distingue esos dos tonos. */
+/* Una ficha encendida se anuncia además con aria-pressed: un botón que solo
+   cambia de color no existe para quien no distingue esos dos tonos. */
 .chip.activa { background: var(--clay); border-color: var(--clay); color: #fff; }
 
 /* ── Revisión: filas, no tabla ──────────────────────────────────────────── */

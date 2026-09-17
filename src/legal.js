@@ -39,7 +39,7 @@
 //     grep -rn nexocore.group@gmail.com legal/ src/legal.js docs/
 
 export const LEGAL = {
-  actualizado: '2026-09-16',
+  actualizado: '2026-09-17',
 
   privacidad: {
     titulo: 'Aviso de privacidad',
@@ -64,7 +64,8 @@ export const LEGAL = {
       {
         titulo: 'Qué se guarda y dónde',
         parrafos: [
-          'La app guarda lo que tú escribes en ella: los alimentos de tu casa y sus cantidades, las comidas que planificas, tus rutinas y tus notas, las personas de la casa con el nombre que tú les pongas, tus compras, tus revisiones de «cuánto queda» y el historial que sale de ahí.',
+          'La app guarda lo que tú escribes en ella: los alimentos de tu casa y sus cantidades, las comidas que planificas y tus notas, las personas de la casa con el nombre que tú les pongas, tus compras y el historial que sale de ahí.',
+          'Si usaste una versión anterior de la app, siguen guardadas además las rutinas y las revisiones de «cuánto queda» que escribiste entonces. Ya no se crean en ninguna pantalla, pero no se borraron: están ahí, viajan en el respaldo y se van con todo lo demás el día que borres tus datos.',
           'De cada persona de la casa se guardan tres cosas y ninguna más: el nombre o apodo que tú elijas, si es adulto, adolescente o niño, y los alimentos que evita con el motivo que tú marques —alergia, intolerancia, o simplemente que lo evita—. Marcar una alergia es hablar de salud, y por eso conviene decirlo con todas las letras: esa palabra la escribes tú, se guarda igual que todo lo demás, y si enciendes la sincronización viaja a tu cuenta con el resto de tu casa.',
           'Lo que la app no te pide, y no debes escribir en ella, es el peso de nadie, su fecha de nacimiento, un diagnóstico o una medicación. No los necesita para nada, y lo que no se guarda no se puede perder.',
           'Todo eso vive en el almacenamiento local del navegador dentro de tu propio teléfono. Es el mismo teléfono donde instalaste la app, y nada más.',
@@ -93,7 +94,7 @@ export const LEGAL = {
         titulo: 'El permiso de internet, y cuándo se usa de verdad',
         parrafos: [
           'La app pide el permiso de internet y lo usa para una sola cosa: las cuentas. Ni una más.',
-          'Sin cuenta, la app no llama a ninguna parte. Ni al abrirse, ni al guardar, ni de fondo. Los alimentos, tus productos habituales, el calendario del mes y la lista de la compra salen todos de tu propio teléfono, y puedes usarla el mes completo en modo avión.',
+          'Sin cuenta, la app no llama a ninguna parte. Ni al abrirse, ni al guardar, ni de fondo. Los alimentos, tus productos habituales, el plan de la semana y la lista de la compra salen todos de tu propio teléfono, y puedes usarla el mes completo en modo avión.',
           'Esto no es una promesa de buena fe, es cómo está escrito: al arrancar, la app mira si hay una sesión guardada en este teléfono, y si no la hay se detiene ahí mismo, sin tocar la red.',
           'Si creas una cuenta, la app habla con un sitio y solo con uno: el proyecto de Supabase donde viven las cuentas. Ahí van tu correo y tu contraseña al registrarte y al entrar, y ahí va tu casa solo si además enciendes la sincronización.',
           'No hay ninguna otra puerta de salida a la red, y hay una prueba automática que se pone en rojo el día que alguien abra una segunda o le cambie la dirección a esta.',
@@ -105,7 +106,7 @@ export const LEGAL = {
         parrafos: [
           'En Ajustes → Respaldo puedes escribir una copia de tus datos. Es un archivo que se descarga a tu teléfono y que tú guardas donde quieras.',
           'La app no sube ese archivo a ningún sitio. Una vez descargado, esa copia es tuya y su cuidado también: si la mandas por chat o la subes a una nube, esos datos van a donde tú los mandes.',
-          'El respaldo lleva lo de tu casa y nada más: alimentos, cantidades, comidas, personas, compras y revisiones. No lleva identificadores tuyos ni nada que te señale a ti.'
+          'El respaldo lleva lo de tu casa y nada más: alimentos, cantidades, comidas, personas, compras, y las rutinas y revisiones que hayan quedado de antes. No lleva identificadores tuyos ni nada que te señale a ti.'
         ]
       },
       {
@@ -187,7 +188,7 @@ export const LEGAL = {
         parrafos: [
           'La app es gratis, sirve para organizar las comidas y la compra de tu casa, y funciona entera en tu teléfono sin cuenta y sin conexión.',
           'La cuenta es opcional y existe para una sola cosa: recuperar tu casa si cambias de aparato.',
-          'Los datos son tuyos y las copias también: guárdalas tú. La app hace cuentas con lo que tú escribes; no te dice qué debes comer.'
+          'Los datos son tuyos y las copias también: guárdalas tú. La app solo enseña lo que tú escribes; no te dice qué debes comer.'
         ]
       },
       {
@@ -200,7 +201,7 @@ export const LEGAL = {
       {
         titulo: 'Qué hace la app',
         parrafos: [
-          'Sirve para organizar las comidas de una casa y escribir la lista de la compra. Te deja anotar una sola vez lo habitual de tu casa y luego, cada mes, solo revisar lo que va a ser diferente. La lista de cada compra la escribes tú, producto por producto: la app no calcula cuánto hace falta.',
+          'Sirve para organizar las comidas de una casa y escribir la lista de la compra. Te deja anotar una sola vez lo habitual de tu casa —lo que se compra de costumbre y lo que se sabe preparar— y luego planificar a mano la semana que viene, o las dos siguientes. La lista de cada compra la escribes tú, producto por producto: la app no calcula cuánto hace falta.',
           'Funciona entera en tu teléfono, sin cuenta y sin conexión. Si quieres, puedes crear una cuenta para recuperar tu casa al cambiar de aparato: es opcional, viene apagada y se explica con detalle en el aviso de privacidad.'
         ]
       },

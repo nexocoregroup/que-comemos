@@ -22,17 +22,16 @@
 // La app no sabe cuánto hace falta y no lo dice. Lo decide quien compra.
 
 import {
-  agregarALista, agregarOcasional, anotarComprado, cerrarLista, crearLista, habitualesPorRubro, listasAbiertas,
-  listasCerradas, marcarComprado, pendienteDe, product, quitarDeLista, resumenDeLista, todayISO
+  actualizarLineaDeLista, agregarALista, agregarOcasional, anotarComprado, cerrarLista, crearLista,
+  habitualesPorRubro, listasAbiertas, listasCerradas, marcarComprado, pendienteDe, product, quitarDeLista,
+  resumenDeLista, todayISO, trasladarPendientes
 } from './model.js';
 import { RUBROS } from './catalog-seed.js';
 import {
-  button, empty, esc, measure, niceDate, notice, options
+  button, empty, esc, measure, modal, niceDate, notice, options
 } from './ui-kit.js';
 import { icono, iconoDeCategoria } from './icons.js';
 import { normalizeName } from './nombres.js';
-
-const hoy = todayISO();
 
 export function emptyCompra() {
   return {
@@ -45,6 +44,8 @@ export function emptyCompra() {
     // ochenta casillas de cantidad es exactamente lo que esta etapa vino a
     // quitar de en medio.
     poniendo: '',
+    // Qué renglón tiene abierta la casilla de corregir la cantidad pedida.
+    editando: '',
     anadiendo: false,
     nombreNuevo: '',
     errorNuevo: '',
@@ -218,7 +219,8 @@ function bloqueOcasional(ctx) {
 /* ── Vista 2: mi lista ─────────────────────────────────────────────────── */
 
 function vistaLista(ctx, lista) {
-  const { state } = ctx;
+  const { state, ui } = ctx;
+  const editando = ui.compra.editando || '';
   const pendientes = lista.lineas.filter(linea => !linea.comprado);
   const tachados = lista.lineas.filter(linea => linea.comprado);
 
@@ -231,24 +233,46 @@ function vistaLista(ctx, lista) {
   return `<p class="pantalla-intro">Un toque tacha lo que ya echaste al carrito. Si trajiste menos de lo que decía, anota cuánto y el resto se queda pendiente.</p>
 
     ${pendientes.length
-      ? `<div class="card compra-lista">${pendientes.map(linea => renglon(state, lista, linea)).join('')}</div>`
+      ? `<div class="card compra-lista">${pendientes.map(linea => renglon(state, lista, linea, editando)).join('')}</div>`
       : `<div class="card plan-ok"><span class="plan-ok-icono">✓</span><div><strong>No queda nada por buscar.</strong><span>Cuando salgas del supermercado, dale a «Terminar la compra».</span></div></div>`}
 
     ${tachados.length ? `<div class="section-head"><h3 class="plan-sub">Ya en el carrito · ${tachados.length}</h3></div>
-      <div class="card compra-lista compra-tachados">${tachados.map(linea => renglon(state, lista, linea)).join('')}</div>` : ''}
+      <div class="card compra-lista compra-tachados">${tachados.map(linea => renglon(state, lista, linea, editando)).join('')}</div>` : ''}
 
     <div class="modal-actions compra-acciones">
       ${button('Terminar la compra', 'compra-terminar', 'btn-primary btn-grande')}
     </div>
-    <p class="tiny muted">Terminar la guarda con la fecha y lo que se pidió y se trajo de cada cosa, y deja una lista nueva y vacía para la próxima salida. Tus productos habituales no se tocan.</p>`;
+    <p class="tiny muted">Terminar la guarda con la fecha y lo que se pidió y se trajo de cada cosa, y abre una lista nueva para la próxima salida. Si queda algo sin conseguir, te pregunta si pasa a esa lista. Tus productos habituales no se tocan.</p>`;
 }
 
-function renglon(state, lista, linea) {
+function renglon(state, lista, linea, editando) {
   const nombre = nombreDeLinea(state, linea);
   const falta = pendienteDe(linea);
   const pedido = cuanto(linea.cantidad, linea.unidad);
   const traido = cuanto(linea.comprada, linea.unidad);
   const aMedias = !linea.comprado && linea.comprada;
+
+  // Corregir lo que se pidió. Es el único camino para arreglar algo escrito a
+  // mano: un producto de los habituales se puede volver a tocar en «Preparar»,
+  // pero «papel de aluminio» no está en ninguna otra parte.
+  if (editando === linea.id) {
+    return `<form data-form="compra-cantidad" data-id="${esc(linea.id)}" class="compra-poner compra-editar">
+      <p class="compra-poner-nombre">${esc(nombre)}</p>
+      <div class="compra-poner-campos">
+        <label class="field"><span>¿Cuánto hace falta?</span>
+          <input name="cantidad" type="number" min="0" step="any" inputmode="decimal" value="${linea.cantidad ?? ''}" placeholder="Sin cantidad" autofocus>
+        </label>
+        <label class="field"><span>Medida</span>
+          <select name="unidad">${options(MEDIDAS, linea.unidad || 'unidad')}</select>
+        </label>
+      </div>
+      <div class="inline compra-poner-acciones">
+        <button type="submit" class="btn btn-primary btn-small">Guardar</button>
+        ${button('Cancelar', 'compra-cancelar-editar', 'btn-quiet btn-small')}
+      </div>
+      <p class="tiny muted">Puedes dejarla en blanco: el renglón se queda sin cantidad.</p>
+    </form>`;
+  }
 
   return `<div class="compra-renglon ${linea.comprado ? 'tachado' : ''} ${aMedias ? 'a-medias' : ''}">
     <button type="button" class="compra-tachar" data-action="compra-tachar" data-id="${esc(linea.id)}"
@@ -266,6 +290,7 @@ function renglon(state, lista, linea) {
           value="${linea.comprada ?? ''}" placeholder="¿cuánto?" aria-label="Cuánto trajiste">
         <button type="submit" class="btn btn-quiet btn-small">Anotar</button>
       </form>`}
+      ${button('Editar cantidad', 'compra-editar', 'btn-quiet btn-small', `data-id="${esc(linea.id)}" aria-label="Editar la cantidad de ${esc(nombre)}"`)}
       ${button('Quitar', 'compra-quitar', 'btn-quiet btn-small', `data-id="${esc(linea.id)}"`)}
     </div>
   </div>`;
@@ -300,7 +325,7 @@ function historial(ctx) {
 
 export const COMPRA_ACTIONS = {
   'compra-nueva': (el, ctx) => {
-    const lista = crearLista(ctx.state, { fecha: hoy });
+    const lista = crearLista(ctx.state, { fecha: todayISO() });
     ctx.ui.compra = { ...emptyCompra(), vista: 'preparar' };
     ctx.commit(`Lista abierta. Toca lo que vayas a llevar en esta salida.`);
     return lista;
@@ -308,6 +333,7 @@ export const COMPRA_ACTIONS = {
   'compra-vista': (el, ctx) => {
     ctx.ui.compra.vista = el.dataset.vista === 'lista' ? 'lista' : 'preparar';
     ctx.ui.compra.poniendo = '';
+    ctx.ui.compra.editando = '';
     ctx.render();
   },
   'compra-limpiar-busqueda': (el, ctx) => { ctx.ui.compra.busqueda = ''; ctx.render(); },
@@ -353,14 +379,61 @@ export const COMPRA_ACTIONS = {
     if (!lista) return;
     const resumen = resumenDeLista(lista);
     if (!lista.lineas.length && !window.confirm('Esta lista está vacía. ¿Terminarla igual?')) return;
-    cerrarLista(ctx.state, lista.id);
-    crearLista(ctx.state, { fecha: hoy });
-    ctx.ui.compra = { ...emptyCompra(), vista: 'preparar' };
-    ctx.commit(`Compra guardada: ${resumen.comprados} de ${resumen.total} cosa(s).${resumen.pendientes ? ` ${resumen.pendientes} se quedaron sin conseguir y quedan anotadas.` : ''} Ya tienes lista la próxima.`);
+    // Lo que no se consiguió es una decisión, no un descarte automático. Se
+    // pregunta una vez, con las dos respuestas escritas enteras, y solo cuando
+    // hay algo que preguntar.
+    if (resumen.pendientes) { ctx.openModal('compra-pendientes', { id: lista.id }); return; }
+    terminar(ctx, lista, false);
   },
+  'compra-cerrar': (el, ctx) => {
+    const lista = listaEnCurso(ctx.state);
+    if (!lista) return;
+    terminar(ctx, lista, el.dataset.trasladar === '1');
+  },
+  'compra-editar': (el, ctx) => { ctx.ui.compra.editando = el.dataset.id; ctx.render(); },
+  'compra-cancelar-editar': (el, ctx) => { ctx.ui.compra.editando = ''; ctx.render(); },
 
   'compra-ver-historial': (el, ctx) => { ctx.ui.compra.verHistorial = !el.closest('details').open; }
 };
+
+/* ── Cerrar una compra y abrir la siguiente ────────────────────────────────
+
+   La lista cerrada no se toca: es el recuerdo de esa salida, con su fecha, lo
+   que se pidió y lo que se trajo. Lo que se traslada es una copia de lo que
+   falta, y solo si la persona lo pidió. */
+
+function terminar(ctx, lista, trasladar) {
+  const resumen = resumenDeLista(lista);
+  cerrarLista(ctx.state, lista.id);
+  const proxima = crearLista(ctx.state, { fecha: todayISO() });
+  const movidas = trasladar ? trasladarPendientes(ctx.state, lista.id, proxima.id) : 0;
+  ctx.ui.compra = { ...emptyCompra(), vista: movidas ? 'lista' : 'preparar' };
+  ctx.closeModal?.();
+  ctx.commit(`Compra guardada: ${resumen.comprados} de ${resumen.total} cosa(s).${
+    movidas ? ` ${movidas} cosa(s) sin conseguir pasan a la próxima.` : resumen.pendientes ? ` ${resumen.pendientes} se quedan solo en el historial de esta compra.` : ''
+  }`);
+}
+
+/* ── La ventana de lo que no se consiguió ──────────────────────────────── */
+
+export function modalPendientes(ctx, m) {
+  const { state } = ctx;
+  const lista = state.listasDeCompra.find(item => item.id === m.id);
+  if (!lista) return '';
+  const faltan = lista.lineas.filter(linea => !linea.comprado);
+  return modal('Quedaron cosas sin conseguir', 'Esta compra se guarda igual. La pregunta es qué pasa con lo que falta.',
+    `<div class="stack">
+      <ul class="food-list">${faltan.slice(0, 8).map(linea => {
+        const falta = pendienteDe(linea);
+        return `<li>${esc(nombreDeLinea(state, linea))}${falta ? ` · faltan ${esc(cuanto(falta, linea.unidad))}` : ''}</li>`;
+      }).join('')}${faltan.length > 8 ? `<li class="muted">y ${faltan.length - 8} más</li>` : ''}</ul>
+      <div class="opcion-larga">
+        <button type="button" class="radio-bloque" data-action="compra-cerrar" data-trasladar="1"><span><strong>Pasarlas a la próxima compra</strong>Aparecerán ya apuntadas en la lista nueva, con lo que falta de cada una.</span></button>
+        <button type="button" class="radio-bloque" data-action="compra-cerrar" data-trasladar=""><span><strong>Dejarlas solo en el historial</strong>La próxima lista empieza vacía. Esta compra sigue diciendo qué no se consiguió.</span></button>
+      </div>
+      <div class="modal-actions">${button('Todavía no termino', 'close-modal', 'btn-quiet')}</div>
+    </div>`);
+}
 
 export const COMPRA_FORMS = {
   // Cuánto se lleva de un habitual esta vez. La cantidad puede ir en blanco:
@@ -399,6 +472,22 @@ export const COMPRA_FORMS = {
     ctx.commit(habitual
       ? `«${nombre}» en la lista, y guardado en tus productos habituales para la próxima.`
       : `«${nombre}» en la lista, solo para esta compra.`);
+  },
+
+  // Corregir lo que se pidió. Distinto de anotar lo que se trajo: aquí se
+  // arregla la lista —«no eran dos latas, eran cuatro»—, no se cuenta lo que
+  // entró en el carrito.
+  'compra-cantidad': (form, data, ctx) => {
+    const lista = listaEnCurso(ctx.state);
+    if (!lista) throw new Error('No hay ninguna compra abierta.');
+    const linea = actualizarLineaDeLista(ctx.state, lista.id, form.dataset.id, {
+      cantidad: data.get('cantidad'),
+      unidad: data.get('unidad')
+    });
+    ctx.ui.compra.editando = '';
+    ctx.commit(linea.cantidad === null
+      ? 'Guardado sin cantidad.'
+      : `Ahora dice ${cuanto(linea.cantidad, linea.unidad)}.`);
   },
 
   // Lo que de verdad se trajo. Dos latas pedidas y una traída son una anotada y

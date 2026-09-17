@@ -302,14 +302,16 @@ test('la lista de productos habituales se dibuja con datos', () => {
 
 /* ── La revisión: el archivo del inventario que se retiró ───────────────────
 
-   Ya no se producen revisiones nuevas. La pantalla sigue ahí, en solo lectura,
-   para quien tenga datos de cuando la app llevaba la cuenta de la despensa, y
-   sigue mereciendo que su buscador y su filtro funcionen: una lista de treinta
-   alimentos sin buscador no se lee.
+   Ya no se producen revisiones nuevas, y desde la Fase 3 tampoco se pueden
+   corregir: la app dejó de saber qué hay en la casa, y un botón que escribe en
+   ese libro afirma lo contrario con solo estar ahí.
 
-   La casa de ejemplo ya no trae inventario, así que estas tres se montan el
-   suyo: unos alimentos y una compra, que es lo único que una revisión
-   necesita para tener filas. */
+   Lo que se conserva es leer. Alguien anotó esas cifras a mano en su día y
+   siguen siendo suyas.
+
+   La casa de ejemplo ya no trae inventario, así que esto se monta el suyo:
+   unos alimentos y una compra, que es lo único que una revisión necesita para
+   tener filas. */
 
 function casaConCompra() {
   const state = createEmptyState();
@@ -319,54 +321,54 @@ function casaConCompra() {
   return state;
 }
 
-test('la revisión ofrece buscar y esconder lo contestado', () => {
+test('una revisión vieja se lee entera, con sus cifras', () => {
   const state = casaConCompra();
   const revision = createReview(state, todayISO());
+  // Confirmar exige contestarlo todo: es una revisión terminada de verdad.
+  saveReview(state, revision.id, Object.fromEntries(revision.productIds.map(id => [id, 2])), true);
+
   const ctx = contexto(state, { page: 'revision' });
   ctx.ui.reviewId = revision.id;
-
   const html = renderMas(ctx);
-  revisar(html, 'revisión abierta');
-  assert.ok(html.includes('id="revision-filtro"'), 'falta el buscador');
-  assert.ok(html.includes('revision-solo-faltan'), 'falta el filtro de pendientes');
-  assert.ok(html.includes('¿Cuánto queda?'), 'la pregunta principal debería ser «¿cuánto queda?»');
-});
+  revisar(html, 'una revisión vieja');
 
-// El filtro esconde filas del DOM, y `saveReview` reconstruye la revisión con lo
-// que venga en el formulario. Si una fila escondida no viajara, buscar «arroz»
-// borraría las otras veintinueve respuestas. Esta prueba existe por eso.
-test('buscar en la revisión no deja fuera lo ya contestado', () => {
-  const state = casaConCompra();
-  const revision = createReview(state, todayISO());
-  // Una revisión empieza por lo de la última compra. Aquí se quiere la despensa
-  // entera, que es donde de verdad duele perder una fila al buscar.
-  setReviewScope(state, revision.id, 'todo');
-  assert.ok(revision.productIds.length >= 3, 'la casa de prueba debería traer varios alimentos');
-  const ctx = contexto(state, { page: 'revision' });
-  ctx.ui.reviewId = revision.id;
-
-  // Un filtro que no deja pasar nada: todas las filas tienen que seguir viajando.
-  ctx.ui.mas.revisionFiltro = 'zzzzz';
-  const html = renderMas(ctx);
+  // Están todos los alimentos que se contaron aquel día.
   for (const id of revision.productIds) {
-    assert.ok(html.includes(`name="consume-${id}"`), `el alimento ${id} desapareció del formulario al filtrar`);
+    assert.ok(html.includes(`data-review-product="${id}"`), `el alimento ${id} desapareció de la revisión`);
   }
-  assert.ok(html.includes('type="hidden"'), 'lo escondido debería viajar en campos ocultos');
+  assert.ok(html.includes('Terminada'), 'no se dice que la revisión está cerrada');
 });
 
-test('la revisión se puede mirar solo por lo que falta', () => {
+test('una revisión vieja no se puede rellenar ni corregir', () => {
+  /* Escribir en el libro de existencias no arregla nada: no alimenta ninguna
+     pantalla. Lo único que hace un botón ahí es afirmar que la app sabe lo que
+     hay en la despensa, y no lo sabe. */
   const state = casaConCompra();
   const revision = createReview(state, todayISO());
-  const [primero] = revision.productIds;
-  saveReview(state, revision.id, { [primero]: 0 });
+  saveReview(state, revision.id, Object.fromEntries(revision.productIds.map(id => [id, 0])), true);
 
   const ctx = contexto(state, { page: 'revision' });
   ctx.ui.reviewId = revision.id;
-  ctx.ui.mas.revisionSoloFaltan = true;
   const html = renderMas(ctx);
-  // El contestado sale del listado visible pero sigue en el formulario.
-  assert.ok(!html.includes(`data-review-product="${primero}"`), 'el alimento ya contestado debería esconderse');
-  assert.ok(html.includes(`name="consume-${primero}"`), 'y aun así seguir viajando al guardar');
+
+  assert.ok(!/type="number"/.test(html), 'volvió un campo donde escribir una cifra de la despensa');
+  assert.ok(!/data-action="toggle-correct-review"/.test(html), 'volvió el botón de corregir');
+  assert.ok(!/data-action="review-mode"/.test(html), 'volvieron los dos modos de contar');
+  assert.ok(!/data-action="review-scope"/.test(html), 'volvió el alcance de la revisión');
+  assert.ok(!/¿Cuánto queda\?/.test(html), 'la pantalla vuelve a preguntar cuánto queda');
+});
+
+test('no queda ninguna puerta para escribir en el inventario', () => {
+  const codigo = readFileSync('src/app.js', 'utf8');
+  for (const accion of ['open-correction', 'review-mode', 'review-scope', 'toggle-correct-review']) {
+    assert.ok(!codigo.includes(`'${accion}'`), `volvió la acción «${accion}»`);
+  }
+  for (const escritura of ['correctStock(', 'correctReview(', 'saveReview(']) {
+    assert.ok(!codigo.includes(escritura), `app.js vuelve a escribir en el inventario con ${escritura}`);
+  }
+  // Y tampoco desde Funciones avanzadas.
+  const mas = readFileSync('src/page-mas.js', 'utf8');
+  assert.ok(!/Corregir un conteo viejo/.test(mas), 'volvió la tarjeta de corregir un conteo');
 });
 
 /* ── Lo que una tarjeta promete ────────────────────────────────────────── */

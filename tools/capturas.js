@@ -59,7 +59,7 @@ const MARCAR_COMPRADO = `
 const PANTALLAS = [
   {
     archivo: '1-hoy.png',
-    titulo: 'Hoy — lo que se come, con sus cantidades',
+    titulo: 'Hoy — lo que se come, y la nota de quien cocina',
     // Un poco abajo: el rótulo del día ya se entendió, y así entran el desayuno
     // entero y el principio del almuerzo, que es lo que hay que enseñar.
     hacer: ir('hoy'),

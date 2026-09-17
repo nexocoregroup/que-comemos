@@ -53,13 +53,13 @@ Son cinco pasos, se pueden abandonar y retomar, y en **ninguno se pide una canti
 
 1. **Mi hogar.** Cuántas personas comen en casa y, de cada una, el nombre, si es adulto, adolescente o niño, y qué debe evitar si aplica. Nada más: no se pregunta el peso, ni la fecha de nacimiento, ni nada médico. Es la misma ficha que la de *Familia*, no una segunda escrita aparte.
 2. **Productos habituales.** *Selecciona lo que normalmente compras para tu casa. No tienes que indicar cantidades.* Un catálogo de **productos dominicanos** recorrido **rubro por rubro**, ocho pantallas seguidas en la misma posición, con Atrás y Continuar y sin nada que arrastrar de lado. No hay mínimo: si esta casa no compra vegetales frescos, pasa de largo. *¿No encuentras un alimento? Añadirlo* está siempre a la vista y pide **solo el nombre**.
-3. **Cómo compramos.** Mensual o quincenal. Sirve para saber cuándo toca la próxima lista y qué días cubre; **no divide cantidades ni lleva cuentas**. Se cambia cuando se quiera desde *Ajustes → Organización de compra*, y cada cambio vale desde el mes que se le diga en adelante: lo que ya pasó no se reescribe.
+3. **Cómo compramos.** Mensual o quincenal. Es un dato de la casa y nada más: **no divide cantidades, no lleva cuentas y no avisa de cuándo toca la próxima lista**. Una lista se prepara el día que haga falta. Se cambia cuando se quiera desde *Ajustes → Organización de compra*, y cada cambio vale desde el mes que se le diga en adelante: lo que ya pasó no se reescribe.
 4. **Mis preparaciones.** Nombre, en qué momentos se come, y una nota opcional para quien cocina. Se escriben varias seguidas: al guardar, el formulario queda en blanco para la siguiente. Qué lleva cada plato se añade después, si se quiere, desde *Preparaciones* —y editar una comida desde aquí **no** le borra lo que allí se escribió—.
 5. **Crear mi primer plan.** Arriba, lo registrado línea por línea con un enlace de vuelta a cada paso. Debajo, la única pregunta que queda: **¿siete días o catorce?** Elegido el número se enseñan esos días empezando por hoy, cada uno con su desayuno, su almuerzo y su cena, y en cada momento se elige una de las preparaciones escritas, «fuera de casa», «pedimos comida» o «sin decidir». Elegir guarda al momento y solo ese día.
 
    **Se puede terminar sin poner ni una comida**, y el paso lo dice con todas las letras: lo que no se ponga aquí se pone cuando se quiera desde *Plan semanal*. Y **no se pregunta ningún día fijo**: aquí no se crea ninguna rutina, ni aquí ni en ningún otro sitio.
 
-Eran siete. Los dos que se fueron —*«¿cuánto se compra al mes?»* y *«cómo se reparte entre las dos quincenas»*— pedían un número que la casa no tiene por qué saber, y lo pedían justo después de marcar los alimentos: quien marcaba ciento cincuenta se encontraba con ciento cincuenta casillas de cantidad antes de poder terminar. El reparto entre quincenas no desapareció de la app; está en *Ajustes → Organización de compra* para quien lo quiera.
+Eran siete. Los dos que se fueron —*«¿cuánto se compra al mes?»* y *«cómo se reparte entre las dos quincenas»*— pedían un número que la casa no tiene por qué saber, y lo pedían justo después de marcar los alimentos: quien marcaba ciento cincuenta se encontraba con ciento cincuenta casillas de cantidad antes de poder terminar. El reparto entre quincenas se fue del todo: no lo pregunta ninguna pantalla. Lo que quedó en *Ajustes → Organización de compra* es otra cosa: cada cuánto se compra —mensual o quincenal—, en qué períodos se parte el mes, y desde cuándo vale cada cambio.
 
 El recorrido está también en *Ajustes → Organizar mi casa*. Ya no se planta delante de la primera pantalla, y volver a pasar por él no borra nada: lo ya guardado aparece marcado, lo que una pantalla no pregunta no lo toca, y los cambios de cada mes ni se rozan.
 
@@ -75,25 +75,22 @@ Hubo cantidades mensuales, y siguen guardadas en los teléfonos que las escribie
 
 > «Ahora nuestra situación mejoró y vamos a consumir cangrejo todos los meses.»
 
-Aparte están los **cambios de este mes**: añadir algo solo para ese mes, cambiar una cantidad, quitar algo temporalmente. Al añadir o cambiar algo desde la planificación mensual, la app pregunta:
+Aparte están los **cambios de este mes** —añadir algo solo para ese mes, cambiar una cantidad, quitar algo temporalmente—. **Hoy no los pide ninguna pantalla**: se anotaban desde la planificación mensual, que se retiró con la vista de mes. El modelo los sigue guardando y leyendo porque hay casas que los escribieron, y lo de abajo cuenta cómo quedaron guardados.
 
-- `Solo este mes`
-- `Desde ahora, todos los meses`
+Editar dentro de *Mis productos habituales* es permanente, y es la única manera de editar que queda.
 
-Editar dentro de *Mis productos habituales* es permanente. Editar dentro de un mes vale solo para ese mes, con la opción secundaria de *Guardar también como habitual*.
-
-**Por dentro, un mes guarda diferencias, no una copia.** En una versión antigua cada mes guardaba su lista completa, y eso tenía dos consecuencias malas: entrar en un mes escribía datos sin que nadie lo pidiera, y un extra de octubre podía acabar pareciendo parte del hábito. Hoy entrar en un mes no escribe nada, y un producto añadido solo para octubre **no** vuelve a aparecer en noviembre. Su identidad sí se conserva, porque puede estar atada a compras, revisiones e inventario: para el usuario aparece como **«extra de octubre»**, no como una entrada de un catálogo global.
+**Por dentro, un mes guarda diferencias, no una copia.** En una versión antigua cada mes guardaba su lista completa, y eso tenía dos consecuencias malas: entrar en un mes escribía datos sin que nadie lo pidiera, y un extra de octubre podía acabar pareciendo parte del hábito. Desde entonces un mes guarda solo diferencias, y un producto añadido solo para octubre **no** vuelve a aparecer en noviembre. Su identidad sí se conserva, porque puede estar atada a compras y revisiones de aquel momento: en pantalla salía como **«extra de octubre»**, no como una entrada de un catálogo global.
 
 Pasar un cambio a habitual es siempre **explícito y por alimento**. Es lo que separa «este mes compré más pollo» de «en esta casa ahora se come más pollo».
 
 **Cada línea guarda su historia, no una cantidad.** «Noventa tazas de arroz desde julio, ciento veinte desde septiembre» son dos tramos de la misma línea, y cada mes lee el que le tocaba. Se escribió así cuando la app calculaba la compra, porque corregir hoy una cantidad cambiaba también lo que la app decía de julio, y julio ya se compró. La estructura se conserva —los datos están ahí y la migración no los toca— aunque hoy no alimente ninguna cuenta.
 
-En la práctica:
+Así quedaron escritos esos tramos, de cuando se pedían cantidades, y así se siguen leyendo:
 
-- Corregir una cantidad **vale desde el mes en curso**. Los meses que ya pasaron se quedan con lo que se compró entonces.
-- Si lo que pasó es que estaba **mal escrito**, la app lo ofrece justo después de guardar: «corregir también los meses anteriores». Alcanza hasta donde empezó el dato equivocado, y ni un mes más.
-- Se puede fechar hacia adelante: «desde noviembre son 120». Este mes no cambia, y la lista lo enseña como lo que viene.
-- **Quitar algo también lleva fecha.** Dejar de comprar pollo desde hoy no borra los meses en que sí se compró.
+- Corregir una cantidad **valía desde el mes en curso**. Los meses que ya pasaron se quedan con lo que se compró entonces.
+- Si lo que pasaba es que estaba **mal escrito**, la app lo ofrecía justo después de guardar: «corregir también los meses anteriores». Alcanzaba hasta donde empezó el dato equivocado, y ni un mes más.
+- Se podía fechar hacia adelante: «desde noviembre son 120».
+- **Quitar algo también llevaba fecha.** Dejar de comprar pollo desde una fecha no borra los meses en que sí se compró.
 
 
 ## Planificar a mano, una semana o dos
@@ -326,7 +323,7 @@ Esta elección es una hipótesis de diseño, no una afirmación de que un color 
 - Las cantidades habituales de Familia son un dato de consulta y no se aplican solas: hay que pedirlas, y lo que traen es la suma de las personas que la preparación cubre, sin ajustar por quién falta ese día.
 - El grosor de rueda es una etiqueta, no un factor: cambiarlo no recalcula ninguna equivalencia guardada.
 - Los tramos de los productos habituales guardan desde cuándo vale cada cantidad, y nada más.
-- Las equivalencias no se infieren y las unidades incompatibles no se convierten. Sin la equivalencia, la compra avisa de que la lista está incompleta en vez de dar un número equivocado.
+- Las equivalencias no se infieren y las unidades incompatibles no se convierten. Lo que se escribió en una unidad se lee en esa unidad, y nada se traduce por su cuenta.
 - La lista de la compra no mira ningún período: es la de este viaje al colmado.
 - **Las reglas antiguas se conservan como dato y no las enseña ninguna pantalla.** Están en el respaldo y en la migración; decidir si se muestran o se borran es de una fase siguiente.
 - **«Lo que sobró» no dice cuánto sobró.** Enlaza las dos comidas y avisa antes de borrar la de origen, y nada más. Las comidas vinculadas de versiones anteriores sí traían cantidades apartadas, y se siguen leyendo y pintando tal cual.

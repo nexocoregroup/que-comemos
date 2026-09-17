@@ -32,7 +32,7 @@ export const TOUR_STEPS = [
   {
     page: 'hoy',
     title: 'Hoy',
-    body: 'Lo primero que se ve cada día: el desayuno, el almuerzo y la cena, con las cantidades si las hay, para quién es cada cosa y la nota de quien cocina. Está pensada para quien va a cocinar, no para quien organiza.',
+    body: 'Lo primero que se ve cada día: el desayuno, el almuerzo y la cena, con qué lleva cada comida, para quién es y la nota de quien cocina. Está pensada para quien va a cocinar, no para quien organiza.',
     tip: 'Un momento sin nada puesto dice «sin decidir», y no es un error. Las meriendas son aparte: si no hay, no falta nada.'
   },
   {
@@ -58,6 +58,6 @@ export const TOUR_STEPS = [
     highlight: 'fab',
     title: 'La compra, en dos vistas',
     body: 'En «Preparar la compra» están tus productos habituales por rubros: tocas lo que hace falta esta vez y dices cuánto llevas. En «Mi lista» está lo que queda por buscar arriba y lo comprado tachado abajo. Si pediste dos y solo había una, se anota una y queda una pendiente.',
-    tip: 'El botón + de la esquina pone una comida, crea una preparación, abre la compra o añade un alimento sin cambiar de pantalla. Puedes volver a ver esto desde Ajustes → Cómo funciona.'
+    tip: 'Al terminar, si algo se quedó sin conseguir, se pregunta si pasa a la próxima lista o se queda solo en el historial. Puedes volver a ver esto desde Ajustes → Cómo funciona.'
   }
 ];

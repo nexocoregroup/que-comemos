@@ -18,13 +18,17 @@ import { MOMENTOS, ORIGENES, SLOTS, comidasDecididas, SLOTS_PRINCIPALES, WEEKDAY
 import { button, esc, modal, niceDate, notice, options } from './ui-kit.js';
 import { icono } from './icons.js';
 
-const hoy = todayISO();
+// La fecha de hoy no se puede guardar en una constante del módulo: se
+// calcularía una vez, al abrir la app, y un teléfono que se queda encendido
+// pasada la medianoche seguiría pintando el día de ayer. Es una función, y
+// cada pintada vuelve a preguntar.
+const hoy = () => todayISO();
 
 // Siete o catorce. No hay un tercer número: tres semanas ya es un mes con otro
 // nombre, y un mes es justo lo que esta pantalla vino a quitar de en medio.
 export const DIAS_POR_VISTA = { una: 7, dos: 14 };
 
-export function emptySemana(inicio = weekStart(hoy)) {
+export function emptySemana(inicio = weekStart(hoy())) {
   return {
     // Siempre un lunes. Empezar la semana en el día en que se abrió la app
     // haría que «la semana que viene» significara algo distinto cada día.
@@ -54,7 +58,7 @@ export function renderSemana(ctx) {
 
 function barra(ctx, dias) {
   const { ui } = ctx;
-  const estaSemana = ui.semana.inicio === weekStart(hoy);
+  const estaSemana = ui.semana.inicio === weekStart(hoy());
   return `<div class="toolbar semana-barra">
     <div class="inline semana-mover">
       ${button(icono('izquierda', { tamano: 18 }), 'semana-mover', 'btn-secondary btn-small btn-flecha', 'data-delta="-1" aria-label="Semana anterior"')}
@@ -75,14 +79,20 @@ function barra(ctx, dias) {
 
 // «Del 14 al 20 de septiembre», y no dos fechas completas seguidas: el mes se
 // dice una sola vez cuando es el mismo, y el año solo cuando no es el de hoy.
+//
+// La semana que cambia de año necesita los dos. «Del 29 dic al 4 de enero de
+// 2026» se lee como si el 29 de diciembre fuera de 2026, y es de 2025: el año
+// del final se derrama hacia atrás sobre una fecha que no le pertenece.
 function rangoEnPalabras(dias) {
   const primero = dias[0], ultimo = dias[dias.length - 1];
-  const otroAno = primero.slice(0, 4) !== hoy.slice(0, 4) || ultimo.slice(0, 4) !== hoy.slice(0, 4);
+  const anoDeHoy = hoy().slice(0, 4);
+  const cruzaDeAno = primero.slice(0, 4) !== ultimo.slice(0, 4);
+  const otroAno = cruzaDeAno || primero.slice(0, 4) !== anoDeHoy || ultimo.slice(0, 4) !== anoDeHoy;
   const mismoMes = primero.slice(0, 7) === ultimo.slice(0, 7);
   const fin = { day: 'numeric', month: 'long', ...(otroAno ? { year: 'numeric' } : {}) };
-  return mismoMes
-    ? `Del ${Number(primero.slice(8))} al ${niceDate(ultimo, fin)}`
-    : `Del ${niceDate(primero, { day: 'numeric', month: 'short' })} al ${niceDate(ultimo, fin)}`;
+  if (mismoMes) return `Del ${Number(primero.slice(8))} al ${niceDate(ultimo, fin)}`;
+  const inicio = { day: 'numeric', month: 'short', ...(cruzaDeAno ? { year: 'numeric' } : {}) };
+  return `Del ${niceDate(primero, inicio)} al ${niceDate(ultimo, fin)}`;
 }
 
 function resumenDeLaVista(ctx, dias, cuenta) {
@@ -99,8 +109,9 @@ function resumenDeLaVista(ctx, dias, cuenta) {
 
 function tarjetaDeDia(ctx, date) {
   const { state } = ctx;
-  const esHoy = date === hoy;
-  const pasado = date < hoy;
+  const ahora = hoy();
+  const esHoy = date === ahora;
+  const pasado = date < ahora;
   const meriendas = SLOTS.filter(esOpcional);
   const libre = meriendas.find(slot => !planFor(state, date, slot));
 
@@ -305,7 +316,7 @@ export function modalIrAFecha(ctx) {
   return modal('Ir a una fecha', 'Te llevo a la semana en que cae ese día.',
     `<form data-form="ir-a-fecha" class="stack">
       <label class="field"><span>¿Qué día?</span>
-        <input type="date" name="fecha" value="${esc(ui.semana?.inicio || hoy)}" required>
+        <input type="date" name="fecha" value="${esc(ui.semana?.inicio || hoy())}" required>
       </label>
       <div class="modal-actions">
         ${button('Cancelar', 'close-modal', 'btn-secondary')}
@@ -326,7 +337,7 @@ export const SEMANA_ACTIONS = {
     ctx.render();
   },
   'semana-hoy': (el, ctx) => {
-    ctx.ui.semana.inicio = weekStart(hoy);
+    ctx.ui.semana.inicio = weekStart(hoy());
     ctx.ui.semana.aviso = null;
     ctx.render();
   },
@@ -349,7 +360,15 @@ export const SEMANA_ACTIONS = {
   'poner-dias-atajo': (el, ctx) => {
     const cuantos = Number(el.dataset.cuantos);
     const casillas = [...document.querySelectorAll('[data-form="poner-en-dias"] [name="fechas"]')];
-    const desde = ctx.ui.semana.inicio <= hoy ? hoy : ctx.ui.semana.inicio;
+    // De hoy en adelante, para no llenar días que ya pasaron. Pero solo cuando
+    // hoy cae dentro de lo que se está mirando: en una semana pasada, «de hoy
+    // en adelante» no es ningún día, y el botón se quedaba sin hacer nada y sin
+    // decir por qué. Ahí se marcan los días de esa semana, que es lo que la
+    // persona está viendo y lo único que puede querer decir.
+    const ahora = hoy();
+    const ultimo = casillas.at(-1)?.value || '';
+    const dentro = ctx.ui.semana.inicio <= ahora && ahora <= ultimo;
+    const desde = dentro ? ahora : ctx.ui.semana.inicio;
     const elegibles = casillas.filter(casilla => casilla.value >= desde).slice(0, cuantos);
     for (const casilla of casillas) casilla.checked = elegibles.includes(casilla);
   },

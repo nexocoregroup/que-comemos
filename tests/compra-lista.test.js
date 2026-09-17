@@ -37,10 +37,16 @@ function contexto(state = createEmptyState()) {
     avisos: [],
     commit: mensaje => { if (mensaje) ctx.avisos.push(mensaje); },
     toast: mensaje => ctx.avisos.push(mensaje),
-    render: () => {}, guardar: () => {}, closeModal: () => {}, openModal: () => {}
+    render: () => {}, guardar: () => {}, closeModal: () => { ctx.ui.modal = null; },
+    openModal: (type, datos = {}) => { ctx.ui.modal = { type, ...datos }; }
   };
   return ctx;
 }
+
+// Terminar una compra con cosas sin conseguir abre una ventana que pregunta qué
+// hacer con ellas. Esto contesta esa pregunta, que es lo que haría un dedo.
+const responder = (ctx, trasladar) =>
+  COMPRA_ACTIONS['compra-cerrar']({ dataset: { trasladar: trasladar ? '1' : '' } }, ctx);
 
 const revisar = (html, donde) => {
   assert.equal(typeof html, 'string', `${donde} no devolvió HTML`);
@@ -207,7 +213,11 @@ test('terminar guarda la fecha, lo pedido y lo traído, y abre una lista vacía'
   const linea = agregarALista(state, lista.id, { productId: maiz, cantidad: 2, unidad: 'lata' });
   anotarComprado(state, lista.id, linea.id, 1);
 
+  // Queda una lata sin conseguir, así que terminar pregunta antes de cerrar.
   COMPRA_ACTIONS['compra-terminar'](null, ctx);
+  assert.equal(ctx.ui.modal?.type, 'compra-pendientes', 'cerrar con pendientes no preguntó nada');
+  assert.equal(listasCerradas(state).length, 0, 'se cerró la compra antes de contestar');
+  responder(ctx, false);
 
   const cerradas = listasCerradas(state);
   assert.equal(cerradas.length, 1);
@@ -222,6 +232,106 @@ test('terminar guarda la fecha, lo pedido y lo traído, y abre una lista vacía'
   assert.notEqual(abiertas[0].id, lista.id);
   // Los habituales no se tocan: son el catálogo de la casa, no una salida.
   assert.equal(habitualLines(state).length, 3);
+});
+
+test('lo que no se consiguió pasa a la próxima lista, y pasa lo que falta', () => {
+  /* Dos latas pedidas, una traída. Lo que se traslada es UNA, no dos: la otra
+     ya está en casa. Trasladar lo pedido sería mandar a comprar otra vez algo
+     que ya se compró. */
+  const { state, maiz, arroz } = casa();
+  const ctx = contexto(state);
+  COMPRA_ACTIONS['compra-nueva'](null, ctx);
+  const lista = listaEnCurso(state);
+  const conMaiz = agregarALista(state, lista.id, { productId: maiz, cantidad: 2, unidad: 'lata' });
+  const conArroz = agregarALista(state, lista.id, { productId: arroz, cantidad: 25, unidad: 'lb' });
+  anotarComprado(state, lista.id, conMaiz.id, 1);
+  marcarComprado(state, lista.id, conArroz.id, true);
+
+  COMPRA_ACTIONS['compra-terminar'](null, ctx);
+  assert.equal(ctx.ui.modal?.type, 'compra-pendientes');
+  responder(ctx, true);
+
+  const proxima = listaEnCurso(state);
+  assert.equal(proxima.lineas.length, 1, 'la lista nueva no trae exactamente lo que faltaba');
+  assert.equal(proxima.lineas[0].productId, maiz);
+  assert.equal(proxima.lineas[0].cantidad, 1, 'se trasladó lo pedido en vez de lo que falta');
+  assert.equal(proxima.lineas[0].comprada, null, 'la lista nueva nace con algo ya comprado');
+  assert.equal(proxima.lineas[0].comprado, false);
+
+  // Y la compra cerrada sigue contando lo que pasó de verdad.
+  const cerrada = listasCerradas(state)[0];
+  assert.deepEqual(cerrada.lineas.map(row => [row.cantidad, row.comprada]), [[2, 1], [25, 25]],
+    'trasladar cambió el recuerdo de la compra que ya se hizo');
+});
+
+test('contestar «solo al historial» deja la próxima lista vacía', () => {
+  const { state, maiz } = casa();
+  const ctx = contexto(state);
+  COMPRA_ACTIONS['compra-nueva'](null, ctx);
+  const lista = listaEnCurso(state);
+  agregarALista(state, lista.id, { productId: maiz, cantidad: 2, unidad: 'lata' });
+
+  COMPRA_ACTIONS['compra-terminar'](null, ctx);
+  responder(ctx, false);
+
+  assert.deepEqual(listaEnCurso(state).lineas, [], 'la lista nueva no empezó vacía');
+  assert.equal(listasCerradas(state)[0].lineas.length, 1, 'la compra cerrada perdió lo que no se consiguió');
+});
+
+test('sin nada pendiente no se pregunta nada: se cierra y ya', () => {
+  const { state, arroz } = casa();
+  const ctx = contexto(state);
+  COMPRA_ACTIONS['compra-nueva'](null, ctx);
+  const lista = listaEnCurso(state);
+  const linea = agregarALista(state, lista.id, { productId: arroz, cantidad: 25, unidad: 'lb' });
+  marcarComprado(state, lista.id, linea.id, true);
+
+  COMPRA_ACTIONS['compra-terminar'](null, ctx);
+  assert.equal(ctx.ui.modal, null, 'preguntó por unos pendientes que no existen');
+  assert.equal(listasCerradas(state).length, 1, 'no se cerró la compra');
+});
+
+test('tachar un renglón no reescribe lo que se anotó a mano', () => {
+  /* El fallo: se anotaba «traje una de dos» y después se tachaba el renglón
+     para quitarlo de en medio. El toque escribía 2 encima del 1, y el historial
+     acababa diciendo que se compraron dos latas que nunca entraron en la casa. */
+  const { state, maiz } = casa();
+  const lista = crearLista(state);
+  const linea = agregarALista(state, lista.id, { productId: maiz, cantidad: 2, unidad: 'lata' });
+
+  anotarComprado(state, lista.id, linea.id, 1);
+  marcarComprado(state, lista.id, linea.id, true);
+  assert.equal(listaDeCompra(state, lista.id).lineas[0].comprada, 1,
+    'tachar pisó la cantidad que la persona había escrito');
+  assert.equal(listaDeCompra(state, lista.id).lineas[0].comprado, true);
+
+  // Y destachar sigue queriendo decir «al final no traje nada».
+  marcarComprado(state, lista.id, linea.id, false);
+  assert.equal(listaDeCompra(state, lista.id).lineas[0].comprada, null);
+});
+
+test('se puede corregir la cantidad de un renglón desde Mi lista', () => {
+  // Es el único camino para arreglar algo escrito a mano: un habitual se puede
+  // volver a tocar en «Preparar», pero «papel de aluminio» no está ahí.
+  const { state } = casa();
+  const ctx = contexto(state);
+  COMPRA_ACTIONS['compra-nueva'](null, ctx);
+  const lista = listaEnCurso(state);
+  const linea = agregarOcasional(state, lista.id, { nombre: 'Papel de aluminio', cantidad: 1, unidad: 'unidad' });
+
+  ctx.ui.compra.vista = 'lista';
+  COMPRA_ACTIONS['compra-editar']({ dataset: { id: linea.id } }, ctx);
+  assert.equal(ctx.ui.compra.editando, linea.id, 'no se abrió la casilla de corregir');
+  const html = renderCompra(ctx);
+  revisar(html, 'mi lista corrigiendo una cantidad');
+  assert.ok(html.includes('data-form="compra-cantidad"'), 'no hay dónde escribir la cantidad nueva');
+
+  COMPRA_FORMS['compra-cantidad'](
+    { dataset: { id: linea.id } },
+    { get: clave => ({ cantidad: '3', unidad: 'unidad' })[clave] },
+    ctx);
+  assert.equal(listaDeCompra(state, lista.id).lineas[0].cantidad, 3, 'no se guardó la cantidad corregida');
+  assert.equal(ctx.ui.compra.editando, '', 'la casilla se quedó abierta después de guardar');
 });
 
 test('cerrar una compra no descuenta ni suma nada de la casa', () => {
@@ -244,7 +354,8 @@ test('se pueden abrir dos compras el mismo día sin esperar ningún período', (
   const ctx = contexto(state);
   COMPRA_ACTIONS['compra-nueva'](null, ctx);
   const primera = listaEnCurso(state);
-  agregarALista(state, primera.id, { productId: arroz });
+  const linea = agregarALista(state, primera.id, { productId: arroz });
+  marcarComprado(state, primera.id, linea.id, true);
   COMPRA_ACTIONS['compra-terminar'](null, ctx);
 
   const segunda = listaEnCurso(state);

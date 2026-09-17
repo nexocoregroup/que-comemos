@@ -28,7 +28,9 @@ import { button, empty, esc, fmt, measure, monthName, niceDate, notice, options,
 import { icono, iconoDeCategoria } from './icons.js';
 import { LEGAL } from './legal.js';
 
-const hoy = todayISO();
+// Una función y no una constante: calculada al cargar el módulo, un teléfono
+// que deja la app abierta pasada la medianoche seguiría contando desde ayer.
+const hoy = () => todayISO();
 
 /* ── Las pantallas de este archivo ─────────────────────────────────────────
 
@@ -74,7 +76,6 @@ export const TITULOS_MAS = {
 export function emptyMas() {
   return {
 
-    revisionFiltro: '', revisionSoloFaltan: false,
     // El buscador de preparaciones y qué bloques están abiertos. Empiezan todos
     // abiertos: una casa con seis preparaciones no quiere abrir cinco cajones.
     recetaFiltro: '', recetasPlegadas: [],
@@ -345,31 +346,15 @@ function renderRevision(ctx) {
 function tablaDeRevision(ctx, revision) {
   const { state, ui } = ctx;
   const disponible = reviewAvailability(state, revision);
-  const editando = revision.status === 'draft' || ui.correctingReview;
   const queda = (revision.mode || 'restante') === 'restante';
   if (!revision.productIds.length) {
     return empty('canasta', 'No hay nada que revisar', 'No quedó ninguna cifra anotada de cuando la app llevaba la cuenta de la despensa.');
   }
-  // Revisar treinta alimentos de corrido es donde se abandona la revisión. Por
-  // eso hay dos salidas: buscar el que se tiene en la mano y esconder los que ya
-  // están contestados.
-  const filtro = String(ui.mas.revisionFiltro || '').trim().toLocaleLowerCase('es');
-  const contestado = id => revision.consumed[id] !== undefined;
-  const visibles = revision.productIds.filter(id => {
-    if (ui.mas.revisionSoloFaltan && contestado(id)) return false;
-    if (!filtro) return true;
-    const item = product(state, id);
-    return item?.name.toLocaleLowerCase('es').includes(filtro) || (item?.aliases || []).some(alias => String(alias).toLocaleLowerCase('es').includes(filtro));
-  });
-  const faltan = revision.productIds.filter(id => !contestado(id)).length;
+  // Se enseña entera. Buscar y esconder lo contestado eran salidas para no
+  // abandonar a mitad de rellenar treinta alimentos; ya no se rellena nada.
+  const visibles = revision.productIds;
 
-  return `<p class="pantalla-intro">${esc(niceDate(revision.date, { weekday: 'long', day: 'numeric', month: 'long' }))} · ${queda ? 'Escribe lo que ves en casa. La resta la hacemos nosotros.' : 'Escribe lo que se consumió desde la última vez.'}</p>
-    ${editando && revision.status === 'draft' ? bloqueDeAlcance(ctx, revision) : ''}
-    ${editando && revision.status === 'draft' ? `<div class="segmented segmented-ancho">
-      <button type="button" data-action="review-mode" data-mode="restante" data-id="${revision.id}" class="${queda ? 'active' : ''}">¿Cuánto queda?</button>
-      <button type="button" data-action="review-mode" data-mode="consumido" data-id="${revision.id}" class="${queda ? '' : 'active'}">Lo consumido</button>
-    </div>` : ''}
-    ${editando ? herramientasDeRevision(ctx, revision, faltan, queda) : ''}
+  return `<p class="pantalla-intro">${esc(niceDate(revision.date, { weekday: 'long', day: 'numeric', month: 'long' }))} · lo que se contó aquel día. ${queda ? 'La cifra de la derecha es lo que quedaba.' : 'La cifra de la derecha es lo que se había consumido.'}</p>
     <form data-form="review" data-id="${revision.id}">
       <div class="card revision-lista">${(visibles.length ? visibles : []).map(id => {
         const item = product(state, id);
@@ -383,90 +368,13 @@ function tablaDeRevision(ctx, revision) {
             <strong>${esc(item?.name || 'Alimento eliminado')}</strong>
             <span class="small muted">Había ${esc(measure(habia, item?.controlUnit || ''))}${esc(corte(item, habia))}</span>
           </div>
-          ${editando
-            ? `<input class="text revision-dato" type="number" name="consume-${id}" min="0" ${queda ? '' : `max="${habia}"`} step="any" inputmode="decimal" placeholder="—" value="${escrito === undefined || escrito === null ? '' : escrito}" aria-label="${queda ? `Cuánto queda de ${esc(item?.name || '')}` : `Cuánto se consumió de ${esc(item?.name || '')}`}">`
-            : `<span class="revision-dato">${escrito === undefined || escrito === null ? '—' : fmt(escrito)}</span>`}
+          <span class="revision-dato">${escrito === undefined || escrito === null ? '—' : fmt(escrito)}</span>
           <span class="revision-derivado remaining ${derivado === null ? 'pending' : 'good'}">${derivado === null ? 'pendiente' : `${queda ? 'se consumió' : 'queda'} ${fmt(derivado)}`}</span>
         </div>`;
-      }).join('') || `<p class="muted">Nada coincide con «${esc(ui.mas.revisionFiltro)}».</p>`}</div>
-      ${ocultas(revision, visibles, queda, editando)}
-      <p class="small muted">Lo que dejes en blanco queda pendiente y no cambia nada. Escribe <strong>0</strong> si ${queda ? 'no queda nada' : 'no se consumió nada'}.</p>
-      <div class="pantalla-acciones">${editando
-        ? revision.status === 'draft'
-          ? `<button type="submit" name="intent" value="save" class="btn btn-secondary">Guardar y seguir después</button><button type="submit" name="intent" value="confirm" class="btn btn-primary">Terminar</button>`
-          : `<button type="submit" name="intent" value="correct" class="btn btn-primary">Guardar la corrección</button>`
-        : `<span class="pill">Terminada</span>${button('Corregir', 'toggle-correct-review', 'btn-quiet btn-small')}`}</div>
-    </form>
-    ${revision.status === 'confirmed' ? loQueSigue(ctx, revision) : ''}`;
-}
-
-/* ── De qué se pregunta ────────────────────────────────────────────────────
-
-   Preguntar por los cuarenta alimentos con existencias, incluidos los que nadie
-   ha tocado desde marzo, es exactamente donde se abandona una revisión. Se
-   empieza por lo de la última compra —que es lo que se está gastando, y lo que
-   hay que contar antes de volver al colmado— y la despensa entera queda a un
-   toque para quien la quiera. */
-
-function bloqueDeAlcance(ctx, revision) {
-  const { state } = ctx;
-  const compra = revision.purchaseId ? state.purchases.find(item => item.id === revision.purchaseId) : null;
-  if (!compra) return '';
-  const deLaCompra = revision.origen === 'compra';
-  return `<div class="segmented segmented-ancho">
-      <button type="button" data-action="review-scope" data-origen="compra" data-id="${revision.id}" class="${deLaCompra ? 'active' : ''}">Lo de la última compra · ${compra.lines.length}</button>
-      <button type="button" data-action="review-scope" data-origen="todo" data-id="${revision.id}" class="${deLaCompra ? '' : 'active'}">Toda la despensa</button>
-    </div>
-    <p class="small muted">${deLaCompra
-      ? `Lo que trajiste el ${esc(niceDate(compra.date, { day: 'numeric', month: 'long' }))}. Es lo que se está gastando.`
-      : 'Todo lo que la app tiene contado en casa, se haya comprado cuando se haya comprado.'}</p>`;
-}
-
-/* ── Y después de contar, qué ──────────────────────────────────────────────
-
-   Contar lo que queda no es el final de nada: es el paso previo a la compra
-   siguiente. Con dos compras al mes, la segunda; con una, la del mes que
-   entra. Decirlo aquí evita el viaje de vuelta a buscar dónde estaba. */
-
-function loQueSigue(ctx, revision) {
-  const { state } = ctx;
-  const mes = revision.date.slice(0, 7);
-  const quincenal = frecuenciaDe(state, mes) === 'quincenal';
-  const primeraQuincena = Number(revision.date.slice(8)) <= 15;
-  const contados = revision.productIds.filter(id => revision.consumed[id] !== undefined).length;
-  const texto = quincenal
-    ? `La lista de la ${primeraQuincena ? 'primera' : 'segunda'} quincena ya descuenta lo que acabas de contar: no volverá a pedir lo que todavía tienes.`
-    : 'La lista del mes que entra ya parte de lo que acabas de contar.';
-  return `<div class="notice"><span>→</span><div>
-    <strong>Contaste ${contados} alimento(s).</strong>${esc(texto)}
-    <div class="inline" style="margin-top:10px">${button(quincenal ? 'Ver la compra de la quincena' : 'Ver la compra', 'navigate', 'btn-secondary btn-small', 'data-page="compra"')}</div>
-  </div></div>`;
-}
-
-// Filtrar esconde filas, y `saveReview` reconstruye la revisión entera con lo
-// que venga en el formulario: una fila que no esté deja de existir y borraría la
-// respuesta que ya tenía. Por eso lo escondido sigue viajando, en un campo
-// oculto con su valor. Buscar no puede costarle a nadie lo que ya había contado.
-function ocultas(revision, visibles, queda, editando) {
-  if (!editando) return '';
-  const dentro = new Set(visibles);
-  return revision.productIds.filter(id => !dentro.has(id)).map(id => {
-    const valor = queda ? revision.remaining?.[id] : revision.consumed[id];
-    return `<input type="hidden" name="consume-${id}" value="${valor === undefined || valor === null ? '' : valor}">`;
-  }).join('');
-}
-
-// La barra de herramientas de la revisión: buscar y esconder lo ya contestado.
-function herramientasDeRevision(ctx, revision, faltan, queda) {
-  const { ui } = ctx;
-  return `<div class="revision-herramientas">
-    <label class="field revision-buscar"><span class="sr-only">Buscar un alimento de esta revisión</span>
-      <input type="search" id="revision-filtro" data-revision-buscar value="${esc(ui.mas.revisionFiltro)}" placeholder="Buscar un alimento…" aria-label="Buscar un alimento de esta revisión">
-    </label>
-    <div class="inline">
-      <button type="button" class="chip ${ui.mas.revisionSoloFaltan ? 'activa' : ''}" data-action="revision-solo-faltan" aria-pressed="${ui.mas.revisionSoloFaltan}">Solo lo que falta · ${faltan}</button>
-    </div>
-  </div>`;
+      }).join('')}</div>
+      <p class="small muted">Es lo que se anotó aquel día, tal cual. La app dejó de llevar la cuenta de la despensa y esto ya no se vuelve a calcular.</p>
+      <div class="pantalla-acciones"><span class="pill">Terminada</span></div>
+    </form>`;
 }
 
 const corte = (item, cantidad) => {
@@ -665,7 +573,7 @@ export function estadoDeLaCopia(state) {
   if (!hayDatos) return { hayDatos: false };
   const ultima = state.settings?.lastBackupAt || null;
   if (!ultima) return { hayDatos: true, ultima: null, dias: null, urgente: true };
-  const dias = Math.round((new Date(`${hoy}T12:00:00`) - new Date(`${ultima}T12:00:00`)) / 86400000);
+  const dias = Math.round((new Date(`${hoy()}T12:00:00`) - new Date(`${ultima}T12:00:00`)) / 86400000);
   return { hayDatos: true, ultima, dias, urgente: dias >= 30 };
 }
 
@@ -731,7 +639,7 @@ function renderAjustes(ctx) {
     <div class="card">
       <h3>Preferencias de la aplicación</h3>
       <p class="muted small">Cada cuánto se hace la compra principal —y cómo se reparte el mes cuando se compra dos veces—, y las herramientas de reparar: medidas de compra, unir dos alimentos que son el mismo, corregir un conteo viejo.</p>
-      <p class="small">Compra <strong>${esc(frecuenciaDe(state, hoy.slice(0, 7)) === 'quincenal' ? 'quincenal — dos veces al mes' : 'mensual — una vez al mes')}</strong>.</p>
+      <p class="small">Compra <strong>${esc(frecuenciaDe(state, hoy().slice(0, 7)) === 'quincenal' ? 'quincenal — dos veces al mes' : 'mensual — una vez al mes')}</strong>.</p>
       <div class="inline">${button('Organización de compra', 'navigate', 'btn-secondary btn-small', 'data-page="organizacion"')}${button('Funciones avanzadas', 'navigate', 'btn-secondary btn-small', 'data-page="avanzado"')}</div>
     </div>
     <div class="card">
@@ -757,14 +665,14 @@ function renderAjustes(ctx) {
 
 function renderOrganizacion(ctx) {
   const { state, ui } = ctx;
-  const mesActual = hoy.slice(0, 7);
+  const mesActual = hoy().slice(0, 7);
   const actual = frecuenciaDe(state, mesActual);
   const historial = historialDeFrecuencia(state);
   const periodos = periodosDelMes(state, mesActual);
   const quincenal = actual === 'quincenal';
 
   return `${volver('Organización de compra')}
-    <p class="pantalla-intro">Cada cuánto se hace la compra principal de la casa. De esto salen los períodos que ves en la pantalla de la compra.</p>
+    <p class="pantalla-intro">Cada cuánto se hace la compra principal de la casa. Es un dato tuyo: la app no divide cantidades, no calcula listas y no te impide abrir una compra cualquier día.</p>
 
     <div class="card">
       <h3>Frecuencia de compra</h3>
@@ -894,16 +802,10 @@ function renderAvanzado(ctx) {
     </div>
 
     <div class="card">
-      <h3>Corregir un conteo viejo</h3>
-      <p class="muted small">La app ya no lleva la cuenta de lo que hay en tu despensa. Esto sirve para arreglar una cifra de cuando sí la llevaba, si el historial de entonces te dice algo que no cuadra. Queda anotado con su motivo.</p>
-      ${button('Corregir un alimento', 'open-correction', 'btn-secondary')}
-    </div>
-
-    <div class="card">
       <h3>Archivar un alimento</h3>
       <p class="muted small">Archivar lo saca de las listas y de las búsquedas sin borrar nada: su historial se conserva entero y se puede reactivar cuando quieras. Es lo que se le hace a un alimento que la casa dejó de comprar, en vez de eliminarlo.</p>
       ${vivos.length
-        ? `<p class="small muted">Cada uno abre sus opciones: ahí está «Archivar», y también decir cómo se compra, unirlo con otro o corregir su conteo.</p>
+        ? `<p class="small muted">Cada uno abre sus opciones: ahí está «Archivar», y también decir cómo se compra o unirlo con otro.</p>
            <div class="card soft">${vivos.map(item => `<div class="list-row">
              <div class="list-row-main">
                <div class="list-row-title">${esc(item.name)}</div>
@@ -951,7 +853,6 @@ function paresParecidos(state) {
 
 export const MAS_ACTIONS = {
   'cierre-ver': (el, ctx) => { ctx.ui.mas.cierreAbierto = ctx.ui.mas.cierreAbierto === el.dataset.id ? '' : el.dataset.id; ctx.render(); },
-  'revision-solo-faltan': (el, ctx) => { ctx.ui.mas.revisionSoloFaltan = !ctx.ui.mas.revisionSoloFaltan; ctx.render(); },
   'legal-ver': (el, ctx) => { ctx.ui.mas.documento = el.dataset.doc; ctx.render(); },
   'open-avanzado-producto': (el, ctx) => ctx.openModal('avanzado-producto', { id: el.dataset.id }),
   'open-diagnostico': (el, ctx) => ctx.openModal('diagnostico'),

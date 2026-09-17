@@ -1701,8 +1701,15 @@ export function marcarComprado(state, listaId, lineaId, comprado = true) {
   const linea = lista.lineas.find(row => row.id === lineaId);
   if (!linea) throw new Error('Ese renglón ya no está en la lista.');
   linea.comprado = Boolean(comprado);
-  // Tachar de un toque es decir «lo traje todo»; destachar, «al final no».
-  linea.comprada = comprado ? linea.cantidad : null;
+  // Tachar de un toque es decir «lo traje todo» —pero solo cuando no se había
+  // anotado otra cosa—. Quien escribió que trajo una de dos latas y después
+  // tacha el renglón no está diciendo que trajo dos: está diciendo que ya no
+  // busca más. Sobrescribir ese 1 con un 2 metería en el historial una compra
+  // que no ocurrió.
+  //
+  // Destachar sí lo borra: es «al final no traje nada de esto».
+  if (!comprado) linea.comprada = null;
+  else if (linea.comprada === null || linea.comprada === undefined) linea.comprada = linea.cantidad;
   lista.updatedAt = todayISO();
   return linea;
 }
@@ -1748,6 +1755,41 @@ export function cerrarLista(state, listaId) {
   lista.cerradaEl = todayISO();
   lista.updatedAt = lista.cerradaEl;
   return lista;
+}
+
+/* ── Lo que no se consiguió ────────────────────────────────────────────────
+
+   Una compra se cierra con cosas sin encontrar más veces de las que parece: no
+   había maíz, el colmado cerró temprano, se acabó el dinero. Esas cosas siguen
+   haciendo falta, y la alternativa a trasladarlas es que alguien las vuelva a
+   apuntar una por una de memoria.
+
+   Se traslada lo que falta, no lo que se pidió: de dos latas pedidas y una
+   traída pasa una, no dos. Y solo si la persona lo pide —la lista cerrada es el
+   recuerdo de esa salida y se queda como está, con su fecha, lo que se pidió y
+   lo que se trajo—. */
+
+export function trasladarPendientes(state, origenId, destinoId) {
+  const origen = state.listasDeCompra.find(lista => lista.id === origenId);
+  if (!origen) throw new Error('Esa compra ya no está.');
+  const destino = exigirListaAbierta(state, destinoId);
+  let movidas = 0;
+  for (const linea of origen.lineas) {
+    if (linea.comprado) continue;
+    // `pendienteDe` devuelve null cuando no se pidió cantidad. Ahí se traslada
+    // sin ella, que es lo que había: inventar un 1 sería inventar un dato.
+    const falta = pendienteDe(linea);
+    agregarALista(state, destino.id, {
+      productId: linea.productId || undefined,
+      texto: linea.texto,
+      cantidad: falta,
+      unidad: linea.unidad,
+      rubro: linea.rubro,
+      nota: linea.nota
+    });
+    movidas += 1;
+  }
+  return movidas;
 }
 
 export function reabrirLista(state, listaId) {

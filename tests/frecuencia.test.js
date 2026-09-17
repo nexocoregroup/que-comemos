@@ -219,7 +219,7 @@ test('el asistente pregunta la frecuencia, y dice para qué sirve y para qué no
   assert.ok(html.includes('>Mensual<'));
   // Lo que este dato NO hace, dicho en la propia pantalla: es la promesa que
   // sostiene que no haya que escribir cantidades en ninguna parte.
-  assert.ok(/No divide cantidades ni lleva cuentas/.test(html));
+  assert.ok(/No divide cantidades, no calcula nada y no te impide salir otro día/.test(html));
   // Y que se puede cambiar sin reescribir lo que ya pasó.
   assert.ok(/Lo que ya pasó no se reescribe/.test(html));
 });

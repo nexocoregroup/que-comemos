@@ -7,22 +7,23 @@
 // engranaje, en Ajustes.
 
 import {
-  ESTADOS_SIN_COMIDA, MOMENTOS, SLOTS, SLOTS_PRINCIPALES, UNITS, addDays, actualizarHabitual, agregarHabitual, anotarComidaSuelta, copyPlan, correctReview, correctStock, createEmptyState, dependents, choquesDeLaComida, esOpcional, gravedadDeLaComida,
+  ESTADOS_SIN_COMIDA, MOMENTOS, SLOTS, SLOTS_PRINCIPALES, UNITS, addDays, actualizarHabitual, agregarHabitual, anotarComidaSuelta, copyPlan, createEmptyState, dependents, esOpcional,
   etiquetaDeMomento, exportState, findSimilarProducts, habitualLines, importState, inventoryNow, esActiva, isAbsent, makeRecipePlan, mergeProducts, movePlan, nextId,
   personasActivas, planFor, ponerFrecuencia, product, removeHabitualLine, rubroDe,
-  restriccionesDe, resumenDeLista, reutilizarComida, saveReview, setAbsence, setEquivalence,
-  detalleDeOrigen, etiquetaDeOrigen, origenDe, setReviewScope, setStatusPlan, sliceStyle, todayISO, updatePlan, updateProduct, upsertRecipe
+  resumenDeLista, reutilizarComida, setAbsence, setEquivalence,
+  detalleDeOrigen, etiquetaDeOrigen, origenDe, setStatusPlan, sliceStyle, todayISO, updatePlan, updateProduct, upsertRecipe
 } from './model.js';
 import { clearAll, hasSavedState, loadStateDetailed, saveState } from './storage.js';
 import { BRAND_MARK } from './brand.js';
 import { icono } from './icons.js';
+import { avisoDeAlergias } from './avisos.js';
 import { TOUR_STEPS, WELCOME } from './onboarding.js';
 import { RUBROS, categoriaDelRubro } from './catalog-seed.js';
 import { SETUP_ACTIONS, SETUP_FORMS, avanceGuardado, emptySetup, renderSetup } from './setup.js';
 import { HOGAR_ACTIONS, HOGAR_FORMS, cuerpoDeFicha, emptyHogar, fichaActiva, renderHogar, tocaConfigurarElHogar } from './hogar.js';
 import { BULK_ACTIONS, BULK_FORMS, emptyBulk, renderBulk } from './bulk-entry.js';
 import { SEMANA_ACTIONS, SEMANA_FORMS, emptySemana, modalDia, modalIrAFecha, modalPonerEnDias, renderSemana, tituloDePlan } from './page-semana.js';
-import { COMPRA_ACTIONS, COMPRA_FORMS, emptyCompra, listaEnCurso, renderCompra } from './page-compra.js';
+import { COMPRA_ACTIONS, COMPRA_FORMS, emptyCompra, listaEnCurso, modalPendientes, renderCompra } from './page-compra.js';
 import { MAS_ACTIONS, PAGINAS_MAS, TITULOS_MAS, emptyMas, renderMas } from './page-mas.js';
 import { anotar, falloAnterior, fallosRecientes, instalarRed, olvidarFalloAnterior, protegida } from './fallos.js';
 import { CUENTA_ACTIONS, CUENTA_FORMS, emptyCuenta, renderCuenta, volvimosDeGoogle } from './page-cuenta.js';
@@ -76,8 +77,8 @@ function abrirCajon(cual) {
   }
   ui.welcome = !habiaAlgo;
   ui.tour = null;
-  ui.reviewId = null; ui.correctingReview = false; ui.modal = null;
-  ui.semana = emptySemana(); ui.compra = emptyCompra(mesActual); ui.mas = emptyMas();
+  ui.reviewId = null; ui.modal = null;
+  ui.semana = emptySemana(); ui.compra = emptyCompra(); ui.mas = emptyMas();
   // El asistente de la canasta se retoma donde se dejó: lo marcado vive en el
   // estado, así que abrir la app en otro momento —u otro teléfono— devuelve el
   // mismo rubro con las mismas casillas marcadas.
@@ -85,7 +86,6 @@ function abrirCajon(cual) {
   ui.hogar = emptyHogar();
 }
 const today = todayISO();
-const mesActual = today.slice(0, 7);
 const SIDEBAR_KEY = 'que-comemos-sidebar-collapsed';
 const sidebarInitiallyCollapsed = (() => { try { return localStorage.getItem(SIDEBAR_KEY) === '1'; } catch { return false; } })();
 
@@ -98,9 +98,9 @@ const ui = {
   setup: avanceGuardado(state), bulk: null,
   hogar: emptyHogar(),
   semana: emptySemana(),
-  compra: emptyCompra(mesActual),
+  compra: emptyCompra(),
   mas: emptyMas(),
-  reviewId: null, correctingReview: false,
+  reviewId: null,
   cuenta: emptyCuenta(),
   sesion: null,
   sidebarCollapsed: sidebarInitiallyCollapsed, drawerOpen: false,
@@ -201,7 +201,7 @@ function traerEstadoDeLaNube(estadoRemoto, revision) {
     ponerSesion(guardarSesion(fundirSesion(sesion, { revision: Number(revision) || 0 })));
     hayCambiosSinSubir = false;
     ui.reviewId = null; ui.modal = null;
-    ui.semana = emptySemana(); ui.compra = emptyCompra(mesActual); ui.mas = emptyMas();
+    ui.semana = emptySemana(); ui.compra = emptyCompra(); ui.mas = emptyMas();
     render();
     return true;
   } catch (error) {
@@ -638,7 +638,7 @@ function bloqueDeMeriendas(date) {
     return `<article class="card soft merienda-card"><div class="slot">${esc(etiquetaDeMomento(slot))}</div>
       <div class="meal-title">${esc(tituloDePlan(plan))}</div>
       ${plan.items.length ? queLleva(plan) : ''}
-      ${avisoDeAlergias(plan.items, plan.participants)}
+      ${avisoDeAlergias(state, plan.items, plan.participants)}
       ${button('Ver o cambiar', 'open-meal', 'btn-quiet btn-small', `data-date="${date}" data-slot="${slot}"`)}</article>`;
   }).join('')}</div>`;
 }
@@ -663,7 +663,7 @@ function tarjetaDeComida(slot, date) {
       <div class="meal-people">${plan.participants.length ? `Para ${plan.participants.map(id => esc(personName(id))).join(', ')}` : 'Para quien coma en casa'}</div>
       ${queLleva(plan)}
       ${plan.note ? `<p class="small nota-cocina"><strong>Nota:</strong> ${esc(plan.note)}</p>` : ''}
-      ${avisoDeAlergias(plan.items, plan.participants)}
+      ${avisoDeAlergias(state, plan.items, plan.participants)}
     </div>
     ${button('Ver o cambiar', 'open-meal', 'btn-secondary btn-small', `data-date="${date}" data-slot="${slot}"`)}</article>`;
 }
@@ -756,52 +756,6 @@ function itemRow(item = {}) {
    están en pantalla: el selector de arriba, las casillas de las personas, y el
    botón de guardar. */
 
-const TONO_DE_GRAVEDAD = { 3: 'choque-alergia', 2: 'choque-intolerancia', 1: 'choque-preferencia' };
-const TITULO_DE_GRAVEDAD = {
-  3: 'Ojo: esto es una alergia',
-  2: 'Cuidado: le sienta mal',
-  1: 'Un detalle'
-};
-const VERBO_DE_MOTIVO = {
-  alergia: 'es alérgica a',
-  intolerancia: 'no tolera bien',
-  preferencia: 'prefiere evitar'
-};
-
-/* ── Lo que no se puede comprobar se dice ──────────────────────────────────
-
-   Una preparación sin alimentos anotados no produce ningún choque, y hasta aquí
-   eso se veía igual que una preparación revisada y limpia: en los dos casos no
-   salía nada. Para una casa con una alergia al maní, esas dos cosas no se
-   parecen en nada.
-
-   Así que cuando no hay nada que mirar y sí hay alguien que evita algo, se dice.
-   No es una alarma —no se sabe que haya un problema— pero tampoco es silencio,
-   que es lo que se leería como «revisado y todo bien». */
-
-function avisoDeAlergias(items, participants, { conSalidas = false } = {}) {
-  const hayRestricciones = state.people.some(persona => restriccionesDe(persona).length);
-  if (!items.length && hayRestricciones) {
-    return `<div class="choque choque-sinsaber" role="status">
-      <div class="choque-cabeza"><span class="choque-marca" aria-hidden="true">?</span><strong>No se puede comprobar</strong></div>
-      <p class="tiny">Esta preparación no tiene alimentos anotados, así que la app <strong>no ha revisado nada</strong>: no puede decir si choca con lo que alguien de la casa evita. Anota los alimentos que lleva y sí podrá avisarte.</p>
-    </div>`;
-  }
-  return avisoDeChoques(choquesDeLaComida(state, items, participants), { conSalidas });
-}
-
-function avisoDeChoques(choques, { conSalidas = false } = {}) {
-  if (!choques.length) return '';
-  const peor = gravedadDeLaComida(choques);
-  const lineas = choques.map(choque =>
-    `<li><strong>${esc(choque.persona)}</strong> ${esc(VERBO_DE_MOTIVO[choque.motivo] || 'evita')} <strong>${esc(choque.producto)}</strong>${choque.motivo ? '' : ' <span class="muted">(sin decir por qué)</span>'}</li>`).join('');
-  return `<div class="choque ${TONO_DE_GRAVEDAD[peor] || 'choque-intolerancia'}" role="${peor === 3 ? 'alert' : 'status'}">
-    <div class="choque-cabeza"><span class="choque-marca" aria-hidden="true">${peor === 3 ? icono('aviso', { tamano: 17 }) : peor === 2 ? '!' : '·'}</span><strong>${esc(TITULO_DE_GRAVEDAD[peor] || 'Ojo')}</strong></div>
-    <ul class="choque-lista">${lineas}</ul>
-    ${conSalidas ? '<p class="tiny">Puedes cambiar la preparación, quitar a esa persona de esta comida, o dejarla como está si le vas a hacer otra cosa. La app no te lo impide.</p>' : ''}
-  </div>`;
-}
-
 /* ── ¿Para toda la casa, o solo para algunos? ──────────────────────────────
 
    Por defecto, para toda la casa: no se pregunta nada. Las casillas de las
@@ -862,6 +816,7 @@ function renderModal() {
       `<button type="button" class="quick-item" data-action="${action}" ${extra}><span class="quick-icon">${icono(dibujo, { tamano: 24 })}</span><span class="quick-text"><strong>${esc(titulo)}</strong><span>${esc(detalle)}</span></span></button>`).join('')}</div>`);
   }
 
+  if (m.type === 'compra-pendientes') return modalPendientes(ctx(), m);
   if (m.type === 'ir-a-fecha') return modalIrAFecha(ctx());
 
   if (m.type === 'poner-en-dias') return modalPonerEnDias(ctx(), m);
@@ -873,8 +828,8 @@ function renderModal() {
 
   /* ── Una preparación ──────────────────────────────────────────────────────
 
-     Seis cosas en orden y ninguna escondida: nombre, cuándo se come, qué lleva,
-     cuánto rinde, la nota de quien cocina, y guardar.
+     Cuatro cosas en orden y ninguna escondida: nombre, cuándo se come, qué
+     lleva, y la nota de quien cocina.
 
      Lo que se fue: «¿quiénes la comen normalmente?». Se preguntaba aquí y se
      volvía a preguntar al ponerla en el calendario, y de las dos respuestas la
@@ -935,7 +890,6 @@ function renderModal() {
     return modal('Más opciones', item?.name || '', `<div class="opcion-larga">
       <button type="button" class="radio-bloque" data-action="open-equivalence" data-id="${m.id}"><span><strong>Cómo lo compras</strong>Si lo cuentas de una forma y lo compras de otra —ruedas y paquetes, por ejemplo—, aquí se dice cuánto trae cada uno.</span></button>
       <button type="button" class="radio-bloque" data-action="open-merge" data-id="${m.id}"><span><strong>Unir con otro alimento</strong>Si el mismo alimento quedó anotado dos veces con nombres distintos, esto junta las dos fichas en una y le pasa todo su historial.</span></button>
-      <button type="button" class="radio-bloque" data-action="open-correction" data-id="${m.id}"><span><strong>Corregir lo que hay</strong>Si se dañó algo, o el conteo no cuadra.</span></button>
       <button type="button" class="radio-bloque" data-action="archive-product" data-id="${m.id}"><span><strong>Archivar</strong>Deja de aparecer en las listas, pero su historial se conserva entero. Se puede reactivar cuando quieras.</span></button>
     </div>`);
   }
@@ -989,16 +943,6 @@ function renderModal() {
   }
 
   if (m.type === 'bulk') return modal('Escribir varios', 'De corrido, como se habla. La app lo separa y tú revisas antes de guardar.', renderBulk({ ...ctx(), bulk: ui.bulk }), true);
-
-  if (m.type === 'correction') {
-    const elegido = m.id || state.products[0]?.id;
-    return modal('Corregir un conteo viejo', 'Para arreglar una cifra de cuando la app llevaba la cuenta de la despensa.',
-      `<form data-form="correction" class="stack">
-        <label class="field"><span>¿Qué alimento?</span><select name="productId" required>${productOptions(elegido)}</select></label>
-        <label class="field"><span>¿Qué cifra debería decir?</span><input name="actual" type="number" min="0" step="any" inputmode="decimal" value="${inventoryNow(state)[elegido] || 0}" required></label>
-        <label class="field"><span>¿Por qué? (opcional)</span><input name="reason" placeholder="Ej. se dañaron 2"></label>
-        <div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar</button></div></form>`);
-  }
 
   if (m.type === 'absence') return modal('Alguien no come en casa', '',
     `<form data-form="absence" class="stack"><div class="form-grid">
@@ -1057,7 +1001,7 @@ function modalComida(m) {
         <select name="sobroDe">${options(anteriores.map(item => [item.id, `${item.title} · ${niceDate(item.date, { weekday: 'short', day: 'numeric', month: 'short' })}, ${etiquetaDeMomento(item.slot).toLocaleLowerCase('es')}`]), anteriores[0]?.id)}</select></label>
         <p class="hint">No se pregunta cuánto: cuánto sobró lo sabes tú. Queda anotado de dónde viene, y avisamos antes de borrar esa comida.</p>`) : ''}
       ${bloqueDeQuienCome('participants', marcados, m.date, m.slot, { abierto: bloqueDeQuienComeAbierto(ui) })}
-      <div data-choque>${avisoDeAlergias(opciones[0]?.items || [], marcados, { conSalidas: true })}</div>
+      <div data-choque>${avisoDeAlergias(state, opciones[0]?.items || [], marcados, { conSalidas: true })}</div>
       <button type="submit" class="btn btn-primary">Poner esta comida</button>
       </form>
       <div class="divider"></div>
@@ -1086,7 +1030,7 @@ function modalComida(m) {
         <button type="submit" class="btn btn-secondary btn-small">Cambiar solo este día</button>
       </form>` : ''}
      ${plan.kind === 'linked' ? queLleva(plan) : dependents(state, plan.id).length ? `<div class="notice warn">${icono('aviso')}<div><strong>De esta comida se come otro día.</strong>Cocina de más, o guarda una parte antes de servir.</div></div>` : ''}
-     <div data-choque>${avisoDeAlergias(plan.items, plan.participants, { conSalidas: true })}</div>
+     <div data-choque>${avisoDeAlergias(state, plan.items, plan.participants, { conSalidas: true })}</div>
      <form data-form="plan" data-id="${plan.id}">
       <div class="form-grid">
         <label class="field"><span>Nombre</span><input name="title" value="${esc(plan.title)}" required></label>
@@ -1325,13 +1269,9 @@ document.addEventListener('click', event => {
     else if (action === 'open-move') openModal('move', { id: el.dataset.id });
     else if (action === 'open-copy') openModal('copy', { id: el.dataset.id });
     // Salir del callejón: se escribe la primera preparación y se vuelve aquí.
-    else if (action === 'open-correction') openModal('correction', { id: el.dataset.id });
     else if (action === 'open-absence') openModal('absence');
     else if (action === 'open-import') openModal('import');
-    else if (action === 'review-mode') { const review = state.reviews.find(item => item.id === el.dataset.id); if (review && review.status === 'draft') { review.mode = el.dataset.mode; commit(''); } }
-    else if (action === 'select-review') { ui.reviewId = el.dataset.id; ui.correctingReview = false; ui.page = 'revision'; render(); }
-    else if (action === 'toggle-correct-review') { ui.correctingReview = !ui.correctingReview; render(); }
-    else if (action === 'review-scope') { setReviewScope(state, el.dataset.id, el.dataset.origen); commit(''); }
+    else if (action === 'select-review') { ui.reviewId = el.dataset.id; ui.page = 'revision'; render(); }
     // Quitar uno de los habituales ya no espera a ningún botón de guardar: la
     // pantalla dejó de ser un formulario. Lo que se compró antes no se toca;
     // solo deja de aparecer de aquí en adelante.
@@ -1390,7 +1330,7 @@ document.addEventListener('click', event => {
       // guardar encima las dejaba todas.
       clearAll();
       state = createEmptyState(); loadError = ''; ui.modal = null; ui.reviewId = null;
-      ui.semana = emptySemana(); ui.compra = emptyCompra(mesActual); ui.mas = emptyMas();
+      ui.semana = emptySemana(); ui.compra = emptyCompra(); ui.mas = emptyMas();
       ui.page = 'hoy';
       commit('Datos borrados. Ya puedes empezar con los tuyos.');
     }
@@ -1436,15 +1376,13 @@ function pintarChoques(form) {
   const plan = state.plans.find(item => item.id === form.dataset.id);
   const items = receta?.items || plan?.items || [];
   const marcados = [...form.querySelectorAll('[name="participants"]')].filter(input => input.checked || input.type === 'hidden').map(input => input.value);
-  caja.innerHTML = avisoDeAlergias(items, marcados, { conSalidas: true });
+  caja.innerHTML = avisoDeAlergias(state, items, marcados, { conSalidas: true });
 }
 
 /* ── Cambios y escritura ───────────────────────────────────────────────── */
 
 document.addEventListener('change', event => {
   const el = event.target;
-  if (el.id === 'compra-desde') { ui.compra.desde = el.value; render(); }
-  if (el.id === 'compra-hasta') { ui.compra.hasta = el.value; render(); }
   if (el.id === 'assign-recipe') pintarChoques(el.closest('form'));
   // Marcar o desmarcar a alguien cambia el aviso: puede que el choque fuera con
   // esa persona, o puede que aparezca uno nuevo.
@@ -1469,8 +1407,8 @@ document.addEventListener('input', event => {
   // nada hasta pulsar Intro o salir del campo.
   const buscadores = {
     'alimento-filtro': valor => { ui.mas.filtroAlimento = valor; },
-    'revision-filtro': valor => { ui.mas.revisionFiltro = valor; },
     'receta-filtro': valor => { ui.mas.recetaFiltro = valor; },
+    'compra-buscar': valor => { ui.compra.busqueda = valor; },
     'setup-buscar': valor => { ui.setup.busqueda = valor; }
   };
   const escribir = buscadores[event.target.id];
@@ -1660,14 +1598,6 @@ document.addEventListener('submit', async event => {
       else copyPlan(state, form.dataset.id, data.get('date'), data.get('slot'));
       ui.modal = null; commit(form.dataset.operation === 'move' ? 'Movida.' : 'Copiada.');
     }
-    else if (kind === 'review') {
-      const revision = state.reviews.find(item => item.id === form.dataset.id);
-      const valores = Object.fromEntries(revision.productIds.map(id => [id, data.get(`consume-${id}`)]));
-      const intencion = event.submitter?.value || 'save';
-      if (intencion === 'correct') { correctReview(state, revision.id, valores); ui.correctingReview = false; commit('Corregida. Las cuentas se rehicieron.'); }
-      else { saveReview(state, revision.id, valores, intencion === 'confirm'); commit(intencion === 'confirm' ? 'Listo. El consumo se descontó una sola vez.' : 'Guardada a medias. Puedes seguir cuando quieras.'); }
-    }
-    else if (kind === 'correction') { correctStock(state, data.get('productId'), data.get('actual'), data.get('reason')); ui.modal = null; commit('Corregido.'); }
     else if (kind === 'absence') {
       const fecha = data.get('date'), slot = data.get('slot');
       for (const persona of state.people) setAbsence(state, fecha, slot, persona.id, selected(form, 'absent').includes(persona.id));
@@ -1679,7 +1609,7 @@ document.addEventListener('submit', async event => {
       const traido = importState(await archivo.text());
       if (!window.confirm('¿Reemplazar todo lo que hay ahora con esta copia?')) return;
       state = traido; loadError = ''; ui.modal = null; ui.reviewId = null;
-      ui.semana = emptySemana(); ui.compra = emptyCompra(mesActual); ui.mas = emptyMas();
+      ui.semana = emptySemana(); ui.compra = emptyCompra(); ui.mas = emptyMas();
       commit('Copia traída.');
     }
   } catch (error) {
