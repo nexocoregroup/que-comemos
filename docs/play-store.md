@@ -278,15 +278,16 @@ Cada mes empieza ya preparado, y tú solo revisas lo que va a ser diferente.
 
 LO QUE SE ESCRIBE UNA SOLA VEZ
 
-Tu canasta habitual: lo que normalmente se compra en tu casa. Plátanos, arroz,
-huevos, salami, atún, queso. Se escribe una vez y se usa todos los meses.
+Tus productos habituales: lo que normalmente se compra en tu casa. Plátanos,
+arroz, huevos, salami, atún, queso. Se marcan una vez, sin pedirte cantidades, y
+están ahí cada vez que preparas una compra.
 
 Tus rutinas: "plátano maduro con huevo, desayuno, lunes miércoles viernes y
 sábado". Con una sola acción se llenan todos esos desayunos del mes, sobre las
 fechas reales del calendario.
 
-Cuando el hábito de la casa cambia de verdad, cambias la canasta. Lo demás es
-la excepción de ese mes, y se queda en ese mes.
+Cuando el hábito de la casa cambia de verdad, cambias la regla. Lo demás es la
+excepción de ese día o de ese mes, y se queda ahí.
 
 
 CUATRO PANTALLAS, NI UNA MÁS
@@ -297,18 +298,20 @@ para quién es cada cosa y qué hay que apartar. Nada de configuraciones.
 PLAN MENSUAL. El progreso del mes y el recorrido de "Preparar este mes": cinco
 pantallas cortas, una pregunta cada una.
 
-LA COMPRA. Una sola lista y una sola cuenta: lo que tu casa consume al mes,
-más lo que cambia este mes, menos lo que ya queda en casa. Cada línea dice de
-dónde sale.
+LA COMPRA. La lista de un viaje al colmado. Tus productos habituales están ahí
+agrupados por rubros para no tener que acordarte de todo: tocas lo que hace
+falta esta vez, dices cuánto, y vas tachando en el supermercado. Si pediste 2 y
+solo había 1, se anota 1 y queda 1 pendiente.
 
 MÁS. Todo lo demás, ordenado por la frecuencia real con que hace falta.
 
 
-¿CUÁNTO QUEDA? (NO "¿CUÁNTO SE CONSUMIÓ?")
+LO QUE ESTA APP NO HACE
 
-La diferencia parece pequeña y no lo es. Lo primero se contesta abriendo la
-nevera y mirando. Lo segundo obliga a recordar toda la semana y restar de
-cabeza. La app hace la resta: había 8 plátanos, quedan 2, se consumieron 6.
+No lleva inventario de tu despensa. No calcula cuánto tienes que comprar. No
+cuenta calorías ni propone dietas. Decides tú qué entra en la lista y en qué
+cantidad; lo que hace la app es acordarse por ti de lo que esta casa compra de
+costumbre, y tener el mes ya puesto para que solo corrijas lo diferente.
 
 
 COMIDAS FUERA DE CASA
@@ -321,21 +324,25 @@ rutina.
 
 HABLAR EN VEZ DE ESCRIBIR
 
-Se puede dictar: "quedan dos plátanos, diez huevos y media libra de queso". El
+Se puede dictar: "dos latas de atún, diez huevos y media libra de queso". El
 reconocimiento de voz es el de tu propio Android, el mismo del micrófono del
-teclado. Escribir a mano funciona siempre, con micrófono o sin él.
+teclado. Si tu teléfono trae el idioma instalado, la voz no sale del aparato; si
+no lo trae, Android manda el audio a sus servidores para entenderlo. La app lo
+comprueba y te lo dice antes de abrir el micrófono. Escribir a mano funciona
+siempre, con micrófono o sin él.
 
 
-TUS DATOS SE QUEDAN EN TU TELÉFONO
+TUS DATOS SE QUEDAN EN TU TELÉFONO, SALVO QUE TÚ DIGAS OTRA COSA
 
 Esto no es un eslogan, es cómo está hecha:
 
-- Sin cuentas. Sin registro, sin correo, sin contraseña.
-- Sin conexión. Funciona completa en modo avión.
-- Sin anuncios, sin analítica, sin rastreadores.
-- El desarrollador no recibe ningún dato tuyo. Ninguno.
-- La copia automática de Android está desactivada a propósito: tu despensa no
-  se sube a la nube.
+- La cuenta es opcional. La app entera funciona sin registrarse: sin correo,
+  sin contraseña y sin una sola llamada a la red.
+- Subir los datos es una segunda decisión aparte, con su propio interruptor.
+  Sirve para recuperar tu casa al cambiar de teléfono, y viene apagada. Si la
+  enciendes, tus datos se guardan en un servidor para que puedas bajarlos.
+- Sin anuncios, sin analítica, sin rastreadores. Nunca.
+- La copia automática de Android está desactivada a propósito.
 
 Como todo vive en tu teléfono, las copias te tocan a ti: Más, Respaldo, y
 guardas el archivo donde quieras.
@@ -414,9 +421,9 @@ $bt = Get-ChildItem "$env:LOCALAPPDATA\Android\Sdk\build-tools" -Directory | Sor
 1. **Hoy** — el desayuno y el almuerzo con sus cantidades. Es lo que la gente va a ver todos los días.
 2. **Plan mensual** — el progreso del mes y las rutinas de la casa.
 3. **Editar la rutina** — «todos los lunes, miércoles, viernes y sábados». Es la idea central de la app, y por eso se abre una rutina que ya existe en vez de un formulario en blanco.
-4. **La compra** — la lista con lo que queda en casa junto a cada línea.
-5. **¿Cuánto queda?** — la revisión con la resta hecha: «había 16 ruedas, se consumió 14».
-6. **Mi canasta habitual** — lo que se escribe una sola vez.
+4. **Preparar la compra** — los productos habituales por rubros, con el buscador.
+5. **Mi lista** — lo pendiente arriba y lo comprado tachado al final.
+6. **Mis productos habituales** — lo que se marca una sola vez.
 
 Para rehacerlas hay que tener el servidor en marcha (`npm start`). Si cambia el orden de una pantalla y la captura sale en otro sitio, se ajusta `desplazar` en `tools/capturas.js`, que es la única cosa de ahí que depende de cómo esté puesta la app hoy.
 

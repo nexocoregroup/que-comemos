@@ -49,16 +49,12 @@ const ir = pagina => `document.querySelector('[data-action="navigate"][data-page
 
 // Rellena las casillas de la revisión para que se vea lo que la pantalla hace:
 // restar. Vacía no enseña nada, y «la resta hecha» es justo la idea que hay que
-// contar. Se escriben cantidades creíbles y se avisa a la app como si las
-// hubiera tecleado alguien.
-const RELLENAR_REVISION = `
-  const casillas = [...document.querySelectorAll('input[name^="consume-"]')].slice(0, 4);
-  const valores = [2, 1, 3, 1];
-  casillas.forEach((casilla, i) => {
-    casilla.value = String(valores[i % valores.length]);
-    casilla.dispatchEvent(new Event('input', { bubbles: true }));
-  });
-  return casillas.length;`;
+// contar. Una lista con todo pendiente no enseña nada: lo que hay que ver es
+// que lo comprado se tacha y baja al final, así que se marcan un par de líneas.
+const MARCAR_COMPRADO = `
+  const tachar = [...document.querySelectorAll('[data-action="compra-tachar"]')].slice(0, 2);
+  for (const boton of tachar) { boton.click(); await new Promise(r => setTimeout(r, 250)); }
+  return tachar.length;`;
 
 const PANTALLAS = [
   {
@@ -89,29 +85,26 @@ const PANTALLAS = [
   },
   {
     archivo: '4-compra.png',
-    titulo: 'La compra — de dónde sale cada línea',
-    // Hasta la lista. Arriba solo hay avisos, y un aviso no enseña para qué
+    titulo: 'Preparar la compra — tus productos, por rubros',
+    // Hasta los rubros. Arriba solo hay avisos, y un aviso no enseña para qué
     // sirve la pantalla.
     hacer: ir('compra'),
     desplazar: 620
   },
   {
-    archivo: '5-cuanto-queda.png',
-    titulo: '¿Cuánto queda? — la resta ya hecha',
+    archivo: '5-mi-lista.png',
+    titulo: 'Mi lista — lo pendiente arriba, lo comprado tachado',
     hacer: `${ir('compra')};
       await new Promise(r => setTimeout(r, 400));
-      document.querySelector('[data-action="open-new-review"]')?.click();
+      [...document.querySelectorAll('[data-action="compra-vista"]')]
+        .find(b => /mi lista/i.test(b.textContent))?.click();
       await new Promise(r => setTimeout(r, 500));
-      // El modal solo pregunta de qué día. La pantalla que interesa es la de
-      // después.
-      document.querySelector('[data-form="new-review"]')?.requestSubmit();
-      await new Promise(r => setTimeout(r, 700));
-      ${RELLENAR_REVISION}`,
+      ${MARCAR_COMPRADO}`,
     desplazar: 260
   },
   {
-    archivo: '6-canasta.png',
-    titulo: 'Mi canasta habitual — se escribe una sola vez',
+    archivo: '6-habituales.png',
+    titulo: 'Mis productos habituales — se marcan una sola vez',
     hacer: `${ir('mas')};
       await new Promise(r => setTimeout(r, 400));
       document.querySelector('[data-action="navigate"][data-page="canasta"]')?.click();`,

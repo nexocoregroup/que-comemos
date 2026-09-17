@@ -1,8 +1,8 @@
 # ¿Qué comemos?
 
-Aplicación local para organizar las comidas de una casa y calcular la compra. Los datos viven en el dispositivo y la app funciona entera sin cuenta y sin conexión: sin sesión iniciada no hace ni una llamada a la red. La cuenta es opcional —sirve para recuperar la casa al cambiar de teléfono— y subir los datos a ella es una segunda decisión aparte, con su propio interruptor; las dos vienen apagadas. La interfaz y los datos de demostración están en español dominicano. Las cantidades del ejemplo son datos de prueba, no recomendaciones nutricionales.
+Aplicación local para decidir en familia qué se desayuna, se almuerza y se cena, y para llevar la lista al colmado. Los datos viven en el dispositivo y la app funciona entera sin cuenta y sin conexión: sin sesión iniciada no hace ni una llamada a la red. La cuenta es opcional —sirve para recuperar la casa al cambiar de teléfono— y subir los datos a ella es una segunda decisión aparte, con su propio interruptor; las dos vienen apagadas. La interfaz y los datos de demostración están en español dominicano. Las cantidades del ejemplo son datos de prueba, no recomendaciones nutricionales.
 
-**La regla que gobierna el diseño:** lo habitual se escribe **una sola vez**. Cada mes empieza ya preparado y el usuario solo registra las excepciones. Marcar «Arroz» en el catálogo inicial lo registra como alimento y lo pone en la canasta habitual; guardar «mangú con salami, martes y jueves de desayuno» llena todos los martes y jueves reales del mes de una vez.
+**La regla que gobierna el diseño:** lo habitual se escribe **una sola vez**. Cada mes empieza ya preparado y el usuario solo registra las excepciones. Marcar «Arroz» en el catálogo inicial lo registra como alimento y lo pone en tus productos habituales —sin pedir cantidades—; guardar «mangú con salami, los lunes de desayuno» llena todos los lunes reales del mes de una vez.
 
 ## Ejecutar
 
@@ -31,10 +31,10 @@ La navegación tiene cuatro destinos, y solo cuatro. Antes tenía siete, y cuatr
 
 - **Hoy** — para quien cocina. El desayuno, el almuerzo y la cena con sus cantidades, para quién es cada cosa, qué hay que apartar para otro día y la nota de quien organizó. Nada de configuraciones ni de cálculos.
 - **Plan mensual** — la pantalla principal. El progreso del mes, las rutinas de la casa y el recorrido de «Preparar este mes».
-- **Compra** — una sola lista, una sola cuenta.
-- **Más** — todo lo demás, ordenado por la frecuencia real con que hace falta: mi canasta habitual, preparaciones, familia y restricciones, revisar lo que queda, alimentos de la casa, historial, respaldo y ajustes.
+- **Compra** — la lista de un viaje al colmado: se prepara desde los productos habituales y se va tachando.
+- **Más** — todo lo demás, ordenado por la frecuencia real con que hace falta: mis productos habituales, preparaciones, familia y restricciones, alimentos de la casa, historial, respaldo y ajustes.
 
-El botón **+** tiene cuatro acciones, no once: poner una comida, hablar o dictar, anotar una compra, añadir un alimento.
+El botón **+** tiene cinco acciones, no once: poner una comida, crear una preparación, hablar o dictar, preparar la compra, añadir un alimento.
 
 En computadora, el botón ☰ junto al título retrae o muestra el menú lateral. En celular el menú está oculto: ☰ arriba a la izquierda lo abre y ‹ lo cierra.
 
@@ -150,33 +150,39 @@ Dentro de una comida, la app distingue las dos cosas que se confunden: **«Cambi
 
 ## La compra
 
-Una sola pantalla y una sola cuenta:
+Una lista para **un viaje al colmado**, no un inventario. La app no sabe lo que
+queda en la despensa y no lo calcula: decide la persona.
+
+*Preparar la compra* enseña tus productos habituales agrupados por rubros, con
+buscador. Se toca uno, se dice cuánto llevar **esta vez** —«maíz en lata → 2
+latas»— y entra en la lista. Que algo esté entre los habituales no significa que
+hoy haga falta: el catálogo está ahí para no tener que acordarse de todo, no
+para llenar la lista solo. También se puede apuntar algo que no está en la
+lista, y entonces pregunta si es solo de esta compra o pasa a las de siempre.
+
+*Mi lista* pone lo pendiente arriba. Un toque marca comprado, la línea se tacha
+y baja al final; se puede desmarcar. Si la lista pedía 2 latas y solo había 1,
+se anota 1 comprada y queda 1 pendiente. Al terminar se guarda con su fecha, lo
+que se pidió y lo que se trajo, y se abre una lista nueva vacía para el próximo
+viaje. Mensual, quincenal o un viaje extra a media semana: no hay que esperar a
+que toque.
+
+### Lo que la app dejó de hacer
+
+Hubo una versión que calculaba la compra:
 
 > lo que tu casa consume al mes + lo que cambia este mes − lo que ya queda en casa
 
-La versión anterior abría con tres botones —Menú, Canasta base, Este mes— y obligaba a elegir una «base de cálculo» antes de ver un solo alimento. Eso es una pregunta de programador.
+Con su libro de existencias, su pantalla de «¿cuánto queda?» y su cálculo desde
+el menú. Se retiró entero. Obligaba a mantener un inventario al día para que la
+cuenta saliera, y una casa no lleva inventario: mira la nevera y decide.
 
-Cada línea dice de dónde sale: de siempre, con la cantidad cambiada este mes, o extra de este mes. Debajo, plegados, quedan lo que ya alcanza en casa, lo que se anota a mano sin seguimiento —detergente, servilletas— y el historial.
-
-Calcular **desde el menú** sigue existiendo, dentro de *Opciones avanzadas* y con su explicación al lado: suma los alimentos de las comidas planificadas, lo que es más exacto para quien planifica comida por comida y peor si deja huecos. **Las dos cuentas no se suman nunca**: el mismo arroz saldría contado dos veces, una por estar en la canasta y otra por estar dentro de una preparación.
-
-Las comidas fuera de casa afectan al cálculo que sale del menú, porque esas comidas no tienen alimentos. Al calcular desde la canasta **se avisan pero no se descuentan**: almorzar fuera dos domingos no hace que la casa gaste menos detergente, y recortar «a ojo» dejaría la compra corta.
-
-## La revisión: ¿cuánto queda?
-
-La pregunta es **¿cuánto queda?**, no «¿cuánto se consumió?». La diferencia parece pequeña y no lo es: lo primero se contesta abriendo la nevera y mirando; lo segundo obliga a recordar toda la semana y a restar de cabeza. La app hace la resta:
-
-> Había 8 plátanos. Quedan 2. Se consumieron 6.
-
-Se puede revisar solo lo relevante, buscar un alimento, guardar a medias, terminar, corregir después y dictar varias cantidades de corrido. Quien prefiera el método de antes tiene el interruptor de arriba.
-
-No ocupa una pestaña principal: aparece como tarea del día en *Hoy* y en *Compra* el día que toca, configurable en *Más → Ajustes*.
-
-## Lo que mueve y lo que no mueve el inventario
-
-El inventario es un **libro de movimientos**, no un número que se edita. Lo mueven tres cosas y solo tres: las **compras confirmadas** (suman), las **revisiones confirmadas** (restan) y las **correcciones de conteo** (ajustan en cualquier dirección).
-
-Planificar comidas no descuenta nada. La lista sugerida no cambia nada. Abrir un mes no cambia nada. Eso es lo que permite corregir una revisión vieja y que todos los saldos posteriores se recalculen solos.
+Lo que se escribió con aquella versión **no se borró**. El historial se lee tal
+cual, con un aviso encima que dice lo que es: cantidades anotadas entonces, que
+no dicen lo que hay hoy en la despensa. La pantalla de las revisiones viejas
+sigue accesible y en solo lectura; unir dos alimentos repetidos y corregir un
+conteo a mano siguen existiendo dentro de *Funciones avanzadas*, porque quien
+tenga aquellos datos puede necesitar arreglarlos.
 
 ## El asistente
 
@@ -190,9 +196,9 @@ Lo que la frase no dijo se pregunta, y solo eso: «todos los viernes» no elige 
 
 Lo que no hace nunca: ejecutar código, escribir directamente en el almacenamiento, inventar alimentos o cantidades, cambiar rutinas permanentes en silencio, confundir «este mes» con «todos los meses», pisar comidas existentes sin confirmar, ni **tocar un período ya cerrado** —eso se lee tal como quedó; para corregirlo hay que reabrirlo a mano desde Más → Historial—.
 
-## Dictar: lo hace el teléfono
+## Dictar: lo hace el teléfono, cuando puede
 
-El reconocimiento de voz es el de Android, **dentro del aparato**. No hace falta cuenta, ni clave, ni servidor, y no cuesta dinero.
+El reconocimiento de voz es el de Android. Cuando el teléfono trae el idioma instalado, la voz **no sale del aparato**; cuando no lo trae, Android manda el audio a sus servidores para entenderlo —lo hace el sistema, no esta app, pero pasa igual—. La app lo comprueba y lo dice en pantalla antes de abrir el micrófono. No hace falta cuenta, ni clave, ni servidor, y no cuesta dinero.
 
 Este fue un error de diseño corregido: la primera versión mandaba la voz a un servidor que el usuario tenía que montar. Una casa corriente no despliega un servidor, y pedirlo convertía una función útil en una que nadie iba a usar.
 
@@ -224,7 +230,7 @@ Lo que ninguna app puede evitar: que alguien coja el teléfono desbloqueado, o q
 
 ## Respaldos y migración
 
-Los datos se guardan en `localStorage` **solo en ese navegador y dispositivo**, sin sincronización. *Más → Respaldo* escribe un JSON; traerlo de vuelta reemplaza los datos actuales.
+Sin cuenta, los datos se guardan en `localStorage` **solo en ese navegador y dispositivo**. Con cuenta y con el interruptor de sincronizar encendido, suben al servidor para poder bajarlos en otro teléfono; las dos cosas vienen apagadas. *Más → Respaldo* escribe un JSON; traerlo de vuelta reemplaza los datos actuales.
 
 El esquema va por la **versión 10**. Un respaldo de cualquier versión anterior se convierte al importarlo y al cargarlo, en cadena. Cada paso está escrito y comentado en `src/migrate.js`; estos son los dos primeros y el último:
 
@@ -353,15 +359,15 @@ Esta elección es una hipótesis de diseño, no una afirmación de que un color 
 - **La sincronización entre dispositivos está sin probar en uso real.** El código de la cuenta y del sincronizado existe y tiene pruebas, pero nadie lo ha usado todavía con dos teléfonos de verdad. Viene apagada.
 - **La lectura de facturas por fotografía se eliminó.** No funcionaba lo bastante bien y arrastraba los modelos de OCR dentro del APK. Con ella se fueron el complemento de cámara, el de sistema de archivos, el de reconocimiento de texto y los permisos de cámara y de galería.
 - Una rutina reparte por día de la semana. No sabe de feriados, de visitas ni de que en diciembre se come distinto: eso se resuelve como excepción del mes.
-- Las cantidades habituales de Familia no se aplican solas: hay que pedirlas, y lo que traen es la suma de las personas que la preparación cubre, sin ajustar por quién falta ese día.
+- Las cantidades habituales de Familia son un dato de consulta y no se aplican solas: hay que pedirlas, y lo que traen es la suma de las personas que la preparación cubre, sin ajustar por quién falta ese día.
 - El grosor de rueda es una etiqueta, no un factor: cambiarlo no recalcula ninguna equivalencia guardada.
-- La canasta se reparte por días del período y nada más.
+- Los tramos de los productos habituales guardan desde cuándo vale cada cantidad, y nada más.
 - Las equivalencias no se infieren y las unidades incompatibles no se convierten. Sin la equivalencia, la compra avisa de que la lista está incompleta en vez de dar un número equivocado.
-- La lista para un período futuro usa las existencias de hoy hasta que registres consumo real.
+- La lista de la compra no mira ningún período: es la de este viaje al colmado.
 - El dictado es de la **aplicación instalada**; en el navegador se usa el del navegador, que necesita conexión.
 - El reconocimiento de voz dentro del aparato depende del teléfono y del paquete de idioma. La app lo comprueba antes de prometerlo.
 - El asistente entiende frases por su forma. Para lenguaje totalmente libre haría falta un modelo que no cabe en la aplicación.
-- Los alimentos creados desde la canasta o desde un texto **nacen con cero existencias**: la primera lista de compra pedirá de más si ya tenías cosas en casa. Se arregla con una corrección de conteo.
+- Los alimentos creados desde los habituales o desde un texto nacen sin cantidad y sin existencias, que es lo correcto: la app no lleva la cuenta de lo que hay en casa.
 
 ## Estructura del proyecto
 
