@@ -268,6 +268,7 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
    lateral: es el único sitio donde se toca con el pulgar sin mirar. */
 .mobile-nav button .nav-icon { width: 22px; height: 22px; }
 
+
 /* La pantalla vacía. El dibujo es lo primero que se ve, así que va en
    terracota y con aire debajo. */
 .empty-ico {
@@ -392,18 +393,42 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
 /* ── Cinco secciones, y un engranaje ───────────────────────────────────────
 
    La barra de abajo pasó de cuatro columnas a cinco. Con cinco, cada una mide
-   unos setenta píxeles en un teléfono de 360, así que la etiqueta baja de
-   cuerpo y el icono se encoge un punto: lo que no puede pasar es que «Preparo»
-   se parta en dos líneas y descuadre la fila entera.
+   setenta píxeles en un teléfono de 360, y sesenta y ocho después del relleno.
+   Ahí tienen que caber cinco palabras enteras.
+
+   Lo que pasó, y conviene que quede escrito: esta hoja se afinó cuando la
+   quinta etiqueta era «Preparo». Después la etiqueta creció a «Preparaciones»
+   —trece letras— y nadie volvió aquí. Para que aquella palabra cupiera se
+   encogió toda la barra a 9,28 píxeles de cuerpo, y **aun así no cabía**: pedía
+   70,2 y tenía 68, así que en un teléfono de 360 la quinta salía cortada por el
+   `text-overflow`. Las otras cuatro, que piden entre 19 y 50, llevaban años
+   achicadas para nada.
+
+   Ninguna letra legible arregla eso: a 12 píxeles «Preparaciones» necesita 83.
+   Así que la etiqueta corta vuelve a ser corta —está en `NAV`, en app.js, que
+   es donde viven los nombres— y aquí el cuerpo vuelve a leerse. Con «Productos»
+   como la más larga de las cinco, 12 píxeles dejan margen de sobra.
+
+   El `text-overflow` se queda de red, no de plan: hoy no lo toca ninguna, pero
+   un teléfono más estrecho de lo que soportamos vale más que corte una palabra
+   a que descuadre la fila entera.
 
    El engranaje no está en la barra. Cinco secciones más un sexto botón serían
    seis columnas de sesenta píxeles, y Ajustes no es una sección: es donde se
    entra una vez cada muchos meses. Va arriba, junto al nombre de la app, que es
    donde se busca un engranaje. */
 .mobile-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-.mobile-nav button { font-size: .58rem; padding: 5px 1px; gap: 2px; line-height: 1.1; min-width: 0; }
+.mobile-nav { padding-inline: 3px; }
+.mobile-nav button { font-size: .75rem; padding: 5px 1px; gap: 3px; line-height: 1.15; min-width: 0; }
 .mobile-nav button { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mobile-nav button .nav-icon { width: 21px; height: 21px; }
+.mobile-nav button .nav-icon { width: 22px; height: 22px; }
+/* Por debajo de 360 px la columna baja de 71 a 62, y «Productos» —la más larga
+   de las cinco— deja de caber a doce. Un escalón antes del corte: se lee peor
+   que a doce y muchísimo mejor que cortada, que es lo que hacía. */
+@media (max-width: 359px) {
+  .mobile-nav button { font-size: .66rem; }
+  .mobile-nav button .nav-icon { width: 21px; height: 21px; }
+}
 
 .mobile-brand { position: relative; }
 .engranaje-movil { display: none; margin-left: auto; flex: none; }

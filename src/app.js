@@ -384,7 +384,7 @@ const NAV = [
   ['semana', 'calendario', 'Plan semanal', 'Semana'],
   ['compra', 'canasta', 'Compra', 'Compra'],
   ['canasta', 'hoja', 'Mis productos habituales', 'Productos'],
-  ['preparaciones', 'libro', 'Preparaciones', 'Preparaciones']
+  ['preparaciones', 'libro', 'Preparaciones', 'Preparo']
 ];
 const SECCIONES = NAV.map(([id]) => id);
 
