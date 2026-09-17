@@ -70,15 +70,6 @@
    Es de los pocos sitios donde `!important` está justificado: `hidden` no es
    una sugerencia de estilo, es un hecho sobre el documento. */
 [hidden] { display: none !important; }
-.cut-option { display: grid; gap: 1px; line-height: 1.25; }
-.cut-option .tiny { white-space: nowrap; }
-
-/* Una cantidad y su unidad son un solo dato, así que van pegadas en vez de
-   ocupar dos campos con dos etiquetas. */
-.paired { display: flex; gap: 8px; }
-.paired input { min-width: 0; }
-.paired select { flex: 0 0 118px; }
-
 .sidebar { background: var(--sidebar-bg); border-right-color: var(--line); }
 /* En la app el isotipo va suelto, sin recuadro: el trazo en terracota sobre el
    fondo de la barra. El fondo lleno queda solo para el ícono de la app y el

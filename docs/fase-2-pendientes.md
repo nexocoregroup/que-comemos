@@ -21,25 +21,25 @@ Esto es lo que queda, y lo que se cerró de la lista de la fase anterior.
 
 ## B. Lo que sigue abierto
 
-### B1 · «Cambios de este mes», dentro de Mis productos habituales — **Fase 3**
+### B1 y B2 · La cantidad del mes — **cerrados**
 
-`src/page-mas.js`, vista `cambios`. Es el presupuesto mensual por alimento:
-«este mes 12 libras de carne en vez de 8». Servía para la compra calculada, que
-se retiró en la Fase 1. Hoy se puede escribir y no cambia nada en ninguna parte.
+Los dos eran la misma cosa vista desde dos sitios: la vista «Cambios de este
+mes» y el campo «consumo del mes» de la ficha del producto. **Decidido: se
+quita.** Lo que se hizo:
 
-**Decisión pendiente:** se retira la vista y los datos se quedan como historial,
-o se reconvierte en «cosas que este mes hay que comprar aunque no sean de
-siempre», que sí tiene sentido en una lista manual.
+| Dónde | Cómo quedó |
+|---|---|
+| *Mis productos habituales* | Una lista de nombres agrupada por rubro. Ni un campo, ni un botón de guardar: se añade y se quita en el acto |
+| La vista «Cambios de este mes» | Retirada. Lo que este mes hay que comprar y no es de siempre se apunta en *Compra*, que ya es una lista manual |
+| La ficha de un producto | Tres campos: nombre, en qué rubro se busca y una nota para quien haga la compra. Ni medidas, ni grosor del corte, ni equivalencias |
+| «¿Dónde entra este alimento?» | Retirado. Un producto nuevo entra en los habituales, que es el único sitio desde donde se añade |
+| *Escribirlos de corrido* | Sin columna de cantidad y sin el destino «solo para un mes». La columna vuelve cuando el destino es una compra que ya se hizo: ahí la cantidad es un hecho |
+| `corregirHaciaAtras` | Borrada del modelo. Era el escape del aviso «guardado desde este mes», y sin cantidades que corregir no le quedaba nada que hacer |
 
-### B2 · La ficha de un producto sigue preguntando la cantidad del mes — **Fase 3**
-
-Al editar un producto desde su fila en los habituales se abre el mismo
-formulario de siempre, que incluye «consumo del mes». Es un dato histórico que
-ya no alimenta nada, y **borrarlo da de baja el alimento de los habituales**
-porque `setHabitualLine` lee una cantidad vacía como una baja.
-
-**Decisión pendiente:** quitar el campo, o separar «quitar de mis habituales» en
-un botón propio y dejar que la cantidad se pueda vaciar sin consecuencias.
+**Lo que no se tocó:** las cantidades escritas siguen en `habitualBasket`, en el
+respaldo y en los meses cerrados, que se calcularon con ellas. Quitar un
+producto de la lista escribe un tramo de baja desde este mes; los anteriores
+siguen diciendo lo que dijeron. Lo defiende `tests/sin-cantidades.test.js`.
 
 ### B3 · Organización de compra — **Fase 3**
 
@@ -77,14 +77,23 @@ Sin cambios respecto a la Fase 1, más uno nuevo:
 | `state.monthPlans` | Nadie |
 | `state.closedPeriods` | *Ajustes → Historial* |
 | `settings.compra.reparto` | Nadie |
-| `habitualBasket.lines[].tramos[].quantity` | La ficha del producto (B2) |
+| `habitualBasket.lines[].tramos[].quantity` | Nadie. Ninguna pantalla la enseña ni la pide |
+| `state.monthOverrides` (los cambios de un mes) | Nadie. Se conservan enteros; la vista que los enseñaba se retiró |
 | `state.opening`, `purchases`, `reviews`, `corrections` | Las pantallas de B4 |
 | `state.activity` | Nadie. Queda siempre vacío |
 | **`plans[].reservedItems`** con cantidades | **Nuevo.** Solo las comidas vinculadas de versiones anteriores lo traen. Se lee y se pinta; las nuevas nacen con la lista vacía |
 
-Exportaciones del modelo que hoy solo usan las pruebas: `WEEKDAY_LABELS`,
-`monthExtras`, `addPurchase`, `createReview`, `actualizarLineaDeLista`,
-`reabrirLista`, `cierresDe`, `CLASES_DE_COMIDA`.
+Exportaciones del modelo que hoy solo usan las pruebas: `WEEKDAYS`,
+`WEEKDAY_LABELS`, `monthExtras`, `addPurchase`, `createReview`,
+`actualizarLineaDeLista`, `reabrirLista`, `cierresDe`, `CLASES_DE_COMIDA` y,
+desde que se retiró la cantidad del mes, `setMonthChange`, `removeMonthChange`,
+`promoteToHabitual` y `monthBasketSummary`.
+
+Esas cuatro últimas se quedan a propósito: son las que leen y escriben los
+cambios de mes que siguen guardados, y las pruebas que las usan
+—`baskets.test.js`, `migrate.test.js`— son justo las que comprueban que un
+respaldo viejo se abre sin perder nada. Borrarlas obligaría a borrar esas
+pruebas, que es lo contrario de lo que hay que hacer.
 
 ---
 

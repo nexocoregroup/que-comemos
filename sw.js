@@ -1,13 +1,18 @@
 // Guarda el casco de la app para que abra sin conexión.
 //
 // Va primero a la red y solo cae al caché cuando no hay señal: así, mientras
-// desarrollas, siempre ves la última versión. Sube CACHE de versión si cambias
-// la lista de archivos.
+// desarrollas, siempre ves la última versión.
+//
+// Sube CACHE de versión cuando cambies la lista de archivos **o el contenido de
+// una pantalla**. El nombre del caché es lo único que se mira al activar: los
+// que no se llaman así se borran, y los que sí se quedan con lo que guardaron.
+// Sin subirlo, una copia vieja de `app.js` sigue ahí para siempre y sale cada
+// vez que la red falla, con los fallos que tuviera el día que se guardó.
 //
 // El trabajador solo se registra en contexto seguro: https o localhost. Sobre
 // http en una IP de la red local el navegador lo ignora y la app funciona
 // igual, pero sin instalación ni modo sin conexión.
-const CACHE = 'que-comemos-v42';
+const CACHE = 'que-comemos-v43';
 const SHELL = [
   './', './index.html', './manifest.webmanifest',
   './src/app.js', './src/model.js', './src/storage.js', './src/demo.js',

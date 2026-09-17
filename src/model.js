@@ -657,27 +657,6 @@ export function setHabitualLine(state, productId, amount, unit, priority, desde 
 // La excepción es lo que nunca llegó a estar en ningún mes pasado: un alimento
 // añadido hoy y quitado hoy no deja historia que proteger, y guardarle una línea
 // de baja sería dejar basura con forma de dato.
-// El escape: lo que se acabó de escribir no era un cambio, era un arreglo.
-//
-// El tramo que está vigente se funde con el que tiene delante, que pasa a decir
-// lo que dice este. Así la corrección alcanza hacia atrás justo hasta donde
-// empezó el dato equivocado, y ni un mes más: los tramos anteriores a ese eran
-// correctos y no se tocan.
-export function corregirHaciaAtras(state, productId, { desde = null } = {}) {
-  const line = lineaDeLaCanasta(state, productId);
-  if (!line) return false;
-  const mes = validMonth(desde) ? desde : mesEnCurso();
-  const vigente = tramoEn(line, mes);
-  const donde = line.tramos.indexOf(vigente);
-  if (!vigente || vigente.fuera || donde < 1) return false;
-  const anterior = line.tramos[donde - 1];
-  if (anterior.fuera) return false;
-  line.tramos[donde - 1] = { ...vigente, desde: anterior.desde ?? null };
-  line.tramos.splice(donde, 1);
-  state.habitualBasket.updatedAt = todayISO();
-  return true;
-}
-
 export function removeHabitualLine(state, productId, { desde = null } = {}) {
   const line = lineaDeLaCanasta(state, productId);
   if (!line) return false;

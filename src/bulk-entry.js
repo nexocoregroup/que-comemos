@@ -20,12 +20,12 @@
 
 import { CATEGORIES, SEED_PRODUCTS } from './catalog-seed.js';
 import {
-  UNITS, addProduct, agregarALista, anotarComprado, cerrarLista, crearLista, effectiveBasket, findSimilarProducts, habitualLines,
-  normalizeName, product, productByName, setHabitualBasket, setMonthChange,
-  todayISO, transaction, updateProduct, validMonth
+  UNITS, addProduct, agregarALista, anotarComprado, cerrarLista, crearLista, findSimilarProducts, habitualLines,
+  normalizeName, product, productByName, setHabitualBasket,
+  todayISO, transaction, updateProduct
 } from './model.js';
 import { parseProductText } from './text-parse.js';
-import { button, esc, measure, monthName, notice, options, productDatalist, productField } from './ui-kit.js';
+import { button, esc, measure, notice, options, productDatalist, productField } from './ui-kit.js';
 
 // La compra de una quincena cualquiera en una casa dominicana. Se usa de
 // marcador de posición y detrás del botón «Usar el ejemplo»: quien nunca ha
@@ -50,14 +50,8 @@ const DESTINOS = {
   habitual: {
     opcion: 'Mis productos habituales: lo que se compra de costumbre',
     titulo: 'tus productos habituales',
-    explica: 'Se añaden a la lista de lo que esta casa compra de costumbre. Lo que ya estaba se queda como estaba.',
+    explica: 'Se añaden a la lista de lo que esta casa compra de costumbre, sin cantidades: los nombres. Lo que ya estaba se queda como estaba.',
     verbo: n => `Guardar ${n} ${alimentos(n)} en mis productos habituales`
-  },
-  mes: {
-    opcion: 'Solo para un mes concreto',
-    titulo: 'los cambios de ese mes',
-    explica: 'Se añaden solo a ese mes, como algo extraordinario. Tus productos habituales no se tocan y los demás meses tampoco.',
-    verbo: (n, mes) => `Guardar ${n} ${alimentos(n)} solo para ${mesLegible(mes)}`
   },
   compra: {
     opcion: 'Una compra que ya hiciste',
@@ -88,7 +82,6 @@ const ESTADOS = {
 const DESTACADOS = new Set(['pendiente', 'dudoso']);
 
 const alimentos = n => (n === 1 ? 'alimento' : 'alimentos');
-const mesLegible = mes => (validMonth(mes) ? monthName(mes) : 'ese mes');
 const texto = value => String(value ?? '').trim();
 // Una sola letra no es el nombre de ningún alimento: el parser ya lo marca con
 // confianza baja y aquí la fila no puede guardarse hasta que se corrija.
@@ -118,7 +111,6 @@ export function emptyBulk(destino = 'habitual') {
     paso: 'escribir',
     texto: '',
     destino: destino in DESTINOS ? destino : 'habitual',
-    mes: null,
     filas: [],
     avisos: []
   };
@@ -147,12 +139,17 @@ function alias(fila, item) {
   return (item.aliases || []).some(valor => normalizeName(valor) === clave) ? null : texto(fila.nombre);
 }
 
-function estadoDe(fila) {
+// Solo una compra que ya se hizo necesita cantidades: es un hecho que se está
+// anotando. Lo que va a los habituales o al catálogo son nombres, y ahí una
+// cantidad vacía no es nada que falte.
+const pideCantidad = destino => destino === 'compra';
+
+function estadoDe(fila, pide) {
   if (fila.accion === 'ignorar') return 'ignorada';
   if (!utilizable(fila.nombre)) return 'dudoso';
   // La cantidad que falta se enseña antes que el alimento del que se trata:
   // es lo único que la persona todavía tiene que decidir.
-  if (sinCantidad(fila)) return 'pendiente';
+  if (pide && sinCantidad(fila)) return 'pendiente';
   return fila.accion === 'nuevo' ? 'nuevo' : 'existe';
 }
 
@@ -270,10 +267,10 @@ function sincronizar(el, ctx) {
 
 /* ── Los dos resúmenes que tienen que decir la verdad ──────────────────── */
 
-function textoCuenta(filas) {
+function textoCuenta(filas, pide) {
   const vivas = filas.filter(fila => fila.accion !== 'ignorar');
   const nuevos = vivas.filter(fila => fila.accion === 'nuevo' && utilizable(fila.nombre)).length;
-  const pendientes = vivas.filter(fila => sinCantidad(fila) && utilizable(fila.nombre)).length;
+  const pendientes = pide ? vivas.filter(fila => sinCantidad(fila) && utilizable(fila.nombre)).length : 0;
   const dudosos = vivas.filter(fila => !utilizable(fila.nombre)).length;
   const ignoradas = filas.length - vivas.length;
   const partes = [`${filas.length} ${filas.length === 1 ? 'producto leído' : 'productos leídos'}`];
@@ -288,12 +285,12 @@ function textoCuenta(filas) {
 // que quedaron de pulsar «Añadir otra fila».
 const guardables = filas => filas.filter(fila => fila.accion !== 'ignorar' && (texto(fila.nombre) || texto(fila.cantidad)));
 
-function textoGuardar(filas, destino, mes) {
+function textoGuardar(filas, destino) {
   const vivas = guardables(filas);
   // En el catálogo solo se registra lo que todavía no existe; decir «guardar 6»
   // cuando cuatro ya estaban sería prometer un trabajo que no se va a hacer.
   const cuenta = destino === 'catalogo' ? vivas.filter(fila => fila.accion === 'nuevo').length : vivas.length;
-  return (DESTINOS[destino] || DESTINOS.habitual).verbo(cuenta, mes);
+  return (DESTINOS[destino] || DESTINOS.habitual).verbo(cuenta);
 }
 
 /* ── Dibujo ────────────────────────────────────────────────────────────── */
@@ -304,7 +301,6 @@ export function renderBulk(ctx) {
 }
 
 function pasoEscribir(bulk) {
-  const mes = validMonth(bulk.mes) ? bulk.mes : todayISO().slice(0, 7);
   return `<form data-form="bulk-texto" class="stack bulk">
     <div class="card stack">
       <h2>Escríbelo como lo dirías</h2>
@@ -318,10 +314,6 @@ function pasoEscribir(bulk) {
           <span>Adónde van estas filas</span>
           <select name="destino">${options(Object.entries(DESTINOS).map(([id, item]) => [id, item.opcion]), bulk.destino)}</select>
         </label>
-        <label class="field">
-          <span>Mes (solo si eliges un mes concreto)</span>
-          <input type="month" name="mes" value="${esc(mes)}">
-        </label>
       </div>
       <div class="hint">
         <strong>Qué entiende:</strong>
@@ -330,10 +322,10 @@ function pasoEscribir(bulk) {
           <li>Medidas de aquí: libras, paquetes, fundas, latas, ruedas, tazas, rebanadas. Los kilos y los gramos se pasan a libras y la fila lo avisa.</li>
           <li>Separadores: la coma, el punto y coma, el punto y la «y». «Arroz y habichuelas» no se parte en dos; «atún y detergente» sí.</li>
           <li>Lo que pidas quitar —«sin atún», «este mes no compramos salami»— se aparta y se explica, no se guarda.</li>
-          <li><strong>Lo que no sepa lo deja pendiente</strong>, con el nombre puesto y la cantidad vacía, en vez de perderlo.</li>
+          <li><strong>Lo que no sepa lo deja a medias</strong>, con el nombre puesto, en vez de perderlo.</li>
         </ul>
       </div>
-      ${notice('Nada se guarda todavía', 'Al revisar verás una tabla con una fila por alimento. Ahí puedes corregir nombres, cantidades y unidades, y decidir qué hacer con cada una.')}
+      ${notice('Nada se guarda todavía', 'Al revisar verás una tabla con una fila por alimento. Ahí puedes corregir los nombres y decidir qué hacer con cada una.')}
       <div class="modal-actions">
         ${button('Usar el ejemplo', 'bulk-ejemplo', 'btn-quiet')}
         <button type="submit" class="btn btn-primary">Revisar</button>
@@ -347,13 +339,14 @@ function pasoRevisar(ctx, bulk) {
   const destino = DESTINOS[bulk.destino] || DESTINOS.habitual;
   const tabla = bulk.filas.filter(fila => !fila.negada);
   const negadas = bulk.filas.filter(fila => fila.negada);
-  return `<form data-form="bulk-revision" class="stack bulk" data-destino="${esc(bulk.destino)}" data-mes="${esc(bulk.mes || '')}">
+  const pide = pideCantidad(bulk.destino);
+  return `<form data-form="bulk-revision" class="stack bulk" data-destino="${esc(bulk.destino)}">
     ${productDatalist(state.products, LISTA)}
     <div class="card stack">
       <div class="section-head bulk-head">
         <div>
           <h2>Revisa antes de guardar</h2>
-          <p data-bulk-cuenta>${esc(textoCuenta(tabla))}</p>
+          <p data-bulk-cuenta>${esc(textoCuenta(tabla, pide))}</p>
         </div>
         <div class="inline">
           ${button('Volver a escribir', 'bulk-escribir', 'btn-quiet')}
@@ -368,20 +361,20 @@ function pasoRevisar(ctx, bulk) {
       ${bulk.destino === 'compra' ? `<label class="bulk-confirma"><input type="checkbox" name="confirmo" value="si" required> Sí: esta compra ya se hizo y quiero que quede en el historial.</label>` : ''}
       <div class="modal-actions">
         ${button('Volver a escribir', 'bulk-escribir', 'btn-quiet')}
-        <button type="submit" class="btn btn-primary" data-bulk-guardar>${esc(textoGuardar(tabla, bulk.destino, bulk.mes))}</button>
+        <button type="submit" class="btn btn-primary" data-bulk-guardar>${esc(textoGuardar(tabla, bulk.destino))}</button>
       </div>
     </div>
   </form>`;
 }
 
 function tablaFilas(ctx, bulk, filas) {
+  const pide = pideCantidad(bulk.destino);
   return `<div class="table-wrap bulk-wrap">
     <table class="data-table bulk-table">
       <caption class="bulk-caption">Una fila por alimento leído. Todo es editable; nada se guarda hasta que pulses el botón de abajo.</caption>
       <thead><tr>
         <th scope="col">Alimento</th>
-        <th scope="col">Cantidad</th>
-        <th scope="col">Unidad</th>
+        ${pide ? '<th scope="col">Cantidad</th><th scope="col">Unidad</th>' : ''}
         <th scope="col">Categoría</th>
         <th scope="col">Qué se hará con ella</th>
         <th scope="col">Estado</th>
@@ -393,14 +386,15 @@ function tablaFilas(ctx, bulk, filas) {
 }
 
 function filaHTML(ctx, bulk, fila) {
-  const estado = estadoDe(fila);
+  const pide = pideCantidad(bulk.destino);
+  const estado = estadoDe(fila, pide);
   const nombre = texto(fila.nombre) || fila.texto || 'esta fila';
   return `<tr data-bulk-row data-fila="${esc(fila.id)}" data-estado="${estado}" class="bulk-fila ${DESTACADOS.has(estado) ? 'bulk-destacada' : ''}">
     <td class="bulk-celda-nombre">
       ${productField(fila.nombre, { name: `nombre-${fila.id}`, label: 'Alimento', required: false, listId: LISTA, placeholder: 'Ej. Arroz', extra: 'data-bulk-nombre' })}
       ${notasHTML(ctx, bulk, fila)}
     </td>
-    <td class="bulk-celda-cantidad">
+    ${pide ? `<td class="bulk-celda-cantidad">
       <label class="field"><span>Cantidad</span>
         <input type="number" name="cantidad-${esc(fila.id)}" value="${esc(fila.cantidad)}" min="0" step="any" inputmode="decimal" placeholder="Pendiente" data-bulk-cantidad aria-describedby="${esc(fila.id)}-pista">
       </label>
@@ -410,7 +404,7 @@ function filaHTML(ctx, bulk, fila) {
       <label class="field"><span>Unidad</span>
         <select name="unidad-${esc(fila.id)}" data-bulk-unidad>${options(UNITS.map(unidad => [unidad, unidad]), fila.unidad)}</select>
       </label>
-    </td>
+    </td>` : ''}
     <td class="bulk-celda-categoria">
       <label class="field"><span>Categoría</span>
         <select name="categoria-${esc(fila.id)}" data-bulk-categoria>${options(CATEGORIES.map(item => [item.id, item.label]), fila.categoria)}</select>
@@ -478,9 +472,6 @@ function lineaPrevia(ctx, bulk, fila) {
   const productId = productoDe(ctx.state, fila)?.id;
   if (!productId) return null;
   if (bulk.destino === 'habitual') return habitualLines(ctx.state).find(linea => linea.productId === productId) || null;
-  if (bulk.destino === 'mes' && validMonth(bulk.mes)) {
-    return effectiveBasket(ctx.state, bulk.mes).find(linea => linea.productId === productId) || null;
-  }
   return null;
 }
 
@@ -516,12 +507,10 @@ function guardarLoEscrito(el, ctx) {
   if (!form) return;
   ctx.bulk.texto = form.querySelector('[name="texto"]')?.value ?? ctx.bulk.texto;
   ctx.bulk.destino = form.querySelector('[name="destino"]')?.value || ctx.bulk.destino;
-  ctx.bulk.mes = form.querySelector('[name="mes"]')?.value || ctx.bulk.mes;
 }
 
 export const BULK_ACTIONS = {
-  // Rellena el cuadro con el ejemplo, conservando el destino y el mes que ya
-  // estuvieran elegidos.
+  // Rellena el cuadro con el ejemplo, conservando el destino ya elegido.
   'bulk-ejemplo': (el, ctx) => intentar(ctx, () => {
     guardarLoEscrito(el, ctx);
     ctx.bulk.texto = EJEMPLO;
@@ -559,15 +548,12 @@ export const BULK_FORMS = {
     const valor = String(data.get('texto') || '');
     if (!texto(valor)) throw new Error('Escribe qué se compró antes de revisar.');
     const destino = String(data.get('destino') || ctx.bulk.destino);
-    const mes = String(data.get('mes') || '') || ctx.bulk.mes;
-    if (destino === 'mes' && !validMonth(mes)) throw new Error('Elige el mes al que van estos alimentos.');
     const { filas, avisos } = leerTexto(ctx.state, valor);
     if (!filas.length) throw new Error('No se reconoció ningún alimento en ese texto. Prueba a separar cada uno con una coma.');
     Object.assign(ctx.bulk, {
       paso: 'revisar',
       texto: valor,
       destino: destino in DESTINOS ? destino : 'habitual',
-      mes: validMonth(mes) ? mes : null,
       filas,
       avisos
     });
@@ -577,8 +563,8 @@ export const BULK_FORMS = {
   'bulk-revision': (form, data, ctx) => intentar(ctx, () => {
     ctx.bulk.filas = leerFilas(ctx.state, form, ctx.bulk.filas);
     const mensaje = guardar(ctx, data);
-    const { destino, mes } = ctx.bulk;
-    Object.assign(ctx.bulk, emptyBulk(destino), { mes });
+    const { destino } = ctx.bulk;
+    Object.assign(ctx.bulk, emptyBulk(destino));
     ctx.closeModal?.();
     ctx.commit(mensaje);
   })
@@ -600,7 +586,6 @@ function guardar(ctx, data) {
     const faltan = filas.filter(sinCantidad);
     if (faltan.length) throw new Error(`Una compra necesita cantidades. Escribe cuánto compraste de ${faltan.map(fila => `«${fila.nombre}»`).join(', ')} o marca esas filas para ignorar.`);
   }
-  if (bulk.destino === 'mes' && !validMonth(bulk.mes)) throw new Error('Elige el mes al que van estos alimentos.');
 
   // O entran todas o no entra ninguna: media canasta guardada con la otra mitad
   // perdida es imposible de arreglar a mano después.
@@ -650,36 +635,24 @@ function guardar(ctx, data) {
       cerrarLista(state, lista.id);
       return `Compra guardada en el historial con ${filas.length} ${alimentos(filas.length)}.${creados ? ` ${creados} se ${creados === 1 ? 'registró' : 'registraron'} por primera vez.` : ''}`;
     }
-    // Un mes concreto guarda excepciones, no una canasta entera: lo que se
-    // dicta «para octubre» tiene que poder desaparecer en noviembre sin que
-    // nadie lo borre a mano.
-    if (bulk.destino === 'mes') {
-      for (const fila of filas) setMonthChange(state, bulk.mes, ids.get(fila.id), { quantity: fila.cantidad, unit: fila.unidad, origin: 'texto' });
-      return `${filas.length} ${alimentos(filas.length)} solo para ${mesLegible(bulk.mes)}. Tus productos habituales no cambiaron.${creados ? ` ${creados} se ${creados === 1 ? 'registró' : 'registraron'} por primera vez.` : ''}`;
-    }
     setHabitualBasket(state, anadirLineas(state, bulk, filas, ids), { origin: 'texto' });
     return `Productos habituales: ${filas.length} ${alimentos(filas.length)} ${filas.length === 1 ? 'añadido' : 'añadidos'}.${creados ? ` ${creados} se ${creados === 1 ? 'registró' : 'registraron'} por primera vez.` : ''}`;
   });
 }
 
 // Las líneas nuevas se suman a las que ya estaban; la canasta no se reemplaza.
-// La única excepción es el alimento que ya tenía línea: se queda con la
-// cantidad nueva en vez de duplicarse, porque dos líneas del mismo arroz
-// contarían dos veces en la lista de compra. La fila ya lo avisó en pantalla.
+// El alimento que ya tenía línea no se duplica —dos líneas del mismo arroz
+// saldrían dos veces en la compra— y conserva lo que tuviera escrito: quien
+// vuelve a nombrarlo está diciendo «esto lo compro siempre», no «olvida lo de
+// antes». Lo nuevo nace sin cantidad, porque aquí ya no se pregunta ninguna.
 function anadirLineas(state, bulk, filas, ids) {
   const previas = habitualLines(state);
   const lineas = previas.map(linea => ({ id: linea.id, productId: linea.productId, quantity: linea.quantity, unit: linea.unit, priority: linea.priority }));
   for (const fila of filas) {
     const productId = ids.get(fila.id);
     const indice = lineas.findIndex(linea => linea.productId === productId);
-    const linea = {
-      id: indice >= 0 ? lineas[indice].id : undefined,
-      productId,
-      quantity: fila.cantidad,
-      unit: fila.unidad,
-      priority: indice >= 0 ? lineas[indice].priority : 'frecuente'
-    };
-    if (indice >= 0) lineas[indice] = linea; else lineas.push(linea);
+    if (indice >= 0) continue;
+    lineas.push({ productId, quantity: null, unit: fila.unidad, priority: 'frecuente' });
   }
   return lineas;
 }
@@ -691,6 +664,7 @@ function anadirLineas(state, bulk, filas, ids) {
 // prometer que la guardará. Se actualizan leyendo el propio formulario, sin
 // tocar el estado ni volver a dibujar, que es lo que borraría lo ya escrito.
 function refrescarResumen(form) {
+  const pide = pideCantidad(form.dataset.destino);
   const filas = [...form.querySelectorAll('[data-bulk-row]')].map(tr => ({
     tr,
     nombre: tr.querySelector('[data-bulk-nombre]')?.value || '',
@@ -698,7 +672,7 @@ function refrescarResumen(form) {
     ...leerAccion(tr.querySelector('[data-bulk-accion]')?.value)
   }));
   for (const fila of filas) {
-    const estado = estadoDe(fila);
+    const estado = estadoDe(fila, pide);
     fila.tr.dataset.estado = estado;
     fila.tr.classList.toggle('bulk-destacada', DESTACADOS.has(estado));
     const etiqueta = fila.tr.querySelector('[data-bulk-estado]');
@@ -708,9 +682,9 @@ function refrescarResumen(form) {
     }
   }
   const cuenta = form.querySelector('[data-bulk-cuenta]');
-  if (cuenta) cuenta.textContent = textoCuenta(filas);
+  if (cuenta) cuenta.textContent = textoCuenta(filas, pide);
   const boton = form.querySelector('[data-bulk-guardar]');
-  if (boton) boton.textContent = textoGuardar(filas, form.dataset.destino, form.dataset.mes);
+  if (boton) boton.textContent = textoGuardar(filas, form.dataset.destino);
 }
 
 // Se engancha al importar y solo reacciona dentro de esta tabla, para no pedirle

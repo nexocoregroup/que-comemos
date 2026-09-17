@@ -16,16 +16,16 @@
 // persona mira su lista —Mis productos habituales—, y archivar o restaurar uno
 // están en Funciones avanzadas, junto a las demás herramientas de reparación.
 
-import { CATEGORIES } from './catalog-seed.js';
+import { RUBROS } from './catalog-seed.js';
 import {
-  FRECUENCIAS, MOMENTOS, UNITS, archiveProduct, etiquetaDeMomento, effectiveBasket, esActiva, findSimilarProducts, frecuenciaDe,
-  nombreEnElCierre, corregirHaciaAtras, habitualLines, historialDeFrecuencia, lastStockReview, monthBasketSummary, monthChanges,
+  FRECUENCIAS, MOMENTOS, archiveProduct, etiquetaDeMomento, esActiva, findSimilarProducts, frecuenciaDe,
+  nombreEnElCierre, habitualLines, habitualesPorRubro, historialDeFrecuencia, lastStockReview,
   periodosDelMes, personasActivas, product, restoreProduct, restriccionesDe, listasCerradas, resumenDeLista,
   reviewAvailability, sliceStyle, syncReviewProducts, todayISO
 } from './model.js';
 import { claseDe, hogarDe, resumenDeRestricciones } from './hogar.js';
 import { button, empty, esc, fmt, measure, monthName, niceDate, notice, options, shiftMonth, unitText } from './ui-kit.js';
-import { icono } from './icons.js';
+import { icono, iconoDeCategoria } from './icons.js';
 import { LEGAL } from './legal.js';
 
 const hoy = todayISO();
@@ -73,10 +73,7 @@ export const TITULOS_MAS = {
 
 export function emptyMas() {
   return {
-    canastaVista: 'habitual', canastaMes: hoy.slice(0, 7),
-    // Lo que se acaba de guardar sobre algo que ya venía de antes, para poder
-    // ofrecer una vez el «estaba mal escrito». Se vacía al salir de la pantalla.
-    corregibles: [],
+
     revisionFiltro: '', revisionSoloFaltan: false,
     // El buscador de preparaciones y qué bloques están abiertos. Empiezan todos
     // abiertos: una casa con seis preparaciones no quiere abrir cinco cajones.
@@ -122,153 +119,59 @@ function volver(titulo) {
 // la app ya lo escribe arriba, y escribirlo otra vez dejaba el mismo título
 // dos veces seguidas.
 
-/* ── Mis productos habituales ──────────────────────────────────────────── */
+/* ── Mis productos habituales ──────────────────────────────────────────────
 
-// Una sola canasta a la vista. Lo que antes eran «canasta base» y «canasta
-// mensual» —dos conceptos que había que aprender— son ahora la lista y sus
-// excepciones, que es como lo piensa cualquiera: «lo de siempre» y «este mes,
-// además, cangrejo».
+   Una lista de nombres agrupada por rubro, y nada más.
+
+   Aquí se preguntaba cuánto se compra de cada cosa al mes. Era el presupuesto
+   del que salía la compra calculada, y esa cuenta se retiró: hoy la compra se
+   escribe a mano, delante del estante. Un campo que no alimenta nada es peor
+   que no tenerlo, porque quien lo ve cree que sirve para algo.
+
+   Las cantidades que ya estaban escritas siguen en el respaldo y en los meses
+   cerrados, que se calcularon con ellas. No se enseñan ni se piden. */
+
 function renderCanasta(ctx) {
-  const { state, ui } = ctx;
-  const mes = ui.mas.canastaMes;
-  const resumen = monthBasketSummary(state, mes);
-  const cambios = resumen.cambiados + resumen.quitados + resumen.extras;
-  const enCambios = ui.mas.canastaVista === 'cambios';
-  return `    <div class="segmented segmented-ancho">
-      <button type="button" data-action="canasta-vista" data-vista="habitual" class="${enCambios ? '' : 'active'}">Lo de siempre</button>
-      <button type="button" data-action="canasta-vista" data-vista="cambios" class="${enCambios ? 'active' : ''}">Cambios de este mes${cambios ? ` · ${cambios}` : ''}</button>
-    </div>
-    ${enCambios ? vistaCambios(ctx, mes, resumen) : vistaHabitual(ctx)}`;
-}
-
-function vistaHabitual(ctx) {
   const { state } = ctx;
-  const lineas = habitualLines(state);
-  if (!lineas.length) {
-    return empty('canasta', 'Todavía no has escrito tu canasta',
-      'Es la lista de lo que se compra en tu casa todos los meses: los plátanos, el arroz, los huevos, el salami. Se escribe una vez y vale para siempre; después solo cambias lo diferente de cada mes.',
-      `${button('Marcarla de una lista', 'setup-open', 'btn-primary')}${button(`${icono('hoja', { tamano: 17 })}Escribirla de corrido`, 'open-bulk', 'btn-secondary', 'data-destino="habitual"')}`);
+  const grupos = habitualesPorRubro(state);
+  if (!grupos.length) {
+    return empty('canasta', 'Todavía no has escrito tu lista',
+      'Son los productos que en tu casa nunca faltan: los plátanos, el arroz, los huevos, el salami. Se escriben una vez y valen para siempre; sirven para no tener que acordarte de todo cada vez que vas al colmado.',
+      `${button('Marcarlos de una lista', 'setup-open', 'btn-primary')}${button(`${icono('hoja', { tamano: 17 })}Escribirlos de corrido`, 'open-bulk', 'btn-secondary', 'data-destino="habitual"')}`);
   }
-  const porCategoria = new Map();
-  for (const linea of lineas) {
-    const item = product(state, linea.productId);
-    const categoria = item?.category || 'otros';
-    if (!porCategoria.has(categoria)) porCategoria.set(categoria, []);
-    porCategoria.get(categoria).push({ linea, item });
-  }
-  return `<p class="pantalla-intro">Lo que tu casa consume en un mes corriente. Lo que <strong>añadas o corrijas</strong> aquí empieza a contar desde este mes: los que ya pasaron se quedan con lo que se compró entonces.</p>
-    <p class="tiny muted">Para cambiar un mes solo, entra en «Cambios de este mes».</p>
-    ${avisoDeCorreccion(ctx)}
-    <form data-form="canasta-habitual" class="canasta-form">
-      ${[...porCategoria.entries()].sort((a, b) => etiquetaCategoria(a[0]).localeCompare(etiquetaCategoria(b[0]), 'es')).map(([categoria, filas]) => `
-        <h3 class="canasta-grupo">${esc(etiquetaCategoria(categoria))}</h3>
-        <div class="card canasta-card">${filas.sort((a, b) => a.item.name.localeCompare(b.item.name, 'es')).map(({ linea, item }) => `
-          <div class="canasta-fila">
-            <label class="canasta-nombre" for="cant-${linea.productId}">${esc(item.name)}</label>
-            <input id="cant-${linea.productId}" class="text canasta-cantidad" type="number" min="0" step="any" inputmode="decimal"
-                   name="cantidad-${linea.productId}" value="${linea.quantity ?? ''}" placeholder="—" aria-label="Cantidad al mes de ${esc(item.name)}">
-            <select class="text canasta-unidad" name="unidad-${linea.productId}" aria-label="Unidad de ${esc(item.name)}">${options(UNITS.map(unidad => [unidad, unidad]), linea.unit)}</select>
-            <button type="button" class="btn btn-quiet btn-small" data-action="canasta-quitar" data-id="${linea.productId}" aria-label="Quitar ${esc(item.name)} de la canasta">${icono('cerrar', { tamano: 17 })}</button>
-            ${pieDeLaLinea(linea, item)}
-          </div>`).join('')}</div>`).join('')}
-      <p class="small muted">Deja una cantidad en blanco si todavía no la sabes: el alimento sigue en la lista y la compra lo avisará.</p>
-      <div class="pantalla-acciones">
-        ${button('+ Añadir alimento', 'open-product', 'btn-secondary')}
-        ${button(`${icono('hoja', { tamano: 17 })}Añadir varios de corrido`, 'open-bulk', 'btn-quiet', 'data-destino="habitual"')}
-        <button type="submit" class="btn btn-primary">Guardar</button>
-      </div>
-    </form>`;
-}
-
-/* ── El pie de cada línea ──────────────────────────────────────────────────
-
-   Dos cosas, en la línea de debajo y en voz baja: la historia de la cantidad
-   —solo cuando la ha tenido más de una, porque poner «desde septiembre» debajo
-   de los treinta alimentos de una casa convertiría un dato útil en decoración—
-   y la entrada para editar el producto.
-
-   Editar era lo único que de verdad se perdía al retirar «Alimentos de la
-   casa»: el nombre mal escrito, el alias que falta, la unidad equivocada. Está
-   aquí porque este es el sitio donde la persona mira su lista, y porque el
-   alimento que quiere corregir ya lo tiene delante. Va como enlace y no como
-   botón a propósito: lo que se viene a tocar en esta pantalla es la cantidad. */
-function pieDeLaLinea(linea, item) {
-  // `monthName` capitaliza porque casi siempre es un rótulo suelto. Aquí el mes
-  // va dentro de una frase, y en español ahí se escribe en minúscula.
-  const mes = valor => esc(monthName(valor).toLocaleLowerCase('es'));
-  const trozos = [];
-  if (linea.vigenteDesde && linea.tramos.length > 1) trozos.push(`desde ${mes(linea.vigenteDesde)}`);
-  if (linea.proximo) {
-    trozos.push(linea.proximo.fuera
-      ? `se quita en ${mes(linea.proximo.desde)}`
-      : `${esc(measure(linea.proximo.quantity, linea.proximo.unit))} desde ${mes(linea.proximo.desde)}`);
-  }
-  return `<p class="canasta-historia tiny muted">${trozos.length ? `${trozos.join(' · ')} · ` : ''}<button type="button" class="enlace" data-action="open-product" data-id="${linea.productId}" aria-label="Editar ${esc(item.name)}">Editar</button></p>`;
-}
-
-// El escape, y solo cuando puede hacer falta: justo después de guardar un
-// cambio sobre algo que ya venía de antes.
-//
-// Las dos intenciones se parecen y no son la misma. «Ahora comemos más arroz»
-// vale desde este mes, que es lo que la app hace sola. «Lo escribí mal» tiene
-// que alcanzar hacia atrás. Preguntarlo siempre sería un toque de más en la
-// tarea más repetida de la pantalla; no ofrecerlo nunca dejaría un dato malo
-// enterrado para siempre. Se ofrece una vez, cuando acaba de pasar.
-function avisoDeCorreccion(ctx) {
-  const { state, ui } = ctx;
-  const ids = (ui.mas.corregibles || []).filter(id => product(state, id));
-  if (!ids.length) return '';
-  const nombres = ids.map(id => product(state, id).name).join(', ');
-  return notice('Guardado desde este mes',
-    `${esc(nombres)}: los meses que ya pasaron se quedan con la cantidad que tenían.
-     ${ids.length === 1 ? '¿Estaba mal escrita?' : '¿Estaban mal escritas?'}
-     <button type="button" class="enlace" data-action="canasta-corregir-atras">Corregir también los meses anteriores</button>`);
-}
-
-const etiquetaCategoria = id => CATEGORIES.find(cat => cat.id === id)?.label || 'Otros';
-
-function vistaCambios(ctx, mes, resumen) {
-  const { state } = ctx;
-  const lineas = effectiveBasket(state, mes);
-  const cambiadas = lineas.filter(linea => linea.source !== 'habitual');
-  const quitadas = (monthChanges(state, mes)?.changes || []).filter(cambio => cambio.removed);
-  return `<div class="toolbar">
-      <div class="inline">
-        ${button('‹', 'canasta-mes', 'btn-secondary btn-small', 'data-delta="-1" aria-label="Mes anterior"')}
-        <div class="strong plan-mes-nombre">${esc(monthName(mes))}</div>
-        ${button('›', 'canasta-mes', 'btn-secondary btn-small', 'data-delta="1" aria-label="Mes siguiente"')}
-      </div>
-    </div>
-    <p class="pantalla-intro">Lo que este mes será diferente. <strong>No toca los demás meses</strong> ni cambia tu costumbre.</p>
-    ${cambiadas.length || quitadas.length ? `<div class="card">
-      ${cambiadas.map(linea => `<div class="list-row">
-        <div class="list-row-main">
-          <div class="list-row-title">${esc(product(state, linea.productId)?.name || 'Alimento eliminado')} <span class="pill warm">${linea.source === 'extra' ? `extra de ${esc(monthName(mes).split(' ')[0])}` : 'otra cantidad'}</span></div>
-          <div class="list-row-sub">${linea.quantity === null ? 'cantidad pendiente' : esc(measure(linea.quantity, linea.unit))} este mes</div>
-        </div>
-        <div class="inline">
-          ${button('Añadir a mis habituales', 'canasta-promover', 'btn-secondary btn-small', `data-id="${linea.productId}" data-month="${mes}"`)}
-          ${button('Quitar', 'canasta-quitar-cambio', 'btn-quiet btn-small', `data-id="${linea.productId}" data-month="${mes}"`)}
-        </div>
-      </div>`).join('')}
-      ${quitadas.map(cambio => `<div class="list-row">
-        <div class="list-row-main">
-          <div class="list-row-title">${esc(product(state, cambio.productId)?.name || 'Alimento eliminado')} <span class="pill gray">este mes no</span></div>
-          <div class="list-row-sub">Sigue en tus productos habituales; solo este mes no se compra.</div>
-        </div>
-        ${button('Volver a comprarlo', 'canasta-quitar-cambio', 'btn-quiet btn-small', `data-id="${cambio.productId}" data-month="${mes}"`)}
-      </div>`).join('')}
-    </div>
-    <p class="small muted">«Añadir a mis habituales» lo pasa a lo de todos los meses, y te pregunta <strong>desde qué mes</strong> entra en vigencia. Los meses anteriores a esa fecha no se tocan: seguirán diciendo lo que dijeron.</p>
-    <p class="tiny muted">Un período que hayas cerrado tampoco cambia, porque no se vuelve a calcular: se lee la fotografía que se guardó al cerrarlo. Los meses abiertos sí se recalculan con tu canasta de hoy, que es lo que se quiere mientras todavía no han pasado.</p>`
-    : empty('visto', `${monthName(mes)} es un mes normal`, 'No hay nada diferente. Si este mes van a comprar algo especial —un cangrejo para una cena, o menos arroz porque estarán de viaje—, anótalo aquí.', '')}
+  const total = grupos.reduce((suma, grupo) => suma + grupo.lineas.length, 0);
+  return `<p class="pantalla-intro">Lo que en tu casa nunca falta. <strong>Aquí no se apuntan cantidades</strong>: cuánto llevas se decide en la compra, que es cuando se sabe.</p>
+    ${grupos.map(grupo => bloqueDeRubro(ctx, grupo)).join('')}
+    <p class="tiny muted">${total} producto(s) en ${grupos.length === 1 ? 'un rubro' : `${grupos.length} rubros`}. Quitar uno de aquí no cambia ninguna compra que ya se hizo.</p>
     <div class="pantalla-acciones">
-      ${button('+ Añadir algo solo para este mes', 'canasta-nuevo-cambio', 'btn-primary', `data-month="${mes}"`)}
-      ${button(`${icono('hoja', { tamano: 17 })}Escribir varios`, 'open-bulk', 'btn-quiet', `data-destino="mes" data-month="${mes}"`)}
+      ${button('+ Añadir producto', 'open-product', 'btn-secondary')}
+      ${button(`${icono('hoja', { tamano: 17 })}Añadir varios de corrido`, 'open-bulk', 'btn-quiet', 'data-destino="habitual"')}
     </div>`;
 }
 
-/* ── Preparaciones ─────────────────────────────────────────────────────── */
+// Los mismos ocho rubros, con el mismo icono y el mismo orden que en la compra
+// y en el registro inicial. Son la misma lista vista desde tres sitios, y verla
+// ordenada de tres maneras distintas obligaría a aprenderla tres veces.
+function bloqueDeRubro(ctx, grupo) {
+  const { state } = ctx;
+  const rubro = RUBROS.find(item => item.id === grupo.rubro);
+  return `<section class="canasta-rubro">
+    <h3 class="canasta-grupo">
+      <span class="canasta-grupo-icono">${iconoDeCategoria(grupo.rubro, { tamano: 20 })}</span>
+      ${esc(rubro?.titulo || grupo.rubro)}
+      <span class="badge-count">${grupo.lineas.length}</span>
+    </h3>
+    <div class="card canasta-card">${grupo.lineas.map(linea => {
+      const item = product(state, linea.productId);
+      if (!item) return '';
+      return `<div class="canasta-fila">
+        <div class="canasta-nombre">${esc(item.name)}${linea.nota ? `<span class="canasta-nota">${esc(linea.nota)}</span>` : ''}</div>
+        <button type="button" class="enlace canasta-editar" data-action="open-product" data-id="${esc(item.id)}" aria-label="Editar ${esc(item.name)}">Editar</button>
+        <button type="button" class="btn btn-quiet btn-small" data-action="canasta-quitar" data-id="${esc(item.id)}" aria-label="Quitar ${esc(item.name)} de mis productos habituales">${icono('cerrar', { tamano: 17 })}</button>
+      </div>`;
+    }).join('')}</div>
+  </section>`;
+}
 
 /* ── Preparaciones ─────────────────────────────────────────────────────────
 
@@ -1051,15 +954,6 @@ export const MAS_ACTIONS = {
   'cierre-ver': (el, ctx) => { ctx.ui.mas.cierreAbierto = ctx.ui.mas.cierreAbierto === el.dataset.id ? '' : el.dataset.id; ctx.render(); },
   'revision-solo-faltan': (el, ctx) => { ctx.ui.mas.revisionSoloFaltan = !ctx.ui.mas.revisionSoloFaltan; ctx.render(); },
   'legal-ver': (el, ctx) => { ctx.ui.mas.documento = el.dataset.doc; ctx.render(); },
-  'canasta-vista': (el, ctx) => { ctx.ui.mas.canastaVista = el.dataset.vista; ctx.ui.mas.corregibles = []; ctx.render(); },
-  'canasta-corregir-atras': (el, ctx) => {
-    const ids = ctx.ui.mas.corregibles || [];
-    const hechas = ids.filter(id => corregirHaciaAtras(ctx.state, id)).length;
-    ctx.ui.mas.corregibles = [];
-    ctx.commit(hechas ? `Corregido también en los meses anteriores: ${hechas} alimento(s).` : 'No había nada que corregir hacia atrás.');
-  },
-  'canasta-mes': (el, ctx) => { ctx.ui.mas.canastaMes = shiftMonth(ctx.ui.mas.canastaMes, Number(el.dataset.delta)); ctx.render(); },
-  'canasta-nuevo-cambio': (el, ctx) => ctx.openModal('cambio-mes', { month: el.dataset.month || ctx.ui.mas.canastaMes }),
   'open-avanzado-producto': (el, ctx) => ctx.openModal('avanzado-producto', { id: el.dataset.id }),
   'open-diagnostico': (el, ctx) => ctx.openModal('diagnostico'),
   'receta-plegar': (el, ctx) => {

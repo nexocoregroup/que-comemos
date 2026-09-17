@@ -229,8 +229,6 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 }
 .dias-form .hint { margin-top: 9px; }
 
-.plan-mes-nombre { min-width: 165px; text-align: center; }
-
 /* Una comida fuera de casa está resuelta, no pendiente: se marca en salvia, que
    en esta paleta es siempre «esto está bien», y nunca en el gris de «falta». */
 
@@ -266,46 +264,31 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 }
 .mas-volver h2 { margin: 0; font-size: 1.35rem; }
 
-/* ── La canasta, editable de una vez ────────────────────────────────────── */
+/* ── Mis productos habituales: una lista de nombres ─────────────────────── */
 
+.canasta-rubro { margin-top: var(--aire-6); }
 .canasta-grupo {
-  margin: 22px 0 9px;
-  font-size: .82rem;
-  text-transform: uppercase;
-  letter-spacing: .07em;
-  color: var(--ink-muted);
+  display: flex; align-items: center; gap: var(--aire-2);
+  margin: 0 0 var(--aire-3); font-size: .95rem; letter-spacing: -.02em;
 }
+.canasta-grupo-icono { color: var(--clay); display: flex; }
 .canasta-card { padding: 6px 12px; }
+/* Tres columnas: el nombre, editar y la equis. Eran cuatro cuando dos de ellas
+   eran la cantidad del mes y su medida. Sin esas dos caben en un renglón hasta
+   en el teléfono más estrecho, así que la fila ya no se parte. */
 .canasta-fila {
   display: grid;
-  grid-template-columns: 1fr 88px 104px 40px;
+  grid-template-columns: 1fr auto auto;
   align-items: center;
-  gap: 9px;
+  gap: var(--aire-3);
   padding: 9px 0;
 }
 .canasta-fila + .canasta-fila { border-top: 1px solid var(--line); }
 .canasta-nombre { font-size: .94rem; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
-.canasta-cantidad { text-align: right; font-variant-numeric: tabular-nums; }
-.canasta-unidad { min-width: 0; }
-/* La historia de la línea —desde cuándo vale esta cantidad, y la que ya está
-   escrita para más adelante— va debajo y de lado a lado. Es una nota al pie de
-   la fila: no puede robarle sitio a la cantidad, que es lo que se viene a
-   tocar. Solo aparece en las líneas que han tenido más de una cantidad. */
-.canasta-historia { grid-column: 1 / -1; margin: 0; line-height: 1.35; }
-
-/* A 375 px las cuatro columnas dejan el nombre en dos letras. Se parte en dos
-   líneas: el nombre arriba y los controles debajo, alineados a la derecha. */
-@media (max-width: 560px) {
-  .canasta-fila {
-    grid-template-columns: 1fr 92px 40px;
-    grid-template-areas: 'nombre nombre nombre' 'unidad cantidad quitar';
-    row-gap: 7px;
-  }
-  .canasta-nombre { grid-area: nombre; }
-  .canasta-cantidad { grid-area: cantidad; }
-  .canasta-unidad { grid-area: unidad; }
-  .canasta-fila > button { grid-area: quitar; }
-}
+/* La nota es para quien va al colmado —«el de la bolsa azul»—, así que va
+   pegada al nombre y en voz baja: se lee cuando se busca, no antes. */
+.canasta-nota { display: block; font-size: .78rem; font-weight: 500; color: var(--ink-muted); }
+.canasta-editar { font-size: .84rem; }
 
 /* ── Revisión: buscar y filtrar ─────────────────────────────────────────── */
 
@@ -489,15 +472,6 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 
 .radio-bloque.elegida { border-color: var(--clay); background: var(--clay-light); }
 .radio-bloque.elegida strong { color: var(--clay-dark); }
-
-/* ¿Solo este mes, o para siempre? La de siempre nunca viene marcada. */
-.destino-opciones { gap: 8px; }
-.destino-opcion { display: flex; align-items: flex-start; gap: 11px; min-height: 0; padding: 13px 14px; cursor: pointer; }
-.destino-opcion input { flex: 0 0 auto; margin-top: 3px; width: 16px; height: 16px; }
-.destino-opcion span { display: grid; gap: 3px; }
-.destino-opcion strong { font-size: .95rem; }
-.destino-opcion:has(input:checked) { border-color: var(--clay); background: var(--clay-light); }
-.destino-opcion:has(input:checked) strong { color: var(--clay-dark); }
 
 /* ── Un período cerrado ────────────────────────────────────────────────────
 

@@ -278,25 +278,26 @@ test('ninguna pantalla enseña el vocabulario técnico que se retiró', () => {
   assert.deepEqual(encontradas, [], 'términos técnicos que volvieron a la interfaz');
 });
 
-/* ── Que un extra del mes se vea como tal ──────────────────────────────── */
+/* ── Mis productos habituales ──────────────────────────────────────────────
 
-test('un extra de un mes se enseña marcado, y no como parte de lo habitual', () => {
+   La pantalla tenía dos vistas —«lo de siempre» y «cambios de este mes»— y
+   preguntaba cuánto se compra al mes de cada cosa. Ahora es una lista de
+   nombres por rubro, y lo que defiende eso está entero en
+   `sin-cantidades.test.js`. Aquí queda lo que le toca a este archivo: que se
+   dibuje con datos de verdad y no imprima basura. */
+
+test('la lista de productos habituales se dibuja con datos', () => {
   const state = createEmptyState();
-  const arroz = addProduct(state, { name: 'Arroz', controlUnit: 'lb', purchaseUnit: 'lb' });
-  const cangrejo = addProduct(state, { name: 'Cangrejo', controlUnit: 'lb', purchaseUnit: 'lb' });
+  const arroz = addProduct(state, { name: 'Arroz', controlUnit: 'lb', purchaseUnit: 'lb', category: 'granos' });
+  const cangrejo = addProduct(state, { name: 'Cangrejo', controlUnit: 'lb', purchaseUnit: 'lb', category: 'mar' });
+  // Uno con cantidad vieja escrita y otro sin ninguna: los dos tienen que
+  // salir igual, porque la cantidad dejó de pintarse.
   setHabitualLine(state, arroz.id, 20, 'lb');
-  setMonthChange(state, MES, cangrejo.id, { quantity: 4, unit: 'lb' });
+  setHabitualLine(state, cangrejo.id, '', 'lb');
 
-  const ctx = contexto(state, { page: 'canasta' });
-  ctx.ui.mas.canastaVista = 'habitual';
-  const habitual = renderMas(ctx);
-  assert.ok(habitual.includes('Arroz'), 'el arroz debería estar en lo de siempre');
-  assert.ok(!habitual.includes('Cangrejo'), 'el cangrejo de este mes NO puede aparecer como habitual');
-
-  ctx.ui.mas.canastaVista = 'cambios';
-  const cambios = renderMas(ctx);
-  assert.ok(cambios.includes('Cangrejo'), 'el cangrejo debería estar en los cambios del mes');
-  revisar(cambios, 'canasta (cambios con un extra)');
+  const html = renderMas(contexto(state, { page: 'canasta' }));
+  revisar(html, 'canasta (lista de habituales)');
+  assert.ok(html.includes('Arroz'), 'el arroz no está en la lista');
 });
 
 /* ── La revisión: el archivo del inventario que se retiró ───────────────────
@@ -509,20 +510,11 @@ test('«hidden» esconde de verdad, y no solo en las clases que se acordaron', (
     'sin la regla general, cualquier clase con display propio vuelve a enseñar lo escondido');
 });
 
-test('la ventana de añadir alimento pregunta dónde entra, y lo permanente no viene marcado', () => {
-  const codigo = readFileSync('src/app.js', 'utf8');
-  assert.ok(/name="destino"/.test(codigo), 'la ventana no pregunta dónde entra el alimento');
-  assert.ok(/Añadir a mis habituales/.test(codigo), 'falta la opción de añadirlo para siempre');
-  assert.ok(/Solo para \$\{monthName\(mesActual\)\}/.test(codigo), 'falta la opción de solo este mes');
-  // El destino permanente nunca puede venir marcado de fábrica.
-  const bloque = codigo.slice(codigo.indexOf('const DESTINOS'), codigo.indexOf('function modalProducto'));
-  assert.ok(bloque.includes("['mes'"), 'el destino mensual tiene que existir');
-  assert.ok(bloque.indexOf("['mes'") < bloque.indexOf("['siempre'"), 'el destino de siempre no puede ser el primero, que es el que viene marcado');
-  assert.ok(/indice === 0 \? 'checked' : ''/.test(bloque), 'se marca de fábrica algo que no es el primero');
-  // Y al guardar, cada destino escribe donde dice.
-  assert.ok(/destino === 'siempre'[\s\S]{0,160}setHabitualLine/.test(codigo), 'el destino permanente no escribe en la canasta base');
-  assert.ok(/destino === 'mes'[\s\S]{0,200}setMonthChange/.test(codigo), 'el destino mensual no escribe en los cambios del mes');
-});
+// La ventana de añadir un alimento preguntaba «¿dónde entra?»: solo este mes,
+// para siempre, o solo la ficha. Las tres respuestas eran del presupuesto
+// mensual. Ahora un producto nuevo entra en los habituales, que es el único
+// sitio desde donde se añade, y lo que defiende la ficha de hoy está en
+// `sin-cantidades.test.js`.
 
 test('«para toda la casa» es una respuesta escrita, no una casilla sin marcar', () => {
   /* El fallo: no se podía poner NI UNA comida en una casa con gente registrada.

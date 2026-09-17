@@ -1,24 +1,23 @@
 // El armazón de la aplicación: estado, navegación, ventanas y el reparto de
 // eventos. Las pantallas viven cada una en su archivo.
 //
-// La navegación tenía siete destinos. Ahora tiene cuatro —Hoy, Plan mensual,
-// Compra y Más— porque esos son los cuatro momentos reales de una casa: qué se
-// cocina hoy, cómo queda el mes, qué falta comprar, y todo lo demás. Lo que
-// desapareció de la barra no desapareció de la app: está en Más, ordenado por
-// la frecuencia con que hace falta de verdad.
+// La barra tiene cinco secciones: Hoy, Plan semanal, Compra, Mis productos
+// habituales y Preparaciones. Son las cinco cosas que se hacen; todo lo que se
+// toca una vez y se olvida —la familia, el respaldo, la cuenta— está detrás del
+// engranaje, en Ajustes.
 
 import {
-  ESTADOS_SIN_COMIDA, MOMENTOS, SLICEABLE, SLICE_STYLES, SLOTS, SLOTS_PRINCIPALES, UNITS, addDays, addProduct, anotarComidaSuelta, copyPlan, correctReview, correctStock, createEmptyState, dependents, choquesDeLaComida, esOpcional, gravedadDeLaComida,
+  ESTADOS_SIN_COMIDA, MOMENTOS, SLOTS, SLOTS_PRINCIPALES, UNITS, addDays, actualizarHabitual, agregarHabitual, anotarComidaSuelta, copyPlan, correctReview, correctStock, createEmptyState, dependents, choquesDeLaComida, esOpcional, gravedadDeLaComida,
   etiquetaDeMomento, exportState, findSimilarProducts, habitualLines, importState, inventoryNow, esActiva, isAbsent, makeRecipePlan, mergeProducts, movePlan, nextId,
-  personasActivas, planFor, ponerFrecuencia, product, promoteToHabitual, quantity, removeMonthChange,
-  reservedQuantity, restriccionesDe, resumenDeLista, reutilizarComida, saveReview, setAbsence, setEquivalence, setHabitualBasket,
-  setHabitualLine, setMonthChange, detalleDeOrigen, etiquetaDeOrigen, origenDe, setReviewScope, setSlice, setStatusPlan, sliceStyle, todayISO, updatePlan, updateProduct, upsertRecipe
+  personasActivas, planFor, ponerFrecuencia, product, quantity, removeHabitualLine, rubroDe,
+  reservedQuantity, restriccionesDe, resumenDeLista, reutilizarComida, saveReview, setAbsence, setEquivalence,
+  detalleDeOrigen, etiquetaDeOrigen, origenDe, setReviewScope, setStatusPlan, sliceStyle, todayISO, updatePlan, updateProduct, upsertRecipe
 } from './model.js';
 import { clearAll, hasSavedState, loadStateDetailed, saveState } from './storage.js';
 import { BRAND_MARK } from './brand.js';
 import { icono } from './icons.js';
 import { TOUR_STEPS, WELCOME } from './onboarding.js';
-import { CATEGORIES } from './catalog-seed.js';
+import { RUBROS, categoriaDelRubro } from './catalog-seed.js';
 import { SETUP_ACTIONS, SETUP_FORMS, avanceGuardado, emptySetup, renderSetup } from './setup.js';
 import { HOGAR_ACTIONS, HOGAR_FORMS, cuerpoDeFicha, emptyHogar, fichaActiva, renderHogar, tocaConfigurarElHogar } from './hogar.js';
 import { BULK_ACTIONS, BULK_FORMS, emptyBulk, renderBulk } from './bulk-entry.js';
@@ -30,7 +29,7 @@ import { CUENTA_ACTIONS, CUENTA_FORMS, emptyCuenta, renderCuenta, volvimosDeGoog
 import { CAJON_DE_ESTE_TELEFONO, arrancarSesion, cajonDe, fundirSesion, guardarSesion, olvidarSesion } from './sesion.js';
 import { guardarCopiaAntesDeBajar, mereceLaPenaVincular, sincronizar } from './sincronizar.js';
 import { hayNube } from './config-nube.js';
-import { button, cap, empty, esc, fmt, measure, modal, monthName, niceDate, notice, options, productDatalist, shiftMonth, unitText } from './ui-kit.js';
+import { button, cap, empty, esc, fmt, measure, modal, monthName, niceDate, notice, options, unitText } from './ui-kit.js';
 
 /* ── De qué cajón salen los datos ──────────────────────────────────────────
 
@@ -949,58 +948,6 @@ function renderModal() {
 
   if (m.type === 'product') return modalProducto(m);
 
-  /* ── ¿Desde qué mes entra en la canasta base? ────────────────────────────
-
-     «Este mes compré cangrejo» y «en esta casa ahora se come cangrejo» son dos
-     cosas distintas, y entre una y otra hay una fecha. Sin preguntarla, pasar
-     algo a los productos habituales lo metía hacia atrás en todos los meses que ya
-     habían pasado —incluido el historial— y eso es reescribir lo que la casa
-     compró de verdad. */
-  if (m.type === 'promover') {
-    const item = product(state, m.id);
-    const mesActual = today.slice(0, 7);
-    const siguiente = shiftMonth(mesActual, 1);
-    // El mes del cambio entra en la lista porque es cuando la casa lo compró por
-    // primera vez; nunca se ofrece nada anterior a él.
-    const meses = [...new Set([m.month, mesActual, siguiente, shiftMonth(mesActual, 2), shiftMonth(mesActual, 3)])]
-      .filter(mes => mes >= m.month).sort();
-    return modal('Añadir a mis habituales', esc(item?.name || ''),
-      `<form data-form="promover" data-id="${esc(m.id)}" data-month="${esc(m.month)}" class="stack">
-        <p class="muted">Pasará a comprarse <strong>todos los meses</strong>, sin tener que anotarlo cada vez.</p>
-        <label class="field"><span>¿Desde qué mes?</span>
-          <select name="desde">${options(meses.map(mes => [mes, monthName(mes)]), siguiente >= m.month ? siguiente : m.month)}</select>
-          <small>Los meses anteriores a esa fecha no se tocan: seguirán diciendo lo que dijeron.</small>
-        </label>
-        <div class="modal-actions">${button('Cancelar', 'close-modal', 'btn-secondary')}<button type="submit" class="btn btn-primary">Añadir</button></div>
-      </form>`);
-  }
-
-  if (m.type === 'cambio-mes') {
-    const mes = m.month;
-    const enCanasta = new Set(habitualLines(state).map(linea => linea.productId));
-    return modal(`Un cambio solo para ${monthName(mes)}`, 'No toca los demás meses ni tu costumbre.',
-      `${productDatalist(state.products)}
-       <form data-form="cambio-mes" data-month="${esc(mes)}" class="stack">
-        <label class="field"><span>¿Qué alimento?</span>
-          <input name="nombre" class="text" list="lista-de-productos" required placeholder="Ej. Cangrejo" autocomplete="off">
-          <small>Si no existe todavía, se crea solo al guardar.</small></label>
-        <div class="form-grid">
-          <label class="field"><span>¿Cuánto, este mes?</span><input name="cantidad" type="number" min="0" step="any" inputmode="decimal" placeholder="Déjalo vacío si no lo sabes"></label>
-          <label class="field"><span>Unidad</span><select name="unidad">${unitOptions('lb')}</select></label>
-        </div>
-        <div class="field"><span>¿Y después?</span>
-          <div class="radio-fila">
-            <label class="radio-pill"><input type="radio" name="alcance" value="mes" checked><span>Solo este mes</span></label>
-            <label class="radio-pill"><input type="radio" name="alcance" value="siempre"><span>Desde ahora, todos los meses</span></label>
-          </div>
-          <small>«Solo este mes» es lo normal para algo extraordinario: una cena, una visita. «Todos los meses» es para cuando el hábito de la casa cambió de verdad.</small>
-        </div>
-        ${enCanasta.size ? `<details class="more"><summary>O quitar algo que este mes no se compra</summary>
-          <div class="checks" style="margin-top:10px">${habitualLines(state).map(linea => `<label class="chip-check"><input type="checkbox" name="quitar" value="${linea.productId}">${esc(productName(linea.productId))}</label>`).join('')}</div></details>` : ''}
-        <div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar el cambio</button></div>
-      </form>`, true);
-  }
-
   if (m.type === 'avanzado-producto') {
     const item = product(state, m.id);
     return modal('Más opciones', item?.name || '', `<div class="opcion-larga">
@@ -1189,73 +1136,36 @@ function modalComida(m) {
        button(label, 'replace-status', 'btn-quiet btn-small', `data-id="${plan.id}" data-kind="${kind}"`)).join('')}</div>`, true);
 }
 
-/* ── ¿Es de todos los meses, o solo de este? ───────────────────────────────
+/* ── La ficha de un producto ───────────────────────────────────────────────
 
-   Lo que se compra una vez y lo que se compra siempre son dos cosas distintas y
-   se escribían igual. El cangrejo que se compra en Navidad acababa en la
-   productos habituales —«lo que consume tu casa en un mes corriente»— y aparecía en
-   la lista de febrero, de marzo y de todos los demás.
+   Tres campos. Aquí había siete, y cuatro de ellos —el consumo del mes, cómo se
+   cuenta, de qué grosor se corta y cuántas libras trae el paquete— eran para
+   una cuenta que la app ya no hace.
 
-   Así que se pregunta, y la respuesta que toca la costumbre nunca viene
-   marcada: añadir algo para siempre es una decisión, no un descuido. */
+   El rubro no es una categoría técnica: es el sitio donde la persona va a
+   buscarlo, el mismo en el que lo marcó al registrarse y el mismo en el que lo
+   encuentra al preparar la compra. La nota es para quien va al colmado —«el de
+   la bolsa azul»—, no para quien cocina: esa va en la preparación.
 
-const DESTINOS = [
-  ['mes', 'Solo para este mes', 'Entra en la compra de este mes y no vuelve a aparecer.'],
-  ['siempre', 'Añadir a mis habituales', 'Aparecerá en la compra de todos los meses, desde ahora.'],
-  ['ficha', 'Solo guardar la ficha', 'Queda anotado como alimento de la casa, sin entrar en ninguna compra.']
-];
-
-function bloqueDeDestino(item, mensual) {
-  // Editando algo que ya está en la canasta, la pregunta ya está contestada: lo
-  // que se escriba corrige la costumbre, que es donde vive.
-  if (item && mensual) {
-    return `<p class="small muted">Este alimento ya está en tus productos habituales: lo que escribas arriba corrige lo de <strong>todos los meses</strong>. Para cambiar solo un mes, entra en Mis productos habituales → Cambios de este mes.</p>
-      <input type="hidden" name="destino" value="siempre">`;
-  }
-  const mesActual = todayISO().slice(0, 7);
-  return `<div class="field"><span>¿Dónde entra este alimento?</span>
-    <div class="setup-opciones destino-opciones">${DESTINOS.map(([id, titulo, detalle], indice) =>
-      `<label class="setup-opcion destino-opcion">
-        <input type="radio" name="destino" value="${id}" ${indice === 0 ? 'checked' : ''}>
-        <span><strong>${esc(titulo === 'Solo para este mes' ? `Solo para ${monthName(mesActual)}` : titulo)}</strong><small>${esc(detalle)}</small></span>
-      </label>`).join('')}</div>
-    <small>Lo ocasional no entra solo en la costumbre: para que aparezca todos los meses hay que decirlo aquí.</small>
-  </div>`;
-}
+   Por dentro el alimento sigue teniendo su unidad y su categoría, que hacen
+   falta para escribir una compra. Se heredan del rubro y nadie tiene que
+   gestionarlas. */
 
 function modalProducto(m) {
   const item = product(state, m.id);
-  const stock = item ? inventoryNow(state)[item.id] || 0 : 0;
-  const otraUnidad = item && item.purchaseUnit !== item.controlUnit;
-  const controlUnit = item?.controlUnit || 'unidad';
-  const mensual = item && habitualLines(state).find(line => line.productId === item.id);
-  return modal(item ? 'Editar alimento' : 'Añadir un alimento', item ? '' : 'Con el nombre basta para empezar.',
+  const linea = item && state.habitualBasket.lines.find(row => row.productId === item.id);
+  const rubro = item ? rubroDe(state, item.id) : 'otros';
+  return modal(item ? 'Editar producto' : 'Añadir un producto', item ? '' : 'Con el nombre basta.',
     `<form data-form="product" data-id="${item?.id || ''}" class="stack">
       <label class="field"><span>¿Cómo se llama?</span><input name="name" data-dedup required value="${esc(item?.name || '')}" placeholder="Ej. Plátano maduro" autocomplete="off"></label>
       <div data-dedup-warning></div>
-      <div class="form-grid">
-        <label class="field"><span>¿Cómo lo cuentas?</span><select name="controlUnit" ${item ? 'disabled' : ''}>${unitOptions(controlUnit)}</select><small>${item ? 'No se cambia cuando ya hay movimientos.' : 'Por unidades, por libras, por paquetes…'}</small></label>
-        <label class="field"><span>¿Cuánto se compra?</span>
-          <div class="paired"><input name="monthly" type="number" min="0" step="any" inputmode="decimal" value="${mensual?.quantity ?? ''}" placeholder="No lo sé"><select name="monthlyUnit" aria-label="Unidad de la cantidad">${unitOptions(mensual?.unit || controlUnit)}</select></div>
-          <small>Puedes dejarlo vacío y ponerlo después.</small></label>
-      </div>
-      ${bloqueDeDestino(item, mensual)}
-      <details class="more" ${item ? 'open' : ''}>
-        <summary>Más opciones</summary>
-        <label class="field"><span>Categoría</span><select name="category">${options(CATEGORIES.map(cat => [cat.id, cat.label]), item?.category || 'otros')}</select><small>Solo sirve para ordenar y buscar.</small></label>
-        ${item
-          ? `<div class="field"><span>Lo último que se anotó</span><div class="hint" style="min-height:42px;display:flex;align-items:center">${stockText(stock, item)}</div><small>De cuando la app llevaba la cuenta de la despensa. No dice lo que hay hoy en casa.</small></div>`
-          : `<label class="field"><span>¿Cuánto tienes ahora mismo?</span><input name="opening" type="number" min="0" step="any" inputmode="decimal" value="0" placeholder="0"><small>Déjalo en 0 si no tienes nada.</small></label>`}
-        <div class="field" data-cut-field ${SLICEABLE.includes(controlUnit) ? '' : 'hidden'}>
-          <span>¿De qué grosor lo cortan en casa?</span>
-          <div class="checks">${SLICE_STYLES.map(style => `<label class="chip-check"><input type="radio" name="slice" value="${style.id}" ${(item?.slice || 'media') === style.id ? 'checked' : ''}><span class="cut-option"><strong>${esc(style.label)}</strong><span class="muted tiny">${esc(style.range)}</span></span></label>`).join('')}</div>
-          <small>Cada casa corta distinto. Esto no convierte nada: deja escrito qué significa una rueda aquí.</small>
-        </div>
-        <div class="form-grid">
-          <label class="field"><span>Lo compro en…</span><select name="purchaseUnit">${options([['', 'Lo mismo que cuento'], ...UNITS.map(unit => [unit, unit])], otraUnidad ? item.purchaseUnit : '')}</select></label>
-          <label class="field"><span>Y cada uno trae…</span><input name="factor" type="number" min="0.001" step="any" inputmode="decimal" value="${otraUnidad ? item.equivalences?.[item.purchaseUnit] ?? '' : ''}" placeholder="Ej. 16"></label>
-        </div>
-      </details>
+      <label class="field"><span>¿Dónde lo buscas?</span>
+        <select name="rubro">${options(RUBROS.map(item => [item.id, item.titulo]), rubro)}</select>
+        <small>El grupo en el que aparecerá al preparar la compra.</small></label>
+      <label class="field"><span>Una nota para la compra <span class="muted">(si hace falta)</span></span>
+        <input name="nota" value="${esc(linea?.nota || '')}" placeholder="Ej. el de la bolsa azul" autocomplete="off" maxlength="60">
+        <small>La ve quien va al colmado. Lo de cocinarlo va en la preparación.</small></label>
+      ${item ? '' : '<p class="small muted">Entra en tus productos habituales: los que tu casa compra de costumbre. No se apunta ninguna cantidad; eso se decide en cada compra.</p>'}
       <div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar</button></div></form>`);
 }
 
@@ -1399,10 +1309,6 @@ document.addEventListener('click', event => {
 
     if (action === 'navigate') {
       ui.page = el.dataset.page;
-      // Salir de la canasta se lleva el aviso: volver dentro de un rato y
-      // encontrarse «guardado desde este mes» sería hablar de algo que ya pasó.
-      if (ui.page !== 'canasta') ui.mas.corregibles = [];
-      if (el.dataset.month) { ui.mas.canastaMes = el.dataset.month; ui.mas.canastaVista = 'cambios'; }
       ui.modal = null; ui.drawerOpen = false;
       commit('');
     }
@@ -1419,7 +1325,7 @@ document.addEventListener('click', event => {
       form.querySelector(`[data-panel="${el.dataset.modo}"] input, [data-panel="${el.dataset.modo}"] select`)?.focus();
     }
     else if (action === 'rapida-comida') openModal('meal', { date: today, slot: proximaComidaLibre() });
-    else if (action === 'open-bulk') { ui.bulk = emptyBulk(el.dataset.destino || 'habitual'); ui.bulk.mes = el.dataset.month || ui.mas.canastaMes; openModal('bulk'); }
+    else if (action === 'open-bulk') { ui.bulk = emptyBulk(el.dataset.destino || 'habitual'); openModal('bulk'); }
     else if (action === 'welcome-demo') { ui.welcome = false; ui.page = TOUR_STEPS[0].page; ui.tour = 0; commit('Este es un ejemplo. Puedes borrarlo cuando quieras.'); }
     // Empezar de cero lleva directo a organizar la casa: es lo único que hay
     // que hacer para que la app sirva, y de ahí sale todo lo demás.
@@ -1446,19 +1352,14 @@ document.addEventListener('click', event => {
     else if (action === 'review-mode') { const review = state.reviews.find(item => item.id === el.dataset.id); if (review && review.status === 'draft') { review.mode = el.dataset.mode; commit(''); } }
     else if (action === 'select-review') { ui.reviewId = el.dataset.id; ui.correctingReview = false; ui.page = 'revision'; render(); }
     else if (action === 'toggle-correct-review') { ui.correctingReview = !ui.correctingReview; render(); }
-    // Pasar algo a la canasta base es decidir desde cuándo es verdad, y eso no
-    // se puede suponer: hacerlo valer «desde siempre» reescribiría meses que ya
-    // pasaron, y hacerlo valer desde hoy puede dejar fuera el mes en que la casa
-    // empezó a comprarlo. Se pregunta.
-    else if (action === 'canasta-promover') openModal('promover', { id: el.dataset.id, month: el.dataset.month });
-
     else if (action === 'review-scope') { setReviewScope(state, el.dataset.id, el.dataset.origen); commit(''); }
-    else if (action === 'canasta-quitar-cambio') { removeMonthChange(state, el.dataset.month, el.dataset.id); commit('Ese cambio se quitó; vuelve a ser como siempre.'); }
+    // Quitar uno de los habituales ya no espera a ningún botón de guardar: la
+    // pantalla dejó de ser un formulario. Lo que se compró antes no se toca;
+    // solo deja de aparecer de aquí en adelante.
     else if (action === 'canasta-quitar') {
-      const fila = el.closest('.canasta-fila');
-      const campo = fila?.querySelector('.canasta-cantidad');
-      if (campo) { campo.value = ''; campo.dataset.quitado = '1'; fila.classList.add('quitada'); }
-      toast('Se quitará al guardar.');
+      const nombre = productName(el.dataset.id);
+      removeHabitualLine(state, el.dataset.id);
+      commit(`«${nombre}» sale de tus productos habituales. Las compras que ya se hicieron no cambian.`);
     }
     else if (action === 'mark-status') { setStatusPlan(state, el.dataset.date, el.dataset.slot, el.dataset.kind); ui.modal = null; commit('Comida marcada.'); }
     // «Ese día salimos» es una frase sobre el día, no sobre tres comidas. Lo que
@@ -1581,7 +1482,6 @@ document.addEventListener('change', event => {
   if (el.name === 'productId' && el.closest('[data-form="correction"]')) el.form.querySelector('[name="actual"]').value = inventoryNow(state)[el.value] || 0;
   // El grosor solo aparece en lo que se corta; se oculta sin volver a dibujar
   // el formulario para no perder lo ya escrito.
-  if (el.name === 'controlUnit' && el.closest('[data-form="product"]')) { const campo = el.form.querySelector('[data-cut-field]'); if (campo) campo.hidden = !SLICEABLE.includes(el.value); }
 
   // Elegir «una preparación» o «fuera de casa» enseña u oculta el selector.
   if (el.name === 'kind' && el.closest('[data-form="poner-en-dias"]')) { const campo = el.form.querySelector('[data-poner-receta]'); if (campo) campo.hidden = el.value !== 'recipe'; }
@@ -1683,78 +1583,21 @@ document.addEventListener('submit', async event => {
       commit(base + cola);
     }
     else if (kind === 'product') {
+      // Un producto nuevo nace ya en los habituales: es el único sitio desde
+      // donde se añade, y guardarlo «en el catálogo pero en ninguna lista»
+      // dejaba un alimento que no aparecía en ninguna parte.
       const existente = product(state, form.dataset.id);
-      const controlUnit = existente ? existente.controlUnit : data.get('controlUnit');
-      const purchaseUnit = data.get('purchaseUnit') || controlUnit;
-      const factor = String(data.get('factor') || '').trim();
-      const item = existente || addProduct(state, { name: data.get('name'), controlUnit, purchaseUnit, category: data.get('category'), opening: data.get('opening'), slice: data.get('slice'), origin: 'manual' });
-      if (existente) updateProduct(state, existente.id, { name: data.get('name'), purchaseUnit, category: data.get('category') });
-      if (data.get('slice')) setSlice(state, item.id, data.get('slice'));
-      if (purchaseUnit !== controlUnit && factor) setEquivalence(state, item.id, purchaseUnit, factor);
-      const destino = String(data.get('destino') || 'ficha');
-      const mesActual = todayISO().slice(0, 7);
-      let mensaje = 'Guardado.';
-      if (destino === 'siempre') {
-        setHabitualLine(state, item.id, data.get('monthly'), data.get('monthlyUnit'));
-        mensaje = `«${item.name}» entra en tus productos habituales desde ${monthName(mesActual)}: aparecerá todos los meses. Los anteriores no cambian.`;
-      } else if (destino === 'mes') {
-        setMonthChange(state, mesActual, item.id, { quantity: data.get('monthly'), unit: data.get('monthlyUnit') || controlUnit });
-        mensaje = `«${item.name}» entra solo en la compra de ${monthName(mesActual)}. Tus productos habituales no cambian.`;
+      const rubro = String(data.get('rubro') || 'otros');
+      const nombre = String(data.get('name') || '').trim();
+      const nota = String(data.get('nota') || '').trim();
+      if (existente) {
+        updateProduct(state, existente.id, { name: nombre });
+        actualizarHabitual(state, existente.id, { rubro, nota });
       } else {
-        mensaje = `«${item.name}» queda guardado. No entra en ninguna compra hasta que lo digas.`;
+        agregarHabitual(state, { name: nombre, rubro, nota, category: categoriaDelRubro(rubro), unit: RUBROS.find(item => item.id === rubro)?.unidad, origin: 'manual' });
       }
       ui.modal = null;
-      commit(mensaje);
-    }
-    else if (kind === 'promover') {
-      const desde = String(data.get('desde') || '');
-      promoteToHabitual(state, form.dataset.month, [form.dataset.id], desde);
-      ui.modal = null;
-      commit(`«${productName(form.dataset.id)}» entra en tus productos habituales desde ${monthName(desde)}. Lo anterior no cambia.`);
-    }
-    else if (kind === 'canasta-habitual') {
-      const lineas = [];
-      for (const fila of form.querySelectorAll('.canasta-fila')) {
-        const campo = fila.querySelector('.canasta-cantidad');
-        const productId = campo.name.replace('cantidad-', '');
-        if (campo.dataset.quitado === '1') continue;
-        lineas.push({ productId, quantity: campo.value === '' ? null : campo.value, unit: fila.querySelector('.canasta-unidad').value });
-      }
-      const antes = new Map(habitualLines(state).map(linea => [linea.productId, `${linea.quantity}|${linea.unit}`]));
-      setHabitualBasket(state, lineas);
-      // Lo que cambió y ya tenía historia detrás: para esas líneas, y solo para
-      // esas, tiene sentido preguntar si el dato viejo estaba mal escrito.
-      ui.mas.corregibles = habitualLines(state)
-        .filter(linea => antes.has(linea.productId)
-          && antes.get(linea.productId) !== `${linea.quantity}|${linea.unit}`
-          && linea.tramos.length > 1)
-        .map(linea => linea.productId);
-      commit(`Productos habituales guardados: ${lineas.length} alimento(s).`);
-    }
-    else if (kind === 'cambio-mes') {
-      const mes = form.dataset.month;
-      const nombre = String(data.get('nombre') || '').trim();
-      const quitar = selected(form, 'quitar');
-      const paraSiempre = data.get('alcance') === 'siempre';
-      let mensaje = '';
-      if (nombre) {
-        const existente = state.products.find(item => item.name.toLocaleLowerCase('es') === nombre.toLocaleLowerCase('es'))
-          || addProduct(state, { name: nombre, controlUnit: data.get('unidad'), purchaseUnit: data.get('unidad'), category: 'otros', origin: 'manual' });
-        if (paraSiempre) {
-          // Se estrena en el mes que se está mirando, no hoy: quien lo escribe
-          // estando en octubre no quiere comprarlo también en septiembre.
-          setHabitualLine(state, existente.id, data.get('cantidad'), data.get('unidad'), null, mes);
-          mensaje = `«${existente.name}» entra en tus productos habituales desde ${monthName(mes)}: aparecerá todos los meses. Los anteriores no cambian.`;
-        } else {
-          setMonthChange(state, mes, existente.id, { quantity: data.get('cantidad'), unit: data.get('unidad') });
-          mensaje = `«${existente.name}» solo para ${monthName(mes)}. Los demás meses no cambian.`;
-        }
-      }
-      for (const productId of quitar) setMonthChange(state, mes, productId, { removed: true });
-      if (quitar.length) mensaje += `${mensaje ? ' ' : ''}${quitar.length} alimento(s) no se comprarán este mes.`;
-      if (!mensaje) throw new Error('Escribe un alimento o marca algo que quitar.');
-      ui.modal = null;
-      commit(mensaje);
+      commit(existente ? 'Guardado.' : `«${nombre}» entra en tus productos habituales.`);
     }
     // La frecuencia de compra no se guarda como un valor suelto: se añade un
     // tramo con su fecha de vigencia, y lo anterior a esa fecha no se toca.
