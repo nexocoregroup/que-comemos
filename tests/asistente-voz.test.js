@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { CHAT_ACTIONS, CHAT_FORMS, emptyChat, interpretar, renderChat } from '../src/chat-ui.js';
 import { ACTION_NAMES, ACTIONS, runActions } from '../src/assistant.js';
 import {
-  addProduct, cerrarPeriodo, createEmptyState, habitualLines, inventoryNow,
+  addProduct, cerrarPeriodo, createEmptyState, habitualLines, inventoryNow, listasCerradas,
   setHabitualBasket, todayISO, upsertRecipe
 } from '../src/model.js';
 
@@ -115,11 +115,11 @@ test('confirmar lo hace, y confirmar dos veces no lo hace dos veces', () => {
   const pendiente = ctx.ui.chat.pendiente;
 
   tocar(ctx, 'chat-confirmar');
-  assert.equal(state.purchases.length, 1, 'confirmar no hizo nada');
+  assert.equal(listasCerradas(state).length, 1, 'confirmar no hizo nada');
 
   // El mismo identificador otra vez: es lo que pasa si alguien toca dos veces.
   runActions(state, pendiente.acciones, { requestId: pendiente.requestId, confirmed: true });
-  assert.equal(state.purchases.length, 1, 'la compra se registró dos veces');
+  assert.equal(listasCerradas(state).length, 1, 'la compra se registró dos veces');
 });
 
 /* ── Regla 7: cada acción del grupo se enseña ──────────────────────────── */

@@ -42,14 +42,17 @@ En computadora, el botón ☰ junto al título retrae o muestra el menú lateral
 
 La primera apertura enseña una sola promesa —*organiza una vez lo habitual de tu casa y prepara cada mes cambiando solamente lo diferente*— y un botón: **Organizar mi casa**. Hay un enlace discreto para ver un ejemplo, que no compite con él.
 
-Son cuatro pasos, y se pueden abandonar y retomar:
+Son cinco pasos, se pueden abandonar y retomar, y en **ninguno se pide una cantidad**:
 
-1. **¿Qué se consume normalmente en tu casa?** Un catálogo de **productos dominicanos** por categorías, con buscador. Es un punto de partida, no una lista completa: *¿No encuentras un alimento? Añadirlo* está siempre a la vista. Nada se marca solo.
-2. **¿Falta algo habitual de tu casa?** Lo que no estaba en la lista, escrito o dictado de corrido: *«Tortillas de maíz, queso gouda, jamón de pavo y yogurt de fresa»*. La app lo separa en filas para revisar. No se abre un formulario por producto.
-3. **Las cantidades.** Todos los alimentos elegidos en **una sola pantalla editable**. La cantidad puede quedar vacía: el alimento se guarda igual y queda pendiente. Aquí **no** se piden equivalencias, grosores de rueda, existencias iniciales ni unidades de compra; eso se pregunta cuando hace falta de verdad, al confirmar una compra.
-4. **Preparar mi primer menú mensual.** Guardar las comidas que se repiten y elegir qué días suelen prepararse, para que la app llene el calendario real del mes.
+1. **Mi hogar.** Cuántas personas comen en casa y, de cada una, el nombre, si es adulto, adolescente o niño, y qué debe evitar si aplica. Nada más: no se pregunta el peso, ni la fecha de nacimiento, ni nada médico. Es la misma ficha que la de *Familia*, no una segunda escrita aparte.
+2. **Productos habituales.** *Selecciona lo que normalmente compras para tu casa. No tienes que indicar cantidades.* Un catálogo de **productos dominicanos** recorrido **rubro por rubro**, ocho pantallas seguidas en la misma posición, con Atrás y Continuar y sin nada que arrastrar de lado. No hay mínimo: si esta casa no compra vegetales frescos, pasa de largo. *¿No encuentras un alimento? Añadirlo* está siempre a la vista y pide **solo el nombre**.
+3. **Cómo compramos.** Mensual o quincenal. Sirve para saber cuándo toca la próxima lista y qué días cubre; **no divide cantidades ni lleva cuentas**. Se cambia cuando se quiera desde *Más → Ajustes → Organización de compra*, y cada cambio vale desde el mes que se le diga en adelante: lo que ya pasó no se reescribe.
+4. **Comidas habituales.** Nombre, en qué momentos se come, y una nota opcional para quien cocina. Se escriben varias seguidas: al guardar, el formulario queda en blanco para la siguiente. Qué lleva cada plato y cuánto rinde se añade después, si se quiere, desde *Más → Preparaciones* —y editar una comida desde aquí **no** le borra lo que allí se escribió—.
+5. **Ver mi casa.** Lo registrado, línea por línea, con un enlace de vuelta a cada paso. Si todavía no hay reglas de repetición lo dice claramente: **el calendario va a empezar vacío**. Se puede terminar y completar las preparaciones después.
 
-El recorrido guiado, ahora de cuatro pasos, está en *Más → Ajustes → Cómo funciona*. Ya no se planta delante de la primera pantalla.
+Eran siete. Los dos que se fueron —*«¿cuánto se compra al mes?»* y *«cómo se reparte entre las dos quincenas»*— pedían un número que la casa no tiene por qué saber, y lo pedían justo después de marcar los alimentos: quien marcaba ciento cincuenta se encontraba con ciento cincuenta casillas de cantidad antes de poder terminar. El reparto entre quincenas no desapareció de la app; está en *Más → Ajustes → Organización de compra* para quien lo quiera.
+
+El recorrido está también en *Más → Organizar mi casa*. Ya no se planta delante de la primera pantalla, y volver a pasar por él no borra nada: lo ya guardado aparece marcado, lo que una pantalla no pregunta no lo toca, y los cambios de cada mes ni se rozan.
 
 ## Una sola canasta, y los cambios del mes
 
@@ -83,16 +86,31 @@ Organizar un mes tocando noventa y tres casillas no lo hace nadie, y por eso nad
 
 > Plátano maduro con huevo · desayuno · lunes, miércoles, viernes y sábado · todo el mes
 
-Con una sola acción se llenan todos esos desayunos. Al guardar una rutina se elige:
+Con una sola acción se llenan todos esos desayunos. Al guardar una regla se elige:
 
 - **Qué**: una preparación, «comemos fuera» o «pedimos comida».
-- **En qué comida**: desayuno, almuerzo, cena, o varias.
+- **En qué comida**: **una sola** —desayuno, merienda de mañana, almuerzo, merienda de tarde o cena—.
 - **Qué días de la semana**: los siete, como fichas que se tocan.
 - **Cuáles de esos días**: todos, o solo el 1.º y 3.º, o el 2.º y 4.º.
 - **Hasta cuándo**: solo este mes, o desde ahora todos los meses.
 - **Y si ese día ya tenía algo**: dejarlo como está, o reemplazarlo —con confirmación.
 
 El *1.º y 3.º* es el ordinal de ese día de la semana **dentro del mes**, no la semana del calendario. Así «primer y tercer domingo, almuerzo fuera» cae siempre donde debe, sean las fechas que sean.
+
+### La ficha y la regla son dos cosas
+
+La **ficha** de una preparación dice qué es el plato y en qué momentos **puede** comerse: el mangú con salami vale de desayuno y de cena. La **regla** dice cuándo **se pone**: los lunes de desayuno. Una preparación puede tener las reglas que haga falta, y cada una se añade, se edita, se **pausa** y se borra por separado.
+
+> Mangú con salami → lunes → desayuno → todos los meses
+> Mangú con salami → viernes → cena → todos los meses
+
+Son dos reglas y ponen dos comidas: el lunes por la mañana y el viernes por la noche. Ni el lunes de cena ni el viernes de desayuno.
+
+Hasta la versión 9 del esquema una sola regla podía cubrir varios momentos, y los días se aplicaban a todos ellos: decir «mangú, de desayuno y de cena, los lunes» ponía mangú **dos veces el lunes**. Editar la costumbre del desayuno movía también la de la cena, porque eran la misma fila.
+
+**Pausar** no es borrar. «Este mes no desayunamos mangú, pero en octubre volvemos»: la regla se queda escrita con sus días y su preparación, deja de poner comidas, y se reanuda con un toque. Las que ya puso se quedan —pausar mira hacia delante—.
+
+De la ficha a la regla se pasa con **«Hacer que se repita»**, y de una regla a la siguiente con **«Guardar y añadir otra repetición»**, que no vuelve a preguntar el nombre del plato. Desde una comida ya puesta en el calendario, «Hacer que se repita» llega con la preparación **y el momento** ya elegidos.
 
 Al editar una comida que viene de una rutina, la app pregunta **¿qué quieres cambiar?**: solo esta fecha, esta y todas las siguientes, o toda la rutina. Suponerlo destruiría el trabajo de alguien sin avisar.
 
@@ -120,13 +138,15 @@ Se puede aplicar a una comida, a un día entero, a todos los domingos, al primer
 
 ## Preparar este mes
 
-La pantalla de *Plan mensual* abre con el progreso, el desglose por comida y dos botones: **Preparar este mes** y **Ver calendario**. El recorrido de preparar son cinco pantallas cortas, una pregunta cada una:
+La pantalla de *Plan mensual* abre con el progreso, el desglose por comida y dos botones: **Preparar este mes** y **Ver calendario**. El recorrido son tres preguntas, no cinco pantallas:
 
-1. **Lo que se repite** — comprobar las rutinas, o crear la primera.
-2. **Comidas fuera** — los atajos de domingos y viernes, y los días sueltos.
-3. **Lo que falta** — solo los huecos, no las noventa y tres casillas. Lo que se deje en blanco sigue ahí mañana.
-4. **La compra del mes** — qué será diferente este mes.
-5. **Listo** — «Tu mes está organizado», con el resumen: comidas en casa, fuera, pendientes y cambios en la compra.
+1. **La base del mes** — ¿con qué empieza? Las costumbres ya están aplicadas; aquí solo se comprueba que siguen siendo verdad y se decide qué traer del mes pasado.
+2. **Lo que será distinto** — ¿qué días se salen de lo normal? Los atajos de domingos y viernes, las fechas sueltas, y quién no come en casa.
+3. **Revisar y cerrar** — ¿lo damos por bueno? El progreso y los huecos que queden, que no impiden cerrar.
+
+**Preparar el mes no pregunta por cantidades, existencias ni compra.** Hubo dos bloques más al final —las cuatro cifras de la canasta y la lista de lo que haría falta comprar— y se fueron: convertían «ya está mi mes» en «ahora repasa el inventario», que es exactamente donde se abandonaba. La compra tiene su propia pantalla y se entra por la barra de abajo, cuando toca ir al supermercado y no cuando se está decidiendo qué cenar el jueves.
+
+Dentro de una comida, la app distingue las dos cosas que se confunden: **«Cambiar solo este día»** —que pone otra preparación esa fecha, la deja suelta de la costumbre y marcada como cambio manual— y **editar la regla**, que vale de aquí en adelante. Y cada comida dice de dónde vino: *Rutina · viene de una costumbre que guardaste*, *Cambio manual · la pusiste tú, ese día*, *Excepción*, *Mes anterior*.
 
 ## La compra
 
@@ -206,10 +226,11 @@ Lo que ninguna app puede evitar: que alguien coja el teléfono desbloqueado, o q
 
 Los datos se guardan en `localStorage` **solo en ese navegador y dispositivo**, sin sincronización. *Más → Respaldo* escribe un JSON; traerlo de vuelta reemplaza los datos actuales.
 
-El esquema va por la **versión 9**. Un respaldo de cualquier versión anterior se convierte al importarlo y al cargarlo, en cadena. Cada paso está escrito y comentado en `src/migrate.js`; estos son los dos primeros y el último:
+El esquema va por la **versión 10**. Un respaldo de cualquier versión anterior se convierte al importarlo y al cargarlo, en cadena. Cada paso está escrito y comentado en `src/migrate.js`; estos son los dos primeros y el último:
 
 - **v1 → v2.** Los productos pasan a la ficha de catálogo. La categoría queda en «otros» y el origen en «manual»: **no se adivinan**, porque adivinar llenaría la app de etiquetas que nadie eligió.
 - **v2 → v3.** La canasta base pasa a ser **la canasta habitual**. Cada mes que tuviera canasta propia se convierte en **diferencias** contra ella: lo que tenía otra cantidad queda como cambio, lo que no estaba en la base queda como extra, lo que faltaba queda como quitado, y lo que era idéntico **no se guarda** —porque no era una excepción—. No se inventan rutinas a partir del historial. Las facturas guardadas salen del estado vivo; siguen en el respaldo previo.
+- **v9 → v10.** Se cae el andamio de la conversión anterior. Aquella les puso a las reglas hermanas un `grupoId` para recordar que se habían escrito de una sentada, porque las pantallas de entonces las enseñaban juntas. Ahora se añade, se edita, se pausa y se borra **una regla cada vez**, así que el campo no lo lee nadie y se quita. No se pierde nada: no decía qué preparación, ni qué momento, ni qué días —eso lo dice la regla—, solo con cuáles se había tecleado a la vez.
 - **v8 → v9.** La app deja de calcular la compra y pasa a ayudar a decidir la comida. Cada línea de la canasta dice a qué **rubro** pertenece y su cantidad deja de ser obligatoria —la que hubiera escrita se conserva con sus fechas, porque con ella se calcularon compras que ya se cerraron—. Una **regla de repetición** pasa a unir una preparación con **un** momento: las que cubrían varios se parten en una por momento y las comidas que habían puesto se reasignan a la que les toca por su momento. Y aparece dónde guardar las **listas de compra**, que nacen vacías: una lista es una salida concreta al supermercado, no un inventario, y las compras ya anotadas son historial.
 
 El respaldo de los datos de prueba de antes de esa conversión está congelado en `tests/fixtures/`, con su huella en `SUMAS-v8.txt`. Se comprueba desde fuera con `sha256sum -c SUMAS-v8.txt` y desde dentro con `tests/respaldo-v8.test.js`, que además exige que migrarlo no pierda ni un registro.

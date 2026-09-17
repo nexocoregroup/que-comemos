@@ -20,9 +20,9 @@
 // excepción o de la mano de alguien—, que es lo que hace falta saber para
 // atreverse a cambiarla.
 
-import { MOMENTOS, ORIGENES, SLOTS, SLOTS_PRINCIPALES, dateRange, deletePlan, effectiveBasket, esOpcional, etiquetaDeMomento, etiquetaDeOrigen, makeRecipePlan, momentoDe, monthBasketSummary, monthBounds, origenDe, planFor, restore, setStatusPlan, shoppingList, snapshot, todayISO } from './model.js';
-import { WEEKDAY_SHORT, WEEKDAYS, addRoutine, applyRoutine, applyRoutines, copyPatternFromMonth, datesForRule, deleteRoutine, describeRule, extenderAMesesAbiertos, grupoComoRegla, grupoDeRegla, gruposDeReglas, monthProgress, ocupadasEnMesesAbiertos, openMonth, routinePlans, updateRoutine } from './routines.js';
-import { button, cap, empty, esc, measure, modal, monthName, niceDate, notice, options, shiftMonth } from './ui-kit.js';
+import { MOMENTOS, ORIGENES, SLOTS, SLOTS_PRINCIPALES, dateRange, deletePlan, esOpcional, etiquetaDeMomento, etiquetaDeOrigen, makeRecipePlan, monthBounds, origenDe, planFor, restore, setStatusPlan, snapshot, todayISO } from './model.js';
+import { WEEKDAY_SHORT, WEEKDAYS, addRoutine, applyRoutine, applyRoutines, copyPatternFromMonth, datesForRule, deleteRoutine, describeRule, extenderAMesesAbiertos, monthProgress, ocupadasEnMesesAbiertos, openMonth, pausarRegla, regla, reglasDelMes, routinePlans, updateRoutine } from './routines.js';
+import { button, cap, empty, esc, modal, monthName, niceDate, notice, options, shiftMonth } from './ui-kit.js';
 import { icono } from './icons.js';
 
 const hoy = todayISO();
@@ -96,7 +96,7 @@ function renderResumen(ctx) {
   // Por grupos y no regla por regla: quien escribió «los domingos comemos
   // fuera: desayuno, almuerzo y cena» escribió una rutina, aunque por dentro
   // ahora sean tres reglas. Contarle tres sería contarle la implementación.
-  const rutinas = gruposDeReglas(state, month);
+  const rutinas = reglasDelMes(state, month);
   const cerrado = state.monthPlans?.[month]?.preparedAt || null;
   const sinNada = !rutinas.length && !progreso.encasa && !progreso.fuera;
 
@@ -132,8 +132,7 @@ function renderResumen(ctx) {
   }
 
   return `${barraDeMes(ctx)}${avisoDeApertura(ctx)}${cabecera}${desglose}
-    ${seccionRutinas(ctx, rutinas)}
-    ${seccionCanasta(ctx)}`;
+    ${seccionRutinas(ctx, rutinas)}`;
 }
 
 // «73 en casa, 3 fuera, 17 por decidir» se entiende de un vistazo; un cuadro de
@@ -168,10 +167,13 @@ function seccionRutinas(ctx, rutinas) {
     <div class="card">${rutinas.map(rutina => filaDeRutina(state, ui.mes.month, rutina)).join('')}</div>`;
 }
 
-function filaDeRutina(state, month, rutina) {
+// Una fila por regla, y una regla es una preparación en UN momento. «Mangú los
+// lunes de desayuno» y «mangú los viernes de cena» son dos filas, con dos
+// botones de editar y dos de quitar, porque son dos costumbres distintas.
+export function filaDeRutina(state, month, rutina, { pausable = true } = {}) {
   const fechas = datesForRule(month, rutina.weekdays, rutina.weeks);
   const cuando = describeRule(rutina.weekdays, rutina.weeks);
-  const comidas = rutina.slots.map(cap).join(', ');
+  const pausada = rutina.active === false;
   const alcance = rutina.scope === 'permanent'
     ? '<span class="pill">todos los meses</span>'
     : `<span class="pill warm">solo ${esc(monthName(rutina.month))}</span>`;
@@ -181,14 +183,17 @@ function filaDeRutina(state, month, rutina) {
     rutina.desde ? `desde el ${niceDate(rutina.desde, { day: 'numeric', month: 'short' })}` : '',
     rutina.until ? `hasta el ${niceDate(rutina.until, { day: 'numeric', month: 'short' })}` : ''
   ].filter(Boolean).join(' ');
-  return `<div class="list-row">
+  return `<div class="list-row regla-fila ${pausada ? 'pausada' : ''}">
     <div class="list-row-main">
-      <div class="list-row-title">${esc(tituloDeRutina(state, rutina))} ${alcance}</div>
-      <div class="list-row-sub">${esc(comidas)} · ${esc(cuando)} · ${fechas.length} día(s) en ${esc(monthName(month))}${vigencia ? ` · ${esc(vigencia)}` : ''}</div>
+      <div class="list-row-title">${esc(tituloDeRutina(state, rutina))} ${pausada ? '<span class="pill gray">en pausa</span>' : alcance}</div>
+      <div class="list-row-sub">${esc(cap(etiquetaDeMomento(rutina.momento)))} · ${esc(cuando)} · ${pausada ? 'no pone ninguna comida mientras esté en pausa' : `${fechas.length} día(s) en ${esc(monthName(month))}`}${vigencia ? ` · ${esc(vigencia)}` : ''}</div>
     </div>
     <div class="inline">
       ${button('Editar', 'open-routine', 'btn-secondary btn-small', `data-id="${rutina.id}"`)}
-      ${button('Aplicar', 'mes-aplicar-rutina', 'btn-secondary btn-small', `data-id="${rutina.id}"`)}
+      ${pausada
+        ? button('Reanudar', 'regla-reanudar', 'btn-secondary btn-small', `data-id="${rutina.id}"`)
+        : button('Aplicar', 'mes-aplicar-rutina', 'btn-secondary btn-small', `data-id="${rutina.id}"`)}
+      ${pausable && !pausada ? button('Pausar', 'regla-pausar', 'btn-quiet btn-small', `data-id="${rutina.id}"`) : ''}
       ${button('Quitar', 'mes-borrar-rutina', 'btn-quiet btn-small', `data-id="${rutina.id}"`)}
     </div>
   </div>`;
@@ -202,23 +207,6 @@ function tituloDeRutina(state, rutina) {
 
 // La canasta aparece aquí en pequeño, no como sección propia: lo que importa en
 // esta pantalla es si este mes cambia algo, no la lista entera.
-function seccionCanasta(ctx) {
-  const { state, ui } = ctx;
-  const month = ui.mes.month;
-  const resumen = monthBasketSummary(state, month);
-  const cambios = resumen.cambiados + resumen.quitados + resumen.extras;
-  if (!resumen.habituales && !cambios) {
-    return `<div class="section-head"><div><h2>La compra de este mes</h2></div></div>
-      ${empty('canasta', 'Todavía no has dicho qué se compra en tu casa', 'Se escribe una vez y vale para todos los meses. Después, cada mes solo cambias lo diferente.', button('Escribir mi canasta habitual', 'navigate', 'btn-primary', 'data-page="canasta"'))}`;
-  }
-  return `<div class="section-head"><div><h2>La compra de este mes</h2><p>${resumen.habituales} alimento(s) habituales.</p></div>${button('Cambios de este mes', 'navigate', 'btn-secondary btn-small', `data-page="canasta" data-month="${month}"`)}</div>
-    <div class="card">${cambios
-      ? `<p class="plan-cambios">Este mes se aparta de la costumbre en <strong>${cambios}</strong> cosa(s):
-          ${resumen.cambiados ? `${resumen.cambiados} con otra cantidad` : ''}${resumen.cambiados && (resumen.quitados || resumen.extras) ? ' · ' : ''}${resumen.quitados ? `${resumen.quitados} que no se compran` : ''}${resumen.quitados && resumen.extras ? ' · ' : ''}${resumen.extras ? `${resumen.extras} extra` : ''}.</p>
-         <p class="small muted">Los meses siguientes no se ven afectados.</p>`
-      : '<p class="muted">Este mes es igual que siempre. No hay nada que revisar.</p>'}</div>`;
-}
-
 /* ── Calendario ────────────────────────────────────────────────────────── */
 
 function renderCalendario(ctx) {
@@ -358,7 +346,7 @@ function resumenDeOrigenes(cuentas, month) {
 function bloqueBase(ctx) {
   const { state, ui } = ctx;
   const month = ui.mes.month;
-  const rutinas = gruposDeReglas(state, month);
+  const rutinas = reglasDelMes(state, month);
   const permanentes = rutinas.filter(rutina => rutina.scope === 'permanent');
   const anterior = shiftMonth(month, -1);
   const seOrganizoAntes = Boolean(state.monthPlans?.[anterior]) || state.plans.some(plan => plan.date.slice(0, 7) === anterior);
@@ -398,25 +386,7 @@ function bloqueMesAnterior(ctx, anterior, seOrganizoAntes) {
       ${opcion('copiar', 'mes-copiar-patron', '', `Traer el menú de ${monthName(anterior)}`, 'Se copian las preparaciones por día de la semana, no por número de fecha, y solo en los días que estén libres. Las salidas y los pedidos del mes pasado no se copian: eran de aquel mes.')}
       ${opcion('ajustar', 'mes-vista', 'data-vista="calendario"', 'Ajustarlo día por día', 'Abre el calendario. Cada comida dice de dónde vino y se cambia tocándola.')}
     </div>
-    ${cambiosEnLaCompra(state, anterior, month)}`;
-}
-
-// Qué cambia en lo que se compra. No es una estadística: es la forma de
-// acordarse de lo que se hizo distinto.
-function cambiosEnLaCompra(state, anterior, month) {
-  const mapa = lista => new Map(lista.map(linea => [linea.productId, linea]));
-  const deAntes = mapa(effectiveBasket(state, anterior));
-  const deAhora = mapa(effectiveBasket(state, month));
-  const distintos = [];
-  for (const [id, linea] of deAhora) {
-    const viejo = deAntes.get(id);
-    if (!viejo) distintos.push(`${nombreProducto(state, id)}: nuevo este mes`);
-    else if (viejo.quantity !== linea.quantity) distintos.push(`${nombreProducto(state, id)}: ${viejo.quantity === null ? 'sin cantidad' : measure(viejo.quantity, viejo.unit)} → ${linea.quantity === null ? 'sin cantidad' : measure(linea.quantity, linea.unit)}`);
-  }
-  for (const [id] of deAntes) if (!deAhora.has(id)) distintos.push(`${nombreProducto(state, id)}: este mes no se compra`);
-  if (!distintos.length) return '<p class="small muted" style="margin-top:14px">En la compra, este mes es igual que el pasado.</p>';
-  return `<div class="section-head"><h3 class="plan-sub">Y en la compra cambia esto</h3></div>
-    <div class="card"><ul class="food-list">${distintos.slice(0, 10).map(texto => `<li>${esc(texto)}</li>`).join('')}</ul>${distintos.length > 10 ? `<p class="small muted">Y ${distintos.length - 10} más.</p>` : ''}</div>`;
+`;
 }
 
 /* ── Bloque 2: lo que será distinto ────────────────────────────────────── */
@@ -434,7 +404,7 @@ const ATAJOS_SALIDA = [
 function bloqueExcepciones(ctx) {
   const { state, ui } = ctx;
   const month = ui.mes.month;
-  const reglas = gruposDeReglas(state, month).filter(rutina => rutina.kind === 'outside' || rutina.kind === 'order');
+  const reglas = reglasDelMes(state, month).filter(rutina => rutina.kind === 'outside' || rutina.kind === 'order');
   const { start, end } = monthBounds(month);
 
   const sueltas = [];
@@ -504,8 +474,6 @@ function bloqueConfirmar(ctx) {
   const { state, ui } = ctx;
   const month = ui.mes.month;
   const progreso = monthProgress(state, month);
-  const resumen = monthBasketSummary(state, month);
-  const cambios = resumen.cambiados + resumen.quitados + resumen.extras;
 
   return `<p class="plan-bloque-texto">Esto es ${esc(monthName(month))} tal y como queda. Puedes cerrarlo aunque falten comidas por decidir: lo que dejes en blanco sigue estando ahí mañana.</p>
 
@@ -525,8 +493,20 @@ function bloqueConfirmar(ctx) {
     </ul>
 
     ${bloquePendientes(ctx, progreso)}
-    ${bloqueCanasta(ctx, resumen, cambios)}
-    ${bloqueCompra(ctx)}`;
+
+    ${/* Aquí había dos bloques más: lo que cambia en la compra de este mes, con
+         sus cuatro cifras, y la lista de lo que haría falta comprar con sus
+         cantidades y lo que queda en casa.
+
+         Se fueron los dos. Preparar un mes es decidir qué se come, y esas dos
+         cosas preguntaban por lo que cuesta: cuánto se compra, cuánto queda,
+         cuánto falta. Puestas al final del recorrido convertían «ya está mi mes»
+         en «ahora repasa el inventario», que es donde se abandonaba.
+
+         La compra no desapareció de la app: tiene su propia pantalla y se llega
+         por la barra de abajo, cuando toca ir al supermercado y no cuando se
+         está decidiendo qué cenar el jueves. */''}
+    <p class="small muted plan-cierre-nota">Cuando toque hacer la compra, la lista se escribe en <strong>Compra</strong>. Aquí no hace falta contar nada.</p>`;
 }
 
 // Los huecos son un aviso, nunca una puerta cerrada. Y solo cuentan las tres
@@ -557,45 +537,6 @@ function bloquePendientes(ctx, progreso) {
       </div>
     </div>`).join('')}</div>
     ${pendientes.length > tope ? `<div class="inline" style="margin-top:12px">${button(`Ver ${Math.min(12, pendientes.length - tope)} más`, 'mes-ver-mas-pendientes', 'btn-quiet btn-small')}</div>` : ''}`;
-}
-
-function bloqueCanasta(ctx, resumen, cambios) {
-  const { state, ui } = ctx;
-  const month = ui.mes.month;
-  const cambiadas = effectiveBasket(state, month).filter(linea => linea.source !== 'habitual');
-  return `<div class="section-head"><div><h3 class="plan-sub">Lo que cambia en la compra de este mes</h3><p class="small muted">Tu canasta habitual ya está aplicada. Aquí solo se anota lo que ${esc(monthName(month))} tendrá de diferente, y no toca los demás meses.</p></div>${button('Cambiar algo', 'navigate', 'btn-secondary btn-small', `data-page="canasta" data-month="${month}"`)}</div>
-    <div class="card plan-canasta-cifras">
-      <div><strong>${resumen.habituales}</strong><span>de siempre</span></div>
-      <div><strong>${resumen.cambiados}</strong><span>con otra cantidad</span></div>
-      <div><strong>${resumen.quitados}</strong><span>que no se compran</span></div>
-      <div><strong>${resumen.extras}</strong><span>solo de ${esc(monthName(month).split(' ')[0])}</span></div>
-    </div>
-    ${cambios && cambiadas.length ? `<div class="card">${cambiadas.slice(0, 8).map(linea =>
-      `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${esc(nombreProducto(state, linea.productId))} <span class="pill warm">${linea.source === 'extra' ? 'solo este mes' : 'cantidad distinta'}</span></div><div class="list-row-sub">${linea.quantity === null ? 'cantidad pendiente' : esc(measure(linea.quantity, linea.unit))}</div></div></div>`).join('')}${cambiadas.length > 8 ? `<p class="small muted">Y ${cambiadas.length - 8} más.</p>` : ''}</div>` : ''}`;
-}
-
-// La lista sale de lo que ya está decidido, y se enseña aquí para que el mes no
-// se dé por organizado sin haber mirado lo que va a costar.
-function bloqueCompra(ctx) {
-  const { state, ui } = ctx;
-  const { start, end } = monthBounds(ui.mes.month);
-  let lista;
-  try { lista = shoppingList(state, start, end, 'casa'); }
-  catch (error) {
-    return `<div class="section-head"><h3 class="plan-sub">La compra</h3></div>
-      <div class="card"><p class="muted">No se pudo calcular la lista: ${esc(error.message)}</p></div>`;
-  }
-  const faltan = lista.lines.filter(linea => linea.shortfall > 0);
-  const abrir = `<div class="inline" style="margin-top:12px">${button('Abrir la compra de este mes', 'navigate', 'btn-primary', 'data-page="compra"')}</div>`;
-  if (!faltan.length) {
-    return `<div class="section-head"><h3 class="plan-sub">La compra</h3></div>
-      <div class="card plan-ok"><span class="plan-ok-icono">✓</span><div><strong>No falta nada.</strong><span>Con lo que hay en casa alcanza para ${esc(monthName(ui.mes.month))}.</span></div></div>${abrir}`;
-  }
-  return `<div class="section-head"><div><h3 class="plan-sub">La compra</h3><p class="small muted">Lo que haría falta comprar para todo ${esc(monthName(ui.mes.month))}, según tu canasta y lo que ya queda en casa.</p></div></div>
-    <div class="card">${faltan.slice(0, 12).map(linea => {
-      const item = state.products.find(row => row.id === linea.productId);
-      return `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${esc(item?.name || '')}</div></div><div class="compra-cantidad">${linea.purchaseQuantity === null ? '<span class="pill gray">falta una medida</span>' : `<strong>${esc(measure(linea.purchaseQuantity, linea.purchaseUnit))}</strong>`}</div></div>`;
-    }).join('')}${faltan.length > 12 ? `<p class="small muted">Y ${faltan.length - 12} alimento(s) más.</p>` : ''}</div>${abrir}`;
 }
 
 const nombreProducto = (state, id) => state.products.find(item => item.id === id)?.name || 'Alimento eliminado';
@@ -660,7 +601,7 @@ export function modalRutina(ctx, extras = {}) {
   // El grupo entero y no la regla suelta: esta ventana pregunta los momentos con
   // casillas, y si abriera marcado solo el de la primera regla, guardar borraría
   // las demás sin decir nada.
-  const editando = extras.id ? grupoComoRegla(state, extras.id) : null;
+  const editando = extras.id ? regla(state, extras.id) : null;
   const prefijo = extras.atajo ? ATAJOS_SALIDA.find(item => item.id === extras.atajo) : null;
 
   /* ── Lo que ya se sabe no se vuelve a preguntar ──────────────────────────
@@ -678,7 +619,11 @@ export function modalRutina(ctx, extras = {}) {
   const dias = editando?.weekdays || prefijo?.weekdays || [];
   const semanas = editando?.weeks || prefijo?.weeks || null;
   const receta = editando?.recipeId || extras.receta || '';
-  const momentos = editando?.slots || (extras.slot ? [extras.slot] : []);
+  // UN momento, no varios. La ficha de la preparación dice en cuáles **puede**
+  // comerse; la regla dice en cuál **se pone**. Preguntarlo con casillas hacía
+  // que «mangú de desayuno y de cena» se pusiera los mismos días en los dos, que
+  // es justo lo que una casa no quiere.
+  const momento = editando?.momento || extras.slot || prefijo?.slot || '';
   const tipo = editando?.kind || extras.kind || (receta ? 'recipe' : prefijo ? 'outside' : 'recipe');
   const hastaValor = editando?.until || '';
   const desdeValor = editando?.desde || '';
@@ -723,7 +668,8 @@ export function modalRutina(ctx, extras = {}) {
       </fieldset>
 
       <fieldset class="field-group"><legend>¿En qué comida?</legend>
-        <div class="chips">${MOMENTOS.map(momento => `<label class="chip-check"><input type="checkbox" name="slots" value="${momento.id}" ${momentos.includes(momento.id) ? 'checked' : ''}><span>${esc(momento.etiqueta)}</span></label>`).join('')}</div>
+        <div class="chips">${MOMENTOS.map(item => `<label class="chip-check"><input type="radio" name="momento" value="${item.id}" ${momento === item.id ? 'checked' : ''}><span>${esc(item.etiqueta)}</span></label>`).join('')}</div>
+        <p class="hint">Una sola. Si esta preparación también se come en otro momento, se le añade otra repetición después: así puedes tener el mangú los lunes de desayuno y los viernes de cena sin que se mezclen.</p>
       </fieldset>
 
       <fieldset class="field-group"><legend>¿Qué días?</legend>
@@ -788,6 +734,14 @@ export function modalRutina(ctx, extras = {}) {
 
       <div class="modal-actions">
         ${button('Cancelar', 'close-modal', 'btn-secondary')}
+        ${/* «Guardar y añadir otra repetición» solo cuando hay una preparación
+             detrás: es lo que deja escribir «mangú los lunes de desayuno» y
+             seguir con «mangú los viernes de cena» sin volver a decir el nombre
+             del plato. Editando no aparece, porque editar es una cosa y añadir
+             otra regla es otra. */''}
+        ${!editando && tipo === 'recipe' && !sueltos
+          ? '<button type="submit" class="btn btn-secondary" name="otra" value="1">Guardar y añadir otra repetición</button>'
+          : ''}
         <button type="submit" class="btn btn-primary">${editando ? 'Guardar los cambios' : 'Guardar y aplicar'}</button>
       </div>
     </form>`, true);
@@ -893,7 +847,28 @@ export const MES_ACTIONS = {
     ctx.commit('Día vaciado.');
   },
   'mes-ver-mas-pendientes': (el, ctx) => { ctx.ui.mes.verPendientes += 12; ctx.render(); },
-  'mes-nueva-rutina': (el, ctx) => ctx.openModal('rutina', { month: ctx.ui.mes.month }),
+  'mes-nueva-rutina': (el, ctx) => ctx.openModal('rutina', {
+    month: ctx.ui.mes.month,
+    // Entrando desde una preparación, llega con ella puesta; desde una comida
+    // del calendario, con su momento también. Lo que ya se eligió no se vuelve
+    // a preguntar.
+    receta: el?.dataset?.receta || '',
+    slot: el?.dataset?.slot || ''
+  }),
+
+  /* ── Pausar una regla ─────────────────────────────────────────────────────
+
+     «Este mes no desayunamos mangú, pero en octubre volvemos.» Pausar deja la
+     regla escrita con sus días y su preparación y solo deja de poner comidas.
+     Las que ya puso se quedan: pausar mira hacia delante. */
+  'regla-pausar': (el, ctx) => {
+    const item = pausarRegla(ctx.state, el.dataset.id, true);
+    ctx.commit(`«${tituloDeRutina(ctx.state, item)}» en pausa. Deja de ponerse sola; las comidas que ya puso se quedan.`);
+  },
+  'regla-reanudar': (el, ctx) => {
+    const item = pausarRegla(ctx.state, el.dataset.id, false);
+    ctx.commit(`«${tituloDeRutina(ctx.state, item)}» vuelve a repetirse. Pulsa «Aplicar» para llenar lo que falte de este mes.`);
+  },
   // Cambiar entre «días de la semana» y «días sueltos» sin repintar: repintar
   // borraría lo que ya se hubiera marcado arriba, que es la mitad del formulario.
   'rutina-modo-dias': (el, ctx) => {
@@ -925,7 +900,7 @@ export const MES_ACTIONS = {
   },
 
   'mes-borrar-rutina': (el, ctx) => {
-    const rutina = grupoComoRegla(ctx.state, el.dataset.id);
+    const rutina = regla(ctx.state, el.dataset.id);
     // Del grupo, no de la primera regla: si contara solo los desayunos diría
     // «está puesta en 4 comidas» antes de quitar ocho.
     const planes = routinePlans(ctx.state, el.dataset.id);
@@ -1047,11 +1022,14 @@ export const MES_FORMS = {
     const { state, ui } = ctx;
     const month = form.dataset.month;
     const kind = data.get('kind') || 'recipe';
-    const slots = [...form.querySelectorAll('[name="slots"]:checked')].map(input => input.value);
+    // Una regla, un momento. Se sigue mandando como lista porque `addRoutine` y
+    // el resto del recorrido hablan de `slots`, pero tiene exactamente uno.
+    const momento = String(data.get('momento') || '');
+    const slots = momento ? [momento] : [];
     const modo = data.get('modo') === 'reemplazar' ? 'reemplazar' : 'vacios';
     const sueltos = !form.querySelector('[data-dias-sueltos]').hidden;
 
-    if (!slots.length) throw new Error('Marca al menos una comida: desayuno, almuerzo o cena.');
+    if (!slots.length) throw new Error('Elige en qué comida del día se repite: desayuno, merienda, almuerzo o cena.');
     if (kind === 'recipe' && !data.get('recipeId')) throw new Error('Elige qué preparación se repite, o marca «fuera de casa».');
 
     // Días sueltos no es una rutina, y guardarlo como tal sería mentir: «el 4, el
@@ -1112,12 +1090,8 @@ export const MES_FORMS = {
     let liberadas = 0;
     if (editandoId) {
       const vigentes = new Set(fechas.flatMap(date => slots.map(slot => `${date}|${slot}`)));
-      // Las comidas cuelgan de la regla de su momento, no de la primera del
-      // grupo. Mirando solo la primera se soltarían los desayunos y se quedarían
-      // colgando cenas de una regla que ya no las cubre.
-      const suyas = new Set(grupoDeRegla(state, rutina.id).reglas.map(regla => regla.id));
       for (const plan of state.plans) {
-        if (!suyas.has(plan.routineId)) continue;
+        if (plan.routineId !== rutina.id) continue;
         if (plan.date.slice(0, 7) !== month) continue;
         if (vigentes.has(`${plan.date}|${plan.slot}`)) continue;
         plan.routineId = null;
@@ -1162,6 +1136,14 @@ export const MES_FORMS = {
         scope === 'permanent' ? 'Se repetirá en los meses siguientes.' : `Vale solo para ${monthName(month)}.`
       ].filter(Boolean).join('. ').replace(/\.\./g, '.')
     };
+    // «Guardar y añadir otra repetición»: la ventana se queda abierta con la
+    // misma preparación y los días en blanco. Es el camino de «mangú los lunes
+    // de desayuno» a «mangú los viernes de cena» sin volver a teclear el plato.
+    if (data.get('otra') === '1' && rutina.kind === 'recipe') {
+      ctx.openModal('rutina', { month, receta: rutina.recipeId });
+      ctx.commit('');
+      return;
+    }
     ctx.closeModal();
     ctx.commit('');
   }

@@ -532,6 +532,44 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 .receta-tarjeta .pill { margin-right: 4px; }
 .receta-incompleta { font-style: italic; }
 
+/* ── La ficha y sus reglas, separadas a la vista ───────────────────────────
+
+   Arriba qué es el plato, abajo cuándo se pone. La línea que las separa no es
+   decoración: son dos cosas distintas y leerlas como una era el error de fondo
+   —«mangú de desayuno y de cena, los lunes» ponía mangú dos veces el lunes—. */
+
+.receta-repeticiones {
+  margin-top: var(--aire-4);
+  padding-top: var(--aire-3);
+  border-top: 1px solid var(--line);
+}
+.receta-repeticiones-titulo {
+  margin: 0 0 var(--aire-2);
+  font-size: .74rem; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .1em;
+  color: var(--ink-muted);
+}
+.receta-repeticiones p { margin: 0; }
+
+.receta-reglas { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--aire-2); }
+.receta-reglas li {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--aire-3); flex-wrap: wrap;
+  font-size: .87rem; line-height: 1.4;
+}
+.receta-regla-texto { min-width: 0; }
+.receta-regla-acciones { gap: var(--aire-1); }
+.receta-reglas li.pausada .receta-regla-texto { opacity: .6; }
+
+/* Una regla en pausa se ve apagada, no tachada: no está mal, está esperando. */
+.regla-fila.pausada .list-row-title,
+.regla-fila.pausada .list-row-sub { opacity: .62; }
+
+/* El aviso de lo que no se pudo comprobar. No es una alarma —no se sabe que
+   haya un problema— pero tampoco silencio, que se leería como «revisado». */
+.choque-sinsaber { background: var(--surface-soft); border: 1px dashed var(--line); color: var(--ink-muted); }
+.choque-sinsaber .choque-marca { color: var(--clay); font-size: 1.05rem; }
+
 /* El formulario de una preparación: seis cosas en fila, ninguna escondida. */
 .receta-form { display: grid; gap: 18px; }
 .receta-form .field { gap: 8px; }
@@ -716,3 +754,94 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 }
 .cierre-seccion .food-list { margin: 0; }
 .cierre-seccion p { margin: 0 0 6px; }
+
+/* Cambiar el plato de un solo día, dentro de la ventana de la comida. Va en su
+   propia caja para que no se confunda con el formulario de abajo, que es el que
+   edita esta comida: son dos cosas distintas y una de ellas borra la otra. */
+.sustituir-comida {
+  display: grid; gap: var(--aire-3);
+  margin: var(--aire-4) 0;
+  padding: var(--aire-4);
+  border: 1px solid var(--line); border-radius: var(--curva-3);
+  background: var(--surface-soft);
+}
+.sustituir-comida .field { margin: 0; }
+.sustituir-comida .btn { justify-self: start; }
+
+/* ── La compra: dos vistas ─────────────────────────────────────────────────
+
+   Preparar y Mi lista. No hay una tercera, y las dos caben en un pulgar: en
+   «preparar» se toca un producto y se dice cuánto; en «mi lista» se toca un
+   renglón y queda tachado. */
+
+.compra-cabecera { margin-bottom: var(--aire-5); }
+.compra-vistas { width: 100%; margin-top: var(--aire-3); }
+.compra-vistas button { flex: 1; }
+
+.compra-rubro { margin-top: var(--aire-6); }
+.compra-rubro-titulo {
+  display: flex; align-items: center; gap: var(--aire-2);
+  margin: 0 0 var(--aire-3); font-size: .95rem; letter-spacing: -.02em;
+}
+.compra-rubro-icono { color: var(--clay); display: flex; }
+
+.compra-productos { display: flex; flex-wrap: wrap; gap: var(--aire-2); }
+.compra-producto {
+  display: inline-flex; align-items: center; gap: var(--aire-2);
+  min-height: var(--toque); padding: var(--aire-2) var(--aire-4);
+  border: 1px solid var(--line); border-radius: var(--curva-llena);
+  background: var(--surface); color: var(--ink);
+  font-size: .9rem; font-weight: 650; text-align: left;
+}
+.compra-producto:hover { background: var(--clay-light); border-color: var(--clay-line); }
+.compra-producto.puesto { background: var(--clay-light); border-color: var(--clay); }
+.compra-producto-mas { color: var(--clay); display: flex; }
+.compra-producto .pill { font-size: .68rem; }
+
+/* La casilla de «¿cuánto?» se abre en el sitio del producto, no encima de la
+   pantalla: quien la cierra sigue exactamente donde estaba. */
+.compra-poner, .compra-ocasional {
+  flex: 1 1 100%;
+  display: grid; gap: var(--aire-3);
+  border: 1px solid var(--clay-line); border-radius: var(--curva-3);
+  background: var(--clay-light); padding: var(--aire-4);
+}
+.compra-poner-nombre, .compra-ocasional-titulo { margin: 0; font-weight: 800; color: var(--clay-dark); }
+.compra-poner-campos { display: grid; grid-template-columns: minmax(0, 1fr) minmax(110px, .7fr); gap: var(--aire-3); }
+.compra-poner .field, .compra-ocasional .field { margin: 0; }
+.compra-poner input, .compra-poner select,
+.compra-ocasional input, .compra-ocasional select { background: var(--surface); }
+.compra-poner p:last-child { margin: 0; }
+.compra-ocasional-abrir { margin-top: var(--aire-6); }
+
+/* ── Mi lista ──────────────────────────────────────────────────────────── */
+
+.compra-lista { display: grid; gap: 0; }
+.compra-renglon {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--aire-3); flex-wrap: wrap;
+  border-top: 1px solid var(--line); padding: var(--aire-3) 0;
+}
+.compra-renglon:first-child { border-top: 0; }
+.compra-tachar {
+  display: flex; align-items: center; gap: var(--aire-3);
+  flex: 1 1 200px; min-width: 0; min-height: var(--toque);
+  border: 0; background: none; text-align: left; color: var(--ink);
+  padding: 0;
+}
+.compra-tachar-caja {
+  flex: none; display: grid; place-items: center;
+  width: 26px; height: 26px; border-radius: 8px;
+  border: 2px solid var(--clay-line); background: var(--surface); color: #fff;
+}
+.compra-renglon.tachado .compra-tachar-caja { background: var(--sage); border-color: var(--sage); }
+.compra-renglon-texto { display: grid; gap: 2px; min-width: 0; }
+.compra-renglon.tachado .compra-renglon-texto strong { text-decoration: line-through; opacity: .62; }
+.compra-renglon.a-medias .compra-tachar-caja { border-color: var(--clay); background: var(--clay-light); }
+.compra-renglon-acciones { gap: var(--aire-2); }
+.compra-parcial { display: flex; align-items: center; gap: var(--aire-1); }
+.compra-parcial input { width: 84px; min-height: var(--toque-chico); }
+.compra-tachados { opacity: .82; }
+.compra-acciones { justify-content: stretch; }
+.compra-acciones .btn { flex: 1; }
+.compra-historial { margin-top: var(--aire-7); }

@@ -14,7 +14,7 @@ import { resolve } from 'node:path';
 // comprueba que cerrar la app a mitad no tira el trabajo.
 
 import { CATEGORIES, RUBROS, SEED_PRODUCTS, categoriaDelRubro, rubroDeCategoria, seedByRubro } from '../src/catalog-seed.js';
-import { createEmptyState, habitualLines, product, productByName } from '../src/model.js';
+import { addProduct, createEmptyState, habitualLines, product, productByName, setHabitualBasket } from '../src/model.js';
 import { loadState, saveState } from '../src/storage.js';
 import {
   PASO, PASOS, SETUP_ACTIONS, SETUP_FORMS, avanceGuardado, emptySetup,
@@ -118,7 +118,8 @@ test('la pantalla de entrada dice lo que se pidió, palabra por palabra', () => 
   const ctx = contexto();
   const html = renderSetup(ctx);
   revisar(html, 'renderSetup (entrada)');
-  assert.ok(html.includes('Ahora vamos a crear la canasta base de tu hogar. Selecciona los alimentos que normalmente compras todos los meses. Podrás agregar cualquier alimento que no aparezca.'));
+  assert.ok(html.includes('Vamos a registrar lo que tu casa come y compra de costumbre.'));
+  assert.ok(html.includes('No hace falta indicar cantidades de nada.'), 'la portada tiene que prometerlo desde el principio');
 });
 
 test('cada uno de los ocho rubros se dibuja y dice por dónde va', () => {
@@ -128,7 +129,8 @@ test('cada uno de los ocho rubros se dibuja y dice por dónde va', () => {
     const html = renderSetup(ctx);
     revisar(html, `rubro ${i + 1}`);
     assert.ok(html.includes(`Categoría ${i + 1} de 8 — <strong>${RUBROS[i].titulo}</strong>`), `falta el progreso del rubro ${i + 1}`);
-    assert.ok(html.includes('Selecciona todos los que compras habitualmente. No importa cuántos sean.'), `falta la frase pedida en el rubro ${i + 1}`);
+    assert.ok(html.includes('Selecciona lo que normalmente compras para tu casa.'), `falta la frase pedida en el rubro ${i + 1}`);
+    assert.ok(html.includes('No tienes que indicar cantidades.'), `el rubro ${i + 1} no dice que no hacen falta cantidades`);
     if (i < RUBROS.length - 1) SETUP_ACTIONS['setup-rubro-seguir'](null, ctx);
   }
   assert.equal(renderSetup(ctx).includes('Categoría 8 de 8 — <strong>Otros productos habituales</strong>'), true);
@@ -422,7 +424,10 @@ test('lo que ya estaba en la canasta no se pierde al volver a guardar otra cosa'
 
 /* ── De los rubros a las cantidades ────────────────────────────────────── */
 
-test('lo marcado en los ocho rubros llega entero al paso de las cantidades', () => {
+test('lo marcado en los ocho rubros llega entero a los productos habituales, y sin cantidades', () => {
+  // Antes esto terminaba en la pantalla de las cantidades y ahí se guardaba.
+  // Ahora se guarda al salir del último rubro, que es el momento en que lo
+  // marcado deja de ser un borrador.
   const ctx = contexto();
   empezar(ctx);
   SETUP_ACTIONS['setup-marcar'](casilla('Yuca', true), ctx);
@@ -432,13 +437,21 @@ test('lo marcado en los ocho rubros llega entero al paso de las cantidades', () 
   SETUP_ACTIONS['setup-falta'](null, ctx);
   SETUP_FORMS['setup-nuevo'](null, new Map([['nombre', 'Fresa']]), ctx);
 
-  ctx.ui.setup.paso = PASO.cantidades;
-  const html = renderSetup(ctx);
-  revisar(html, 'paso de cantidades');
+  // Salir del último rubro: ahí se escribe.
+  irAlRubroDirecto(ctx, RUBROS.length - 1);
+  SETUP_ACTIONS['setup-rubro-seguir'](null, ctx);
+  assert.equal(ctx.ui.setup.paso, PASO.compra);
+
+  const lineas = habitualLines(ctx.state);
   for (const nombre of ['Yuca', 'Arroz', 'Fresa']) {
-    assert.ok(html.includes(`value="${nombre}"`), `falta ${nombre} en las cantidades`);
+    const item = productByName(ctx.state, nombre);
+    assert.ok(item, `${nombre} no llegó al catálogo`);
+    const linea = lineas.find(fila => fila.productId === item.id);
+    assert.ok(linea, `${nombre} no llegó a los productos habituales`);
+    assert.equal(linea.quantity, null, `${nombre} llegó con una cantidad que nadie escribió`);
   }
-  assert.ok(html.includes('data-categoria="frutas"'), 'la fruta escrita a mano lleva su rubro hasta el final');
+  assert.equal(product(ctx.state, productByName(ctx.state, 'Fresa').id).category, 'frutas',
+    'la fruta escrita a mano lleva su rubro hasta el final');
 });
 
 // Saltar de rubro sin pasar por `setup-empezar` otra vez.
@@ -453,12 +466,14 @@ test('un alimento desmarcado después de escribirlo no llega a la canasta', () =
   SETUP_FORMS['setup-nuevo'](null, new Map([['nombre', 'Fresa']]), ctx);
   SETUP_ACTIONS['setup-marcar'](casilla('Fresa', false), ctx);
 
-  ctx.ui.setup.paso = PASO.cantidades;
-  const html = renderSetup(ctx);
-  assert.ok(!html.includes('value="Fresa"'), 'la fresa desmarcada no debería estar en las cantidades');
+  irAlRubroDirecto(ctx, RUBROS.length - 1);
+  SETUP_ACTIONS['setup-rubro-seguir'](null, ctx);
+  assert.equal(habitualLines(ctx.state).length, 0, 'la fresa desmarcada no debería estar en los productos habituales');
+
   // Pero sigue en la lista de su rubro, por si se quiere volver a marcar sin
   // escribirla otra vez.
   ctx.ui.setup.paso = PASO.alimentos;
+  ctx.ui.setup.rubro = 4;
   assert.ok(renderSetup(ctx).includes('data-nombre="Fresa"'));
 });
 
@@ -491,4 +506,45 @@ test('app.js recupera el avance guardado por las dos puertas', () => {
   assert.ok(/setup: avanceGuardado\(state\)/.test(codigo), 'el arranque normal no recupera el avance guardado');
   assert.ok(/ui\.setup = avanceGuardado\(state\)/.test(codigo), 'abrir el cajón de otra cuenta no recupera el avance guardado');
   assert.ok(/import \{[^}]*avanceGuardado[^}]*\} from '\.\/setup\.js'/.test(codigo), 'app.js no importa avanceGuardado');
+});
+
+/* ── Volver a pasar por encima de una casa ya escrita ─────────────────────── */
+
+test('recorrer los rubros sin tocar nada no le cambia una coma a lo que ya estaba', () => {
+  // El fallo que esto impide: el salami se cuenta en ruedas y se compra por
+  // paquetes. Al volver a pasar, el recorrido le mandaba la unidad del catálogo
+  // —ruedas— encima de la que la casa tenía escrita —paquetes—, y eso le abría
+  // un tramo nuevo en el historial por haber mirado la pantalla.
+  const state = createEmptyState();
+  const salami = addProduct(state, { name: 'Salami', controlUnit: 'rueda', purchaseUnit: 'paquete', category: 'embutidos' }).id;
+  const arroz = addProduct(state, { name: 'Arroz', controlUnit: 'taza', purchaseUnit: 'lb', category: 'granos' }).id;
+  setHabitualBasket(state, [
+    { productId: salami, quantity: 4, unit: 'paquete', priority: 'frecuente', desde: '2026-06' },
+    { productId: arroz, quantity: 25, unit: 'lb', priority: 'obligatorio', desde: '2026-06' }
+  ]);
+  const antes = structuredClone(state.habitualBasket.lines);
+
+  const ctx = contexto(state);
+  SETUP_ACTIONS['setup-empezar'](null, ctx);      // precarga lo que ya había
+  SETUP_ACTIONS['setup-siguiente'](null, ctx);
+  for (let i = 0; i < RUBROS.length; i++) SETUP_ACTIONS['setup-rubro-seguir'](null, ctx);
+
+  assert.deepEqual(state.habitualBasket.lines, antes, 'pasar por encima cambió la canasta');
+});
+
+test('volver a marcar algo dado de baja lo recupera con su medida de siempre', () => {
+  const state = createEmptyState();
+  const cafe = addProduct(state, { name: 'Café', controlUnit: 'taza', purchaseUnit: 'paquete', category: 'bebidas' }).id;
+  setHabitualBasket(state, [{ productId: cafe, quantity: 2, unit: 'paquete', priority: 'frecuente', desde: '2026-06' }]);
+  guardarEnLaCanasta(state, []);                  // no toca nada
+  const ctx = contexto(state);
+  ctx.ui.setup.elegidos = ['Café'];
+  SETUP_ACTIONS['setup-empezar'](null, ctx);
+  SETUP_ACTIONS['setup-siguiente'](null, ctx);
+  for (let i = 0; i < RUBROS.length; i++) SETUP_ACTIONS['setup-rubro-seguir'](null, ctx);
+
+  const linea = habitualLines(state).find(fila => fila.productId === cafe);
+  assert.ok(linea, 'el café tenía que seguir en la lista');
+  assert.equal(linea.unit, 'paquete', 'le cambiaron la medida por la del catálogo');
+  assert.equal(linea.quantity, 2, 'y la cantidad que ya tenía escrita');
 });

@@ -41,10 +41,15 @@ test('los respaldos congelados son exactamente los que se guardaron', () => {
   }
 });
 
-test('los dos patrones son de la versión anterior a esta etapa', () => {
+test('los dos patrones siguen siendo de la versión 8, la de antes de todo esto', () => {
+  // El número está escrito y no calculado a partir de `SCHEMA_VERSION`. Estos
+  // archivos son una fotografía de cómo estaban las cosas aquel día: cada
+  // esquema nuevo les añade un salto más que recorrer, y eso es precisamente lo
+  // que tienen que seguir demostrando que se puede recorrer sin perder nada.
   for (const nombre of PATRONES) {
-    assert.equal(JSON.parse(leer(nombre)).version, SCHEMA_VERSION - 1, `${nombre} ya no es el estado de antes`);
+    assert.equal(JSON.parse(leer(nombre)).version, 8, `${nombre} ya no es el estado de antes`);
   }
+  assert.ok(SCHEMA_VERSION > 8, 'si el esquema volviera a la 8 estas pruebas dejarían de comprobar nada');
 });
 
 /* ── Abrir una instalación que ya existía ─────────────────────────────────

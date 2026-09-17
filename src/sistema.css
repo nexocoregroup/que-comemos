@@ -387,10 +387,8 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
 /* La columna del botón de quitar, en las filas de cantidad del asistente,
    medía 34 px. Quitar un alimento de la canasta por error es de las pocas cosas
    de esta pantalla que cuesta deshacer, así que es justo el botón que no puede
-   fallarse. Los 6 px salen de la columna del nombre, que va sobrada. */
-.setup-cantidad-row { grid-template-columns: minmax(0, 2fr) minmax(72px, .7fr) minmax(100px, 1fr) var(--toque-chico); }
-@media (max-width: 700px) {
-  .setup-cantidad-row { grid-template-columns: minmax(0, 1fr) 105px var(--toque-chico); }
+   fallarse. Los 6 px salen de la columna del nombre, que va sobrada. */
+@media (max-width: 700px) {
 }
 /* Y lo mismo en las filas de la canasta y de los alimentos sueltos. */
 .item-row { grid-template-columns: minmax(110px, 2fr) minmax(70px, .7fr) minmax(90px, 1fr) minmax(105px, 1.1fr) var(--toque-chico); }
@@ -398,3 +396,8 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
 @media (max-width: 700px) {
   .basket-row { grid-template-columns: minmax(0, 1fr) 100px var(--toque-chico); }
 }
+
+/* La fila de un alimento dentro de una preparación: solo el alimento y el botón
+   de quitarlo. La ficha ya no pregunta cuánto lleva —eso se decide en la lista
+   de cada compra—, así que la cuadrícula de cuatro columnas sobra. */
+.item-row-simple { grid-template-columns: minmax(0, 1fr) var(--toque-chico); }

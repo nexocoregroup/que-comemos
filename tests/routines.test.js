@@ -5,7 +5,7 @@ import {
   setMonthChange, setStatusPlan, upsertRecipe
 } from '../src/model.js';
 import {
-  addRoutine, applyRoutine, applyRoutines, copyPatternFromMonth, datesForRule, deleteRoutine,
+  addRoutine, addRoutines, applyRoutine, applyRoutines, copyPatternFromMonth, datesForRule, deleteRoutine,
   describeRule, detachPlanFromRoutine, monthProgress, openMonth, ordinalInMonth, routinePlans,
   extenderAMesesAbiertos, ocupadasEnMesesAbiertos, routinesFor, updateRoutine, weekdayOf, WEEKDAYS, WEEKDAY_LABELS, WEEKDAY_SHORT
 } from '../src/routines.js';
@@ -104,8 +104,7 @@ test('una rutina se escribe una vez y se explica sola', () => {
   const rutina = addRoutine(state, { kind: 'recipe', recipeId: mangu, slots: ['desayuno'], weekdays: [1, 3] });
   assert.match(rutina.id, /^regla-/, 'desde que una regla es de un solo momento, se llama regla');
   assert.equal(rutina.momento, 'desayuno', 'una regla, un momento');
-  assert.deepEqual(rutina.slots, ['desayuno'], 'y `slots` lo repite mientras las pantallas viejas lo lean');
-  assert.equal(rutina.grupoId, rutina.id, 'la primera de un grupo es de la que cuelga el grupo');
+  assert.deepEqual(rutina.slots, ['desayuno'], 'y `slots` es el eco del momento, no una lista');
   assert.equal(rutina.scope, 'permanent');
   assert.equal(rutina.month, null);
   assert.equal(rutina.weeks, null, 'sin semanas escritas es «todas»');
@@ -216,13 +215,19 @@ test('una comida fuera se marca sola, sin preparación que elegir', () => {
   assert.equal(plan.routineId, null, 'esta la puso una persona, no una regla');
 });
 
-test('un día entero fuera de casa se marca en las tres comidas', () => {
+test('un día entero fuera de casa son tres reglas, una por comida', () => {
+  // Un día entero fuera se dice de una vez, pero se guarda como tres reglas
+  // independientes: al volver de las vacaciones se puede quitar solo la cena.
   const { state } = cocina();
-  const rutina = addRoutine(state, { kind: 'outside', slots: ['desayuno', 'almuerzo', 'cena'], weekdays: [7], scope: 'month', month: '2026-10', label: 'Domingo de playa' });
-  const resultado = applyRoutine(state, rutina.id, '2026-10', { hasta: '2026-10-04' });
-  assert.equal(resultado.creados.length, 3);
+  const reglas = addRoutines(state, { kind: 'outside', slots: ['desayuno', 'almuerzo', 'cena'], weekdays: [7], scope: 'month', month: '2026-10', label: 'Domingo de playa' });
+  assert.equal(reglas.length, 3);
+  for (const regla of reglas) applyRoutine(state, regla.id, '2026-10', { hasta: '2026-10-04' });
   for (const slot of ['desayuno', 'almuerzo', 'cena']) {
     assert.equal(planFor(state, '2026-10-04', slot).kind, 'outside');
+  }
+  // Y cada comida cuelga de la regla de su momento.
+  for (const regla of reglas) {
+    assert.equal(planFor(state, '2026-10-04', regla.momento).routineId, regla.id);
   }
 });
 

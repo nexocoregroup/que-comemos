@@ -13,12 +13,12 @@ import {
   FRECUENCIAS, MOMENTOS, UNITS, archiveProduct, cierresDe, etiquetaDeMomento, effectiveBasket, esActiva, findSimilarProducts, frecuenciaDe,
   nombreEnElCierre, ultimaCompra,
   corregirHaciaAtras, habitualLines, historialDeFrecuencia, inventoryNow, lastStockReview, monthBasketSummary, monthChanges,
-  periodosDelMes, personasActivas, product, productByName, restoreProduct, restriccionesDe,
+  periodosDelMes, personasActivas, product, productByName, restoreProduct, restriccionesDe, listasCerradas, resumenDeLista,
   reviewAvailability, sliceStyle, syncReviewProducts, todayISO
 } from './model.js';
 import { filaDeReparto } from './setup.js';
 import { claseDe, hogarDe, resumenDeRestricciones } from './hogar.js';
-import { WEEKDAY_LABELS, WEEKDAYS } from './routines.js';
+import { WEEKDAY_LABELS, WEEKDAYS, describeRule, reglasDePreparacion } from './routines.js';
 import { button, cap, empty, esc, fmt, measure, monthName, niceDate, notice, options, shiftMonth, unitText } from './ui-kit.js';
 import { icono, iconoDeCategoria } from './icons.js';
 import { avisoDeVoz, capacidad, comprobarDictado } from './device.js';
@@ -49,17 +49,22 @@ const hoy = todayISO();
    la misma lista con la canasta, que se toca todas las semanas. */
 
 export const GRUPOS_MAS = [
+  // «Revisar lo que queda» ya no está aquí. Era el formulario de «¿cuánto te
+  // queda de cada cosa?», y existía para afinar una cuenta que la app ya no
+  // hace: la lista de la compra la escribe una persona, producto por producto,
+  // y no se calcula restando una despensa que nadie puede mantener al día. La
+  // pantalla sigue en el código y el historial de las revisiones viejas se
+  // sigue leyendo en Más → Historial; lo que se quitó es pedirlo cada semana.
   ['Lo de cada semana', [
-    ['canasta', 'canasta', 'Mi canasta habitual', 'Lo que se compra todos los meses'],
-    ['preparaciones', 'libro', 'Preparaciones', 'Las comidas que se repiten en casa'],
-    ['revision', 'visto', 'Revisar lo que queda', 'Un repaso a la nevera y la despensa']
+    ['canasta', 'canasta', 'Mis productos habituales', 'Lo que se compra de costumbre'],
+    ['preparaciones', 'libro', 'Preparaciones', 'Las comidas que se repiten en casa']
   ]],
   ['Mi casa', [
     ['familia', 'personas', 'Familia y restricciones', 'Quién come y qué evita cada quien'],
-    ['alimentos', 'hoja', 'Alimentos de la casa', 'La ficha de cada uno: medidas y existencias']
+    ['alimentos', 'hoja', 'Alimentos de la casa', 'La ficha de cada uno: nombre, medidas y categoría']
   ]],
   ['Mis datos', [
-    ['historial', 'reloj', 'Historial', 'Compras, revisiones y correcciones'],
+    ['historial', 'reloj', 'Historial', 'Tus compras: qué llevabas y qué trajiste'],
     ['respaldo', 'descargar', 'Respaldo', 'Guardar una copia o traerla de vuelta'],
     ['cuenta', 'persona', 'Mi cuenta', 'Entrar, sincronizar o cerrar sesión']
   ]],
@@ -73,7 +78,12 @@ export const GRUPOS_MAS = [
 // página de Más como las demás.
 export const ENTRADAS_MAS = [
   ...GRUPOS_MAS.flatMap(([, filas]) => filas),
-  ['avanzado', 'chip', 'Funciones avanzadas', 'Medidas, correcciones y uniones']
+  ['avanzado', 'chip', 'Funciones avanzadas', 'Medidas, correcciones y uniones'],
+  // Fuera del índice, con ruta. «Revisar lo que queda» dejó de pedirse cada
+  // semana al retirarse el inventario, pero quien tenga revisiones viejas las
+  // sigue abriendo desde el historial: quitarle la ruta sería dejar un enlace
+  // que lleva a ninguna parte en datos que ya existen.
+  ['revision', 'visto', 'Revisar lo que queda', 'Un repaso a la nevera y la despensa']
 ];
 
 // «legal» no sale en el índice —se llega desde Ajustes— pero es una página de
@@ -150,7 +160,7 @@ function renderInicio(ctx) {
     familia: cuenta(personasActivas(state).length, 'persona', 'personas'),
     alimentos: cuenta(state.products.filter(item => !item.archived).length, 'alimento', 'alimentos'),
     revision: lastStockReview(state) ? `última: ${niceDate(lastStockReview(state), { day: 'numeric', month: 'short' })}` : 'nunca',
-    historial: cuenta(state.purchases.length, 'compra', 'compras'),
+    historial: cuenta(listasCerradas(state).length + state.purchases.length, 'compra', 'compras'),
     respaldo: pistaDeCopia(state),
     ajustes: ''
   };
@@ -171,7 +181,7 @@ function renderInicio(ctx) {
     </div>`;
 }
 
-/* ── Mi canasta habitual ───────────────────────────────────────────────── */
+/* ── Mis productos habituales ──────────────────────────────────────────── */
 
 // Una sola canasta a la vista. Lo que antes eran «canasta base» y «canasta
 // mensual» —dos conceptos que había que aprender— son ahora la lista y sus
@@ -183,7 +193,7 @@ function renderCanasta(ctx) {
   const resumen = monthBasketSummary(state, mes);
   const cambios = resumen.cambiados + resumen.quitados + resumen.extras;
   const enCambios = ui.mas.canastaVista === 'cambios';
-  return `${volver('Mi canasta habitual')}
+  return `${volver('Mis productos habituales')}
     <div class="segmented segmented-ancho">
       <button type="button" data-action="canasta-vista" data-vista="habitual" class="${enCambios ? '' : 'active'}">Lo de siempre</button>
       <button type="button" data-action="canasta-vista" data-vista="cambios" class="${enCambios ? 'active' : ''}">Cambios de este mes${cambios ? ` · ${cambios}` : ''}</button>
@@ -383,17 +393,51 @@ function renderPreparaciones(ctx) {
     ${sinMomento.length ? notice('Hay preparaciones sin momento', `${sinMomento.length} preparación(es) no tienen ningún momento marcado, así que no salen en ningún bloque: ${sinMomento.map(receta => esc(receta.name)).join(', ')}. Ábrelas y marca cuándo se comen.`, 'warn') : ''}`;
 }
 
+/* ── La ficha y sus reglas, en la misma tarjeta ────────────────────────────
+
+   Arriba, la ficha: cómo se llama, en qué momentos **puede** comerse, qué lleva
+   y la nota. Abajo, sus reglas: cuándo **se pone**. Son dos cosas y se ven como
+   dos cosas, porque confundirlas es lo que hacía que «mangú de desayuno y de
+   cena, los lunes» pusiera mangú el lunes por la mañana y el lunes por la noche.
+
+   Cada regla trae sus tres botones. Editar una no toca las demás: la del lunes
+   de desayuno y la del viernes de cena son dos costumbres distintas de la misma
+   casa, y tratarlas como una era el problema. */
+
 function tarjetaDeReceta(state, receta) {
   const momentos = (receta.uses || []).map(id => MOMENTOS.find(item => item.id === id)?.etiqueta || id);
+  const suyas = reglasDePreparacion(state, receta.id);
+  // Lo que no se puede comprobar se dice. Una preparación sin alimentos no
+  // choca con nada, y eso se leía igual que «revisada y limpia».
+  const hayRestricciones = state.people.some(persona => restriccionesDe(persona).length);
+
   return `<article class="card receta-tarjeta">
-    <div class="between"><h3>${esc(receta.name)}</h3>${receta.servings ? `<span class="pill gray">${fmt(receta.servings)} porciones</span>` : ''}</div>
+    <div class="between"><h3>${esc(receta.name)}</h3></div>
     <p class="small muted">${momentos.map(texto => `<span class="pill warm">${esc(texto)}</span>`).join(' ')}</p>
     ${receta.items.length
-      ? `<ul class="food-list">${receta.items.map(item => `<li>${esc(measure(item.quantity, item.unit))} · ${esc(product(state, item.productId)?.name || '—')}</li>`).join('')}</ul>`
-      : '<p class="small muted receta-incompleta">Sin alimentos anotados. Sirve igual para el calendario; lo que no puede todavía es aportar a la compra.</p>'}
+      ? `<ul class="food-list">${receta.items.map(item => `<li>${esc(product(state, item.productId)?.name || '—')}${item.quantity === null || item.quantity === undefined ? '' : ` · ${esc(measure(item.quantity, item.unit))}`}</li>`).join('')}</ul>`
+      : `<p class="small muted receta-incompleta">Sin alimentos anotados.${hayRestricciones ? ' La app <strong>no ha revisado</strong> si choca con lo que alguien de la casa evita: sin los alimentos no puede saberlo.' : ' Sirve igual para el calendario.'}</p>`}
     ${receta.note ? `<p class="small"><strong>Para quien cocina:</strong> ${esc(receta.note)}</p>` : ''}
+
+    <div class="receta-repeticiones">
+      <p class="receta-repeticiones-titulo">${suyas.length ? 'Se repite' : 'Todavía no se repite sola'}</p>
+      ${suyas.length
+        ? `<ul class="receta-reglas">${suyas.map(regla => `<li class="${regla.active === false ? 'pausada' : ''}">
+            <span class="receta-regla-texto"><strong>${esc(cap(etiquetaDeMomento(regla.momento)))}</strong> · ${esc(describeRule(regla.weekdays, regla.weeks))}
+              ${regla.active === false ? '<span class="pill gray">en pausa</span>' : regla.scope === 'permanent' ? '' : `<span class="pill warm">solo ${esc(monthName(regla.month))}</span>`}</span>
+            <span class="inline receta-regla-acciones">
+              ${button('Editar', 'open-routine', 'btn-quiet btn-small', `data-id="${regla.id}"`)}
+              ${regla.active === false
+                ? button('Reanudar', 'regla-reanudar', 'btn-quiet btn-small', `data-id="${regla.id}"`)
+                : button('Pausar', 'regla-pausar', 'btn-quiet btn-small', `data-id="${regla.id}"`)}
+              ${button('Quitar', 'mes-borrar-rutina', 'btn-quiet btn-small', `data-id="${regla.id}"`)}
+            </span>
+          </li>`).join('')}</ul>`
+        : '<p class="small muted">Está guardada y la puedes poner en el calendario cuando quieras.</p>'}
+    </div>
+
     <div class="inline">
-      ${button('Ponerla en el calendario', 'mes-nueva-rutina', 'btn-secondary btn-small', `data-receta="${receta.id}"`)}
+      ${button(suyas.length ? '+ Añadir otra repetición' : 'Hacer que se repita', 'mes-nueva-rutina', 'btn-secondary btn-small', `data-receta="${receta.id}"`)}
       ${button('Editar', 'open-recipe', 'btn-quiet btn-small', `data-id="${receta.id}"`)}
       ${button('Eliminar', 'delete-recipe', 'btn-quiet btn-small', `data-id="${receta.id}"`)}
     </div>
@@ -654,24 +698,62 @@ function filaDeAlimento(state, item, existencias) {
 
 /* ── Historial ─────────────────────────────────────────────────────────── */
 
+/* ── El historial: lo de ahora arriba, lo de antes debajo y con su aviso ───
+
+   Dos historiales viven aquí, y no dicen lo mismo.
+
+   El de ahora son las listas de compra cerradas: qué se apuntó, cuánto se pidió
+   de cada cosa y cuánto se trajo. Eso es un recuerdo de una tarde concreta y es
+   cierto.
+
+   El de antes son las compras, las revisiones y las correcciones de cuando la
+   app llevaba la cuenta de la despensa. Se siguen leyendo enteras —son datos de
+   la casa y borrarlos sería tirar su historia— pero sus cantidades salieron de
+   una cuenta que ya no se hace y que nadie ha vuelto a comprobar. Enseñarlas sin
+   decirlo sería dejar que se lean como el estado de hoy. */
+
 function renderHistorial(ctx) {
   const { state } = ctx;
+  const cerradas = listasCerradas(state);
   const eventos = [
     ...state.purchases.map(item => ({ tipo: 'compra', fecha: item.date, seq: item.seq, item })),
     ...state.reviews.filter(item => item.status === 'confirmed').map(item => ({ tipo: 'revision', fecha: item.date, seq: item.seq, item })),
     ...state.corrections.map(item => ({ tipo: 'correccion', fecha: item.date, seq: item.seq, item }))
   ].sort((a, b) => b.fecha.localeCompare(a.fecha) || b.seq - a.seq);
+
+  if (!cerradas.length && !eventos.length) {
+    return `${volver('Historial')}
+      ${empty('reloj', 'Todavía no hay nada', 'Aquí aparecerán tus compras: qué llevabas apuntado y qué trajiste de cada cosa.', '')}`;
+  }
+
   return `${volver('Historial')}
-    <p class="pantalla-intro">Todo lo que ha movido las existencias, de lo más reciente a lo más antiguo.</p>
-    ${periodosCerrados(ctx)}
-    ${eventos.length ? `<div class="card">${eventos.slice(0, 60).map(evento => `<div class="list-row">
-      <div class="list-row-main">
-        <div class="list-row-title">${({ compra: 'Compra', revision: 'Revisión', correccion: 'Corrección' })[evento.tipo]} · ${esc(niceDate(evento.fecha, { day: 'numeric', month: 'long', year: 'numeric' }))}</div>
-        <div class="list-row-sub">${esc(detalleDeEvento(state, evento))}</div>
-      </div>
-      ${evento.tipo === 'revision' ? button('Ver', 'select-review', 'btn-quiet btn-small', `data-id="${evento.item.id}"`) : ''}
-    </div>`).join('')}</div>${eventos.length > 60 ? `<p class="small muted">Se muestran los 60 más recientes de ${eventos.length}.</p>` : ''}`
-      : empty('reloj', 'Todavía no hay nada', 'Aquí aparecerán las compras que anotes y las revisiones que hagas.', '')}`;
+    <p class="pantalla-intro">Tus compras, de la más reciente a la más antigua.</p>
+
+    ${cerradas.length ? `<div class="card">${cerradas.slice(0, 40).map(lista => {
+      const resumen = resumenDeLista(lista);
+      return `<div class="list-row">
+        <div class="list-row-main">
+          <div class="list-row-title">${esc(niceDate(lista.cerradaEl || lista.fecha, { weekday: 'long', day: 'numeric', month: 'long' }))}</div>
+          <div class="list-row-sub">${resumen.comprados} de ${resumen.total} cosa(s) traídas${resumen.pendientes ? ` · ${resumen.pendientes} sin conseguir` : ''}</div>
+          <div class="list-row-sub small muted">${lista.lineas.slice(0, 6).map(linea => {
+            const nombre = linea.productId ? product(state, linea.productId)?.name || 'Alimento eliminado' : linea.texto;
+            return `${esc(nombre)}${linea.comprada ? ` (${esc(measure(linea.comprada, linea.unidad || 'unidad'))})` : ''}`;
+          }).join(' · ')}${lista.lineas.length > 6 ? ` y ${lista.lineas.length - 6} más` : ''}</div>
+        </div>
+      </div>`;
+    }).join('')}</div>` : '<p class="muted">Todavía no has terminado ninguna compra con la lista nueva.</p>'}
+
+    ${eventos.length ? `<div class="section-head"><div><h3 class="plan-sub">Lo anotado antes</h3></div></div>
+      ${notice('Estas cantidades no están comprobadas.',
+        'Vienen de cuando la app llevaba la cuenta de lo que había en la casa. Se guardan enteras porque son tu historia, pero <strong>no dicen lo que hay hoy en la despensa</strong>: nadie las ha vuelto a contar, y la app ya no lleva esa cuenta.', 'warn')}
+      ${periodosCerrados(ctx)}
+      <div class="card">${eventos.slice(0, 60).map(evento => `<div class="list-row">
+        <div class="list-row-main">
+          <div class="list-row-title">${({ compra: 'Compra', revision: 'Revisión', correccion: 'Corrección' })[evento.tipo]} · ${esc(niceDate(evento.fecha, { day: 'numeric', month: 'long', year: 'numeric' }))}</div>
+          <div class="list-row-sub">${esc(detalleDeEvento(state, evento))}</div>
+        </div>
+        ${evento.tipo === 'revision' ? button('Ver', 'select-review', 'btn-quiet btn-small', `data-id="${evento.item.id}"`) : ''}
+      </div>`).join('')}</div>${eventos.length > 60 ? `<p class="small muted">Se muestran los 60 más recientes de ${eventos.length}.</p>` : ''}` : ''}`;
 }
 
 function detalleDeEvento(state, evento) {

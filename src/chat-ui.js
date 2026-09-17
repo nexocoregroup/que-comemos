@@ -724,8 +724,7 @@ function conversacionPara(chat) {
 // puede hacer a mano. Cuando no entiende, lo que toca no es disculparse, es
 // llevar a la pantalla donde eso se escribe en tres toques.
 function sugerirFormulario(llano, state) {
-  if (/\bcompr/.test(llano)) return { etiqueta: 'Anotar una compra', accion: 'open-purchase', datos: { goto: 'compra' } };
-  if (/\bqueda|\bconsum|\brevis/.test(llano)) return { etiqueta: 'Abrir una revisión', accion: 'open-new-review', datos: { goto: 'revision' } };
+  if (/\bcompr|\bqueda|\bconsum|\brevis/.test(llano)) return { etiqueta: 'Preparar la compra', accion: 'navigate', datos: { page: 'compra' } };
   if (/\bno\s+(?:puede|come|cena|almuerza|desayuna)\b|\bpersona\b/.test(llano)) return { etiqueta: 'Editar una persona', accion: 'open-person' };
   // Una rutina necesita una preparación escrita; sin ninguna no hay nada que
   // repetir, así que ahí se manda a crearla primero. Con preparaciones ya

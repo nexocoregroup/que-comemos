@@ -51,7 +51,7 @@ const LISTA = 'bulk-alimentos';
 // final tienen que decir exactamente lo mismo.
 const DESTINOS = {
   habitual: {
-    opcion: 'Mi canasta habitual: lo que se compra todos los meses',
+    opcion: 'Mis productos habituales: lo que se compra de costumbre',
     titulo: 'tu canasta habitual',
     explica: 'Se añaden a lo que tu casa consume normalmente en un mes. Lo que ya estaba se queda como estaba.',
     verbo: n => `Guardar ${n} ${alimentos(n)} en mi canasta habitual`

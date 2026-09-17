@@ -26,17 +26,19 @@
 // fechas a la vista. Nunca enseñando el JSON.
 
 import {
-  BASES, MOTIVOS_DE_RESTRICCION, PRIORITIES, SLOTS, SLOTS_PRINCIPALES, UNITS, addProduct, addPurchase, archiveProduct, basisLabel, cierreQueCubre, cierresDe,
-  copyPlan, correctStock, createReview, deletePlan, deleteRecipe, duplicateRecipe, effectiveBasket,
-  etiquetaDeMomento, findSimilarProducts, generateMonth, habitualLines, inventoryNow, linkPendingRestrictions, makeRecipePlan, mergeProducts,
-  monthBasketSummary, monthChanges, movePlan, planFor, product, productByName, promoteToHabitual,
-  removeHabitualLine, removeMonthChange, repeatWeek, restore, restoreProduct, restriccionesDe, saveReview, setAbsence,
-  setEquivalence, setHabitualLine, setMonthChange, setStatusPlan, shoppingList, snapshot, todayISO,
-  transaction, updateProduct, upsertPerson, upsertRecipe, validDate, validMonth, weekStart
+  BASES, MOTIVOS_DE_RESTRICCION, PRIORITIES, SLOTS, SLOTS_PRINCIPALES, UNITS, addProduct, archiveProduct,
+  basisLabel, cierreQueCubre, cierresDe, copyPlan, correctStock, createReview, deletePlan, deleteRecipe,
+  duplicateRecipe, effectiveBasket, etiquetaDeMomento, findSimilarProducts, generateMonth, habitualLines,
+  inventoryNow, linkPendingRestrictions, makeRecipePlan, mergeProducts, monthBasketSummary, monthChanges,
+  movePlan, planFor, product, productByName, promoteToHabitual, removeHabitualLine, removeMonthChange,
+  repeatWeek, restore, restoreProduct, restriccionesDe, saveReview, setAbsence, setEquivalence, setHabitualLine,
+  setMonthChange, setStatusPlan, shoppingList, snapshot, todayISO, transaction, updateProduct, upsertPerson,
+  upsertRecipe, validDate, validMonth, weekStart, agregarALista, anotarComprado, cerrarLista, crearLista,
+  listasAbiertas, marcarComprado
 } from './model.js';
 import {
-  addRoutine, applyRoutine, applyRoutines, copyPatternFromMonth, datesForRule, deleteRoutine,
-  describeRule, detachPlanFromRoutine, gruposDeReglas, monthProgress, openMonth, routinesFor
+  addRoutines, applyRoutine, applyRoutines, copyPatternFromMonth, datesForRule, deleteRoutine, describeRule,
+  detachPlanFromRoutine, monthProgress, openMonth, reglasDelMes, routinesFor
 } from './routines.js';
 import { normalizeName } from './nombres.js';
 import { unitText } from './ui-kit.js';
@@ -222,7 +224,7 @@ export const ACTIONS = {
   },
   consultar_existencias: {
     kind: 'consulta', args: { producto: { type: 'producto', required: false } },
-    describe: a => a.producto ? `Ver cuánto queda de ${a.producto.name}.` : 'Ver las existencias de la casa.',
+    describe: a => a.producto ? `Ver lo último que se anotó de ${a.producto.name}.` : 'Ver lo último que se anotó de cada alimento.',
     run: (state, a) => {
       const stock = inventoryNow(state);
       if (a.producto) return { nombre: a.producto.name, cantidad: stock[a.producto.id] || 0, unidad: a.producto.controlUnit };
@@ -325,7 +327,7 @@ export const ACTIONS = {
     args: { mes: { type: 'mes', required: false }, producto: { type: 'alimento' }, cantidad: { type: 'numero' }, unidad: { type: 'unidad', required: false } },
     alcance: a => deUnMes(a.mes || mesActual()),
     revisa: (a, state) => (a.producto.nuevo && !a.unidad ? `Dime en qué se cuenta «${a.producto.name}»: ${UNITS.join(', ')}.` : null),
-    describe: a => `${a.producto.nuevo ? `Registrar «${a.producto.name}» como alimento nuevo y p` : 'P'}oner ${medida(a.cantidad, a.unidad)} de ${a.producto.name} solo en ${mesTexto(a.mes || mesActual())}. Mi canasta habitual no cambia.`.replace(/\s+/g, ' '),
+    describe: a => `${a.producto.nuevo ? `Registrar «${a.producto.name}» como alimento nuevo y p` : 'P'}oner ${medida(a.cantidad, a.unidad)} de ${a.producto.name} solo en ${mesTexto(a.mes || mesActual())}. Tus productos habituales no cambian.`.replace(/\s+/g, ' '),
     run: (state, a) => setMonthChange(state, a.mes || mesActual(), idDelAlimento(state, a.producto, a.unidad), {
       quantity: a.cantidad, ...(a.unidad ? { unit: a.unidad } : {})
     })
@@ -367,7 +369,7 @@ export const ACTIONS = {
       const mes = a.mes || mesActual();
       // Por grupos: quien preguntó «¿qué rutinas tengo?» quiere oír las que
       // escribió, no una por cada momento del día que cubren.
-      return gruposDeReglas(state, mes).map(rutina => ({
+      return reglasDelMes(state, mes).map(rutina => ({
         id: rutina.id, etiqueta: rutina.label, regla: describeRule(rutina.weekdays, rutina.weeks),
         comidas: rutina.slots, alcance: rutina.scope === 'permanent' ? 'siempre' : 'mes',
         que: rutina.kind === 'recipe' ? state.recipes.find(item => item.id === rutina.recipeId)?.name : rutina.kind,
@@ -409,7 +411,11 @@ export const ACTIONS = {
     },
     run: (state, a) => {
       const mes = a.mes || mesActual();
-      const rutina = addRoutine(state, {
+      // Una regla es de un momento, así que «los domingos no comemos en casa:
+      // desayuno, almuerzo y cena» son tres reglas independientes. Se escriben
+      // todas y se aplican todas: quedarse con la primera pondría el desayuno
+      // del domingo y dejaría el almuerzo y la cena sin poner.
+      const reglas = addRoutines(state, {
         kind: { preparacion: 'recipe', fuera: 'outside', pedido: 'order' }[a.tipo],
         recipeId: a.preparacion?.id || null,
         slots: a.comidas, weekdays: a.dias, weeks: a.semanas || null,
@@ -420,11 +426,13 @@ export const ACTIONS = {
       });
       // Crear la regla y no aplicarla dejaría un mes vacío con una promesa
       // escrita en otra pantalla. Se aplica al mes que toca, sin pisar nada.
-      const aplicado = applyRoutine(state, rutina.id, mes, { modo: 'vacios' });
+      const aplicado = reglas.map(item => applyRoutine(state, item.id, mes, { modo: 'vacios' }));
+      const primera = reglas[0];
       return {
-        id: rutina.id, etiqueta: rutina.label, mes,
-        fechas: datesForRule(mes, rutina.weekdays, rutina.weeks),
-        creados: aplicado.creados.length, saltados: aplicado.saltados
+        id: primera.id, ids: reglas.map(item => item.id), etiqueta: primera.label, mes,
+        fechas: datesForRule(mes, primera.weekdays, primera.weeks),
+        creados: aplicado.reduce((suma, uno) => suma + uno.creados.length, 0),
+        saltados: aplicado.flatMap(uno => uno.saltados)
       };
     }
   },
@@ -442,7 +450,7 @@ export const ACTIONS = {
     },
     describe: (a, state) => {
       const mes = a.mes || mesActual();
-      const rutinas = gruposDeReglas(state, mes);
+      const rutinas = reglasDelMes(state, mes);
       if (!rutinas.length) return `No hay ninguna rutina que valga en ${mesTexto(mes)}.`;
       return `Pasar ${rutinas.length} rutina(s) por ${mesTexto(mes)}: ${rutinas.map(rutina => rutina.label).join(', ')}. Solo se llenan las comidas vacías.`;
     },
@@ -689,30 +697,61 @@ export const ACTIONS = {
       };
     }
   },
+  /* ── «Compré tres libras de arroz y dos paquetes de salami» ──────────────
+
+     Esto subía las existencias de la casa. Ya no hay existencias que subir: la
+     app dejó de llevar la cuenta de la despensa porque esa cuenta nunca se
+     parecía a la despensa.
+
+     Lo que sí es cierto de esa frase es que hubo una compra, con su fecha y con
+     lo que se trajo de cada cosa. Así que se guarda como lo que es: una lista de
+     compra ya cerrada, con todo traído. Va directa al historial, que es donde
+     se busca «¿cuánto salami compré el mes pasado?». */
   registrar_compra: {
     kind: 'sensible', args: { lineas: { type: 'lista' }, fecha: { type: 'fecha', required: false } },
     alcance: a => deUnDia(a.fecha || todayISO()),
-    describe: (a, state) => `Registrar una compra de ${a.lineas.map(row => {
+    describe: (a, state) => `Guardar en tu historial una compra de ${a.lineas.map(row => {
       const found = resolveEntity(state.products, row.producto ?? row.productId ?? row.nombre, 'un alimento');
       return `${medida(row.cantidad ?? row.quantity, row.unidad ?? row.unit)} de ${found.ok ? found.value.name : row.producto}`;
-    }).join(', ')}. Esto aumentará tus existencias.`,
+    }).join(', ')}. No cambia lo que la app cree que hay en casa: eso ya no lo lleva.`,
     run: (state, a) => {
-      const lines = a.lineas.map(row => {
+      const fecha = a.fecha || todayISO();
+      const lista = crearLista(state, { fecha, nombre: 'Anotada al hablar' });
+      for (const row of a.lineas) {
         const found = resolveEntity(state.products, row.producto ?? row.productId ?? row.nombre, 'un alimento');
         if (!found.ok) throw new Error(found.error);
-        return { productId: found.value.id, quantity: row.cantidad ?? row.quantity, unit: row.unidad ?? row.unit ?? found.value.purchaseUnit };
-      });
-      return { id: addPurchase(state, { date: a.fecha, lines, basis: 'asistente' }).id };
+        const cantidad = row.cantidad ?? row.quantity;
+        const linea = agregarALista(state, lista.id, {
+          productId: found.value.id, cantidad,
+          unidad: row.unidad ?? row.unit ?? found.value.purchaseUnit
+        });
+        // Se anota como traído: quien dice «compré» está contando lo que ya
+        // metió en la casa, no lo que piensa buscar.
+        if (cantidad !== undefined && cantidad !== null && cantidad !== '') anotarComprado(state, lista.id, linea.id, cantidad);
+        else marcarComprado(state, lista.id, linea.id, true);
+      }
+      cerrarLista(state, lista.id);
+      return { id: lista.id };
     }
   },
+  /* ── Anotar algo suelto ─────────────────────────────────────────────────
+
+     Esto escribía en `manualItems`, que era la lista de «otras cosas que
+     anotar» de la pantalla de la compra vieja. Esa pantalla ya no existe, así
+     que el asistente decía «anotado» y aquello no aparecía en ninguna parte:
+     una confirmación sin nada detrás, que es la peor forma de fallar.
+
+     Ahora va a la lista de la compra abierta, que es donde una persona espera
+     encontrar lo que acaba de decir que hay que comprar. Si no hay ninguna
+     abierta se abre, porque «anota detergente» es exactamente el momento en que
+     empieza una lista. */
   agregar_otro_producto: {
     kind: 'cambio', args: { nombre: { type: 'texto' }, cantidad: { type: 'texto', required: false } },
-    describe: a => `Anotar «${a.nombre}» en la lista de otros productos.`,
+    describe: a => `Anotar «${a.nombre}» en tu lista de la compra.`,
     run: (state, a) => {
-      state.seq += 1;
-      const item = { id: `otro-${state.seq}`, name: a.nombre, quantity: a.cantidad || '', done: false };
-      state.manualItems.push(item);
-      return { id: item.id };
+      const lista = listasAbiertas(state)[0] || crearLista(state, { fecha: todayISO() });
+      const linea = agregarALista(state, lista.id, { texto: a.nombre, cantidad: a.cantidad || '' });
+      return { id: linea.id, lista: lista.id };
     }
   },
 

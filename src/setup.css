@@ -123,23 +123,38 @@
 .setup-microfono { align-self: flex-start; min-height: 46px; }
 .setup-microfono.escuchando { background: var(--clay); border-color: var(--clay); color: #fff; }
 
-.setup-propios { display: grid; gap: 9px; margin-top: 6px; }
-.setup-propio-row { grid-template-columns: minmax(0, 1fr) minmax(95px, .55fr) 34px; }
-.setup-unidad-fija { align-self: center; font-size: .82rem; color: var(--ink-muted); padding-bottom: 10px; }
-.setup-fila-nota { grid-column: 1 / -1; margin: -2px 0 0; line-height: 1.45; }
+.setup-propios { display: grid; gap: 9px; margin-top: 6px; }
 
-/* ── Paso 3: cuánto al mes ─────────────────────────────────────────────── */
+/* ── Paso 4: una comida habitual ───────────────────────────────────────────
 
-.setup-cantidades { display: grid; gap: 9px; margin: 16px 0 14px; }
-.setup-cantidad-row { grid-template-columns: minmax(0, 2fr) minmax(72px, .7fr) minmax(100px, 1fr) 34px; }
-.setup-cantidad-nombre { align-self: center; font-weight: 650; font-size: .93rem; line-height: 1.3; padding-bottom: 10px; overflow-wrap: anywhere; }
+   Tres campos y uno es opcional. El formulario va dentro de una tarjeta y la
+   lista de lo ya escrito va debajo, en otra: quien está escribiendo la cuarta
+   comida tiene que ver de un vistazo las tres que lleva. */
+
+.setup-preparacion { display: grid; gap: var(--aire-4); margin: 0 0 var(--aire-5); }
+.setup-preparacion .field { margin: 0; }
+.setup-preparacion .field > span { font-weight: 650; }
+.setup-momentos { margin-top: var(--aire-1); }
+.setup-preparacion-acciones { flex-wrap: wrap; gap: var(--aire-2); margin-top: var(--aire-1); }
+.setup-preparacion-acciones .btn { flex: 1 1 auto; }
+
+/* ── Paso 5: ver mi casa ───────────────────────────────────────────────────
+
+   Una fila por cosa registrada, y cada una vuelve a su paso. La marca de la
+   izquierda dice de un vistazo qué está completo y qué no, sin regañar: el
+   pendiente es del color del aviso, no del error. */
+
+.setup-repasos { display: grid; }
+.setup-repaso { position: relative; padding-left: var(--aire-5); }
+.setup-repaso::before {
+  content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  width: 6px; height: 6px; border-radius: 50%; background: var(--clay-light);
+}
+.setup-repaso.listo::before { background: var(--sage); }
+.setup-repaso.pendiente::before { background: var(--clay); }
 
 /* ── Paso 4 ────────────────────────────────────────────────────────────── */
-
-.setup-hecho { text-align: center; padding: 4px 0 18px; }
-.setup-hecho-marca { display: grid; place-items: center; width: 54px; height: 54px; margin: 0 auto 14px; border-radius: 50%; background: var(--sage); color: #fff; font-size: 1.6rem; font-weight: 900; }
-.setup-hecho h3 { margin: 0 0 7px; font-size: 1.25rem; letter-spacing: -.03em; }
-.setup-hecho + .pantalla-intro { text-align: center; margin-left: auto; margin-right: auto; }
+
 
 /* Solo para lectores de pantalla: las etiquetas de las filas apretadas, donde
    enseñar el texto rompería la cuadrícula pero quitarlo dejaría campos mudos. */
@@ -164,12 +179,7 @@
      teléfono es una trampa para el pulgar. */
   .setup-lista { max-height: none; overflow: visible; }
 
-  /* El nombre se lleva su propia línea; debajo, cantidad, unidad y quitar. */
-  .setup-cantidad-row { grid-template-columns: minmax(0, 1fr) 105px 34px; }
-  .setup-cantidad-row .setup-cantidad-nombre { grid-column: 1 / -1; padding-bottom: 0; }
-  .setup-propio-row { grid-template-columns: minmax(0, 1fr) 105px 34px; }
-  .setup-propio-row .field:first-child { grid-column: 1 / -1; }
-  .setup-unidad-fija { grid-column: 1 / 3; padding-bottom: 0; }
+  /* El nombre se lleva su propia línea; debajo, cantidad, unidad y quitar. */
 
   .setup-actions .btn { flex: 1 1 auto; }
 }
@@ -257,11 +267,5 @@
 .setup-persona .restricciones { margin-top: 6px; }
 .setup-persona.pendiente .list-row-title { color: var(--ink-muted); }
 .setup-persona.pendiente .list-row-sub { font-style: italic; }
-
-.setup-preparaciones-anadir { display: flex; margin-bottom: 18px; }
-.setup-preparaciones-anadir .btn { width: 100%; }
-
-.setup-repeticiones { padding: 4px 14px; }
-.setup-repeticiones .list-row-sub + .list-row-sub { margin-top: 2px; }
-.setup-resumen-mes { margin-top: 14px; }
-.setup-resumen-mes p { margin: 8px 0 0; }
+
+

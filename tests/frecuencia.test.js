@@ -13,12 +13,12 @@ import assert from 'node:assert/strict';
 import {
   addProduct, addPurchase, createEmptyState, createReview, frecuenciaDe, habitualLines,
   historialDeFrecuencia, inventoryNow, periodosDelMes, ponerFrecuencia, ponerReparto,
-  quincenaDe, repartoDe, saveReview, setHabitualBasket, shoppingList
+  quincenaDe, repartoDe, saveReview, setHabitualBasket, shoppingList, agregarALista, cerrarLista, listasCerradas
 } from '../src/model.js';
 import { loadState, saveState } from '../src/storage.js';
 import { PASO, PASOS, SETUP_ACTIONS, SETUP_FORMS, avanceGuardado, emptySetup, pasosDe, renderSetup } from '../src/setup.js';
 import { PAGINAS_MAS, TITULOS_MAS, emptyMas, renderMas } from '../src/page-mas.js';
-import { emptyCompra, renderCompra } from '../src/page-compra.js';
+import { COMPRA_ACTIONS, emptyCompra, listaEnCurso, renderCompra } from '../src/page-compra.js';
 
 const nodoTonto = () => ({ value: '', focus() {}, classList: { toggle() {} }, closest: () => null, querySelector: () => null });
 globalThis.document = { querySelectorAll: () => [], querySelector: () => nodoTonto() };
@@ -353,48 +353,67 @@ test('el mes de antes del cambio se calcula con la frecuencia que tenía', () =>
 
 /* ── Las pantallas ─────────────────────────────────────────────────────── */
 
-test('el asistente pregunta la frecuencia con las palabras que se pidieron', () => {
+test('el asistente pregunta la frecuencia, y dice para qué sirve y para qué no', () => {
   const ctx = contexto();
   ctx.ui.setup.paso = PASO.compra;
   const html = renderSetup(ctx);
   revisar(html, 'paso de frecuencia');
-  assert.ok(html.includes('¿Cada cuánto hacen la compra principal en tu hogar?'));
+  assert.ok(html.includes('Cómo compramos'), 'el paso no se llama como se pidió');
   assert.ok(html.includes('>Quincenal<'));
   assert.ok(html.includes('>Mensual<'));
+  // Lo que este dato NO hace, dicho en la propia pantalla: es la promesa que
+  // sostiene que no haya que escribir cantidades en ninguna parte.
+  assert.ok(/No divide cantidades ni lleva cuentas/.test(html));
+  // Y que se puede cambiar sin reescribir lo que ya pasó.
+  assert.ok(/Lo que ya pasó no se reescribe/.test(html));
 });
 
-test('el paso de las cantidades dice lo que se pidió y no obliga a rellenarlas', () => {
-  const { state } = casa();
-  const ctx = contexto(state);
-  ctx.ui.setup.paso = PASO.cantidades;
-  ctx.ui.setup.elegidos = ['Arroz', 'Huevo'];
-  const html = renderSetup(ctx);
-  revisar(html, 'paso de cantidades');
-  assert.ok(html.includes('Indica cuánto compras normalmente. Puedes completarlo o corregirlo después.'));
-  assert.ok(!/obligatori[ao]/i.test(html), 'no puede decir que sea obligatorio');
+test('el recorrido ya no tiene ningún paso de cantidades ni de reparto', () => {
+  // Eran dos pasos y se fueron. Quien marcaba ciento cincuenta alimentos se
+  // encontraba después con ciento cincuenta casillas de cantidad antes de poder
+  // terminar, y ese número no hace falta para nada de lo que la app hace ahora.
+  assert.equal(PASO.cantidades, undefined);
+  assert.equal(PASO.reparto, undefined);
+  assert.equal(PASOS.length, 5);
+  assert.deepEqual(PASOS.map(paso => paso.corto), ['Hogar', 'Productos', 'Compra', 'Comidas', 'Mi casa']);
 });
 
-test('el paso del reparto solo existe para quien compra por quincenas', () => {
-  const mensual = { ...emptySetup(), frecuencia: 'mensual' };
-  const quincenal = { ...emptySetup(), frecuencia: 'quincenal' };
-  assert.equal(pasosDe(quincenal).length, PASOS.length);
-  assert.equal(pasosDe(mensual).length, PASOS.length - 1);
-  assert.ok(!pasosDe(mensual).some(paso => paso.id === PASO.reparto), 'a la casa mensual no se le enseña el reparto');
-  assert.ok(pasosDe(quincenal).some(paso => paso.id === PASO.reparto));
+test('ninguna pantalla del recorrido pide una cantidad', () => {
+  // La comprobación de fondo de toda la etapa: se recorren los cinco pasos, con
+  // la casa vacía y con la casa llena, y en ninguno puede aparecer un campo
+  // donde escribir cuánto se compra de algo.
+  const llena = casa().state;
+  for (const state of [createEmptyState(), llena]) {
+    const ctx = contexto(state);
+    ctx.ui.setup.elegidos = ['Arroz', 'Huevo'];
+    for (const paso of PASOS) {
+      ctx.ui.setup.paso = paso.id;
+      const html = renderSetup(ctx);
+      revisar(html, `paso «${paso.corto}»`);
+      assert.ok(!/name="cantidad"/.test(html), `el paso «${paso.corto}» pide una cantidad`);
+      assert.ok(!/data-setup-cantidad/.test(html), `el paso «${paso.corto}» dibuja filas de cantidad`);
+      assert.ok(!/data-reparto-primera/.test(html), `el paso «${paso.corto}» pide el reparto de la quincena`);
+    }
+  }
 });
 
-test('elegir mensual salta el reparto y elegir quincenal pasa por él', () => {
-  const ctx = contexto(casa().state);
-  ctx.ui.setup.paso = PASO.cantidades;
+test('los cinco pasos son los mismos se compre como se compre', () => {
+  // Antes el del reparto solo se le enseñaba a quien compraba por quincenas, y
+  // por eso la portada prometía un número de pasos y se veía otro. Ya no hay
+  // ningún paso condicional.
+  for (const frecuencia of [null, 'mensual', 'quincenal']) {
+    assert.equal(pasosDe({ ...emptySetup(), frecuencia }).length, 5, `comprando «${frecuencia}» se ven otros`);
+  }
+});
 
-  ctx.ui.setup.frecuencia = 'mensual';
-  SETUP_ACTIONS['setup-siguiente'](null, ctx);
-  assert.equal(ctx.ui.setup.paso, PASO.preparaciones, 'la casa mensual se salta el reparto');
-
-  ctx.ui.setup.paso = PASO.cantidades;
-  ctx.ui.setup.frecuencia = 'quincenal';
-  SETUP_ACTIONS['setup-siguiente'](null, ctx);
-  assert.equal(ctx.ui.setup.paso, PASO.reparto, 'la quincenal pasa por el reparto');
+test('desde la frecuencia se sigue a las comidas, se compre como se compre', () => {
+  for (const frecuencia of ['mensual', 'quincenal']) {
+    const ctx = contexto(casa().state);
+    ctx.ui.setup.paso = PASO.compra;
+    ctx.ui.setup.frecuencia = frecuencia;
+    SETUP_ACTIONS['setup-siguiente'](null, ctx);
+    assert.equal(ctx.ui.setup.paso, PASO.preparaciones, `comprando «${frecuencia}» se va a otro sitio`);
+  }
 });
 
 test('elegir la frecuencia en el asistente la deja escrita desde este mes', () => {
@@ -408,15 +427,16 @@ test('elegir la frecuencia en el asistente la deja escrita desde este mes', () =
   assert.equal(avanceGuardado(ctx.state).frecuencia, 'quincenal');
 });
 
-test('la pantalla del reparto se dibuja con las dos partes de cada alimento', () => {
+test('el reparto sigue existiendo, ya no en el recorrido sino en Ajustes', () => {
+  // La pantalla no se borró: quien de verdad quiera decir cuánto arroz va en
+  // cada quincena la tiene entera en Más → Ajustes → Organización de compra. Lo
+  // que se quitó es la obligación de pasar por ella para poder empezar.
   const { state, arroz } = casa();
   ponerFrecuencia(state, 'quincenal', '2026-01');
   ponerReparto(state, arroz, 'todo');
-  const ctx = contexto(state);
-  ctx.ui.setup.paso = PASO.reparto;
-  ctx.ui.setup.frecuencia = 'quincenal';
-  const html = renderSetup(ctx);
-  revisar(html, 'paso del reparto');
+  const ctx = contexto(state, 'organizacion');
+  const html = renderMas(ctx);
+  revisar(html, 'organización de compra con reparto');
   assert.ok(html.includes('Todo en la 1.ª'));
   assert.ok(html.includes('1.ª quincena'));
   assert.ok(html.includes('Repartido a la mitad porque no lo has cambiado.'), 'se dice cuál es solo una sugerencia');
@@ -459,37 +479,30 @@ test('el formulario de cambio nunca ofrece un mes ya pasado', () => {
   assert.ok(html.includes(`value="${mesActual}"`), 'el mes en curso sí se ofrece');
 });
 
-test('la pantalla de la compra ofrece un período si es mensual y dos si es quincenal', () => {
+test('la compra no espera a ningún período: se abre una lista cuando haga falta', () => {
+  // La frecuencia dice cuándo TOCA la próxima compra, y eso sigue valiendo. Lo
+  // que ya no hace es cerrarle la puerta a nadie: una casa que compra por
+  // quincenas también baja al colmado un martes porque se acabó el café.
   const { state } = casa();
+  ponerFrecuencia(state, 'quincenal', '2026-01');
   const ctx = contexto(state, 'compra');
-  const mes = new Date().toISOString().slice(0, 7);
 
-  ponerFrecuencia(state, 'mensual', mes);
-  const mensual = renderCompra(ctx);
-  revisar(mensual, 'compra mensual');
-  assert.ok(!mensual.includes('data-tramo="primera"'), 'una casa mensual no elige quincena');
+  COMPRA_ACTIONS['compra-nueva'](null, ctx);
+  const primera = listaEnCurso(state);
+  assert.ok(primera, 'no se pudo abrir una lista');
+  agregarALista(state, primera.id, { productId: state.products[0].id, cantidad: 2, unidad: 'lb' });
+  cerrarLista(state, primera.id);
 
-  ponerFrecuencia(state, 'quincenal', mes);
-  const quincenal = renderCompra(ctx);
-  revisar(quincenal, 'compra quincenal');
-  assert.ok(quincenal.includes('data-tramo="primera"'));
-  assert.ok(quincenal.includes('data-tramo="segunda"'));
-  assert.ok(!quincenal.includes('data-tramo="mes"'), 'una casa quincenal no compra «todo el mes» por defecto');
-});
+  // Y otra el mismo día, sin esperar nada.
+  COMPRA_ACTIONS['compra-nueva'](null, ctx);
+  const segunda = listaEnCurso(state);
+  assert.ok(segunda && segunda.id !== primera.id, 'no se puede hacer una salida extra');
+  assert.equal(listasCerradas(state).length, 1);
 
-test('cambiar de mes no deja abierto un tramo que ese mes no tiene', () => {
-  const { state } = casa();
-  const ctx = contexto(state, 'compra');
-  const mes = new Date().toISOString().slice(0, 7);
-  ponerFrecuencia(state, 'quincenal', mes);
-  ctx.ui.compra.month = mes;
-  ctx.ui.compra.tramo = 'mes';
-  renderCompra(ctx);
-  assert.ok(['primera', 'segunda'].includes(ctx.ui.compra.tramo), 'se corrige solo al tramo que toca');
-
-  ponerFrecuencia(state, 'mensual', mes);
-  renderCompra(ctx);
-  assert.equal(ctx.ui.compra.tramo, 'mes');
+  const html = renderCompra(ctx);
+  revisar(html, 'la compra');
+  // Y la pantalla ya no obliga a elegir un tramo antes de ver nada.
+  assert.ok(!html.includes('data-tramo='), 'sigue pidiendo elegir un período de cálculo');
 });
 
 test('los siete pasos del asistente se dibujan sin huecos', () => {
@@ -526,4 +539,25 @@ test('quien vuelve a pasar por el asistente encuentra marcada la que ya tenía',
   const html = renderSetup(ctx);
   assert.ok(html.includes('data-frecuencia="quincenal" aria-pressed="true"'));
   assert.ok(html.includes('data-frecuencia="mensual" aria-pressed="false"'));
+});
+
+test('el repaso no dice «sin decidir» a quien ya lo decidió hace meses', () => {
+  // La frecuencia vive en los ajustes de la casa, no en el borrador de este
+  // recorrido. Quien la contestó en agosto y vuelve a pasar por aquí en octubre
+  // llega con el borrador en blanco, y leer «sin decidir» sobre algo decidido
+  // es la clase de mentira pequeña que hace desconfiar del resto de la pantalla.
+  const { state } = casa();
+  ponerFrecuencia(state, 'quincenal', '2025-01');
+  const ctx = contexto(state);
+  ctx.ui.setup.paso = PASO.casa;
+  ctx.ui.setup.frecuencia = null;
+  const html = renderSetup(ctx);
+  revisar(html, 'repaso con la frecuencia ya escrita');
+  assert.ok(html.includes('Dos compras al mes'));
+  assert.ok(!html.includes('Sin decidir'));
+
+  // Y a quien no la ha contestado sí se lo dice.
+  const nueva = contexto(createEmptyState());
+  nueva.ui.setup.paso = PASO.casa;
+  assert.ok(renderSetup(nueva).includes('Sin decidir'));
 });

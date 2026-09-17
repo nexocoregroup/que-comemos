@@ -36,7 +36,7 @@ export const TOUR_STEPS = [
     page: 'compra',
     title: 'La compra',
     body: 'Una sola lista: lo que tu casa consume al mes, más lo que cambie este mes, menos lo que ya queda en casa. No hay que planificar el menú para que salga.',
-    tip: 'Solo la compra que anotas después de ir al colmado mueve las existencias. La lista sugerida no cambia nada.'
+    tip: 'La lista la escribes tú: se toca lo que haga falta esta vez y se dice cuánto. Que algo esté en tus productos habituales no significa que hoy haya que comprarlo.'
   },
   {
     page: 'mas',

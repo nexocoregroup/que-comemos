@@ -11,7 +11,7 @@
 
 import { normalizeName } from './nombres.js';
 
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 
 // Los ocho rubros con que se agrupan los productos habituales, y de qué
 // categoría fina sale cada uno.
@@ -494,6 +494,23 @@ function asegurarV9(state) {
   }
 
   if (!Array.isArray(state.listasDeCompra)) state.listasDeCompra = [];
+  // `comprada` —lo que de verdad se trajo— llegó después que las listas. Una
+  // línea sin ese campo se lee como «no se trajo nada», que es cierto, pero
+  // dejarlo sin escribir haría que la pantalla tuviera que distinguir entre
+  // «cero» y «no existe» en cada renglón.
+  for (const lista of state.listasDeCompra) {
+    if (!lista || typeof lista !== 'object') continue;
+    // `compraId` esperaba a que alguien uniera las listas con el registro de
+    // compras del inventario. Esa unión se decidió que no —el inventario se
+    // retiró— así que el campo se va: nadie lo lee.
+    delete lista.compraId;
+    if (!Array.isArray(lista.lineas)) continue;
+    lista.lineas = lista.lineas.map(linea => (
+      linea && typeof linea === 'object' && !('comprada' in linea)
+        ? { ...linea, comprada: linea.comprado ? (linea.cantidad ?? null) : null }
+        : linea
+    ));
+  }
   return partidas;
 }
 
@@ -531,7 +548,38 @@ function reglasDeUnMomento(rutinas, nuevoId) {
   return { reglas, reasignadas, partidas };
 }
 
-const STEPS = { 1: v1toV2, 2: v2toV3, 3: v3toV4, 4: v4toV5, 5: v5toV6, 6: v6toV7, 7: v7toV8, 8: v8toV9 };
+/* ── v9 → v10. Se cae el andamio ───────────────────────────────────────────
+
+   La conversión anterior partió las reglas de varios momentos en una por
+   momento, y les puso a las hermanas un `grupoId` para recordar que se habían
+   escrito de una sentada. Ese campo era un andamio: las pantallas de entonces
+   preguntaban «¿en qué momentos?» con casillas y enseñaban una fila por
+   respuesta, así que necesitaban volver a juntarlas para dibujarlas.
+
+   Las pantallas ya no hacen eso. Ahora se añade, se edita, se pausa y se borra
+   una regla cada vez, que es lo que de verdad son. El andamio estorba: un campo
+   que nadie lee es una pregunta abierta para quien abra esto dentro de un año.
+
+   No se pierde nada. `grupoId` no decía nada que la regla no dijera —qué
+   preparación, qué momento, qué días—; solo decía con cuáles se había tecleado
+   a la vez, y eso ya no cambia nada de lo que la app hace. */
+function v9toV10(data) {
+  const state = clone(data);
+  quitarElAndamio(state);
+  state.version = 10;
+  return { state, notes: [] };
+}
+
+function quitarElAndamio(state) {
+  if (!Array.isArray(state.mealRoutines)) return;
+  state.mealRoutines = state.mealRoutines.map(reglaGuardada => {
+    if (!reglaGuardada || typeof reglaGuardada !== 'object' || !('grupoId' in reglaGuardada)) return reglaGuardada;
+    const { grupoId, ...resto } = reglaGuardada;
+    return resto;
+  });
+}
+
+const STEPS = { 1: v1toV2, 2: v2toV3, 3: v3toV4, 4: v4toV5, 5: v5toV6, 6: v6toV7, 7: v7toV8, 8: v8toV9, 9: v9toV10 };
 
 // Campos que aparecieron dentro de una misma versión del esquema. Un respaldo
 // exportado antes de que existieran se rellena en vez de rechazarse.
@@ -632,6 +680,9 @@ export function migrate(data) {
   // las líneas y necesita encontrarlas ya con sus tramos ordenados. Sobre un
   // estado ya convertido no cambia nada, que es lo que la hace repetible.
   asegurarV9(current);
+  // El andamio de aquella conversión, por si un respaldo se exportó a media
+  // tarde con él puesto.
+  quitarElAndamio(current);
 
   return { ok: true, state: current, from, to: SCHEMA_VERSION, migrated: from < SCHEMA_VERSION, notes };
 }

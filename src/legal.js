@@ -162,7 +162,7 @@ export const LEGAL = {
       {
         titulo: 'Esto no es consejo de alimentación ni médico',
         parrafos: [
-          'La app enseña cantidades de alimentos para organizar la casa y calcular la compra. Eso es todo lo que hace.',
+          'La app enseña cantidades de alimentos para organizar las comidas de la casa y escribir la lista de la compra. Eso es todo lo que hace: no calcula dietas, no lleva inventario y no promete una compra exacta.',
           'Las cantidades que ves salen de lo que tú misma escribiste, y las del ejemplo son datos inventados para que veas cómo funciona. No son recomendaciones nutricionales, ni dietas, ni consejo médico. Para eso hay que hablar con un profesional de la salud.'
         ]
       },
@@ -215,7 +215,7 @@ export const LEGAL = {
       {
         titulo: 'Qué hace la app',
         parrafos: [
-          'Sirve para organizar las comidas de una casa y calcular la compra del mes. Te deja escribir una sola vez lo habitual de tu casa y luego, cada mes, solo revisar lo que va a ser diferente.',
+          'Sirve para organizar las comidas de una casa y escribir la lista de la compra. Te deja anotar una sola vez lo habitual de tu casa y luego, cada mes, solo revisar lo que va a ser diferente. La lista de cada compra la escribes tú, producto por producto: la app no calcula cuánto hace falta.',
           'Funciona entera en tu teléfono, sin cuenta y sin conexión. Si quieres, puedes crear una cuenta para recuperar tu casa al cambiar de aparato: es opcional, viene apagada y se explica con detalle en el aviso de privacidad.'
         ]
       },

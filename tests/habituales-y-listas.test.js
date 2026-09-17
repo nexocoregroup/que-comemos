@@ -172,7 +172,7 @@ test('tachar y destachar es lo único que hay que poder hacer en el supermercado
   const renglon = agregarALista(state, lista.id, { productId: arroz });
   marcarComprado(state, lista.id, renglon.id);
   assert.equal(listaDeCompra(state, lista.id).lineas[0].comprado, true);
-  assert.deepEqual(resumenDeLista(listaDeCompra(state, lista.id)), { total: 1, comprados: 1, pendientes: 0 });
+  assert.deepEqual(resumenDeLista(listaDeCompra(state, lista.id)), { total: 1, comprados: 1, aMedias: 0, pendientes: 0 });
   marcarComprado(state, lista.id, renglon.id, false);
   assert.equal(listaDeCompra(state, lista.id).lineas[0].comprado, false);
 });
@@ -211,7 +211,7 @@ test('lo que quedó sin tachar se queda sin tachar: no se consiguió, y eso es v
   agregarALista(state, lista.id, { productId: platano });
   marcarComprado(state, lista.id, uno.id);
   cerrarLista(state, lista.id);
-  assert.deepEqual(resumenDeLista(listaDeCompra(state, lista.id)), { total: 2, comprados: 1, pendientes: 1 });
+  assert.deepEqual(resumenDeLista(listaDeCompra(state, lista.id)), { total: 2, comprados: 1, aMedias: 0, pendientes: 1 });
 });
 
 test('una lista cerrada no se cambia sin volver a abrirla', () => {

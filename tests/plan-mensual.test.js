@@ -397,7 +397,11 @@ test('el índice de Más está agrupado y lo frecuente va primero', () => {
   // Lo de cada semana arriba del todo: la canasta y las preparaciones se tocan
   // cada pocos días; el respaldo, una vez cada muchos meses.
   const primeros = GRUPOS_MAS[0][1].map(([id]) => id);
-  assert.deepEqual(primeros, ['canasta', 'preparaciones', 'revision']);
+  // «Revisar lo que queda» ya no está: era el formulario de «¿cuánto te queda
+  // de cada cosa?», y servía para afinar una cuenta que la app ya no hace.
+  assert.deepEqual(primeros, ['canasta', 'preparaciones']);
+  assert.ok(!GRUPOS_MAS.flatMap(([, filas]) => filas).some(([id]) => id === 'revision'),
+    'volvió a pedirse el repaso de la despensa cada semana');
   assert.ok(!GRUPOS_MAS.flatMap(([, filas]) => filas).some(([id]) => id === 'avanzado'),
     'las funciones avanzadas no deberían competir en el índice con la canasta');
 });
@@ -405,10 +409,14 @@ test('el índice de Más está agrupado y lo frecuente va primero', () => {
 test('nada desapareció al agrupar: lo avanzado sigue estando, dentro de Ajustes', () => {
   const state = createEmptyState();
   // Todas las páginas que había siguen teniendo ruta.
-  for (const id of ['canasta', 'preparaciones', 'familia', 'revision', 'alimentos', 'historial', 'respaldo', 'ajustes', 'avanzado']) {
+  for (const id of ['canasta', 'preparaciones', 'familia', 'alimentos', 'historial', 'respaldo', 'ajustes', 'avanzado']) {
     assert.ok(PAGINAS_MAS.includes(id) || id === 'cuenta', `la página «${id}» se quedó sin ruta`);
     assert.ok(ENTRADAS_MAS.some(([entrada]) => entrada === id), `«${id}» ya no está en la lista de entradas`);
   }
+  // «Revisar lo que queda» salió del índice y de las entradas, pero su pantalla
+  // sigue existiendo: el historial de las revisiones viejas se lee desde Más →
+  // Historial, y lo que se quitó fue pedir el repaso cada semana, no borrarlo.
+  assert.ok(PAGINAS_MAS.includes('revision'), 'la pantalla de las revisiones viejas se quedó sin ruta');
   const ajustes = renderMas(contexto(state, { page: 'ajustes' }));
   assert.ok(ajustes.includes('data-page="avanzado"'), 'desde Ajustes no se llega a las funciones avanzadas');
   const avanzado = renderMas(contexto(state, { page: 'avanzado' }));

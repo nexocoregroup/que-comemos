@@ -1696,11 +1696,12 @@ export function crearLista(state, fields = {}) {
   const lista = {
     id: nextId(state, 'lista'), nombre: String(fields.nombre || '').trim(), fecha,
     estado: 'abierta', lineas: [], nota: String(fields.nota || '').trim(),
-    createdAt: date, updatedAt: date, cerradaEl: null,
-    // A dónde fue a parar esta lista cuando se cerró, si alguien anotó la
-    // compra. Hoy nadie lo escribe; existe para que la etapa que una las dos
-    // cosas no tenga que migrar otra vez.
-    compraId: null
+    // Y cuándo se cerró. Una lista cerrada ES el historial de esa compra: no se
+    // copia a ningún otro sitio. Aquí hubo un `compraId` esperando a que
+    // alguien uniera las listas con el registro de compras del inventario; esa
+    // unión se decidió que no, porque el inventario se retiró, así que el campo
+    // se fue con ella.
+    createdAt: date, updatedAt: date, cerradaEl: null
   };
   state.listasDeCompra.push(lista);
   return lista;
@@ -1738,11 +1739,41 @@ export function agregarALista(state, listaId, fields = {}) {
     cantidad, unidad,
     rubro: item ? rubroDe(state, item.id) : (RUBROS_IDS.includes(fields.rubro) ? fields.rubro : 'otros'),
     nota: String(fields.nota || '').trim(),
+    // `cantidad` es lo que se pidió y `comprada` lo que se trajo. Son dos datos
+    // y no uno: la lista decía dos latas, se encontró una, y eso no es «hecho»
+    // ni es «nada». Sin los dos separados no hay forma de dejar una lata
+    // pendiente sin borrar el recuerdo de que se compró la otra.
+    comprada: null,
     comprado: false
   };
   lista.lineas.push(linea);
   lista.updatedAt = todayISO();
   return linea;
+}
+
+/* ── Algo que no se compra siempre ─────────────────────────────────────────
+
+   Una casa compra papel de aluminio dos veces al año. Meterlo en los productos
+   habituales llenaría esa lista de cosas que no son habituales; dejarlo solo
+   como texto suelto obliga a escribirlo otra vez dentro de seis meses.
+
+   Por eso se pregunta, y se pregunta una vez: ¿esto es de esta compra, o es de
+   las que se repiten? Las dos respuestas son legítimas y ninguna es la de por
+   defecto. */
+export function agregarOcasional(state, listaId, fields = {}) {
+  const nombre = String(fields.nombre || '').trim();
+  if (!nombre) throw new Error('Escribe qué hay que comprar.');
+  if (!fields.habitual) {
+    return agregarALista(state, listaId, {
+      texto: nombre, cantidad: fields.cantidad, unidad: fields.unidad, rubro: fields.rubro, nota: fields.nota
+    });
+  }
+  // También a los habituales: se registra allí —sin cantidad, que es lo que
+  // esa lista guarda— y se apunta en esta compra con la de esta vez.
+  const linea = agregarHabitual(state, { name: nombre, rubro: fields.rubro, unit: fields.unidad, category: fields.category });
+  return agregarALista(state, listaId, {
+    productId: linea.productId, cantidad: fields.cantidad, unidad: fields.unidad, nota: fields.nota
+  });
 }
 
 export function actualizarLineaDeLista(state, listaId, lineaId, fields = {}) {
@@ -1762,16 +1793,50 @@ export function actualizarLineaDeLista(state, listaId, lineaId, fields = {}) {
   return linea;
 }
 
-// Tachar y destachar. Es lo único que se toca dentro del supermercado, así que
-// no exige nada más y no puede fallar por otra cosa.
+/* ── Tachar, destachar, y lo que se trajo a medias ─────────────────────────
+
+   Un toque tacha el renglón entero: es lo único que se toca dentro del
+   supermercado, con una mano y el carrito en la otra, así que no exige nada
+   más y no puede fallar por otra cosa. Destacharlo lo devuelve tal cual.
+
+   Y después está lo que pasa de verdad: la lista decía dos latas y solo había
+   una. Eso no es «hecho» ni es «nada». `anotarComprado` guarda lo que se trajo
+   y deja el resto pendiente, que es lo que hay que poder hacer sin tener que
+   elegir entre mentir en un sentido o en el otro. */
+
 export function marcarComprado(state, listaId, lineaId, comprado = true) {
   const lista = exigirListaAbierta(state, listaId);
   const linea = lista.lineas.find(row => row.id === lineaId);
   if (!linea) throw new Error('Ese renglón ya no está en la lista.');
   linea.comprado = Boolean(comprado);
+  // Tachar de un toque es decir «lo traje todo»; destachar, «al final no».
+  linea.comprada = comprado ? linea.cantidad : null;
   lista.updatedAt = todayISO();
   return linea;
 }
+
+export function anotarComprado(state, listaId, lineaId, cuanto) {
+  const lista = exigirListaAbierta(state, listaId);
+  const linea = lista.lineas.find(row => row.id === lineaId);
+  if (!linea) throw new Error('Ese renglón ya no está en la lista.');
+  const traido = optionalQuantity(cuanto);
+  linea.comprada = traido;
+  // Se da por completo cuando alcanza lo que se pidió. Si no se había pedido
+  // una cantidad, cualquier cosa anotada lo completa: no hay contra qué
+  // compararla, y dejarlo pendiente para siempre sería un renglón que nunca
+  // se puede terminar.
+  linea.comprado = traido !== null && (linea.cantidad === null || traido >= linea.cantidad);
+  lista.updatedAt = todayISO();
+  return linea;
+}
+
+// Lo que falta de un renglón. `null` cuando no hay nada que restar —porque no
+// se pidió cantidad—: no es cero, es «no se sabe», y son cosas distintas.
+export const pendienteDe = linea => {
+  if (linea?.comprado) return 0;
+  if (linea?.cantidad === null || linea?.cantidad === undefined) return null;
+  return Math.max(0, round(linea.cantidad - (linea.comprada || 0)));
+};
 
 export function quitarDeLista(state, listaId, lineaId) {
   const lista = exigirListaAbierta(state, listaId);
@@ -1805,8 +1870,27 @@ export function reabrirLista(state, listaId) {
 export const resumenDeLista = lista => {
   const lineas = lista?.lineas || [];
   const comprados = lineas.filter(linea => linea.comprado).length;
-  return { total: lineas.length, comprados, pendientes: lineas.length - comprados };
+  // Los que se trajeron a medias no son ni lo uno ni lo otro, y contarlos como
+  // pendientes a secas escondería que ya se trajo parte.
+  const aMedias = lineas.filter(linea => !linea.comprado && linea.comprada).length;
+  return { total: lineas.length, comprados, aMedias, pendientes: lineas.length - comprados };
 };
+
+/* ── El historial de compras es la lista cerrada ───────────────────────────
+
+   No hay un segundo sitio donde apuntar lo que se compró. Una lista cerrada ya
+   dice la fecha, qué se llevaba apuntado, cuánto se pidió de cada cosa y cuánto
+   se trajo: eso es el historial, y guardarlo otra vez en otro formato sería
+   tener dos versiones de lo mismo y una de ellas equivocada.
+
+   Y no descuenta nada de nada. La app no lleva la cuenta de lo que hay en la
+   casa —nadie anota el arroz que se cayó ni las dos tazas que se llevó la
+   vecina— y fingir que sí es lo que hacía que la cuenta no se pareciera a la
+   despensa a los tres meses. */
+export const listasCerradas = state =>
+  (state.listasDeCompra || [])
+    .filter(lista => lista.estado === 'cerrada')
+    .sort((a, b) => String(b.cerradaEl || b.fecha).localeCompare(String(a.cerradaEl || a.fecha)));
 
 // La ayuda, y toda la ayuda: los habituales de la casa que todavía no están en
 // esta lista, agrupados por rubro. Nada de cantidades sugeridas —la cantidad la

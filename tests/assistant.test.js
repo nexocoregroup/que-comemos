@@ -5,7 +5,7 @@ import {
 } from '../src/assistant.js';
 import { interpretar } from '../src/chat-ui.js';
 import {
-  UNITS, addProduct, createEmptyState, effectiveBasket, habitualLines, inventoryNow, monthChanges,
+  UNITS, addProduct, createEmptyState, effectiveBasket, habitualLines, inventoryNow, listasCerradas, monthChanges,
   setHabitualBasket, todayISO, upsertPerson, upsertRecipe
 } from '../src/model.js';
 
@@ -235,11 +235,17 @@ test('«agrega ocho plátanos a la compra» propone la acción correcta y pide c
   assert.equal(sinConfirmar.ok, false);
   assert.equal(sinConfirmar.needsConfirmation, true);
   assert.match(sinConfirmar.preview[0], /8 unidades de Plátano maduro/);
-  assert.match(sinConfirmar.preview[0], /aumentará tus existencias/);
-  assert.equal(inventoryNow(state)[platano], 8, 'mientras no se confirme, no se movió nada');
+  // Ya no sube ninguna existencia, y la confirmación lo dice: la app dejó de
+  // llevar la cuenta de la despensa. Lo que se guarda es la compra en sí.
+  assert.match(sinConfirmar.preview[0], /No cambia lo que la app cree que hay en casa/);
+  assert.equal(listasCerradas(state).length, 0, 'mientras no se confirme, no se guardó nada');
+
   const confirmado = pedir(state, 'registrar_compra', { lineas: [{ producto: 'plátano maduro', cantidad: 8, unidad: 'unidad' }] }, { confirmed: true });
   assert.equal(confirmado.ok, true);
-  assert.equal(inventoryNow(state)[platano], 16);
+  const guardada = listasCerradas(state)[0];
+  assert.ok(guardada, 'la compra no llegó al historial');
+  assert.deepEqual(guardada.lineas.map(fila => [fila.productId, fila.cantidad, fila.comprada, fila.comprado]), [[platano, 8, 8, true]]);
+  assert.equal(inventoryNow(state)[platano], 8, 'una compra anotada al hablar no puede mover las existencias');
 });
 
 test('«quedan dos plátanos, diez huevos y media libra de queso» anota los tres', () => {
@@ -266,8 +272,8 @@ test('mandar dos veces la misma petición no la ejecuta dos veces', () => {
   assert.equal(uno.ok, true);
   assert.equal(dos.ok, true);
   assert.equal(dos.repeated, true);
-  assert.equal(inventoryNow(state)[platano], 16, 'dieciséis, no veinticuatro');
-  assert.equal(state.purchases.length, 1);
+  assert.equal(listasCerradas(state).length, 1, 'una compra guardada, no dos');
+  assert.equal(state.purchases.length, 0, 'ya no se escribe en el inventario viejo');
 });
 
 test('un grupo con una acción mala no deja nada a medias', () => {

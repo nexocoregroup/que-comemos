@@ -8,15 +8,14 @@
 // la frecuencia con que hace falta de verdad.
 
 import {
-  MOMENTOS, SLICEABLE, SLICE_STYLES, SLOTS, SLOTS_PRINCIPALES, UNITS, addDays, addProduct, addPurchase, archiveProduct,
-  copyPlan, correctReview, correctStock, createEmptyState, createReview, dependents, effectiveBasket,
-  choquesDeLaComida, esOpcional, etiquetaDeMomento, exportState, findSimilarProducts, habitualLines, importState, incompatibleItems, inventoryNow,
-  esActiva, isAbsent, linkPlan, makeRecipePlan, mergeProducts, monthBounds, movePlan, nextId, personasActivas, planFor, ponerFrecuencia, product,
-  promoteToHabitual, quantity, removeMonthChange, restoreProduct, reservedQuantity, reviewAvailability,
-  saveReview, setAbsence, setEquivalence, setHabitualBasket, setHabitualLine, setMonthChange, detalleDeOrigen, etiquetaDeOrigen, origenDe,
-  cerrarPeriodo, setReviewScope, ultimaCompra,
-  setSlice, setStatusPlan, shoppingList, sliceStyle, todayISO, updatePlan, updateProduct,
-  upsertRecipe
+  MOMENTOS, SLICEABLE, SLICE_STYLES, SLOTS, SLOTS_PRINCIPALES, UNITS, addDays, addProduct, archiveProduct,
+  copyPlan, correctReview, correctStock, createEmptyState, dependents, choquesDeLaComida, esOpcional,
+  etiquetaDeMomento, exportState, findSimilarProducts, habitualLines, importState, incompatibleItems,
+  inventoryNow, esActiva, isAbsent, linkPlan, makeRecipePlan, mergeProducts, monthBounds, movePlan, nextId,
+  personasActivas, planFor, ponerFrecuencia, product, promoteToHabitual, quantity, removeMonthChange,
+  restoreProduct, reservedQuantity, restriccionesDe, saveReview, setAbsence, setEquivalence, setHabitualBasket,
+  setHabitualLine, setMonthChange, detalleDeOrigen, etiquetaDeOrigen, origenDe, setReviewScope, ultimaCompra,
+  setSlice, setStatusPlan, sliceStyle, todayISO, updatePlan, updateProduct, upsertRecipe
 } from './model.js';
 import { clearAll, hasSavedState, loadStateDetailed, saveState } from './storage.js';
 import { BRAND_MARK } from './brand.js';
@@ -28,8 +27,8 @@ import { HOGAR_ACTIONS, HOGAR_FORMS, cuerpoDeFicha, emptyHogar, fichaActiva, ren
 import { CHAT_ACTIONS, CHAT_FORMS, emptyChat, renderChat } from './chat-ui.js';
 import { BULK_ACTIONS, BULK_FORMS, emptyBulk, renderBulk } from './bulk-entry.js';
 import { MES_ACTIONS, MES_FORMS, abrirMesSiHaceFalta, emptyMes, modalDia, modalRutina, renderMes } from './page-mes.js';
-import { WEEKDAYS, WEEKDAY_SHORT, addRoutine, applyRoutine, deleteRoutine, describeRule, updateRoutine } from './routines.js';
-import { COMPRA_ACTIONS, COMPRA_FORMS, emptyCompra, periodoDeCompra, renderCompra } from './page-compra.js';
+import { describeRule, reglasDePreparacion } from './routines.js';
+import { COMPRA_ACTIONS, COMPRA_FORMS, emptyCompra, listaEnCurso, renderCompra } from './page-compra.js';
 import { MAS_ACTIONS, PAGINAS_MAS, TITULOS_MAS, aplicarDictado, emptyMas, renderMas } from './page-mas.js';
 import { avisoDeVoz, cancelarDictado, capacidad, diagnostico, falloAnterior, olvidarFalloAnterior } from './device.js';
 import { VOZ_ACTIONS, comprobarSiElDictadoMatoLaApp, emptyVoz, fallosDeVoz, seRindio } from './voz.js';
@@ -370,7 +369,11 @@ const cutText = (item, amount) => {
   return ` ${amount > 0 && amount <= 1 ? word : `${word}s`}`;
 };
 const stockText = (amount, item) => `${measure(amount, item?.controlUnit || '')}${esc(cutText(item, amount))}`;
-const itemText = item => `${measure(item.quantity, item.unit)} · ${esc(productName(item.productId))}`;
+// Sin cantidad, solo el nombre. Desde que una preparación puede llevar los
+// alimentos sin decir cuánto, pintar la medida a ciegas dejaba «0 · Arroz»
+// en la pantalla de quien cocina, que es peor que no decir nada.
+const sinMedida = item => item.quantity === null || item.quantity === undefined;
+const itemText = item => (sinMedida(item) ? esc(productName(item.productId)) : `${measure(item.quantity, item.unit)} · ${esc(productName(item.productId))}`);
 const planTitle = plan => plan.kind === 'recipe' || plan.kind === 'linked'
   ? plan.title
   : ({ outside: 'Fuera de casa', order: 'Pedimos comida', unplanned: 'Sin decidir' }[plan.kind] || 'Sin decidir');
@@ -389,7 +392,7 @@ const RAPIDAS = [
   ['rapida-comida', 'plato', 'Poner una comida', 'En un día, o en todos los lunes'],
   ['open-recipe', 'libro', 'Crear una preparación', 'Un plato que se repite en casa'],
   ['open-chat', 'burbuja', 'Hablar o dictar', 'Dile lo que pasó y ella lo anota'],
-  ['open-purchase', 'canasta', 'Anotar una compra', 'Lo que trajiste del colmado'],
+  ['navigate', 'canasta', 'Preparar la compra', 'Lo que hay que llevar del colmado', 'data-page="compra"'],
   ['open-product', 'hoja', 'Añadir un alimento', 'Uno nuevo, con su medida']
 ];
 
@@ -569,7 +572,7 @@ function pintar() {
       <header class="topline"><div class="topline-heading"><button type="button" class="menu-toggle desktop-menu-toggle" data-action="toggle-sidebar" aria-label="${ui.sidebarCollapsed ? 'Abrir menú' : 'Ocultar menú'}" aria-controls="app-sidebar" aria-expanded="${!ui.sidebarCollapsed}">${icono('menu', { tamano: 22 })}</button><div><p class="eyebrow">${esc(eyebrow())}</p><h1>${esc(pageTitle())}</h1></div></div></header>
       ${avisoDeSesion ? notice('Sobre tu cuenta', `${esc(avisoDeSesion)} <button type="button" class="enlace" data-action="navigate" data-page="cuenta">Ir a mi cuenta</button>`, 'warn') : ''}
       ${ui.avisoDeArranque ? notice('La vez anterior la aplicación se cerró sola', `${esc(ui.avisoDeArranque)} <button type="button" class="enlace" data-action="entendido-el-cierre">Entendido</button>`, 'warn') : ''}
-      ${migratedFrom ? notice('Tus datos se actualizaron al formato nuevo.', 'La canasta que tenías es ahora <strong>tu canasta habitual</strong>, y lo que cambiaba en algún mes quedó guardado como cambio de ese mes. Nada se perdió, y lo anterior quedó a salvo por si acaso.') : ''}
+      ${migratedFrom ? notice('Tus datos se actualizaron al formato nuevo.', 'La canasta que tenías es ahora <strong>tus productos habituales</strong>, y lo que cambiaba en algún mes quedó guardado como cambio de ese mes. Nada se perdió, y lo anterior quedó a salvo por si acaso.') : ''}
       ${loadError ? notice('No se pudieron leer los datos guardados.', `${esc(loadError)} Trae una copia desde Más → Respaldo, o borra los datos para empezar de nuevo.`, 'error') : ''}
       ${state.demo ? `<div class="demo-banner">${icono('chispa')}<div><strong>Estás viendo un ejemplo</strong>Las cantidades son inventadas para que veas cómo funciona; no son recomendaciones de alimentación.</div>${button('Borrar el ejemplo', 'clear-demo', 'btn-secondary btn-small')}</div>` : ''}
       ${cuerpo}
@@ -645,7 +648,7 @@ function bloqueDeMeriendas(date) {
     return `<article class="card soft merienda-card"><div class="slot">${esc(etiquetaDeMomento(slot))}</div>
       <div class="meal-title">${esc(planTitle(plan))}</div>
       ${plan.items.length ? cantidades(plan) : ''}
-      ${avisoDeChoques(choquesDeLaComida(state, plan.items, plan.participants))}
+      ${avisoDeAlergias(plan.items, plan.participants)}
       ${button('Ver o cambiar', 'open-meal', 'btn-quiet btn-small', `data-date="${date}" data-slot="${slot}"`)}</article>`;
   }).join('')}</div>`;
 }
@@ -668,7 +671,7 @@ function tarjetaDeComida(slot, date) {
       <div class="meal-people">${plan.participants.length ? `Para ${plan.participants.map(id => esc(personName(id))).join(', ')}` : 'Para quien coma en casa'}</div>
       ${cantidades(plan)}
       ${plan.note ? `<p class="small nota-cocina"><strong>Nota:</strong> ${esc(plan.note)}</p>` : ''}
-      ${avisoDeChoques(choquesDeLaComida(state, plan.items, plan.participants))}
+      ${avisoDeAlergias(plan.items, plan.participants)}
     </div>
     ${button('Ver o cambiar', 'open-meal', 'btn-secondary btn-small', `data-date="${date}" data-slot="${slot}"`)}</article>`;
 }
@@ -685,10 +688,10 @@ function cantidades(plan) {
       }).join('')}</ul>
       ${plan.items.length ? `<p class="small strong">Además hay que preparar:</p><ul class="food-list">${plan.items.map(item => `<li>${itemText(item)}</li>`).join('')}</ul>` : ''}`;
   }
-  if (!plan.items.length) return '<p class="small muted">Sin cantidades anotadas.</p>';
+  if (!plan.items.length) return '<p class="small muted">Sin alimentos anotados.</p>';
   const filas = plan.items.map(item => {
     const reservado = reservedQuantity(state, plan.id, item.id);
-    return `<li><strong>${esc(measure(item.quantity, item.unit))}</strong> de ${esc(productName(item.productId))}${item.personId ? ` · para ${esc(personName(item.personId))}` : ''}${reservado ? `<br><span class="muted small">Apartar ${esc(measure(reservado, item.unit))} para otra comida.</span>` : ''}</li>`;
+    return `<li>${sinMedida(item) ? `<strong>${esc(productName(item.productId))}</strong>` : `<strong>${esc(measure(item.quantity, item.unit))}</strong> de ${esc(productName(item.productId))}`}${item.personId ? ` · para ${esc(personName(item.personId))}` : ''}${reservado ? `<br><span class="muted small">Apartar ${esc(measure(reservado, item.unit))} para otra comida.</span>` : ''}</li>`;
   }).join('');
   const hijos = dependents(state, plan.id);
   return `<ul class="food-list">${filas}</ul>${hijos.length ? `<p class="small muted">Se aparta una parte para ${hijos.map(hijo => `${cap(hijo.slot)} del ${niceDate(hijo.date, { day: 'numeric', month: 'short' })}`).join(', ')}.</p>` : ''}`;
@@ -697,10 +700,10 @@ function cantidades(plan) {
 function pieDeHoy() {
   const manana = addDays(today, 1);
   const hayManana = SLOTS.some(slot => planFor(state, manana, slot));
-  const diaDeHoy = (new Date(`${today}T12:00:00`).getDay() + 6) % 7 + 1;
-  const tocaRevisar = diaDeHoy === (state.settings?.reviewWeekday ?? 5);
-  return `${tocaRevisar ? notice('Hoy toca revisar lo que queda.', `Un repaso rápido a la nevera deja la compra exacta. <button type="button" class="enlace" data-action="open-new-review">Empezar</button>`) : ''}
-    ${lineaDeCompra()}
+  // El aviso de «hoy toca revisar lo que queda» se fue con el inventario. La
+  // app ya no lleva la cuenta de lo que hay en la casa, así que pedir un repaso
+  // para afinar un número que no calcula sería pedir trabajo para nada.
+  return `${lineaDeCompra()}
     ${hayManana ? `<div class="section-head"><div><h2>Mañana</h2></div>${button('Ver el mes', 'navigate', 'btn-quiet btn-small', 'data-page="mes"')}</div>
       <div class="grid grid-3">${SLOTS.filter(slot => !esOpcional(slot) || planFor(state, manana, slot)).map(slot => {
         const plan = planFor(state, manana, slot);
@@ -711,21 +714,16 @@ function pieDeHoy() {
 // Una línea, no una tarjeta: quien abre «Hoy» viene a cocinar, y lo que falta
 // comprar es un dato de fondo. Si no falta nada, no se dice nada: un aviso que
 // aparece siempre deja de leerse.
+// Lo que queda por buscar de la lista que se esté escribiendo. No es una cuenta
+// de lo que hace falta —la app no lo sabe—: es lo que hay apuntado y todavía no
+// se ha tachado.
 function lineaDeCompra() {
-  const periodo = periodoDeCompra(ui.compra);
-  let faltan = 0;
-  try { faltan = shoppingList(state, periodo.start, periodo.end, ui.compra.base).lines.filter(linea => linea.shortfall > 0).length; }
-  catch { return ''; }
-  if (!faltan) return '';
-  return `<p class="hoy-compra small muted">Para ${esc(rotuloDePeriodo())} faltan <strong>${faltan}</strong> ${faltan === 1 ? 'alimento' : 'alimentos'}. <button type="button" class="enlace" data-action="navigate" data-page="compra">Ver la lista</button></p>`;
+  const lista = listaEnCurso(state);
+  if (!lista) return '';
+  const { total, pendientes } = resumenDeLista(lista);
+  if (!total || !pendientes) return '';
+  return `<p class="hoy-compra small muted">En tu lista de la compra quedan <strong>${pendientes}</strong> ${pendientes === 1 ? 'cosa' : 'cosas'} por buscar. <button type="button" class="enlace" data-action="navigate" data-page="compra">Ver la lista</button></p>`;
 }
-
-const rotuloDePeriodo = () => ({
-  mes: 'este mes',
-  primera: 'la primera quincena',
-  segunda: 'la segunda quincena',
-  fechas: 'ese período'
-})[ui.compra.tramo] || 'este mes';
 
 /* ── Piezas de formulario compartidas ──────────────────────────────────── */
 
@@ -737,6 +735,15 @@ function itemRow(item = {}, type = 'ingredient') {
   const isPurchase = type === 'purchase';
   const noPerson = type !== 'ingredient';
   const defaultProduct = product(state, item.productId);
+  // En una preparación solo se dice qué lleva. La cantidad no se pregunta: una
+  // casa apunta «locrio: arroz, pollo, aceitunas» mucho antes de saber cuántas
+  // tazas, y muchas veces no lo sabe nunca. Lo que llevan sirve para avisar de
+  // las alergias, y para eso el nombre basta.
+  if (type === 'receta') {
+    return `<div class="item-row item-row-simple" data-item-row><input type="hidden" name="itemId" value="${esc(item.id || '')}">
+      <label class="field"><span>Alimento</span><select name="productId" required>${productOptions(item.productId || '')}</select></label>
+      <button type="button" class="btn btn-quiet remove-item" data-action="remove-item" aria-label="Quitar alimento">${icono('cerrar', { tamano: 18 })}</button></div>`;
+  }
   return `<div class="item-row" data-item-row><input type="hidden" name="itemId" value="${esc(item.id || '')}">
     <label class="field"><span>Alimento</span><select name="productId" required>${productOptions(item.productId || '')}</select></label>
     <label class="field"><span>Cantidad</span><input name="quantity" type="number" min="0" step="any" inputmode="decimal" value="${item.quantity ?? ''}" placeholder="0"></label>
@@ -770,6 +777,28 @@ const VERBO_DE_MOTIVO = {
   intolerancia: 'no tolera bien',
   preferencia: 'prefiere evitar'
 };
+
+/* ── Lo que no se puede comprobar se dice ──────────────────────────────────
+
+   Una preparación sin alimentos anotados no produce ningún choque, y hasta aquí
+   eso se veía igual que una preparación revisada y limpia: en los dos casos no
+   salía nada. Para una casa con una alergia al maní, esas dos cosas no se
+   parecen en nada.
+
+   Así que cuando no hay nada que mirar y sí hay alguien que evita algo, se dice.
+   No es una alarma —no se sabe que haya un problema— pero tampoco es silencio,
+   que es lo que se leería como «revisado y todo bien». */
+
+function avisoDeAlergias(items, participants, { conSalidas = false } = {}) {
+  const hayRestricciones = state.people.some(persona => restriccionesDe(persona).length);
+  if (!items.length && hayRestricciones) {
+    return `<div class="choque choque-sinsaber" role="status">
+      <div class="choque-cabeza"><span class="choque-marca" aria-hidden="true">?</span><strong>No se puede comprobar</strong></div>
+      <p class="tiny">Esta preparación no tiene alimentos anotados, así que la app <strong>no ha revisado nada</strong>: no puede decir si choca con lo que alguien de la casa evita. Anota los alimentos que lleva y sí podrá avisarte.</p>
+    </div>`;
+  }
+  return avisoDeChoques(choquesDeLaComida(state, items, participants), { conSalidas });
+}
 
 function avisoDeChoques(choques, { conSalidas = false } = {}) {
   if (!choques.length) return '';
@@ -847,88 +876,45 @@ function checkPeople(name, selected, date = null, slot = null) {
    marcar ninguno no hace nada: hay platos que no tienen día fijo, y esa es una
    respuesta legítima. */
 
-// La regla de repetición de esta preparación, si tiene una sola. Con varias no
-// se toca ninguna desde aquí: adivinar cuál de las tres quiso cambiar sería
-// pisarle dos.
-// Cuántas reglas tiene esta preparación, contadas como las escribió quien las
-// escribió. Una regla es de un solo momento, así que «mangú los lunes, de
-// desayuno y de cena» son dos reglas por dentro; preguntarle a la persona por
-// dos sería preguntarle por algo que ella nunca dijo dos veces.
-function rutinaDeLaReceta(recipeId) {
-  const grupos = new Map();
-  for (const regla of state.mealRoutines || []) {
-    if (regla.kind !== 'recipe' || regla.recipeId !== recipeId || regla.active === false) continue;
-    const grupoId = regla.grupoId || regla.id;
-    if (!grupos.has(grupoId)) grupos.set(grupoId, regla);
-  }
-  const suyas = [...grupos.values()];
-  return { rutina: suyas.length === 1 ? suyas[0] : null, cuantas: suyas.length };
-}
+/* ── Lo que esta preparación ya repite ─────────────────────────────────────
 
-function bloqueDeDias(recipe) {
-  const mes = today.slice(0, 7);
-  const { rutina, cuantas } = rutinaDeLaReceta(recipe?.id);
-  if (cuantas > 1) {
-    return `<div class="field"><span>¿Qué días de la semana se repite?</span>
-      <p class="small muted">Esta preparación ya tiene <strong>${cuantas} reglas guardadas</strong>. Para no pisar ninguna, se editan en Plan mensual → «Lo que se repite».</p></div>`;
+   Aquí había un bloque que preguntaba los días dentro de la ficha, y arrastraba
+   un error de fondo: aplicaba los días a **todos** los momentos marcados arriba.
+   Quien decía «mangú, de desayuno y de cena, los lunes» acababa con mangú el
+   lunes de desayuno y el lunes de cena, cuando lo que quería era el lunes de
+   desayuno y el viernes de cena.
+
+   La ficha dice en qué momentos **puede** comerse. Cuándo **se pone** es una
+   regla aparte, una por momento, y se escribe en su propia ventana. Aquí solo se
+   enseñan las que ya hay, para no tener que ir a buscarlas a otra pantalla. */
+
+function bloqueDeRepeticiones(recipe) {
+  if (!recipe) {
+    return `<p class="small muted receta-repite-nota">Al guardar podrás decir qué días se repite. Se hace por separado para cada momento: los lunes de desayuno es una regla, los viernes de cena es otra.</p>`;
   }
-  const dias = rutina?.weekdays || [];
-  const semanas = rutina?.weeks ? String(rutina.weeks) : '';
-  const permanente = !rutina || rutina.scope === 'permanent';
-  return `<div class="field receta-dias">
-    <span>¿Qué días de la semana se repite? (opcional)</span>
-    <p class="small muted">Si marcas días, al guardar se pone sola en el calendario —esos días, en los momentos que elegiste arriba— y te ahorras ir día por día. Si no marcas ninguno, se guarda igual y la colocas cuando quieras.</p>
-    <div class="chips dias-semana">${WEEKDAYS.map((dia, indice) =>
-      `<label class="chip-check"><input type="checkbox" name="weekdays" value="${dia}" ${dias.includes(dia) ? 'checked' : ''}><span>${esc(WEEKDAY_SHORT[indice])}</span></label>`).join('')}</div>
-    <div class="radio-fila" style="margin-top:10px">
-      <label class="radio-pill"><input type="radio" name="weeks" value="todas" ${semanas ? '' : 'checked'}><span>Cada semana</span></label>
-      <label class="radio-pill"><input type="radio" name="weeks" value="1,3" ${semanas === '1,3' ? 'checked' : ''}><span>1.ª y 3.ª</span></label>
-      <label class="radio-pill"><input type="radio" name="weeks" value="2,4" ${semanas === '2,4' ? 'checked' : ''}><span>2.ª y 4.ª</span></label>
-    </div>
-    <div class="radio-fila" style="margin-top:8px">
-      <label class="radio-pill"><input type="radio" name="scope" value="permanent" ${permanente ? 'checked' : ''}><span>Todos los meses</span></label>
-      <label class="radio-pill"><input type="radio" name="scope" value="month" ${permanente ? '' : 'checked'}><span>Solo ${esc(monthName(mes))}</span></label>
-    </div>
-    <small>${rutina
-      ? `Ahora mismo: ${esc(describeRule(rutina.weekdays, rutina.weeks))}. Quitar todos los días la deja de repetir; las comidas que ya estén puestas se quedan donde están.`
-      : 'Nunca pisa una comida que ya tengas puesta ese día.'}</small>
+  const suyas = reglasDePreparacion(state, recipe.id);
+  if (!suyas.length) {
+    return `<div class="field receta-repite">
+      <span>Todavía no se repite sola</span>
+      <p class="small muted">Está guardada y la puedes poner en el calendario cuando quieras. Con «Hacer que se repita» se coloca sola los días que digas.</p>
+    </div>`;
+  }
+  return `<div class="field receta-repite">
+    <span>Se repite ${suyas.length === 1 ? 'así' : 'así, en ' + suyas.length + ' reglas'}</span>
+    <ul class="receta-reglas">${suyas.map(regla => `<li>
+      <strong>${esc(cap(etiquetaDeMomento(regla.momento)))}</strong> · ${esc(describeRule(regla.weekdays, regla.weeks))}
+      ${regla.active === false ? '<span class="pill gray">en pausa</span>' : regla.scope === 'permanent' ? '' : `<span class="pill warm">solo ${esc(monthName(regla.month))}</span>`}
+    </li>`).join('')}</ul>
+    <small>Cada una se edita, se pausa y se quita por separado desde Plan mensual → «Lo que se repite».</small>
   </div>`;
-}
-
-// Escribe, cambia o retira la regla de repetición y la aplica al mes en curso.
-// Devuelve lo que pasó, en la misma frase que confirma el guardado: poner
-// trece comidas de golpe sin decirlo sería demasiada magia.
-function aplicarDiasDeLaReceta(form, data, receta) {
-  // La ventana pudo dibujarse sin el bloque —cuando hay varias reglas— y
-  // entonces aquí no se toca nada.
-  if (!form.querySelector('[name="weekdays"]')) return '';
-  const { rutina, cuantas } = rutinaDeLaReceta(receta.id);
-  if (cuantas > 1) return '';
-  const weekdays = [...form.querySelectorAll('[name="weekdays"]:checked')].map(input => Number(input.value));
-
-  if (!weekdays.length) {
-    if (!rutina) return '';
-    deleteRoutine(state, rutina.id);
-    return ' Ya no se repite sola; las comidas que estaban puestas se quedan.';
-  }
-
-  const crudas = data.get('weeks');
-  const weeks = !crudas || crudas === 'todas' ? null : String(crudas).split(',').map(Number);
-  const scope = data.get('scope') === 'month' ? 'month' : 'permanent';
-  const mes = today.slice(0, 7);
-  const campos = { kind: 'recipe', recipeId: receta.id, slots: receta.uses, weekdays, weeks, scope, month: scope === 'month' ? mes : null };
-  const regla = rutina ? updateRoutine(state, rutina.id, campos) : addRoutine(state, campos);
-  const puestas = applyRoutine(state, regla.id, mes, { modo: 'vacios' });
-  const momentos = receta.uses.map(slot => etiquetaDeMomento(slot).toLocaleLowerCase('es')).join(' y ');
-  return ` ${describeRule(weekdays, weeks)}, en ${momentos}: ${puestas.creados.length} comida(s) puestas en ${monthName(mes)}${puestas.saltados.length ? `, ${puestas.saltados.length} día(s) ya tenían algo y se dejaron como estaban` : ''}.`;
 }
 
 function renderModal() {
   const m = ui.modal;
 
   if (m.type === 'quick') {
-    return modal('Anotar algo', '', `<div class="quick-grid">${RAPIDAS.map(([action, dibujo, titulo, detalle]) =>
-      `<button type="button" class="quick-item" data-action="${action}"><span class="quick-icon">${icono(dibujo, { tamano: 24 })}</span><span class="quick-text"><strong>${esc(titulo)}</strong><span>${esc(detalle)}</span></span></button>`).join('')}</div>`);
+    return modal('Anotar algo', '', `<div class="quick-grid">${RAPIDAS.map(([action, dibujo, titulo, detalle, extra = '']) =>
+      `<button type="button" class="quick-item" data-action="${action}" ${extra}><span class="quick-icon">${icono(dibujo, { tamano: 24 })}</span><span class="quick-text"><strong>${esc(titulo)}</strong><span>${esc(detalle)}</span></span></button>`).join('')}</div>`);
   }
 
   if (m.type === 'rutina') return modalRutina(ctx(), m);
@@ -983,25 +969,20 @@ function renderModal() {
           <small>El mangú con salami, por ejemplo, suele estar en Desayuno y en Cena.</small>
         </div>
 
-        ${bloqueDeDias(recipe)}
-
         <div class="field">
-          <span>Alimentos principales y cantidades</span>
-          <p class="small muted">Solo los que hacen falta para la compra. No hace falta anotar la sal, la pimienta, el agua, el aceite ni los condimentos: la app no les lleva la cuenta y pedírtelos sería trabajo para nada.</p>
+          <span>¿Qué alimentos lleva? (opcional)</span>
+          <p class="small muted">Sirve para avisarte si alguien de la casa debe evitar alguno. No hace falta decir cuánto, y no hace falta anotar la sal, el agua, el aceite ni los condimentos.</p>
           <div data-item-list="receta">${(recipe?.items || []).map(item => itemRow(item, 'receta')).join('')}</div>
-          <div class="inline">${button('+ Añadir alimento', 'add-item', 'btn-secondary btn-small', 'data-type="receta"')}${state.people.some(person => person.habitual?.length) ? button(`${icono('deshacer', { tamano: 17 })}Traer las cantidades habituales`, 'fill-habitual', 'btn-quiet btn-small') : ''}</div>
+          <div class="inline">${button('+ Añadir alimento', 'add-item', 'btn-secondary btn-small', 'data-type="receta"')}</div>
         </div>
-
-        <label class="field">
-          <span>¿Cuántas porciones rinde esta preparación? (opcional)</span>
-          <input name="servings" type="number" min="0.1" step="any" inputmode="decimal" value="${recipe?.servings ?? ''}" placeholder="${enCasa || 4}">
-          <small>Una porción equivale aproximadamente a la cantidad que come una persona una vez.${enCasa ? ` En tu casa viven ${enCasa}.` : ''}</small>
-        </label>
 
         <label class="field"><span>Nota para quien cocina (opcional)</span><textarea name="note" placeholder="Ej. guardar lo que sobre para el desayuno del día siguiente" autocapitalize="sentences" spellcheck="true" enterkeyhint="done">${esc(recipe?.note || '')}</textarea></label>
 
+        ${bloqueDeRepeticiones(recipe)}
+
         <div class="modal-actions">
           ${recipe ? '' : '<button class="btn btn-secondary" type="submit" name="seguir" value="1">Guardar y añadir otra</button>'}
+          <button class="btn btn-secondary" type="submit" name="repetir" value="1">Hacer que se repita</button>
           <button class="btn btn-primary" type="submit">Guardar</button>
         </div>
       </form>`, true);
@@ -1143,28 +1124,8 @@ function renderModal() {
         <div class="modal-actions"><button type="submit" class="btn btn-primary">${m.type === 'move' ? 'Mover' : 'Copiar'}</button></div></form>`);
   }
 
-  if (m.type === 'purchase') {
-    const periodo = periodoDeCompra(ui.compra);
-    let lista;
-    try { lista = shoppingList(state, periodo.start, periodo.end, ui.compra.base); }
-    catch { lista = { lines: [], pending: [] }; }
-    const sugeridas = lista.lines.filter(linea => linea.shortfall > 0 && linea.purchaseQuantity !== null);
-    return modal('Anotar la compra', 'Cambia las cantidades por lo que de verdad trajiste.',
-      `<div class="hint">Solo al guardar aquí aumentan las existencias de la casa.</div>
-       ${lista.pending?.length ? notice('Hay alimentos sin medida de compra.', 'Puedes anotar los demás ahora y completar esos después.', 'warn') : ''}
-       <form data-form="purchase" class="stack">
-        <label class="field"><span>¿Qué día compraste?</span><input name="date" type="date" value="${today}" required></label>
-        <div class="section-head"><h3>Lo que trajiste</h3></div>
-        <div data-item-list="purchase">${(sugeridas.length ? sugeridas.map(linea => itemRow({ productId: linea.productId, quantity: linea.purchaseQuantity, unit: linea.purchaseUnit }, 'purchase')) : [itemRow({}, 'purchase')]).join('')}</div>
-        ${button('+ Añadir otro', 'add-item', 'btn-secondary btn-small', 'data-type="purchase"')}
-        <div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar la compra</button></div></form>`, true);
-  }
-
   if (m.type === 'chat') return modal('Asistente', 'Dile lo que pasó en casa. Antes de tocar nada te enseña lo que entendió.', renderChat({ ...ctx(), chat: ui.chat }), true);
   if (m.type === 'bulk') return modal('Escribir o dictar varios', 'De corrido, como se habla. La app lo separa y tú revisas antes de guardar.', renderBulk({ ...ctx(), bulk: ui.bulk }), true);
-
-  if (m.type === 'new-review') return modal('Revisar lo que queda', 'Se cargan solos los alimentos que tienen existencias.',
-    `<form data-form="new-review" class="stack"><label class="field"><span>¿De qué día?</span><input name="date" type="date" value="${today}" required></label><div class="modal-actions"><button type="submit" class="btn btn-primary">Empezar</button></div></form>`);
 
   if (m.type === 'correction') {
     const elegido = m.id || state.products[0]?.id;
@@ -1208,7 +1169,7 @@ function modalComida(m) {
       <input type="hidden" name="date" value="${m.date}"><input type="hidden" name="slot" value="${m.slot}">
       <label class="field"><span>Preparación</span><select name="recipeId" id="assign-recipe" ${opciones.length ? '' : 'disabled'}>${options(opciones.map(recipe => [recipe.id, recipe.name]), opciones[0]?.id, opciones.length ? '' : 'Todavía no hay ninguna')}</select></label>
       ${bloqueDeQuienCome('participants', marcados, m.date, m.slot, { abierto: bloqueDeQuienComeAbierto(ui) })}
-      <div data-choque>${avisoDeChoques(choquesDeLaComida(state, opciones[0]?.items || [], marcados), { conSalidas: true })}</div>
+      <div data-choque>${avisoDeAlergias(opciones[0]?.items || [], marcados, { conSalidas: true })}</div>
       ${opciones.length
         ? `<div class="field"><span>¿Solo hoy, o se repite?</span>
             <div class="radio-fila">
@@ -1230,11 +1191,24 @@ function modalComida(m) {
       <p class="muted">Esta comida está resuelta: no cuenta como pendiente y no gasta alimentos.</p>
       <div class="modal-actions">${button('Cambiarla por una comida', 'delete-plan', 'btn-secondary', `data-id="${plan.id}"`)}${button('Quitar la marca', 'delete-plan', 'btn-quiet', `data-id="${plan.id}"`)}</div>`);
   }
+  // Cambiar el plato de un solo día. Antes había que quitar la comida y volver a
+  // ponerla, y quien lo intentaba sobre una comida de una rutina se encontraba
+  // con la pregunta del alcance —solo esta, las siguientes, toda la rutina—
+  // cuando lo único que quería era cenar otra cosa ese jueves.
+  const cambiables = plan.kind === 'recipe'
+    ? state.recipes.filter(recipe => recipe.uses.includes(plan.slot) && recipe.id !== plan.recipeId)
+    : [];
   return modal(plan.kind === 'linked' ? 'Comida apartada' : 'Esta comida', contexto,
     `${lineaDeOrigen(plan)}
-     ${plan.routineId ? `<div class="hint">Esta comida viene de una rutina. Lo que cambies aquí afecta <strong>solo a este día</strong>; para cambiar la rutina entera, ve a Plan mensual.</div>` : '<div class="hint">Lo que cambies aquí afecta solo a este día.</div>'}
+     ${plan.routineId ? `<div class="hint">Esta comida viene de una costumbre. Lo que cambies aquí vale <strong>solo para este día</strong>, y la costumbre se queda como está; para cambiarla en los meses siguientes, edita la regla en Plan mensual.</div>` : '<div class="hint">Lo que cambies aquí afecta solo a este día.</div>'}
+     ${cambiables.length ? `<form data-form="sustituir" data-id="${plan.id}" class="sustituir-comida">
+        <label class="field"><span>Cambiar por otra preparación, solo este día</span>
+          <select name="recipeId">${options(cambiables.map(recipe => [recipe.id, recipe.name]), '', 'Elegir otra…')}</select>
+        </label>
+        <button type="submit" class="btn btn-secondary btn-small">Cambiar solo este día</button>
+      </form>` : ''}
      ${plan.kind === 'linked' ? cantidades(plan) : dependents(state, plan.id).length ? `<div class="notice warn">${icono('aviso')}<div><strong>De esta comida se aparta una parte para otro día.</strong>Si bajas las cantidades, deja suficiente.</div></div>` : ''}
-     <div data-choque>${avisoDeChoques(choquesDeLaComida(state, plan.items, plan.participants), { conSalidas: true })}</div>
+     <div data-choque>${avisoDeAlergias(plan.items, plan.participants, { conSalidas: true })}</div>
      <form data-form="plan" data-id="${plan.id}">
       <div class="form-grid">
         <label class="field"><span>Nombre</span><input name="title" value="${esc(plan.title)}" required></label>
@@ -1250,6 +1224,12 @@ function modalComida(m) {
      </form>
      <div class="divider"></div>
      <div class="inline">
+       ${/* Desde una comida ya puesta: la ventana de la regla se abre con esta
+            preparación y este momento ya elegidos. Lo único que queda por decir
+            son los días, que es lo único que esta comida no sabe. */''}
+       ${plan.kind === 'recipe' && plan.recipeId && !plan.routineId
+         ? button('Hacer que se repita', 'mes-nueva-rutina', 'btn-secondary btn-small', `data-receta="${esc(plan.recipeId)}" data-slot="${esc(plan.slot)}"`)
+         : ''}
        ${plan.kind === 'recipe' ? button('Apartar para otro día', 'open-link', 'btn-quiet btn-small', `data-id="${plan.id}"`) : ''}
        ${button('Mover', 'open-move', 'btn-quiet btn-small', `data-id="${plan.id}"`)}
        ${plan.kind !== 'linked' ? button('Copiar', 'open-copy', 'btn-quiet btn-small', `data-id="${plan.id}"`) : ''}
@@ -1280,7 +1260,7 @@ function bloqueDeDestino(item, mensual) {
   // Editando algo que ya está en la canasta, la pregunta ya está contestada: lo
   // que se escriba corrige la costumbre, que es donde vive.
   if (item && mensual) {
-    return `<p class="small muted">Este alimento ya está en tu canasta base: lo que escribas arriba corrige lo de <strong>todos los meses</strong>. Para cambiar solo un mes, entra en Más → Mi canasta habitual → Cambios de este mes.</p>
+    return `<p class="small muted">Este alimento ya está en tus productos habituales: lo que escribas arriba corrige lo de <strong>todos los meses</strong>. Para cambiar solo un mes, entra en Más → Mis productos habituales → Cambios de este mes.</p>
       <input type="hidden" name="destino" value="siempre">`;
   }
   const mesActual = todayISO().slice(0, 7);
@@ -1380,20 +1360,40 @@ function listaDeFallos() {
 
 /* ── Utilidades de formulario ──────────────────────────────────────────── */
 
-function collectItems(form) {
-  return [...form.querySelectorAll('[data-item-row]')].map(row => ({
+// `sinCantidad` es para las filas que no la preguntan —las de una preparación—.
+// Sin él, el filtro de abajo tiraría todas: una fila sin casilla de cantidad
+// devuelve `undefined`, que no es `''` pero tampoco es un número.
+function collectItems(form, { sinCantidad = false } = {}) {
+  const filas = [...form.querySelectorAll('[data-item-row]')].map(row => ({
     id: row.querySelector('[name="itemId"]')?.value || undefined,
     productId: row.querySelector('[name="productId"]')?.value,
     quantity: row.querySelector('[name="quantity"]')?.value,
     unit: row.querySelector('[name="unit"]')?.value,
     personId: row.querySelector('[name="personId"]')?.value || null
-  })).filter(item => item.productId && item.quantity !== '');
+  }));
+  if (sinCantidad) return filas.filter(item => item.productId).map(({ productId, id }) => ({ id, productId }));
+  return filas.filter(item => item.productId && item.quantity !== '');
 }
 // El segundo argumento no es opcional por capricho: sin él, el botón que envió
 // el formulario no entra en los datos, y dos botones con el mismo `name` y
 // distinto `value` —«guardar a medias» y «terminar»— se vuelven indistinguibles.
 const formValues = (form, submitter = null) => new FormData(form, submitter);
-const selected = (form, name) => [...form.querySelectorAll(`[name="${name}"]:checked`)].map(input => input.value);
+/* ── Lo marcado, y lo que está contestado sin casillas ─────────────────────
+
+   Esto leía solo `:checked`, y por eso no se podía poner ni una comida en una
+   casa con gente registrada.
+
+   «¿Quiénes comen?» se contesta de dos formas. Abierta, con una casilla por
+   persona. Cerrada —que es lo normal, porque una comida es de toda la casa—,
+   con un campo oculto por persona y ni una casilla: la respuesta está dada y no
+   hay nada que marcar. Leyendo solo lo marcado, esa segunda forma devolvía una
+   lista vacía, y `makeRecipePlan` respondía «Selecciona al menos una persona que
+   comerá en casa» a quien no había desmarcado a nadie.
+
+   Un campo oculto no es una casilla sin marcar: es una respuesta escrita. */
+const selected = (form, name) => [...form.querySelectorAll(`[name="${name}"]`)]
+  .filter(input => input.type === 'hidden' || input.checked)
+  .map(input => input.value);
 
 function closeModal() {
   // Cerrar la ventana mientras el micrófono escucha tiene que apagarlo: si no,
@@ -1528,14 +1528,12 @@ document.addEventListener('click', event => {
     else if (action === 'open-link') openModal('link', { id: el.dataset.id });
     else if (action === 'open-move') openModal('move', { id: el.dataset.id });
     else if (action === 'open-copy') openModal('copy', { id: el.dataset.id });
-    else if (action === 'open-purchase') openModal('purchase');
     // Los dos destinos a los que manda la asistente cuando no entiende una
     // frase de canasta o de rutina: el sitio donde eso se escribe a mano.
     else if (action === 'open-basket') { ui.page = 'canasta'; ui.mas.canastaVista = 'habitual'; ui.modal = null; render(); }
     else if (action === 'open-routine') openModal('rutina', { month: ui.mes.month, id: el.dataset.id || '' });
     // Salir del callejón: se escribe la primera preparación y se vuelve aquí.
     else if (action === 'rutina-primera-preparacion') openModal('recipe', { id: '', volverRutina: el.dataset.month || ui.mes.month });
-    else if (action === 'open-new-review') openModal('new-review');
     else if (action === 'open-correction') openModal('correction', { id: el.dataset.id });
     else if (action === 'open-absence') openModal('absence');
     else if (action === 'open-import') openModal('import');
@@ -1549,12 +1547,6 @@ document.addEventListener('click', event => {
     // pasaron, y hacerlo valer desde hoy puede dejar fuera el mes en que la casa
     // empezó a comprarlo. Se pregunta.
     else if (action === 'canasta-promover') openModal('promover', { id: el.dataset.id, month: el.dataset.month });
-
-    else if (action === 'compra-cerrar') {
-      const periodo = periodoDeCompra(ui.compra);
-      const cierre = cerrarPeriodo(state, { start: periodo.start, end: periodo.end, periodo: ui.compra.tramo, basis: ui.compra.base });
-      commit(`Período cerrado. Queda guardado lo que se calculó: ${cierre.lista.length} alimento(s), la canasta de ${monthName(cierre.month)} y lo que declaraste que quedaba.`);
-    }
 
     else if (action === 'review-scope') { setReviewScope(state, el.dataset.id, el.dataset.origen); commit(''); }
     else if (action === 'canasta-quitar-cambio') { removeMonthChange(state, el.dataset.month, el.dataset.id); commit('Ese cambio se quitó; vuelve a ser como siempre.'); }
@@ -1611,7 +1603,6 @@ document.addEventListener('click', event => {
       commit(cuantas ? `Preparación quitada. ${cuantas} rutina(s) que la usaban dejaron de repetirse.` : 'Preparación quitada.');
     }
     else if (action === 'add-item') { const lista = el.closest('form').querySelector(`[data-item-list="${el.dataset.type}"]`); lista?.insertAdjacentHTML('beforeend', itemRow({}, el.dataset.type)); }
-    else if (action === 'fill-habitual') traerCantidadesHabituales(el);
     else if (action === 'remove-item') el.closest('[data-item-row]')?.remove();
     else if (action === 'clear-demo') {
       if (!window.confirm('¿Borrar todos los datos de esta app en este aparato? No se puede deshacer sin una copia guardada.')) return;
@@ -1637,8 +1628,6 @@ document.addEventListener('click', event => {
       commit('Copia descargada. Guárdala donde no dependa de este teléfono.');
     }
     else if (action === 'remove-absence') { setAbsence(state, el.dataset.date, el.dataset.slot, el.dataset.id, false); commit('Ausencia quitada.'); }
-    else if (action === 'toggle-manual') { const item = state.manualItems.find(row => row.id === el.dataset.id); item.done = el.checked; commit(''); }
-    else if (action === 'delete-manual') { state.manualItems = state.manualItems.filter(row => row.id !== el.dataset.id); commit('Quitado de la lista.'); }
     // Las dos salidas de una pantalla que se rompió al dibujarse.
     else if (action === 'volver-a-hoy') { ui.page = 'hoy'; ui.modal = null; ui.drawerOpen = false; render(); }
     else if (action === 'entendido-el-cierre') { ui.avisoDeArranque = ''; render(); }
@@ -1719,30 +1708,7 @@ function pintarChoques(form) {
   const plan = state.plans.find(item => item.id === form.dataset.id);
   const items = receta?.items || plan?.items || [];
   const marcados = [...form.querySelectorAll('[name="participants"]')].filter(input => input.checked || input.type === 'hidden').map(input => input.value);
-  caja.innerHTML = avisoDeChoques(choquesDeLaComida(state, items, marcados), { conSalidas: true });
-}
-
-function traerCantidadesHabituales(el) {
-  const form = el.closest('form');
-  const lista = form.querySelector('[data-item-list="receta"]');
-  // Se suman las de toda la casa. Antes se podía filtrar por las personas
-  // marcadas en la propia preparación, pero esa pregunta ya no existe: una
-  // preparación es familiar, así que lo habitual que se trae es lo de todos los
-  // que viven aquí hoy.
-  const personas = personasActivas(state).filter(person => person.habitual?.length);
-  const totales = new Map();
-  for (const persona of personas) for (const fila of persona.habitual) {
-    const clave = `${fila.productId}|${fila.unit}`;
-    totales.set(clave, (totales.get(clave) || 0) + Number(fila.quantity));
-  }
-  if (!totales.size) throw new Error('Todavía no hay cantidades habituales guardadas en Más → Familia.');
-  const escrito = [...lista.querySelectorAll('[data-item-row]')].some(row => row.querySelector('[name="productId"]')?.value);
-  if (escrito && !window.confirm('Se reemplazará lo escrito por la suma de las cantidades habituales. ¿Continuar?')) return;
-  lista.innerHTML = [...totales].map(([clave, total]) => {
-    const [productId, unit] = clave.split('|');
-    return itemRow({ productId, quantity: Math.round(total * 1000) / 1000, unit }, 'receta');
-  }).join('');
-  toast(`${totales.size} alimento(s) sumados de ${personas.length} persona(s).`);
+  caja.innerHTML = avisoDeAlergias(items, marcados, { conSalidas: true });
 }
 
 /* ── Cambios y escritura ───────────────────────────────────────────────── */
@@ -1849,30 +1815,38 @@ document.addEventListener('submit', async event => {
     if (COMPRA_FORMS[kind]) { COMPRA_FORMS[kind](form, data, ctx()); return; }
 
     if (kind === 'recipe') {
-      const receta = upsertRecipe(state, { id: form.dataset.id, name: data.get('name'), uses: selected(form, 'uses'), servings: data.get('servings'), items: collectItems(form), note: data.get('note') });
+      const anterior = state.recipes.find(item => item.id === form.dataset.id);
+      const receta = upsertRecipe(state, {
+        id: form.dataset.id, name: data.get('name'), uses: selected(form, 'uses'),
+        items: collectItems(form, { sinCantidad: true }), note: data.get('note'),
+        // Esta ventana ya no pregunta cuánto rinde, y lo que no pregunta no lo
+        // borra: quien lo escribió cuando se preguntaba lo conserva.
+        servings: anterior?.servings ?? null
+      });
       // «Guardar y añadir otra» deja la ventana abierta y en blanco. Quien está
       // escribiendo de una sentada las seis comidas de su casa no quiere
       // abrirla, cerrarla y volverla a abrir seis veces.
       const seguir = data.get('seguir') === '1';
-      // Los días que se repite: si se marcaron, la comida queda puesta en el
-      // calendario sin salir de aquí.
-      const repeticion = aplicarDiasDeLaReceta(form, data, receta);
+      // «Hacer que se repita» guarda y abre la ventana de la regla con esta
+      // preparación puesta. Es el camino corto de la ficha a la costumbre.
+      const repetir = data.get('repetir') === '1';
       // Quien llegó aquí desde el formulario de una rutina porque no tenía
       // ninguna preparación escrita vuelve por donde vino, y vuelve con la que
       // acaba de escribir ya elegida. El registro inicial no puede terminar en
       // una ventana que se cierra y te deja donde no estabas.
       const volverARutina = form.dataset.volverRutina || '';
       ui.modal = seguir ? { type: 'recipe', id: '' }
-        : volverARutina ? { type: 'rutina', month: volverARutina, receta: receta.id, kind: 'recipe' }
-        : null;
+        : repetir || volverARutina
+          ? { type: 'rutina', month: volverARutina || ui.mes.month || today.slice(0, 7), receta: receta.id, kind: 'recipe' }
+          : null;
       // Se guarda igual sin alimentos: la preparación ya sirve para llenar el
-      // calendario. Lo único que no puede hacer es aportar a la compra, y eso
+      // calendario. Lo único que no puede hacer es avisar de las alergias, y eso
       // se dice en voz baja en vez de bloquear el guardado.
-      const cola = seguir ? ' Escribe la siguiente.' : '';
-      const base = receta.items.length || repeticion
+      const cola = seguir ? ' Escribe la siguiente.' : repetir ? ' Ahora dime qué días se repite.' : '';
+      const base = receta.items.length
         ? `«${receta.name}» guardada.`
-        : `«${receta.name}» guardada. Cuando le añadas alimentos y cantidades podrá contar para la compra.`;
-      commit(base + repeticion + cola);
+        : `«${receta.name}» guardada. Sin alimentos anotados no puede avisarte de las alergias de la casa.`;
+      commit(base + cola);
     }
     else if (kind === 'product') {
       const existente = product(state, form.dataset.id);
@@ -1982,6 +1956,28 @@ document.addEventListener('submit', async event => {
       makeRecipePlan(state, receta, data.get('date'), data.get('slot'), selected(form, 'participants'));
       ui.modal = null; commit('Comida puesta.');
     }
+    /* ── Cambiar el plato de un solo día ────────────────────────────────────
+
+       Se borra la comida y se pone la otra en su sitio, y la nueva nace como
+       cambio manual y sin `routineId`: viene de la mano de alguien, no de la
+       costumbre. Eso es exactamente lo que hay que dejar escrito, porque es lo
+       que impide que la regla se la lleve por delante la próxima vez que se
+       aplique, y lo que hace que el calendario pueda seguir diciendo la verdad
+       sobre de dónde salió cada cosa. */
+    else if (kind === 'sustituir') {
+      const plan = state.plans.find(item => item.id === form.dataset.id);
+      const receta = state.recipes.find(item => item.id === data.get('recipeId'));
+      if (!plan || !receta) throw new Error('Elige por cuál preparación la cambias.');
+      // Una comida de la que cuelga una parte apartada para otro día no se
+      // sustituye a la ligera: la reserva se quedaría sin de dónde salir.
+      if (dependents(state, plan.id).length) throw new Error('De esta comida se aparta una parte para otro día. Quita esa reserva antes de cambiarla.');
+      const { date, slot, participants } = plan;
+      const antes = plan.title;
+      deletePlanSeguro(plan.id);
+      makeRecipePlan(state, receta.id, date, slot, participants, null, 'manual');
+      ui.modal = null;
+      commit(`Ese día se cambia «${antes}» por «${receta.name}». Solo ese día: la costumbre sigue igual.`);
+    }
     else if (kind === 'plan') {
       const plan = state.plans.find(item => item.id === form.dataset.id);
       const cambios = {
@@ -2007,17 +2003,6 @@ document.addEventListener('submit', async event => {
       else copyPlan(state, form.dataset.id, data.get('date'), data.get('slot'));
       ui.modal = null; commit(form.dataset.operation === 'move' ? 'Movida.' : 'Copiada.');
     }
-    else if (kind === 'purchase') {
-      addPurchase(state, { date: data.get('date'), period: periodoDeCompra(ui.compra), basis: ui.compra.base, lines: collectItems(form) });
-      ui.modal = null; commit('Compra guardada. Las existencias subieron.');
-    }
-    else if (kind === 'new-review') {
-      const fecha = data.get('date');
-      const abierta = state.reviews.find(item => item.date === fecha && item.status === 'draft');
-      const revision = abierta || createReview(state, fecha);
-      ui.reviewId = revision.id; ui.correctingReview = false; ui.modal = null; ui.page = 'revision';
-      commit(abierta ? 'Sigues la revisión que tenías a medias.' : 'Revisión abierta.');
-    }
     else if (kind === 'review') {
       const revision = state.reviews.find(item => item.id === form.dataset.id);
       const valores = Object.fromEntries(revision.productIds.map(id => [id, data.get(`consume-${id}`)]));
@@ -2030,12 +2015,6 @@ document.addEventListener('submit', async event => {
       const fecha = data.get('date'), slot = data.get('slot');
       for (const persona of state.people) setAbsence(state, fecha, slot, persona.id, selected(form, 'absent').includes(persona.id));
       ui.modal = null; commit('Guardado.');
-    }
-    else if (kind === 'manual-item') {
-      const nombre = String(data.get('name') || '').trim();
-      if (!nombre) throw new Error('Escribe qué hay que anotar.');
-      state.manualItems.push({ id: nextId(state, 'otro'), name: nombre, quantity: String(data.get('quantity') || '').trim(), done: false });
-      commit('Anotado.');
     }
     else if (kind === 'import') {
       const archivo = data.get('file');

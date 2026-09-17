@@ -40,24 +40,23 @@ test('la portada promete los pasos que de verdad se van a enseñar', () => {
   }
 });
 
-test('quien compra una vez al mes no ve el paso del reparto', () => {
-  // No es un fallo que sean menos: es que repartir entre dos quincenas no
-  // tiene nada que decidir si solo hay una compra. Lo que sería un fallo es
-  // contárselo y luego no enseñárselo.
-  const mensual = pasosDe({ frecuencia: 'mensual' });
-  assert.ok(!mensual.some(paso => paso.id === PASO.reparto));
-  assert.equal(mensual.length, PASOS.length - 1);
+test('ya no hay ningún paso que dependa de una respuesta anterior', () => {
+  // Lo que provocó el «ocho pasos y veo seis» fue justo eso: un paso —el del
+  // reparto entre quincenas— que solo se le enseñaba a una parte de la gente.
+  // Ese paso salió del recorrido, así que la cuenta no puede volver a moverse
+  // por lo que alguien conteste a mitad de camino.
+  for (const frecuencia of [null, 'mensual', 'quincenal']) {
+    assert.deepEqual(
+      pasosDe({ frecuencia }).map(paso => paso.id), PASOS.map(paso => paso.id),
+      `comprando «${frecuencia}» se ven otros pasos`
+    );
+  }
 });
 
-test('quien compra por quincenas los ve todos', () => {
-  assert.equal(pasosDe({ frecuencia: 'quincenal' }).length, PASOS.length);
-});
-
-test('antes de contestar cómo compra, se le enseña el camino corto', () => {
-  // Sin respuesta todavía no se puede saber, y prometer de menos y añadir uno
-  // es mejor que prometer de más y quitarlo: el que aparece, aparece porque la
-  // persona acaba de decir que compra por quincenas.
-  assert.equal(pasosDe({}).length, pasosDe({ frecuencia: 'mensual' }).length);
+test('el recorrido es el que se pidió: hogar, productos, compra, comidas y ver mi casa', () => {
+  assert.deepEqual(PASOS.map(paso => paso.id), [PASO.personas, PASO.alimentos, PASO.compra, PASO.preparaciones, PASO.casa]);
+  assert.deepEqual(PASOS.map(paso => paso.titulo),
+    ['Mi hogar', 'Productos habituales', 'Cómo compramos', 'Comidas habituales', 'Ver mi casa']);
 });
 
 test('ningún paso se queda sin nombre corto para el indicador', () => {

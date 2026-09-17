@@ -249,8 +249,24 @@ test('no queda ninguna pregunta sobre quién come en la pantalla de preparacione
 test('una preparación sin alimentos lo dice en voz baja, no en rojo', () => {
   const html = renderMas(contexto(conPreparaciones()));
   assert.ok(html.includes('Sin alimentos anotados'));
-  assert.ok(html.includes('aportar a la compra'));
   assert.ok(!/error|falta obligatori/i.test(html));
+});
+
+test('sin alimentos y con alguien que evita algo, se dice que no se ha revisado nada', () => {
+  // Esto es lo que no se puede callar. Una preparación sin alimentos no choca
+  // con nada, y eso se leía igual que «revisada y limpia». Para una casa con una
+  // alergia al maní, las dos cosas no se parecen.
+  const state = conPreparaciones();
+  upsertPerson(state, { name: 'Sofía', kind: 'nino', restricciones: [{ productId: null, texto: 'Maní', motivo: 'alergia' }] });
+  const html = renderMas(contexto(state));
+  revisar(html, 'preparaciones con una alergia en casa');
+  assert.ok(/no ha revisado/.test(html), 'no dice que no pudo revisar nada');
+  assert.ok(!/segura|sin problemas|todo bien/i.test(html), 'no puede presentarla como segura');
+});
+
+test('sin nadie que evite nada, no se alarma de algo que no hay', () => {
+  const html = renderMas(contexto(conPreparaciones()));
+  assert.ok(!/no ha revisado/.test(html), 'avisa de alergias en una casa donde nadie evita nada');
 });
 
 test('el buscador filtra por nombre, por nota y por alimento', () => {
