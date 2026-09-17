@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SCHEMA_VERSION, migrate } from '../src/migrate.js';
-import { balances, effectiveBasket, exportState, habitualLines, importState, inventoryNow, monthChanges } from '../src/model.js';
+import { balances, cierresDe, effectiveBasket, exportState, habitualLines, importState, inventoryNow, monthChanges, nombreEnElCierre } from '../src/model.js';
 import { BACKUP_KEY, STORAGE_KEY, loadStateDetailed, saveState } from '../src/storage.js';
 
 // Un respaldo de la versión 1 escrito a mano, con un poco de todo: es lo que
@@ -369,4 +369,122 @@ test('convertir dos veces la misma rutina no la cambia la segunda vez', () => {
   const una = migrate(rutinaVieja()).state;
   const dos = migrate(una).state;
   assert.deepEqual(dos.mealRoutines, una.mealRoutines);
+});
+
+/* ── Los períodos cerrados que hubiera guardados ───────────────────────────
+
+   Venían de las pruebas del cierre de períodos. Cerrar un período ya no se
+   puede —la app dejó de calcular la compra—, pero lo que se cerró en su día
+   sigue guardado y sigue leyéndose desde el historial, así que la conversión
+   tiene que dejarlo pasar entero y sin inventarse ninguno. */
+
+const respaldoSinCierres = () => ({
+  version: 6, seq: 10, products: [], people: [], recipes: [], plans: [], absences: [],
+  opening: {}, purchases: [], reviews: [], corrections: [], manualItems: [],
+  habitualBasket: { lines: [], updatedAt: null, history: [] },
+  monthOverrides: {}, mealRoutines: [], monthPlans: {}, activity: [],
+  settings: { reviewWeekday: 5, onboarded: true }
+});
+
+test('un respaldo sin períodos cerrados se convierte sin inventarse ninguno', () => {
+  const { ok, state, to } = migrate(respaldoSinCierres());
+  assert.equal(ok, true);
+  assert.equal(to, SCHEMA_VERSION);
+  assert.deepEqual(state.closedPeriods, [], 'no hay forma honrada de reconstruir un cierre que nunca se guardó');
+  // Y repetirla no cambia nada.
+  assert.deepEqual(migrate(structuredClone(state)).state.closedPeriods, []);
+});
+
+test('un respaldo que ya traía cierres los conserva tal cual, con los nombres de entonces', () => {
+  // Una fotografía como las que guardaba la app cuando cerraba una quincena.
+  const cierre = {
+    id: 'cierre-30', seq: 30, month: '2026-03', periodo: 'primera',
+    start: '2026-03-01', end: '2026-03-15', closedAt: '2026-03-16', basis: 'casa',
+    frecuencia: 'quincenal',
+    canasta: [{ productId: 'producto-1', quantity: 20, unit: 'lb', priority: 'frecuente', source: 'habitual' }],
+    excepciones: [], compras: [], menu: null,
+    existencia: { origen: 'revision', valores: { 'producto-1': 3 } },
+    nombres: { 'producto-1': 'Arroz' },
+    lista: [{ productId: 'producto-1', need: 20, available: 3, shortfall: 17 }],
+    pendientes: [], sinCantidades: []
+  };
+  const viejo = { ...respaldoSinCierres(), closedPeriods: [cierre] };
+
+  const vuelto = migrate(structuredClone(viejo));
+  assert.equal(vuelto.ok, true);
+  assert.deepEqual(vuelto.state.closedPeriods, [cierre], 'la fotografía se reescribió al convertir');
+  // Y el historial la sigue encontrando y leyendo con los nombres de entonces,
+  // aunque hoy ese alimento ya no exista en el catálogo.
+  assert.deepEqual(cierresDe(vuelto.state, '2026-03').map(item => item.id), ['cierre-30']);
+  assert.equal(nombreEnElCierre(vuelto.state, cierre, 'producto-1'), 'Arroz');
+  // Convertir dos veces tampoco la toca.
+  assert.deepEqual(migrate(structuredClone(vuelto.state)).state.closedPeriods, [cierre]);
+});
+
+/* ── Una rutina vieja de varios momentos ───────────────────────────────────
+
+   Venían de las pruebas de «una regla, un momento», que se fueron con el motor
+   de reglas. La conversión sigue en pie —`migrate` parte las rutinas viejas de
+   tres momentos en tres— y sin estas nadie la vigilaba: un respaldo de la v8
+   podía quedarse con una sola regla y sus comidas colgando de la equivocada. */
+
+const MES_VIEJO = '2026-10';
+const estadoConReglas = (version, reglas, plans = []) => ({
+  version, seq: 40, demo: false,
+  products: [], people: [], recipes: [], absences: [], opening: {}, purchases: [], reviews: [],
+  corrections: [], manualItems: [], habitualBasket: { lines: [], updatedAt: null, history: [] },
+  monthOverrides: {}, monthPlans: { [MES_VIEJO]: { month: MES_VIEJO, openedAt: '2026-10-01', preparedAt: null, summary: null } },
+  closedPeriods: [], settings: { reviewWeekday: 5, onboarded: true }, activity: [],
+  mealRoutines: reglas, plans
+});
+
+test('una rutina vieja de tres momentos se parte en tres, y sus comidas se reparten', () => {
+  const viejo = estadoConReglas(8, [{
+    id: 'rutina-9', kind: 'outside', recipeId: null, slots: ['desayuno', 'almuerzo', 'cena'],
+    weekdays: [7], weeks: null, scope: 'permanent', month: null, desde: null, until: null,
+    label: 'Domingo de playa', active: true
+  }], ['desayuno', 'almuerzo', 'cena'].flatMap(slot => ['2026-10-04', '2026-10-11'].map((date, i) => ({
+    id: `comida-${slot}-${i}`, date, slot, kind: 'outside', routineId: 'rutina-9',
+    origen: 'rutina', participants: [], items: []
+  }))));
+
+  const { ok, state } = migrate(viejo);
+  assert.ok(ok);
+  assert.equal(state.mealRoutines.length, 3, 'una regla por momento');
+  assert.ok(state.mealRoutines.some(item => item.id === 'rutina-9'), 'la primera conserva su identificador');
+
+  const porMomento = new Map(state.mealRoutines.map(item => [item.momento, item.id]));
+  assert.deepEqual([...porMomento.keys()], ['desayuno', 'almuerzo', 'cena']);
+  for (const plan of state.plans) {
+    assert.equal(plan.routineId, porMomento.get(plan.slot), `la comida de ${plan.slot} quedó colgando de la regla equivocada`);
+  }
+  // Y ninguna comida se movió de su día ni de su momento.
+  assert.equal(state.plans.length, 6);
+  assert.deepEqual(state.plans.map(plan => plan.date).sort(), ['2026-10-04', '2026-10-04', '2026-10-04', '2026-10-11', '2026-10-11', '2026-10-11']);
+});
+
+test('el andamio de la etapa anterior se cae al convertir, y nada más se mueve', () => {
+  const conAndamio = estadoConReglas(9, [
+    { id: 'regla-1', kind: 'outside', recipeId: null, momento: 'desayuno', slots: ['desayuno'], grupoId: 'regla-1', weekdays: [7], weeks: null, scope: 'permanent', month: null, desde: null, until: null, label: 'Playa', active: true },
+    { id: 'regla-2', kind: 'outside', recipeId: null, momento: 'cena', slots: ['cena'], grupoId: 'regla-1', weekdays: [7], weeks: null, scope: 'permanent', month: null, desde: null, until: null, label: 'Playa', active: true }
+  ]);
+  const { ok, state } = migrate(conAndamio);
+  assert.ok(ok);
+  assert.equal(state.mealRoutines.length, 2, 'no se junta ni se parte nada');
+  for (const item of state.mealRoutines) {
+    assert.equal('grupoId' in item, false, 'quedó el campo que ya no lee nadie');
+  }
+  assert.deepEqual(state.mealRoutines.map(item => [item.id, item.momento]), [['regla-1', 'desayuno'], ['regla-2', 'cena']]);
+});
+
+test('partir una rutina vieja dos veces deja exactamente lo mismo', () => {
+  const viejo = estadoConReglas(8, [{
+    id: 'rutina-9', kind: 'outside', recipeId: null, slots: ['desayuno', 'almuerzo', 'cena'],
+    weekdays: [7], weeks: null, scope: 'permanent', month: null, desde: null, until: null,
+    label: 'Domingo de playa', active: true
+  }]);
+  const una = migrate(structuredClone(viejo)).state;
+  const otra = migrate(structuredClone(una)).state;
+  assert.equal(una.mealRoutines.length, 3);
+  assert.deepEqual(otra.mealRoutines, una.mealRoutines, 'la segunda conversión volvió a partirlas');
 });

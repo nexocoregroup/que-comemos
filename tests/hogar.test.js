@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { migrate, SCHEMA_VERSION } from '../src/migrate.js';
 import {
   addProduct, alimentosProhibidos, choquesDeLaComida, createEmptyState, effectiveParticipants, esActiva,
-  exportState, importState, incompatibleItems, makeRecipePlan, personasActivas, product,
+  exportState, importState, makeRecipePlan, personasActivas, product,
   restriccionesDe, setPersonActive, todayISO, upsertPerson, upsertRecipe
 } from '../src/model.js';
 import { loadState, saveState } from '../src/storage.js';
@@ -231,7 +231,7 @@ test('la app avisa igual sea alergia, intolerancia, preferencia o motivo sin dec
   for (const motivo of ['alergia', 'intolerancia', 'preferencia', null]) {
     const persona = upsertPerson(state, { name: `Quien evita ${motivo}`, restricciones: [{ productId: mani, texto: '', motivo }], habitual: [] });
     assert.ok(alimentosProhibidos(persona).has(mani), `${motivo}: el alimento sigue prohibido`);
-    const choques = incompatibleItems(state, [{ productId: mani, quantity: 1, unit: 'lb' }], [persona.id]);
+    const choques = choquesDeLaComida(state, [{ productId: mani, quantity: 1, unit: 'lb' }], [persona.id]);
     assert.equal(choques.length, 1, `${motivo}: la comida se marca como incompatible`);
   }
 });

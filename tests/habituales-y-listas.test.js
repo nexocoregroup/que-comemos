@@ -20,7 +20,7 @@ import {
   RUBROS_IDS, actualizarHabitual, actualizarLineaDeLista, agregarALista, agregarHabitual,
   cerrarLista, crearLista, createEmptyState, habitualLines, habitualesPorRubro, inventoryNow,
   listaDeCompra, listasAbiertas, marcarComprado, productByName, quitarDeLista, reabrirLista,
-  resumenDeLista, rubroDe, rubroDeCategoria, setHabitualBasket, sugerenciasDeLista, addProduct,
+  resumenDeLista, rubroDe, rubroDeCategoria, setHabitualBasket, addProduct,
   SCHEMA_VERSION, exportState, importState, upsertRecipe
 } from '../src/model.js';
 import { CATEGORIES, RUBROS } from '../src/catalog-seed.js';
@@ -225,25 +225,25 @@ test('una lista cerrada no se cambia sin volver a abrirla', () => {
 
 /* ── La ayuda, y toda la ayuda ─────────────────────────────────────────── */
 
-test('la lista se asiste con los habituales que todavía no están en ella', () => {
+test('los habituales están para apuntarlos, no para apuntarse solos', () => {
+  // La ayuda de la lista es enseñar lo que esta casa compra siempre. Verlos no
+  // apunta nada —lo que no se toca no entra en la compra— y ninguno llega con
+  // una cantidad puesta: cuánto llevar se decide delante del estante.
   const { state, arroz, platano } = conHabituales();
   const lista = crearLista(state);
-  const primeras = sugerenciasDeLista(state, lista.id);
-  assert.deepEqual(primeras.flatMap(grupo => grupo.lineas.map(linea => linea.productId)).sort(), [arroz, platano].sort());
-
-  agregarALista(state, lista.id, { productId: arroz });
-  const despues = sugerenciasDeLista(state, lista.id);
-  assert.deepEqual(despues.flatMap(grupo => grupo.lineas.map(linea => linea.productId)), [platano], 'lo que ya está apuntado deja de sugerirse');
-});
-
-test('sugerir no es añadir, y no propone cantidades', () => {
-  const { state } = conHabituales();
-  const lista = crearLista(state);
-  sugerenciasDeLista(state, lista.id);
-  assert.equal(listaDeCompra(state, lista.id).lineas.length, 0, 'mirar las sugerencias no apunta nada');
-  for (const grupo of sugerenciasDeLista(state, lista.id)) {
+  const rubros = habitualesPorRubro(state);
+  assert.deepEqual(rubros.flatMap(grupo => grupo.lineas.map(linea => linea.productId)).sort(), [arroz, platano].sort());
+  assert.equal(listaDeCompra(state, lista.id).lineas.length, 0, 'mirar los habituales apuntó algo en la lista');
+  for (const grupo of rubros) {
     for (const linea of grupo.lineas) assert.equal(linea.quantity, null, 'la cantidad la decide quien compra');
   }
+
+  // Y lo que ya está apuntado se reconoce por su alimento, que es como la
+  // pantalla sabe cuál enseñar ya marcado.
+  agregarALista(state, lista.id, { productId: arroz });
+  const apuntados = new Set(listaDeCompra(state, lista.id).lineas.map(linea => linea.productId));
+  assert.deepEqual([...apuntados], [arroz]);
+  assert.equal(apuntados.has(platano), false, 'el plátano no se apuntó solo');
 });
 
 /* ── Una instalación nueva, de principio a fin ─────────────────────────── */
@@ -269,7 +269,7 @@ test('una casa que empieza hoy monta habituales, preparaciones y su primera list
 
   // Y la lista del sábado, asistida por lo que siempre se compra.
   const lista = crearLista(state, { fecha: '2026-10-03' });
-  for (const grupo of sugerenciasDeLista(state, lista.id)) {
+  for (const grupo of habitualesPorRubro(state)) {
     for (const linea of grupo.lineas) agregarALista(state, lista.id, { productId: linea.productId });
   }
   assert.equal(listaDeCompra(state, lista.id).lineas.length, 4);

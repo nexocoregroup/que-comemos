@@ -3,27 +3,27 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-// El plan mensual, simplificado: tres bloques y cada comida dice de dónde vino.
+// El plan mensual, ya sin máquina: se pone lo que se quiere comer, el día que se
+// quiere comerlo.
 //
 // Dos ideas gobiernan este archivo.
 //
-// 1. Preparar un mes son tres preguntas —con qué empieza, en qué se sale de lo
-//    normal, y si se da por bueno— y ninguna de las tres bloquea. Se cierra el
-//    mes con huecos, porque un hueco es una comida sin decidir, no un error, y
-//    una merienda vacía no es ni eso.
+// 1. Nada se llena solo. La única ayuda que queda —«poner una comida en varios
+//    días»— pone lo que se le marca y no vuelve a ejecutarse nunca. Un mes se
+//    cierra con huecos, porque un hueco es una comida sin decidir, no un error,
+//    y una merienda vacía no es ni eso.
 //
 // 2. Un calendario lleno tiene que decir quién lo llenó. Delante de un martes
-//    con mangú nadie se atreve a tocar nada si no sabe si lo puso él, si vino
-//    de una rutina o si se arrastró del mes pasado.
+//    con mangú nadie se atreve a tocar nada si no sabe si lo puso él o si vino
+//    de un respaldo de cuando la app decidía sola.
 
 import {
-  ORIGENES, ORIGENES_IDS, addProduct, createEmptyState, deletePlan, etiquetaDeOrigen, generateMonth,
-  makeRecipePlan, origenDe, planFor, setHabitualBasket, setMonthChange, setStatusPlan, updatePlan,
-  upsertRecipe, habitualLines, monthChanges
+  ORIGENES, ORIGENES_IDS, addProduct, createEmptyState, deletePlan, etiquetaDeOrigen,
+  makeRecipePlan, monthProgress, origenDe, planFor, setHabitualBasket, setMonthChange, setStatusPlan,
+  updatePlan, upsertRecipe, habitualLines, monthChanges
 } from '../src/model.js';
-import { addRoutine, applyRoutine, copyPatternFromMonth, datesForRule, monthProgress, openMonth } from '../src/routines.js';
 import { migrate, SCHEMA_VERSION } from '../src/migrate.js';
-import { BLOQUES, MES_ACTIONS, emptyMes, modalDia, renderMes } from '../src/page-mes.js';
+import { MES_ACTIONS, MES_FORMS, emptyMes, modalDia, modalPonerEnDias, renderMes } from '../src/page-mes.js';
 import { ENTRADAS_MAS, GRUPOS_MAS, PAGINAS_MAS, emptyMas, renderMas } from '../src/page-mas.js';
 
 const MES = '2026-10';
@@ -37,8 +37,7 @@ function contexto(state, extra = {}) {
     state, ui,
     commit: () => {}, toast: () => {}, render: () => {}, guardar: () => {},
     closeModal: () => { ui.modal = null; }, openModal: (type, extras) => { ui.modal = { type, ...extras }; },
-    startTour: () => {},
-    servicios: { transcribe: false, chat: false, enElAparato: { voz: false } }
+    startTour: () => {}
   };
 }
 
@@ -50,7 +49,7 @@ const revisar = (html, donde) => {
   assert.ok(!/\$\{/.test(html), `${donde} dejó una plantilla sin resolver`);
 };
 
-// Una casa con una rutina de desayunos y una preparación para el almuerzo.
+// Una casa con dos preparaciones y su canasta escrita.
 function casa() {
   const state = createEmptyState();
   const arroz = addProduct(state, { name: 'Arroz', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
@@ -58,50 +57,60 @@ function casa() {
   setHabitualBasket(state, [{ productId: arroz, quantity: 10, unit: 'lb' }, { productId: platano, quantity: 30, unit: 'unidad' }]);
   const mangu = upsertRecipe(state, { name: 'Mangú', uses: ['desayuno'], items: [{ productId: platano, quantity: 4, unit: 'unidad' }], note: '' });
   const locrio = upsertRecipe(state, { name: 'Locrio', uses: ['almuerzo', 'cena'], items: [{ productId: arroz, quantity: 2, unit: 'lb' }], note: '' });
-  return { state, arroz, platano, mangu: mangu.id, locrio: locrio.id };
+  const sopa = upsertRecipe(state, { name: 'Sopa', uses: ['almuerzo', 'cena'], items: [{ productId: arroz, quantity: 1, unit: 'lb' }], note: '' });
+  return { state, arroz, platano, mangu: mangu.id, locrio: locrio.id, sopa: sopa.id };
 }
 
-/* ── Tres bloques, no siete pantallas ──────────────────────────────────── */
+// El formulario de «poner en varios días», con las piezas que le llegan desde la
+// pantalla: las casillas marcadas y lo contestado en cada pregunta.
+function ponerEnDias(ctx, { fechas, momento, kind = 'recipe', recipeId = '', modo = 'vacios', month = MES }) {
+  const form = {
+    dataset: { month },
+    querySelectorAll: selector => (selector === '[name="fechas"]:checked' ? fechas.map(value => ({ value })) : [])
+  };
+  const datos = new Map([['kind', kind], ['recipeId', recipeId], ['momento', momento], ['modo', modo]]);
+  return MES_FORMS['poner-en-dias'](form, datos, ctx);
+}
 
-test('preparar un mes son tres bloques con nombre', () => {
-  assert.equal(BLOQUES.length, 3);
-  assert.deepEqual(BLOQUES.map(bloque => bloque.id), ['base', 'excepciones', 'confirmar']);
-  for (const bloque of BLOQUES) {
-    assert.ok(bloque.titulo && bloque.pregunta, `el bloque «${bloque.id}» no tiene título ni pregunta`);
-    // La pregunta es lo que se lee arriba del todo: tiene que ser una pregunta.
-    assert.ok(bloque.pregunta.includes('¿'), `«${bloque.pregunta}» no está escrita como pregunta`);
-  }
-});
+/* ── Dos caras, no siete pantallas ─────────────────────────────────────── */
 
-test('los tres bloques se dibujan con datos y también con un estado vacío', () => {
+test('el resumen y el calendario se dibujan con datos y también con un estado vacío', () => {
   const { state, mangu } = casa();
-  openMonth(state, MES);
   makeRecipePlan(state, mangu, `${MES}-05`, 'desayuno');
   for (const conDatos of [state, createEmptyState()]) {
     const ctx = contexto(conDatos);
-    for (const bloque of BLOQUES) {
-      ctx.ui.mes.bloque = bloque.id;
-      revisar(renderMes(ctx), `bloque «${bloque.id}»`);
+    for (const vista of ['resumen', 'calendario']) {
+      ctx.ui.mes.vista = vista;
+      revisar(renderMes(ctx), `la vista «${vista}»`);
     }
+    revisar(modalDia(ctx, { date: `${MES}-05` }), 'la ventana del día');
+    revisar(modalPonerEnDias(ctx, { month: MES }), 'la ventana de poner en varios días');
   }
 });
 
-test('ningún bloque habla en técnico', () => {
+test('un mes en blanco lo dice y ofrece por dónde empezar, sin llenarse solo', () => {
+  const { state } = casa();
+  const ctx = contexto(state);
+  const html = renderMes(ctx);
+  assert.ok(html.includes('está en blanco'), 'un mes vacío no dice que lo está');
+  assert.ok(html.includes('Empezar a planificar'));
+  assert.equal(state.plans.length, 0, 'mirar el mes puso comidas que nadie pidió');
+  assert.deepEqual(state.mealRoutines, [], 'mirar el mes escribió una costumbre');
+});
+
+test('ninguna pantalla del mes habla en técnico', () => {
   // «Instancia», «override» y «sincronización» son palabras de quien escribió el
   // programa, no de quien cocina. Aquí no pintan nada.
   const { state, mangu, locrio } = casa();
-  openMonth(state, MES);
   makeRecipePlan(state, mangu, `${MES}-05`, 'desayuno');
   makeRecipePlan(state, locrio, `${MES}-05`, 'almuerzo');
   setStatusPlan(state, `${MES}-11`, 'almuerzo', 'outside');
   const ctx = contexto(state);
-  const pantallas = [];
-  for (const bloque of BLOQUES) { ctx.ui.mes.bloque = bloque.id; pantallas.push([bloque.id, renderMes(ctx)]); }
-  ctx.ui.mes.bloque = null;
-  pantallas.push(['resumen', renderMes(ctx)]);
+  const pantallas = [['resumen', renderMes(ctx)]];
   ctx.ui.mes.vista = 'calendario';
   pantallas.push(['calendario', renderMes(ctx)]);
   pantallas.push(['día', modalDia(ctx, { date: `${MES}-05` })]);
+  pantallas.push(['poner en varios días', modalPonerEnDias(ctx, { month: MES })]);
 
   for (const [donde, html] of pantallas) {
     const limpio = html.replace(/<[^>]*>/g, ' ');
@@ -111,28 +120,10 @@ test('ningún bloque habla en técnico', () => {
   }
 });
 
-/* ── Se cierra el mes con huecos ───────────────────────────────────────── */
+/* ── Se mira el mes con huecos ─────────────────────────────────────────── */
 
-test('finalizar no exige que el mes esté lleno, y deja escrito el día', () => {
-  const { state, mangu } = casa();
-  openMonth(state, MES);
-  makeRecipePlan(state, mangu, `${MES}-05`, 'desayuno');
-  const ctx = contexto(state, { mes: { ...emptyMes(MES), bloque: 'confirmar' } });
-
-  const antes = monthProgress(state, MES);
-  assert.ok(antes.pendientes > 80, 'el mes tenía que estar casi entero sin decidir');
-
-  MES_ACTIONS['mes-finalizar'](null, ctx);
-
-  assert.ok(state.monthPlans[MES].preparedAt, 'no quedó escrito el día en que se dio por bueno');
-  assert.equal(ctx.ui.mes.bloque, null, 'no se salió del recorrido');
-  // Y sobre todo: los huecos siguen ahí. Cerrar el mes no es rellenarlo.
-  assert.equal(monthProgress(state, MES).pendientes, antes.pendientes);
-});
-
-test('un mes sin ninguna merienda se puede cerrar y está al cien por cien', () => {
+test('un mes sin ninguna merienda está al cien por cien y lo dice', () => {
   const { state, mangu, locrio } = casa();
-  openMonth(state, MES);
   for (let dia = 1; dia <= 31; dia++) {
     const fecha = `${MES}-${String(dia).padStart(2, '0')}`;
     makeRecipePlan(state, mangu, fecha, 'desayuno');
@@ -144,10 +135,103 @@ test('un mes sin ninguna merienda se puede cerrar y está al cien por cien', () 
   assert.equal(progreso.meriendas, 0);
   assert.equal(progreso.porcentaje, 100, 'sin meriendas el mes no está incompleto');
 
-  const ctx = contexto(state, { mes: { ...emptyMes(MES), bloque: 'confirmar' } });
-  const html = renderMes(ctx);
+  const html = renderMes(contexto(state));
   assert.ok(html.includes('No queda ningún hueco'), 'no dice que el mes está completo');
-  assert.ok(!/sin decidir<\/strong>/.test(html), 'sigue avisando de huecos que no existen');
+  assert.ok(!/sin decidir<\/div>/.test(html), 'sigue avisando de huecos que no existen');
+});
+
+test('las comidas que faltan se listan de doce en doce, y las meriendas no cuentan', () => {
+  const { state } = casa();
+  setStatusPlan(state, `${MES}-01`, 'desayuno', 'outside');
+  const ctx = contexto(state);
+  const html = renderMes(ctx);
+  assert.ok(html.includes('Sin decidir'), 'no se listan las comidas que faltan');
+  assert.equal((html.match(/plan-pendiente/g) || []).length, 12, 'se enseñan todas de golpe');
+  assert.ok(html.includes('Ver 12 más'));
+  MES_ACTIONS['mes-ver-mas-pendientes'](null, ctx);
+  assert.equal((renderMes(ctx).match(/plan-pendiente/g) || []).length, 24);
+  // Y ninguna de las que se enseñan es una merienda: son opcionales.
+  assert.ok(!renderMes(ctx).includes('Merienda de la mañana'), 'una merienda vacía se cuenta como hueco');
+});
+
+/* ── Poner una comida en varios días ───────────────────────────────────── */
+
+test('se ponen los días que se marcan, y ni uno más', () => {
+  const { state, mangu } = casa();
+  const ctx = contexto(state);
+  const dias = [`${MES}-06`, `${MES}-07`, `${MES}-08`];
+  ponerEnDias(ctx, { fechas: dias, momento: 'desayuno', recipeId: mangu });
+
+  assert.deepEqual(state.plans.map(plan => plan.date).sort(), dias);
+  for (const fecha of dias) assert.equal(planFor(state, fecha, 'desayuno').title, 'Mangú', `falta el desayuno del ${fecha}`);
+  assert.equal(planFor(state, `${MES}-13`, 'desayuno'), undefined, 'se puso un día que nadie marcó');
+  // Y no queda ninguna regla escrita: esto no se repetirá solo el mes que viene.
+  assert.deepEqual(state.mealRoutines, [], 'poner unos días dejó escrita una costumbre');
+  assert.equal(ctx.ui.modal, null, 'la ventana se queda abierta después de poner');
+  assert.ok(ctx.ui.mes.deshacer, 'poner catorce comidas de golpe tiene que poder deshacerse');
+  assert.ok(ctx.ui.mes.aviso.titulo.includes('3 comida(s)'), `dijo «${ctx.ui.mes.aviso?.titulo}»`);
+});
+
+test('lo que ya estaba puesto no se pisa sin permiso, y con permiso sí', () => {
+  const { state, sopa, locrio } = casa();
+  const ctx = contexto(state);
+  makeRecipePlan(state, locrio, `${MES}-07`, 'cena');
+
+  ponerEnDias(ctx, { fechas: [`${MES}-06`, `${MES}-07`], momento: 'cena', recipeId: sopa, modo: 'vacios' });
+  assert.equal(planFor(state, `${MES}-07`, 'cena').title, 'Locrio', 'se pisó una comida que ya estaba');
+  assert.equal(planFor(state, `${MES}-06`, 'cena').title, 'Sopa', 'el día que estaba libre se quedó vacío');
+  assert.ok(ctx.ui.mes.aviso.detalle.includes('1 se dejaron como estaban'), `dijo «${ctx.ui.mes.aviso?.detalle}»`);
+
+  ponerEnDias(ctx, { fechas: [`${MES}-07`], momento: 'cena', recipeId: sopa, modo: 'reemplazar' });
+  assert.equal(planFor(state, `${MES}-07`, 'cena').title, 'Sopa', 'con permiso tiene que reemplazarse');
+});
+
+test('sin momento o sin preparación no se guarda, y se dice cuál falta', () => {
+  const { state, mangu } = casa();
+  const ctx = contexto(state);
+  assert.throws(() => ponerEnDias(ctx, { fechas: [`${MES}-06`], momento: '', recipeId: mangu }), /comida del día/);
+  assert.throws(() => ponerEnDias(ctx, { fechas: [`${MES}-06`], momento: 'desayuno', recipeId: '' }), /preparación/);
+  assert.throws(() => ponerEnDias(ctx, { fechas: [], momento: 'desayuno', recipeId: mangu }), /al menos un día/);
+  assert.equal(state.plans.length, 0, 'un formulario a medias dejó comidas puestas');
+});
+
+test('se puede marcar «fuera de casa» en varios días sin elegir preparación', () => {
+  const { state } = casa();
+  const ctx = contexto(state);
+  ponerEnDias(ctx, { fechas: [`${MES}-04`, `${MES}-18`], momento: 'almuerzo', kind: 'outside' });
+  assert.equal(planFor(state, `${MES}-04`, 'almuerzo').kind, 'outside');
+  assert.equal(planFor(state, `${MES}-18`, 'almuerzo').kind, 'outside');
+  assert.equal(planFor(state, `${MES}-11`, 'almuerzo'), undefined, 'el domingo de en medio no se marcó');
+});
+
+test('la ventana pregunta tres cosas y ofrece los días del mes uno por uno', () => {
+  const { state, mangu } = casa();
+  const html = modalPonerEnDias(contexto(state), { month: MES });
+  assert.ok(html.includes('¿Qué comen?') && html.includes('¿En qué comida?') && html.includes('¿Qué días?'));
+  // Los 31 días de octubre, marcables uno a uno, y los dos atajos de siempre.
+  assert.equal((html.match(/name="fechas"/g) || []).length, 31);
+  assert.ok(html.includes('data-cuantos="7"') && html.includes('data-cuantos="14"'));
+  assert.ok(html.includes('No se repetirá sola'), 'no promete lo único que hace falta prometer');
+  assert.ok(html.includes(mangu), 'no ofrece las preparaciones que hay');
+});
+
+test('desde una preparación, la ventana abre con esa preparación puesta', () => {
+  const { state, mangu } = casa();
+  const ctx = contexto(state);
+  MES_ACTIONS['mes-poner-en-dias']({ dataset: { receta: mangu, slot: 'desayuno' } }, ctx);
+  assert.equal(ctx.ui.modal.type, 'poner-en-dias');
+  assert.equal(ctx.ui.modal.receta, mangu, 'no se llevó la preparación que ya se había elegido');
+  assert.equal(ctx.ui.modal.slot, 'desayuno', 'vuelve a preguntar un momento que ya estaba contestado');
+  const html = modalPonerEnDias(ctx, ctx.ui.modal);
+  assert.ok(html.includes(`value="${mangu}" selected`), 'la ventana abre sin la preparación marcada');
+  assert.ok(html.includes('value="desayuno" checked'));
+});
+
+test('sin ninguna preparación escrita, la ventana enseña el camino para escribir la primera', () => {
+  const state = createEmptyState();
+  const html = modalPonerEnDias(contexto(state), { month: MES });
+  assert.ok(html.includes('Todavía no hay preparaciones'));
+  assert.ok(html.includes('data-action="poner-primera-preparacion"'), 'no hay forma de salir de la ventana vacía');
 });
 
 /* ── De dónde salió cada comida ────────────────────────────────────────── */
@@ -161,47 +245,33 @@ test('los cuatro orígenes que el usuario tiene que distinguir están todos', ()
 
 test('cada forma de poner una comida deja escrito de dónde vino', () => {
   const { state, mangu, locrio } = casa();
-  openMonth(state, MES);
+  const ctx = contexto(state);
 
-  // A mano.
+  // A mano, desde la comida de un día.
   const aMano = makeRecipePlan(state, mangu, `${MES}-05`, 'desayuno');
   assert.equal(origenDe(aMano), 'manual');
-
-  // Desde una rutina.
-  const rutina = addRoutine(state, { kind: 'recipe', recipeId: locrio, slots: ['almuerzo'], weekdays: [1], weeks: null, scope: 'permanent' });
-  applyRoutine(state, rutina.id, MES, { modo: 'vacios' });
-  const deRutina = state.plans.find(plan => plan.routineId === rutina.id);
-  assert.equal(origenDe(deRutina), 'rutina');
 
   // Marcada fuera de casa: eso es una excepción por definición.
   const fuera = setStatusPlan(state, `${MES}-08`, 'cena', 'outside');
   assert.equal(origenDe(fuera), 'excepcion');
 
-  // Traída del mes pasado.
-  const siguiente = '2026-11';
-  openMonth(state, siguiente);
-  const copiadas = copyPatternFromMonth(state, MES, siguiente);
-  assert.ok(copiadas.creados.length, 'no se copió nada del mes anterior');
-  for (const id of copiadas.creados) {
-    assert.equal(origenDe(state.plans.find(plan => plan.id === id)), 'mes-anterior');
+  // Y puesta en varios días de una vez. Sigue siendo una decisión de una
+  // persona, para esos días: «cambio manual» es exactamente lo que fue, y
+  // llamarla «rutina» prometería que se repite sola.
+  ponerEnDias(ctx, { fechas: [`${MES}-14`, `${MES}-15`], momento: 'almuerzo', recipeId: locrio });
+  for (const fecha of [`${MES}-14`, `${MES}-15`]) {
+    const puesta = planFor(state, fecha, 'almuerzo');
+    assert.equal(origenDe(puesta), 'manual', `la comida del ${fecha} no dice de dónde vino`);
+    assert.equal(puesta.routineId, null, 'quedó colgando de una regla que no existe');
   }
-
-  // Y la que elige la app al rellenar: ni es rutina, ni la puso nadie a mano.
-  // Llamarla «cambio manual» sería mentir en el único sitio donde la app promete
-  // decir la verdad sobre de dónde salió cada cosa.
-  const otro = '2026-12';
-  openMonth(state, otro);
-  generateMonth(state, otro);
-  const sugerida = state.plans.find(plan => plan.date.startsWith(otro) && !plan.routineId);
-  assert.equal(origenDe(sugerida), 'sugerida');
 });
 
-test('rehacer una comida a mano la convierte en un cambio manual', () => {
+test('rehacer a mano una comida vieja de una rutina la convierte en un cambio manual', () => {
+  // «Rutina» ya no lo produce nadie, pero sigue guardado en los respaldos de
+  // cuando la app llenaba el calendario sola. Una comida que se reescribe deja
+  // de venir de aquella regla, y tiene que dejar de decirlo.
   const { state, locrio, arroz } = casa();
-  openMonth(state, MES);
-  const rutina = addRoutine(state, { kind: 'recipe', recipeId: locrio, slots: ['almuerzo'], weekdays: [1], weeks: null, scope: 'permanent' });
-  applyRoutine(state, rutina.id, MES, { modo: 'vacios' });
-  const plan = state.plans.find(item => item.routineId === rutina.id);
+  const plan = makeRecipePlan(state, locrio, `${MES}-05`, 'almuerzo', null, 'regla-vieja-1', 'rutina');
   assert.equal(origenDe(plan), 'rutina');
 
   updatePlan(state, plan.id, {
@@ -213,7 +283,6 @@ test('rehacer una comida a mano la convierte en un cambio manual', () => {
 
 test('el calendario y el día enseñan el origen de cada comida', () => {
   const { state, mangu, locrio } = casa();
-  openMonth(state, MES);
   makeRecipePlan(state, mangu, `${MES}-05`, 'desayuno');
   setStatusPlan(state, `${MES}-05`, 'almuerzo', 'outside');
   const ctx = contexto(state, { mes: { ...emptyMes(MES), vista: 'calendario' } });
@@ -221,8 +290,15 @@ test('el calendario y el día enseñan el origen de cada comida', () => {
   const calendario = renderMes(ctx);
   assert.ok(calendario.includes('data-origen="manual"'), 'el calendario no marca el origen');
   assert.ok(calendario.includes('data-origen="excepcion"'));
-  // Y con una leyenda, porque un color sin leyenda no dice nada.
-  for (const origen of ORIGENES) assert.ok(calendario.includes(origen.etiqueta), `la leyenda no nombra «${origen.etiqueta}»`);
+  // Y con una leyenda, porque un color sin leyenda no dice nada. La leyenda
+  // nombra los orígenes que este mes tiene, y solo esos: enseñar «Rutina» en un
+  // mes que no la tiene sería prometer algo que la app ya no hace.
+  const leyenda = calendario.slice(calendario.indexOf('origen-leyenda'));
+  assert.ok(leyenda.includes('Cambio manual'), 'la leyenda no nombra lo que sí hay en el mes');
+  assert.ok(leyenda.includes('Excepción'));
+  for (const etiqueta of ['Rutina', 'Mes anterior']) {
+    assert.ok(!leyenda.includes(etiqueta), `la leyenda nombra «${etiqueta}» en un mes que no lo tiene`);
+  }
 
   const dia = modalDia(ctx, { date: `${MES}-05` });
   revisar(dia, 'la ventana del día');
@@ -238,7 +314,6 @@ test('el calendario y el día enseñan el origen de cada comida', () => {
 
 test('se puede marcar y vaciar un día entero desde el calendario', () => {
   const { state, mangu, platano } = casa();
-  openMonth(state, MES);
   const fecha = `${MES}-05`;
   const galleta = upsertRecipe(state, { name: 'Galletas con jugo', uses: ['merienda-tarde'], items: [{ productId: platano, quantity: 1, unit: 'unidad' }], note: '' });
   makeRecipePlan(state, mangu, fecha, 'desayuno');
@@ -263,82 +338,30 @@ test('se puede marcar y vaciar un día entero desde el calendario', () => {
   assert.ok(ctx.ui.mes.deshacer, 'vaciar un día entero tiene que poder deshacerse');
 });
 
-test('«ajustarlo día por día» sale de verdad al calendario', () => {
-  // Estuvo a punto de ser un botón muerto: cambiaba la vista, pero el bloque
-  // seguía puesto y se volvía a pintar él. Desde fuera, no pasaba nada.
-  const { state } = casa();
-  openMonth(state, MES);
-  const ctx = contexto(state, { mes: { ...emptyMes(MES), bloque: 'base' } });
-  MES_ACTIONS['mes-vista']({ dataset: { vista: 'calendario' } }, ctx);
-  assert.equal(ctx.ui.mes.bloque, null, 'el recorrido tapa el calendario al que se acaba de ir');
-  assert.ok(renderMes(ctx).includes('calendar-month'), 'no se llegó al calendario');
-});
-
-/* ── Reutilizar el mes pasado sin copiar día por día ───────────────────── */
-
-test('el mes anterior se trae entero con un solo gesto', () => {
-  const { state, mangu, locrio } = casa();
-  openMonth(state, '2026-09');
-  let puestas = 0;
-  for (let dia = 1; dia <= 30; dia++) {
-    const fecha = `2026-09-${String(dia).padStart(2, '0')}`;
-    makeRecipePlan(state, mangu, fecha, 'desayuno');
-    makeRecipePlan(state, locrio, fecha, 'almuerzo');
-    puestas += 2;
-  }
-  openMonth(state, MES);
-  const ctx = contexto(state);
-  MES_ACTIONS['mes-copiar-patron'](null, ctx);
-
-  const copiadas = state.plans.filter(plan => plan.date.startsWith(MES) && origenDe(plan) === 'mes-anterior');
-  assert.ok(copiadas.length > 50, `solo se copiaron ${copiadas.length} de ${puestas}`);
-  assert.ok(ctx.ui.mes.deshacer, 'no se puede deshacer lo que se acaba de traer');
-  assert.equal(ctx.ui.mes.base, 'copiar', 'no quedó marcado cuál de las tres salidas se eligió');
-});
-
-test('traer el mes pasado cuando no cabe nada lo dice sin mentir', () => {
-  // Todos los días de destino ocupados no es «no hay nada que copiar»: es que no
-  // hay dónde ponerlo. Decir lo primero hace pensar que el botón está roto.
+test('deshacer devuelve el mes a como estaba', () => {
   const { state, mangu } = casa();
-  for (const mes of ['2026-09', MES]) {
-    openMonth(state, mes);
-    const dias = mes === '2026-09' ? 30 : 31;
-    for (let dia = 1; dia <= dias; dia++) makeRecipePlan(state, mangu, `${mes}-${String(dia).padStart(2, '0')}`, 'desayuno');
-  }
-  let dicho = '';
   const ctx = contexto(state);
-  ctx.toast = mensaje => { dicho = mensaje; };
-  MES_ACTIONS['mes-copiar-patron'](null, ctx);
-  assert.ok(dicho.includes('ya tenían algo puesto'), `dijo «${dicho}»`);
-  assert.ok(!dicho.includes('No hay ninguna preparación'), 'sí había preparaciones que copiar');
+  ponerEnDias(ctx, { fechas: [`${MES}-06`, `${MES}-07`], momento: 'desayuno', recipeId: mangu });
+  assert.equal(state.plans.length, 2);
+  MES_ACTIONS['mes-deshacer'](null, ctx);
+  assert.equal(state.plans.length, 0, 'deshacer no quitó lo que se acababa de poner');
+  assert.equal(ctx.ui.mes.deshacer, null, 'se puede deshacer dos veces lo mismo');
 });
 
-/* ── Las excepciones de los domingos, en grupo ─────────────────────────── */
-
-test('los domingos alternos se configuran de una vez, sin marcar fechas', () => {
+test('«ver calendario» sale de verdad al calendario', () => {
   const { state } = casa();
-  openMonth(state, MES);
-  const rutina = addRoutine(state, { kind: 'outside', slots: ['almuerzo'], weekdays: [7], weeks: [1, 3], scope: 'permanent' });
-  const resultado = applyRoutine(state, rutina.id, MES, { modo: 'vacios' });
-
-  // Octubre de 2026: los domingos caen 4, 11, 18 y 25. Primero y tercero: 4 y 18.
-  assert.deepEqual(datesForRule(MES, [7], [1, 3]), [`${MES}-04`, `${MES}-18`]);
-  assert.equal(resultado.creados.length, 2);
-  for (const fecha of [`${MES}-04`, `${MES}-18`]) {
-    assert.equal(planFor(state, fecha, 'almuerzo').kind, 'outside');
-  }
-  assert.equal(planFor(state, `${MES}-11`, 'almuerzo'), undefined, 'el segundo domingo no debía tocarse');
+  const ctx = contexto(state);
+  MES_ACTIONS['mes-vista']({ dataset: { vista: 'calendario' } }, ctx);
+  assert.equal(ctx.ui.mes.vista, 'calendario');
+  assert.ok(renderMes(ctx).includes('calendar-month'), 'no se llegó al calendario');
+  MES_ACTIONS['mes-vista']({ dataset: { vista: 'resumen' } }, ctx);
+  assert.ok(!renderMes(ctx).includes('calendar-month'), 'no se vuelve del calendario al resumen');
 });
 
-test('el bloque de excepciones ofrece los domingos, los alternos y las fechas sueltas', () => {
-  const { state } = casa();
-  openMonth(state, MES);
-  const ctx = contexto(state, { mes: { ...emptyMes(MES), bloque: 'excepciones' } });
-  const html = renderMes(ctx);
-  for (const texto of ['Todos los domingos', 'Primer y tercer domingo', 'Segundo y cuarto domingo', 'Fechas concretas']) {
-    assert.ok(html.includes(texto), `el bloque de excepciones no ofrece «${texto}»`);
-  }
-  // Y las ausencias viven aquí, con su promesa escrita.
+test('las ausencias se explican sin prometer que encogen la olla', () => {
+  const { state, mangu } = casa();
+  makeRecipePlan(state, mangu, `${MES}-05`, 'desayuno');
+  const html = renderMes(contexto(state, { mes: { ...emptyMes(MES), vista: 'resumen' } }));
   assert.ok(html.includes('no cambia lo que se cocina'), 'no dice que marcar a alguien fuera no encoge la olla');
 });
 
@@ -445,7 +468,7 @@ test('la ventana de añadir alimento pregunta dónde entra, y lo permanente no v
   assert.ok(/Solo para \$\{monthName\(mesActual\)\}/.test(codigo), 'falta la opción de solo este mes');
   // El destino permanente nunca puede venir marcado de fábrica.
   const bloque = codigo.slice(codigo.indexOf('const DESTINOS'), codigo.indexOf('function modalProducto'));
-  assert.equal(bloque.indexOf("['mes'"), bloque.indexOf("['mes'"), 'el destino mensual tiene que existir');
+  assert.ok(bloque.includes("['mes'"), 'el destino mensual tiene que existir');
   assert.ok(bloque.indexOf("['mes'") < bloque.indexOf("['siempre'"), 'el destino de siempre no puede ser el primero, que es el que viene marcado');
   assert.ok(/indice === 0 \? 'checked' : ''/.test(bloque), 'se marca de fábrica algo que no es el primero');
   // Y al guardar, cada destino escribe donde dice.
@@ -457,33 +480,10 @@ test('la ventana de añadir alimento pregunta dónde entra, y lo permanente no v
 
 test('borrar una comida del día no deja rastros ni orígenes huérfanos', () => {
   const { state, mangu } = casa();
-  openMonth(state, MES);
   const plan = makeRecipePlan(state, mangu, `${MES}-05`, 'desayuno');
   deletePlan(state, plan.id, true);
   assert.equal(state.plans.length, 0);
   assert.equal(planFor(state, `${MES}-05`, 'desayuno'), undefined);
-});
-
-// Salió probando a mano, no compilando: al editar una rutina, las comidas que
-// la regla nueva ya no cubre se sueltan —bien— pero seguían diciendo que venían
-// de una rutina. El calendario promete decir de dónde salió cada comida, y una
-// que dijera «Rutina» sin ninguna regla detrás es justo la mentira que esa
-// promesa existe para evitar.
-test('una comida que deja de seguir la rutina deja de decir que viene de una', () => {
-  const codigo = readFileSync(resolve(import.meta.dirname, '..', 'src', 'page-mes.js'), 'utf8');
-  const bloque = codigo.slice(codigo.indexOf('if (vigentes.has('), codigo.indexOf('liberadas++'));
-  assert.ok(/plan\.routineId = null;/.test(bloque), 'soltar la comida de la regla');
-  assert.ok(/plan\.origen = 'manual';/.test(bloque), 'soltarla sin corregir su origen la deja mintiendo');
-});
-
-// Y el otro que salió del mismo recorrido: editar una rutina para ponerla en
-// unos días que ya estaban ocupados dejaba la rutina sin una sola comida, y
-// solo se descubría leyendo el aviso de después.
-test('editar sobre días ocupados pregunta antes, no después', () => {
-  const codigo = readFileSync(resolve(import.meta.dirname, '..', 'src', 'page-mes.js'), 'utf8');
-  assert.ok(/else if \(editandoId && ocupadas\)/.test(codigo), 'no se pregunta al editar sobre días ocupados');
-  assert.ok(/modoEfectivo = window\.confirm\(/.test(codigo), 'la respuesta no decide el modo');
-  assert.ok(/applyRoutine\(state, rutina\.id, month, \{ modo: modoEfectivo/.test(codigo), 'se pregunta y luego se aplica otro modo');
 });
 
 // El navegador esconde `[hidden]` con un `display:none` de su propia hoja, que
@@ -491,26 +491,81 @@ test('editar sobre días ocupados pregunta antes, no después', () => {
 // (grid) o una `.radio-fila` (flex) con el atributo puesto se quedaba a la
 // vista, y con sus campos vivos: alguien podía marcar una opción que la
 // pantalla creía escondida y que sí llegaba al formulario.
-//
-// Pasó dos veces —el grosor de las ruedas y el alcance de una rutina de días
-// sueltos, que medía 96 píxeles con `hidden` puesto— y la segunda es la que
-// convierte un parche en una regla.
 test('«hidden» esconde de verdad, y no solo en las clases que se acordaron', () => {
   const css = readFileSync(resolve(import.meta.dirname, '..', 'src', 'theme.css'), 'utf8');
   assert.ok(/\[hidden\]\s*\{\s*display:\s*none\s*!important/.test(css),
     'sin la regla general, cualquier clase con display propio vuelve a enseñar lo escondido');
 });
 
-// Y la pregunta del alcance ya no desaparece al elegir días sueltos: se queda
-// contestada y explicada. Una pregunta que se esfuma deja pensando si se
-// contestó sola o si se perdió.
-test('con días sueltos el alcance se enseña contestado, no se esconde entero', () => {
+/* ── Lo que el recorrido del mes dejó de preguntar ─────────────────────────
+
+   Estas tres venían de las pruebas del mes generado, que se fue con la máquina.
+   Vigilan lo que no puede volver: preparar el mes es decidir qué se come, y las
+   cifras de la canasta, las existencias y la lista de lo que faltaría comprar
+   convertían «ya está mi mes» en «ahora repasa el inventario», que es donde se
+   abandonaba. */
+
+test('el recorrido mensual no pregunta por cantidades, existencias ni compra', () => {
   const codigo = readFileSync(resolve(import.meta.dirname, '..', 'src', 'page-mes.js'), 'utf8');
-  assert.ok(/data-alcance-sueltos/.test(codigo), 'falta el bloque que explica el alcance de unas fechas sueltas');
-  assert.ok(/form\.querySelector\('\[data-alcance-sueltos\]'\)\.hidden = !sueltos;/.test(codigo),
-    'el interruptor no enseña la explicación al cambiar de modo');
-  // Y las dos fechas de vigencia tienen suelo, para que nadie guarde una regla
-  // que no hace nada por haber escrito 2019.
-  assert.ok(/name="desde"[^>]*min="\$\{esc\(sueloDeVigencia\)\}"/.test(codigo), 'la fecha de inicio no tiene suelo');
-  assert.ok(/name="hasta"[^>]*min="\$\{esc\(sueloDeVigencia\)\}"/.test(codigo), 'la fecha final no tiene suelo');
+  for (const muerta of ['function bloqueCanasta(', 'function bloqueCompra(', 'function cambiosEnLaCompra(', 'function seccionCanasta(']) {
+    assert.ok(!codigo.includes(muerta), `sigue en el recorrido: ${muerta}`);
+  }
+  assert.ok(!/monthBasketSummary\(/.test(codigo), 'el plan del mes vuelve a contar la canasta');
+  assert.ok(!/inventoryNow\(/.test(codigo), 'el plan del mes vuelve a mirar las existencias');
+  assert.ok(!/balances\(/.test(codigo), 'el plan del mes vuelve a mirar los saldos de la despensa');
+  // Y tampoco en la pantalla: ni una cifra de libras ni una lista de faltantes.
+  const { state, mangu } = casa();
+  makeRecipePlan(state, mangu, `${MES}-05`, 'desayuno');
+  const ctx = contexto(state);
+  for (const vista of ['resumen', 'calendario']) {
+    ctx.ui.mes.vista = vista;
+    const limpio = renderMes(ctx).replace(/<[^>]*>/g, ' ');
+    for (const palabra of ['existencias', 'inventario', 'te queda', 'lista de compra']) {
+      assert.ok(!new RegExp(palabra, 'i').test(limpio), `la vista «${vista}» vuelve a hablar de «${palabra}»`);
+    }
+  }
+});
+
+test('«para toda la casa» es una respuesta escrita, no una casilla sin marcar', () => {
+  /* El fallo: no se podía poner NI UNA comida en una casa con gente registrada.
+
+     «¿Quiénes comen?» se contesta de dos formas. Abierta, con una casilla por
+     persona. Cerrada —lo normal, porque una comida es de toda la casa—, con un
+     campo oculto por persona y ninguna casilla. Leyendo solo lo marcado, la
+     segunda forma devolvía una lista vacía y el modelo contestaba «Selecciona
+     al menos una persona que comerá en casa» a quien no había desmarcado a
+     nadie. */
+  const codigo = readFileSync(resolve(import.meta.dirname, '..', 'src', 'app.js'), 'utf8');
+  assert.ok(/type="hidden" name="\$\{esc\(name\)\}"/.test(codigo), 'el bloque cerrado ya no escribe la respuesta');
+  assert.ok(/input\.type === 'hidden' \|\| input\.checked/.test(codigo), 'lo oculto vuelve a no contar como respuesta');
+  assert.ok(!/const selected = \(form, name\) => \[\.\.\.form\.querySelectorAll\(`\[name="\$\{name\}"\]:checked`\)\]/.test(codigo),
+    'vuelve a leerse solo lo marcado');
+});
+
+test('un alimento sin cantidad se escribe por su nombre, no como «0»', () => {
+  /* El fallo: desde que una preparación puede llevar alimentos sin decir
+     cuánto, la pantalla de quien cocina pintaba la medida a ciegas y salía
+     «0 · Arroz». `measure(null, null)` devuelve «0 », que es peor que callar. */
+  const codigo = readFileSync(resolve(import.meta.dirname, '..', 'src', 'app.js'), 'utf8');
+  assert.ok(/const sinMedida = item => item\.quantity === null \|\| item\.quantity === undefined;/.test(codigo));
+  assert.ok(/sinMedida\(item\) \? esc\(productName\(item\.productId\)\)/.test(codigo), 'sin cantidad vuelve a pintarse una medida');
+  // Y la lista de la comida tampoco escribe «0 de Arroz».
+  assert.ok(/\$\{sinMedida\(item\) \? `<strong>\$\{esc\(productName\(item\.productId\)\)\}<\/strong>`/.test(codigo));
+});
+
+test('«cambiar solo este día» existe, y deja la comida nueva suelta de cualquier regla', () => {
+  // Antes había que quitar la comida y volver a ponerla, y quien lo intentaba
+  // sobre una comida heredada de una costumbre se topaba con la pregunta del
+  // alcance cuando lo único que quería era cenar otra cosa ese jueves.
+  const codigo = readFileSync(resolve(import.meta.dirname, '..', 'src', 'app.js'), 'utf8');
+  assert.ok(/data-form="sustituir"/.test(codigo), 'no hay forma de cambiar el plato de un solo día');
+  assert.ok(/Cambiar solo este día/.test(codigo));
+  // Solo se ofrecen las preparaciones que valen para ese momento.
+  assert.ok(/recipe\.uses\.includes\(plan\.slot\) && recipe\.id !== plan\.recipeId/.test(codigo));
+  // Y la que se pone nace sin regla y como cambio manual: eso es lo que impide
+  // que una comida heredada siga diciendo que la puso una costumbre.
+  assert.ok(/makeRecipePlan\(state, receta\.id, date, slot, participants, null, 'manual'\)/.test(codigo),
+    'la comida sustituida no queda marcada como cambio de ese día');
+  // Una comida de la que cuelga una parte apartada no se sustituye a ciegas.
+  assert.ok(/if \(dependents\(state, plan\.id\)\.length\) throw new Error/.test(codigo));
 });

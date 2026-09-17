@@ -35,8 +35,7 @@ import {
   PASO, PASOS, SETUP_ACTIONS, SETUP_FORMS, avanceGuardado, emptySetup, pasosDe, renderSetup
 } from '../src/setup.js';
 import { HOGAR_ACTIONS, HOGAR_FORMS, emptyHogar } from '../src/hogar.js';
-import { addProduct, createEmptyState, personasActivas, setHabitualBasket, todayISO, upsertPerson, upsertRecipe } from '../src/model.js';
-import { addRoutine, applyRoutine, datesForRule, describeRule } from '../src/routines.js';
+import { addProduct, createEmptyState, personasActivas, setHabitualBasket, upsertPerson, upsertRecipe } from '../src/model.js';
 import { loadState, saveState } from '../src/storage.js';
 
 function contexto(state = createEmptyState()) {
@@ -314,11 +313,15 @@ test('la ventana de una preparación se puede encadenar para escribirlas de una 
   assert.ok(/const seguir = data\.get\('seguir'\) === '1';/.test(codigo));
   assert.ok(/ui\.modal = seguir \? \{ type: 'recipe', id: '' \}/.test(codigo),
     'guardar y seguir no deja la ventana abierta y vacía');
-  // Y quien llegó aquí desde una rutina porque no tenía ninguna preparación
-  // vuelve a la rutina con la recién escrita ya elegida, en vez de quedarse en
-  // una pantalla que no es la suya.
-  assert.ok(/repetir \|\| volverARutina\s*\n\s*\? \{ type: 'rutina', month: volverARutina \|\| ui\.mes\.month/.test(codigo),
-    'escribir la primera preparación desde una rutina no devuelve a la rutina');
+  // Y quien llegó aquí desde la ventana de poner una comida porque no tenía
+  // ninguna preparación vuelve a esa ventana con la recién escrita ya elegida,
+  // en vez de quedarse en una pantalla que no es la suya.
+  assert.ok(/data-volver-poner="\$\{esc\(m\.volverPoner \|\| ''\)\}"/.test(codigo), 'la ventana no recuerda de dónde se vino');
+  assert.ok(/const volverAPoner = form\.dataset\.volverPoner \|\| '';/.test(codigo));
+  assert.ok(/\? \{ type: 'poner-en-dias', month: volverAPoner, receta: receta\.id, kind: 'recipe' \}/.test(codigo),
+    'escribir la primera preparación desde ahí no devuelve a la ventana de poner una comida');
+  assert.ok(/openModal\('recipe', \{ id: '', volverPoner: el\.dataset\.month \|\| ui\.mes\.month \}\)/.test(codigo),
+    'no hay camino de la ventana vacía a escribir la primera preparación');
 });
 
 test('quitar una preparación pregunta antes, y avisa si está puesta en el calendario', () => {
@@ -371,7 +374,7 @@ test('el último paso enseña lo registrado, uno por uno, y deja volver a cada c
   assert.ok(html.includes('data-action="setup-terminar"'));
 });
 
-test('sin reglas de repetición, el último paso dice que el calendario empieza vacío', () => {
+test('el último paso dice que el calendario empieza vacío, y que se llena a mano', () => {
   // Es la promesa que no se puede callar. Alguien que acaba de registrar su
   // casa entera y abre el mes esperando encontrarlo hecho merece saberlo antes
   // de abrirlo, no después.
@@ -379,9 +382,11 @@ test('sin reglas de repetición, el último paso dice que el calendario empieza 
   upsertRecipe(conComidas.state, { name: 'Mangú', uses: ['desayuno'], items: [], note: '' });
   conComidas.ui.setup.paso = PASO.casa;
   const html = renderSetup(conComidas);
-  revisar(html, 'ver mi casa sin repeticiones');
-  assert.ok(html.includes('Tu calendario va a empezar vacío.'));
-  assert.ok(/todavía no has dicho qué días se cocina cada una/.test(html));
+  revisar(html, 'ver mi casa con una preparación escrita');
+  assert.ok(html.includes('Tu calendario empieza vacío, y así se queda hasta que tú lo llenes.'));
+  // Y se dice cómo se llena, que es lo único que evita quedarse esperando.
+  assert.ok(/marcas los días en que la quieres comer/.test(html), 'no explica cómo se pone una comida');
+  assert.ok(/La aplicación no decide por ti/.test(html), 'deja abierta la idea de que algo se llenará solo');
   // Pero se puede terminar igual: avisar no es bloquear.
   assert.ok(html.includes('data-action="setup-terminar"'));
   assert.ok(!/disabled/.test(html));
@@ -389,7 +394,7 @@ test('sin reglas de repetición, el último paso dice que el calendario empieza 
   const vacia = contexto();
   vacia.ui.setup.paso = PASO.casa;
   const sinNada = renderSetup(vacia);
-  assert.ok(sinNada.includes('Tu calendario va a empezar vacío.'));
+  assert.ok(sinNada.includes('Tu calendario empieza vacío, y así se queda hasta que tú lo llenes.'));
   assert.ok(/no hay ninguna preparación escrita/.test(sinNada));
 });
 
@@ -454,26 +459,27 @@ test('un avance guardado con la numeración vieja no aterriza en el paso equivoc
 
 /* ── Los días se dicen en la propia preparación ────────────────────────── */
 
-test('la ficha de una preparación no pregunta los días: eso es una regla aparte', () => {
+test('la ficha de una preparación no pregunta los días: los días se marcan aparte', () => {
   /* Aquí había un bloque que preguntaba los días dentro de la ficha, y
      arrastraba un error de fondo: aplicaba esos días a TODOS los momentos
      marcados arriba. Quien decía «mangú, de desayuno y de cena, los lunes»
      acababa con mangú el lunes de desayuno y el lunes de cena, cuando lo que
      quería era el lunes de desayuno y el viernes de cena.
 
-     La ficha dice en qué momentos puede comerse; cuándo se pone es una regla, y
-     hay una por momento. «Hacer que se repita» lleva de una a la otra. */
+     La ficha dice en qué momentos puede comerse; en qué días se pone se marca
+     en el plan del mes, un momento cada vez. */
   const codigo = readFileSync(resolve(import.meta.dirname, '..', 'src', 'app.js'), 'utf8');
   assert.ok(!/function bloqueDeDias\(/.test(codigo), 'el bloque de días sigue dentro de la ficha');
   assert.ok(!/function aplicarDiasDeLaReceta\(/.test(codigo), 'sigue aplicando los días a todos los momentos');
   assert.ok(!/function rutinaDeLaReceta\(/.test(codigo));
-  assert.ok(/name="repetir" value="1"/.test(codigo), 'no hay forma de pasar de la ficha a la regla');
-  assert.ok(/Hacer que se repita/.test(codigo));
-  // Y guardar con «Hacer que se repita» abre la ventana de la regla con esta
-  // preparación ya elegida, para no volver a decir el nombre del plato.
-  assert.ok(/const repetir = data\.get\('repetir'\) === '1';/.test(codigo));
-  assert.ok(/\{ type: 'rutina', month: volverARutina \|\| ui\.mes\.month \|\| today\.slice\(0, 7\), receta: receta\.id, kind: 'recipe' \}/.test(codigo),
-    'no se lleva la preparación a la ventana de la regla');
+  // Y desde una comida ya puesta se llega a ponerla otros días, con la
+  // preparación y el momento que ya se sabían.
+  const desdeLaComida = codigo.slice(codigo.indexOf("'mes-poner-en-dias'"));
+  assert.ok(desdeLaComida, 'no hay camino de una comida del calendario a ponerla en otros días');
+  assert.ok(/^'mes-poner-en-dias', 'btn-secondary btn-small', `data-receta=/.test(desdeLaComida),
+    'el botón no se lleva la preparación que ya se sabía');
+  assert.ok(/data-slot=/.test(desdeLaComida.slice(0, 200)), 'ni el momento, que también se sabía');
+  assert.ok(/Ponerla otros días/.test(codigo));
 });
 
 test('la ficha ya no pide porciones ni cantidades de los alimentos', () => {
@@ -489,39 +495,6 @@ test('la ficha ya no pide porciones ni cantidades de los alimentos', () => {
   assert.ok(!/name="unit"/.test(fila));
   // Lo que la ventana no pregunta, tampoco lo borra.
   assert.ok(/servings: anterior\?\.servings \?\? null/.test(codigo), 'editar una preparación le borraría lo que rinde');
-});
-
-test('una regla llena el mes de su momento, y solo el de su momento', () => {
-  // Una preparación que vale de desayuno y de cena no se pone en los dos a la
-  // vez: son dos reglas y cada una pone lo suyo. Aquí se escribe solo la del
-  // desayuno, y las cenas de esos días tienen que quedarse vacías.
-  const state = createEmptyState();
-  const receta = upsertRecipe(state, { name: 'Mangú con salami', uses: ['desayuno', 'cena'], items: [], note: '' });
-  const rutina = addRoutine(state, { kind: 'recipe', recipeId: receta.id, slots: ['desayuno'], weekdays: [2, 4], weeks: null, scope: 'permanent' });
-  const mes = todayISO().slice(0, 7);
-  const dias = datesForRule(mes, [2, 4], null).length;
-
-  const puestas = applyRoutine(state, rutina.id, mes, { modo: 'vacios' });
-  assert.equal(puestas.creados.length, dias, 'una regla pone una comida por día, no dos');
-  assert.ok(dias >= 8, 'un mes tiene al menos ocho martes y jueves');
-  assert.equal(state.plans.filter(plan => plan.slot === 'cena').length, 0, 'se coló en la cena');
-  assert.equal(describeRule([2, 4], null), 'Todos los martes y jueves');
-});
-
-test('con reglas ya escritas, el último paso lo dice en vez de avisar de un vacío', () => {
-  // Quien ya tenía su casa montada de antes vuelve a pasar por aquí y no puede
-  // encontrarse un aviso de que su calendario empieza vacío: no empieza vacío.
-  const state = createEmptyState();
-  const receta = upsertRecipe(state, { name: 'Mangú con salami', uses: ['desayuno', 'cena'], items: [], note: '' });
-  const rutina = addRoutine(state, { kind: 'recipe', recipeId: receta.id, slots: receta.uses, weekdays: [2, 4], weeks: null, scope: 'permanent' });
-  applyRoutine(state, rutina.id, todayISO().slice(0, 7), { modo: 'vacios' });
-
-  const ctx = contexto(state);
-  ctx.ui.setup.paso = PASO.casa;
-  const html = renderSetup(ctx);
-  revisar(html, 'ver mi casa con el mes montado');
-  assert.ok(!html.includes('Tu calendario va a empezar vacío.'), 'avisa de un vacío que no existe');
-  assert.ok(/se repite sola|se repiten solas/.test(html), 'no dice que hay comidas que se repiten solas');
 });
 
 test('terminar lleva a Hoy y no deja borrador', () => {

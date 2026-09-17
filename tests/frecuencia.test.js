@@ -12,8 +12,8 @@ import assert from 'node:assert/strict';
 
 import {
   addProduct, addPurchase, createEmptyState, createReview, frecuenciaDe, habitualLines,
-  historialDeFrecuencia, inventoryNow, periodosDelMes, ponerFrecuencia, ponerReparto,
-  quincenaDe, repartoDe, saveReview, setHabitualBasket, shoppingList, agregarALista, cerrarLista, listasCerradas
+  historialDeFrecuencia, inventoryNow, periodosDelMes, ponerFrecuencia,
+  saveReview, setHabitualBasket, agregarALista, cerrarLista, listasCerradas
 } from '../src/model.js';
 import { loadState, saveState } from '../src/storage.js';
 import { PASO, PASOS, SETUP_ACTIONS, SETUP_FORMS, avanceGuardado, emptySetup, pasosDe, renderSetup } from '../src/setup.js';
@@ -207,150 +207,6 @@ test('la frecuencia sobrevive a guardar y volver a leer', () => {
   assert.equal(frecuenciaDe(loadState(storage), '2026-10'), 'quincenal');
 });
 
-/* ── El reparto entre las dos quincenas ────────────────────────────────── */
-
-test('sin tocar nada se reparte a la mitad, y las dos partes suman el mes', () => {
-  const { state, arroz, huevo } = casa();
-  const delArroz = repartoDe(state, arroz, 20);
-  assert.deepEqual([delArroz.primera, delArroz.segunda], [10, 10]);
-  assert.equal(delArroz.sugerido, true, 'es una sugerencia, no un dato escrito');
-  const delHuevo = repartoDe(state, huevo, 60);
-  assert.equal(delHuevo.primera + delHuevo.segunda, 60);
-});
-
-test('la mitad sugerida no se escribe en el disco: sigue viva si cambia el mes', () => {
-  const { state, arroz } = casa();
-  repartoDe(state, arroz, 20);
-  assert.equal(state.settings.compra?.reparto?.[arroz], undefined, 'no se guardó nada');
-  // Si mañana el mes son 30 libras, la sugerencia se rehace sola.
-  assert.deepEqual([repartoDe(state, arroz, 30).primera, repartoDe(state, arroz, 30).segunda], [15, 15]);
-});
-
-test('un alimento se puede comprar entero en la primera quincena', () => {
-  const { state, arroz } = casa();
-  ponerReparto(state, arroz, 'todo');
-  const reparto = repartoDe(state, arroz, 20);
-  assert.deepEqual([reparto.primera, reparto.segunda], [20, 0]);
-  assert.equal(reparto.sugerido, false);
-  // Y sigue siendo «todo» aunque cambie la cantidad del mes.
-  assert.deepEqual([repartoDe(state, arroz, 35).primera, repartoDe(state, arroz, 35).segunda], [35, 0]);
-});
-
-test('o entero en la segunda', () => {
-  const { state, huevo } = casa();
-  ponerReparto(state, huevo, 'nada');
-  assert.deepEqual([repartoDe(state, huevo, 60).primera, repartoDe(state, huevo, 60).segunda], [0, 60]);
-});
-
-test('el reparto se edita por producto y cada uno va por su lado', () => {
-  const { state, arroz, huevo } = casa();
-  ponerReparto(state, arroz, 'todo');
-  ponerReparto(state, huevo, 'cantidad', 25);
-  assert.deepEqual([repartoDe(state, arroz, 20).primera, repartoDe(state, arroz, 20).segunda], [20, 0]);
-  assert.deepEqual([repartoDe(state, huevo, 60).primera, repartoDe(state, huevo, 60).segunda], [25, 35]);
-});
-
-test('las dos partes suman siempre el mes, se escriba lo que se escriba', () => {
-  // Es el criterio que no puede fallar: un alimento contado dos veces es una
-  // compra de más todos los meses, y nadie lo descubre mirando la lista.
-  const { state, arroz } = casa();
-  for (const [modo, cantidad] of [['mitad', null], ['todo', null], ['nada', null], ['cantidad', 0], ['cantidad', 7], ['cantidad', 19.5], ['cantidad', 20], ['cantidad', 999], ['cantidad', -5]]) {
-    ponerReparto(state, arroz, modo, cantidad);
-    for (const total of [20, 7, 0.5, 33.333]) {
-      const reparto = repartoDe(state, arroz, total);
-      assert.equal(Math.round((reparto.primera + reparto.segunda) * 1000) / 1000, Math.round(total * 1000) / 1000,
-        `con modo ${modo}${cantidad === null ? '' : ` (${cantidad})`} y ${total} al mes, las partes no suman el mes`);
-      assert.ok(reparto.primera >= 0 && reparto.segunda >= 0, 'ninguna parte puede ser negativa');
-    }
-  }
-});
-
-test('«a la mitad» borra la decisión anterior en vez de guardar un número', () => {
-  const { state, arroz } = casa();
-  ponerReparto(state, arroz, 'todo');
-  assert.ok(state.settings.compra.reparto[arroz]);
-  ponerReparto(state, arroz, 'mitad');
-  assert.equal(state.settings.compra.reparto[arroz], undefined);
-  assert.equal(repartoDe(state, arroz, 20).sugerido, true);
-});
-
-test('repartir un alimento que ya no existe se rechaza', () => {
-  const { state } = casa();
-  assert.throws(() => ponerReparto(state, 'producto-inventado', 'todo'), /ya no existe/i);
-});
-
-/* ── De qué sirve: la lista de la compra ───────────────────────────────── */
-
-test('la lista de una quincena usa el reparto, no los días del calendario', () => {
-  const { state, arroz } = casa();
-  ponerFrecuencia(state, 'quincenal', '2026-01');
-  ponerReparto(state, arroz, 'todo');
-
-  const primera = shoppingList(state, '2026-10-01', '2026-10-15', 'casa');
-  const segunda = shoppingList(state, '2026-10-16', '2026-10-31', 'casa');
-  const delArroz = lista => lista.lines.find(linea => linea.productId === arroz)?.need ?? 0;
-
-  assert.equal(delArroz(primera), 20, 'el arroz entero entra en la primera compra');
-  assert.equal(delArroz(segunda), 0, 'y no se vuelve a pedir en la segunda');
-});
-
-test('las dos quincenas juntas piden exactamente el mes, ni una libra de más', () => {
-  const { state, arroz, huevo } = casa();
-  ponerFrecuencia(state, 'quincenal', '2026-01');
-  ponerReparto(state, arroz, 'todo');
-  ponerReparto(state, huevo, 'cantidad', 25);
-
-  const primera = shoppingList(state, '2026-10-01', '2026-10-15', 'casa');
-  const segunda = shoppingList(state, '2026-10-16', '2026-10-31', 'casa');
-  const suma = id => (primera.lines.find(l => l.productId === id)?.need ?? 0) + (segunda.lines.find(l => l.productId === id)?.need ?? 0);
-
-  assert.equal(suma(arroz), 20, 'el arroz del mes no se duplica');
-  assert.equal(suma(huevo), 60, 'los huevos del mes no se duplican');
-});
-
-test('en febrero también suman el mes entero', () => {
-  const { state, arroz } = casa();
-  ponerFrecuencia(state, 'quincenal', '2026-01');
-  const primera = shoppingList(state, '2026-02-01', '2026-02-15', 'casa');
-  const segunda = shoppingList(state, '2026-02-16', '2026-02-28', 'casa');
-  const suma = (primera.lines[0]?.need ?? 0) + (segunda.lines[0]?.need ?? 0);
-  assert.equal(Math.round(suma * 1000) / 1000, 20);
-});
-
-test('a una casa mensual no le cambia la cuenta: sigue prorrateando por días', () => {
-  const { state, arroz } = casa();
-  // Sin frecuencia escrita, una quincena se calcula como antes: por días.
-  const lista = shoppingList(state, '2026-10-01', '2026-10-15', 'casa');
-  const esperado = Math.round(20 * (15 / 31) * 1000) / 1000;
-  assert.equal(lista.lines.find(linea => linea.productId === arroz).need, esperado);
-  assert.equal(quincenaDe(state, '2026-10-01', '2026-10-15'), null, 'sin frecuencia quincenal no hay quincena que valga');
-});
-
-test('un rango de fechas cualquiera sigue prorrateándose por días aunque la casa sea quincenal', () => {
-  const { state, arroz } = casa();
-  ponerFrecuencia(state, 'quincenal', '2026-01');
-  ponerReparto(state, arroz, 'todo');
-  // «Del 3 al 9» no es ninguna de las dos quincenas: no manda el reparto.
-  assert.equal(quincenaDe(state, '2026-10-03', '2026-10-09'), null);
-  const lista = shoppingList(state, '2026-10-03', '2026-10-09', 'casa');
-  assert.equal(lista.lines.find(linea => linea.productId === arroz).need, Math.round(20 * (7 / 31) * 1000) / 1000);
-});
-
-test('el mes de antes del cambio se calcula con la frecuencia que tenía', () => {
-  const { state, arroz } = casa();
-  ponerFrecuencia(state, 'mensual', '2026-01');
-  ponerFrecuencia(state, 'quincenal', '2026-10');
-  ponerReparto(state, arroz, 'todo');
-
-  // Septiembre era mensual: la «primera quincena» de septiembre no existe como
-  // período de compra, así que se prorratea por días y el reparto no manda.
-  const septiembre = shoppingList(state, '2026-09-01', '2026-09-15', 'casa');
-  assert.equal(septiembre.lines.find(linea => linea.productId === arroz).need, Math.round(20 * (15 / 30) * 1000) / 1000);
-  // Octubre sí.
-  const octubre = shoppingList(state, '2026-10-01', '2026-10-15', 'casa');
-  assert.equal(octubre.lines.find(linea => linea.productId === arroz).need, 20);
-});
-
 /* ── Las pantallas ─────────────────────────────────────────────────────── */
 
 test('el asistente pregunta la frecuencia, y dice para qué sirve y para qué no', () => {
@@ -425,21 +281,6 @@ test('elegir la frecuencia en el asistente la deja escrita desde este mes', () =
   assert.equal(frecuenciaDe(ctx.state, historialDeFrecuencia(ctx.state)[0].desde), 'quincenal');
   // Y sobrevive a cerrar la app.
   assert.equal(avanceGuardado(ctx.state).frecuencia, 'quincenal');
-});
-
-test('el reparto sigue existiendo, ya no en el recorrido sino en Ajustes', () => {
-  // La pantalla no se borró: quien de verdad quiera decir cuánto arroz va en
-  // cada quincena la tiene entera en Más → Ajustes → Organización de compra. Lo
-  // que se quitó es la obligación de pasar por ella para poder empezar.
-  const { state, arroz } = casa();
-  ponerFrecuencia(state, 'quincenal', '2026-01');
-  ponerReparto(state, arroz, 'todo');
-  const ctx = contexto(state, 'organizacion');
-  const html = renderMas(ctx);
-  revisar(html, 'organización de compra con reparto');
-  assert.ok(html.includes('Todo en la 1.ª'));
-  assert.ok(html.includes('1.ª quincena'));
-  assert.ok(html.includes('Repartido a la mitad porque no lo has cambiado.'), 'se dice cuál es solo una sugerencia');
 });
 
 test('la página de Organización de compra se dibuja, con y sin historial', () => {

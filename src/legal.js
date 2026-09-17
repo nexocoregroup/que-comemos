@@ -90,21 +90,6 @@ export const LEGAL = {
         ]
       },
       {
-        titulo: 'El micrófono y el dictado',
-        parrafos: [
-          'La app pide permiso de micrófono por una sola razón: para que puedas dictar en vez de escribir.',
-          'El micrófono se abre solo cuando tú tocas el botón de dictar. Nunca antes, nunca de fondo, nunca mientras la app está cerrada.',
-          'La app no graba, no guarda y no envía audio por su cuenta. No queda ningún archivo de voz en tu teléfono ni en ningún otro lado.',
-          'Quien entiende lo que dices es el reconocedor de voz del propio Android, el mismo del micrófono del teclado. La app solo recibe el texto ya convertido.',
-          'Y aquí viene la parte que hay que decir completa. Ese reconocedor funciona de dos maneras, y cuál te toca depende de tu teléfono. Si tu teléfono entiende la voz por sí solo y tiene descargado el paquete de español, todo pasa dentro del aparato y tu voz no sale de ahí. Si tu teléfono no lo trae, Android hace lo que hace siempre en ese caso: manda el audio a sus servidores para entenderlo, y por eso ahí el dictado necesita conexión. Eso lo hace Android, no nosotros, pero pasa igual y tienes derecho a saberlo.',
-          'La app le pregunta a tu teléfono cuál de los dos casos es el suyo, y si el audio va a salir te lo dice en pantalla antes de abrir el micrófono. No lo supone: lo comprueba cada vez. Así que si no ves ningún aviso, es que en tu teléfono la voz se queda dentro.',
-          'Puedes ver la respuesta para tu aparato, con calma, en Más → Ajustes → Detalle de este aparato.',
-          'Cuando Android manda ese audio a sus servidores, lo que pase con él ya depende de Google y de los ajustes de voz de tu propio teléfono, no de esta app.',
-          'Si usas la app desde un navegador en vez de instalada, el dictado lo hace el navegador, que necesita conexión y manda la voz a sus servidores. Ahí también te avisamos antes de abrir el micrófono.',
-          'Y si prefieres no usar nada de esto: escribir a mano funciona siempre, en todos los campos. Puedes negar el permiso de micrófono y la app sigue completa.'
-        ]
-      },
-      {
         titulo: 'El permiso de internet, y cuándo se usa de verdad',
         parrafos: [
           'La app pide el permiso de internet y lo usa para una sola cosa: las cuentas. Ni una más.',
@@ -126,8 +111,8 @@ export const LEGAL = {
       {
         titulo: 'Permisos que la app no pide',
         parrafos: [
-          'Vale la pena decir también lo que no está: no pide cámara, no pide galería ni fotos, no pide ubicación, no pide contactos, no pide teléfono ni llamadas, y no pide acceso a los archivos de tu teléfono.',
-          'Son dos permisos en total, micrófono e internet, y ninguno más. Hay una prueba automática que falla si alguno de los otros se cuela.'
+          'Vale la pena decir también lo que no está: no pide micrófono, no pide cámara, no pide galería ni fotos, no pide ubicación, no pide contactos, no pide teléfono ni llamadas, y no pide acceso a los archivos de tu teléfono.',
+          'Es un permiso en total, internet, y ninguno más. Hay una prueba automática que falla si alguno de los otros se cuela.'
         ]
       },
       {
@@ -260,21 +245,6 @@ export const LEGAL = {
         parrafos: [
           'No hay mucho que prohibir aquí, pero conviene decirlo: no la uses para nada ilegal, no la distribuyas haciéndola pasar por tuya, no la publiques en otra tienda como si fuera otra app, y no quites ni cambies las marcas, los nombres o los avisos legales para redistribuirla.',
           'El nombre «¿Qué comemos?», la marca NexoCore y el diseño gráfico de la app son nuestros. Usar la app no te da derecho sobre ellos.'
-        ]
-      },
-      {
-        titulo: 'La asistente vive aquí dentro',
-        parrafos: [
-          'La asistente entiende las frases aquí dentro, en tu teléfono, reconociéndolas por su forma. Por eso entiende unas cuantas maneras de decir las cosas y no cualquier frase suelta. Cuando no entiende algo, te dice lo que sí sabe hacer y te lleva a la pantalla que toca: no manda tu frase a ningún lado para que otro la interprete.',
-          'Todo lo que la asistente hace se puede hacer también a mano, en su pantalla. Es una comodidad, no un requisito.'
-        ]
-      },
-      {
-        titulo: 'El dictado depende de tu teléfono',
-        parrafos: [
-          'Poder dictar en vez de escribir depende del reconocedor de voz de tu propio Android y del idioma que tenga descargado. En unos teléfonos entiende sin conexión y en otros necesita internet.',
-          'Eso no lo controlamos nosotros, así que no te lo prometemos: la app le pregunta a tu teléfono qué puede hacer y, si al dictar el audio va a salir del aparato, te lo dice antes de abrir el micrófono. La respuesta para tu teléfono está en Más → Ajustes → Detalle de este aparato.',
-          'Escribir a mano funciona siempre, en todos los campos, con micrófono o sin él.'
         ]
       },
       {

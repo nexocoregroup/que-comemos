@@ -8,10 +8,10 @@
 // la frecuencia con que hace falta de verdad.
 
 import {
-  MOMENTOS, SLICEABLE, SLICE_STYLES, SLOTS, SLOTS_PRINCIPALES, UNITS, addDays, addProduct, copyPlan, correctReview, correctStock, createEmptyState, dependents, choquesDeLaComida, esOpcional,
+  MOMENTOS, SLICEABLE, SLICE_STYLES, SLOTS, SLOTS_PRINCIPALES, UNITS, addDays, addProduct, copyPlan, correctReview, correctStock, createEmptyState, dependents, choquesDeLaComida, esOpcional, gravedadDeLaComida,
   etiquetaDeMomento, exportState, findSimilarProducts, habitualLines, importState, inventoryNow, esActiva, isAbsent, linkPlan, makeRecipePlan, mergeProducts, movePlan, nextId,
   personasActivas, planFor, ponerFrecuencia, product, promoteToHabitual, quantity, removeMonthChange,
-  reservedQuantity, restriccionesDe, saveReview, setAbsence, setEquivalence, setHabitualBasket,
+  reservedQuantity, restriccionesDe, resumenDeLista, saveReview, setAbsence, setEquivalence, setHabitualBasket,
   setHabitualLine, setMonthChange, detalleDeOrigen, etiquetaDeOrigen, origenDe, setReviewScope, setSlice, setStatusPlan, sliceStyle, todayISO, updatePlan, updateProduct, upsertRecipe
 } from './model.js';
 import { clearAll, hasSavedState, loadStateDetailed, saveState } from './storage.js';
@@ -19,17 +19,13 @@ import { BRAND_MARK } from './brand.js';
 import { icono } from './icons.js';
 import { TOUR_STEPS, WELCOME } from './onboarding.js';
 import { CATEGORIES } from './catalog-seed.js';
-import { SETUP_ACTIONS, SETUP_FORMS, aplicarReparto, avanceGuardado, emptySetup, renderSetup } from './setup.js';
+import { SETUP_ACTIONS, SETUP_FORMS, avanceGuardado, emptySetup, renderSetup } from './setup.js';
 import { HOGAR_ACTIONS, HOGAR_FORMS, cuerpoDeFicha, emptyHogar, fichaActiva, renderHogar, tocaConfigurarElHogar } from './hogar.js';
-import { CHAT_ACTIONS, CHAT_FORMS, emptyChat, renderChat } from './chat-ui.js';
 import { BULK_ACTIONS, BULK_FORMS, emptyBulk, renderBulk } from './bulk-entry.js';
-import { MES_ACTIONS, MES_FORMS, abrirMesSiHaceFalta, emptyMes, modalDia, modalRutina, renderMes } from './page-mes.js';
-import { describeRule, reglasDePreparacion } from './routines.js';
+import { MES_ACTIONS, MES_FORMS, emptyMes, modalDia, modalPonerEnDias, renderMes } from './page-mes.js';
 import { COMPRA_ACTIONS, COMPRA_FORMS, emptyCompra, listaEnCurso, renderCompra } from './page-compra.js';
-import { MAS_ACTIONS, PAGINAS_MAS, TITULOS_MAS, aplicarDictado, emptyMas, renderMas } from './page-mas.js';
-import { avisoDeVoz, cancelarDictado, capacidad, diagnostico, falloAnterior, olvidarFalloAnterior } from './device.js';
-import { VOZ_ACTIONS, comprobarSiElDictadoMatoLaApp, emptyVoz, fallosDeVoz, seRindio } from './voz.js';
-import { anotar, fallosRecientes, instalarRed, protegida } from './fallos.js';
+import { MAS_ACTIONS, PAGINAS_MAS, TITULOS_MAS, emptyMas, renderMas } from './page-mas.js';
+import { anotar, falloAnterior, fallosRecientes, instalarRed, olvidarFalloAnterior, protegida } from './fallos.js';
 import { CUENTA_ACTIONS, CUENTA_FORMS, emptyCuenta, renderCuenta, volvimosDeGoogle } from './page-cuenta.js';
 import { CAJON_DE_ESTE_TELEFONO, arrancarSesion, cajonDe, fundirSesion, guardarSesion, olvidarSesion } from './sesion.js';
 import { guardarCopiaAntesDeBajar, mereceLaPenaVincular, sincronizar } from './sincronizar.js';
@@ -86,9 +82,8 @@ function abrirCajon(cual) {
   // El asistente de la canasta se retoma donde se dejó: lo marcado vive en el
   // estado, así que abrir la app en otro momento —u otro teléfono— devuelve el
   // mismo rubro con las mismas casillas marcadas.
-  ui.setup = avanceGuardado(state); ui.chat = null; ui.bulk = null;
+  ui.setup = avanceGuardado(state); ui.bulk = null;
   ui.hogar = emptyHogar();
-  ui.voz = emptyVoz();
 }
 const today = todayISO();
 const mesActual = today.slice(0, 7);
@@ -101,20 +96,16 @@ const ui = {
   // El asistente de la canasta arranca donde se dejó. `abrirCajon` hace lo
   // mismo al cambiar de cuenta, pero en el arranque normal —sin sesión— no
   // pasa por ahí: el estado se lee arriba del todo y esta es su única puerta.
-  setup: avanceGuardado(state), chat: null, bulk: null,
+  setup: avanceGuardado(state), bulk: null,
   hogar: emptyHogar(),
   mes: emptyMes(mesActual),
   compra: emptyCompra(mesActual),
   mas: emptyMas(),
   reviewId: null, correctingReview: false,
-  voz: emptyVoz(),
   cuenta: emptyCuenta(),
   sesion: null,
   sidebarCollapsed: sidebarInitiallyCollapsed, drawerOpen: false,
-  welcome: firstRun, tour: null,
-  // Lo que hay que contarle a la persona nada más abrir: que la vez anterior la
-  // aplicación se cerró sola mientras dictaba. Se llena en el arranque.
-  avisoDeArranque: ''
+  welcome: firstRun, tour: null
 };
 
 
@@ -388,7 +379,6 @@ const NAV = [
 const RAPIDAS = [
   ['rapida-comida', 'plato', 'Poner una comida', 'En un día, o en todos los lunes'],
   ['open-recipe', 'libro', 'Crear una preparación', 'Un plato que se repite en casa'],
-  ['open-chat', 'burbuja', 'Hablar o dictar', 'Dile lo que pasó y ella lo anota'],
   ['navigate', 'canasta', 'Preparar la compra', 'Lo que hay que llevar del colmado', 'data-page="compra"'],
   ['open-product', 'hoja', 'Añadir un alimento', 'Uno nuevo, con su medida']
 ];
@@ -425,12 +415,7 @@ function commit(message) {
 function ctx() {
   return {
     state, ui, commit, guardar, toast, render, closeModal, openModal,
-    startTour: () => goTour(0),
-    servicios: {
-      transcribe: capacidad('dictar').ok,
-      chat: false,
-      enElAparato: { voz: capacidad('dictar').ok }
-    }
+    startTour: () => goTour(0)
   };
 }
 
@@ -440,21 +425,6 @@ function ctx() {
 // comparten las preparaciones y las compras.
 function ctxHogar() {
   return { ...ctx(), leerHabitual: form => collectItems(form) };
-}
-
-// El panel de dictado sirve a cuatro pantallas, así que necesita ver los cuatro
-// trozos de interfaz donde puede acabar el texto. `alUsarLaVoz` es la puerta por
-// la que una pantalla hace algo más que guardar lo dicho: la revisión lo reparte
-// entre las casillas de los alimentos en vez de dejarlo en un campo.
-function ctxConVoz() {
-  return {
-    ...ctx(),
-    chat: ui.chat,
-    bulk: ui.bulk,
-    alUsarLaVoz: (destino, texto) => {
-      if (destino === 'revision' && texto.trim()) aplicarDictado(ctx(), texto);
-    }
-  };
 }
 
 const TITULOS = { hoy: 'Hoy en casa', mes: 'Plan mensual', compra: 'La compra', mas: 'Más', setup: 'Organizar mi casa', hogar: 'Mi hogar', legal: 'Privacidad y condiciones', cuenta: 'Mi cuenta', ...TITULOS_MAS };
@@ -568,7 +538,6 @@ function pintar() {
       <div class="mobile-brand"><button type="button" class="menu-toggle" data-action="toggle-sidebar" aria-label="${ui.drawerOpen ? 'Ocultar menú' : 'Abrir menú'}" aria-controls="app-sidebar" aria-expanded="${ui.drawerOpen}">${icono('menu', { tamano: 22 })}</button><span class="brand-mark">${BRAND_MARK}</span><span>¿Qué comemos?</span></div>
       <header class="topline"><div class="topline-heading"><button type="button" class="menu-toggle desktop-menu-toggle" data-action="toggle-sidebar" aria-label="${ui.sidebarCollapsed ? 'Abrir menú' : 'Ocultar menú'}" aria-controls="app-sidebar" aria-expanded="${!ui.sidebarCollapsed}">${icono('menu', { tamano: 22 })}</button><div><p class="eyebrow">${esc(eyebrow())}</p><h1>${esc(pageTitle())}</h1></div></div></header>
       ${avisoDeSesion ? notice('Sobre tu cuenta', `${esc(avisoDeSesion)} <button type="button" class="enlace" data-action="navigate" data-page="cuenta">Ir a mi cuenta</button>`, 'warn') : ''}
-      ${ui.avisoDeArranque ? notice('La vez anterior la aplicación se cerró sola', `${esc(ui.avisoDeArranque)} <button type="button" class="enlace" data-action="entendido-el-cierre">Entendido</button>`, 'warn') : ''}
       ${migratedFrom ? notice('Tus datos se actualizaron al formato nuevo.', 'La canasta que tenías es ahora <strong>tus productos habituales</strong>, y lo que cambiaba en algún mes quedó guardado como cambio de ese mes. Nada se perdió, y lo anterior quedó a salvo por si acaso.') : ''}
       ${loadError ? notice('No se pudieron leer los datos guardados.', `${esc(loadError)} Trae una copia desde Más → Respaldo, o borra los datos para empezar de nuevo.`, 'error') : ''}
       ${state.demo ? `<div class="demo-banner">${icono('chispa')}<div><strong>Estás viendo un ejemplo</strong>Las cantidades son inventadas para que veas cómo funciona; no son recomendaciones de alimentación.</div>${button('Borrar el ejemplo', 'clear-demo', 'btn-secondary btn-small')}</div>` : ''}
@@ -799,7 +768,7 @@ function avisoDeAlergias(items, participants, { conSalidas = false } = {}) {
 
 function avisoDeChoques(choques, { conSalidas = false } = {}) {
   if (!choques.length) return '';
-  const peor = Math.max(...choques.map(choque => choque.gravedad));
+  const peor = gravedadDeLaComida(choques);
   const lineas = choques.map(choque =>
     `<li><strong>${esc(choque.persona)}</strong> ${esc(VERBO_DE_MOTIVO[choque.motivo] || 'evita')} <strong>${esc(choque.producto)}</strong>${choque.motivo ? '' : ' <span class="muted">(sin decir por qué)</span>'}</li>`).join('');
   return `<div class="choque ${TONO_DE_GRAVEDAD[peor] || 'choque-intolerancia'}" role="${peor === 3 ? 'alert' : 'status'}">
@@ -842,8 +811,8 @@ function bloqueDeQuienCome(name, marcados, date, slot, { abierto } = {}) {
 
 // Delante de una comida del calendario, la primera pregunta de cualquiera es
 // si la puso él. Contestarla en una línea es lo que hace que se atreva a
-// cambiarla: quitar algo que vino de una rutina no es lo mismo que quitar algo
-// que uno mismo escribió el martes.
+// cambiarla: quitar algo que viene de una versión anterior de la app no es lo
+// mismo que quitar algo que uno mismo escribió el martes.
 function lineaDeOrigen(plan) {
   const origen = origenDe(plan);
   return `<p class="origen-linea"><span class="origen-punto origen-${esc(origen)}" aria-hidden="true"></span><strong>${esc(etiquetaDeOrigen(origen))}</strong> · ${esc(detalleDeOrigen(origen))}</p>`;
@@ -860,51 +829,6 @@ function checkPeople(name, selected, date = null, slot = null) {
 
 /* ── Ventanas ──────────────────────────────────────────────────────────── */
 
-/* ── ¿Y qué días se repite? ────────────────────────────────────────────────
-
-   Esto vivía solo en la ventana de rutinas del plan mensual: la preparación se
-   escribía en un sitio y cuándo se repite se decía en otro, y entre las dos
-   pantallas se perdía la mitad de la gente. Quien acaba de escribir «mangú con
-   salami, desayuno y cena» ya sabe que es los martes y los jueves; hacerle
-   guardar, salir, entrar en otra pantalla y volver a elegir su preparación de
-   un desplegable es pedirle el mismo dato dos veces con un viaje en medio.
-
-   Marcar días aquí escribe la regla y la aplica al mes en curso, de golpe. No
-   marcar ninguno no hace nada: hay platos que no tienen día fijo, y esa es una
-   respuesta legítima. */
-
-/* ── Lo que esta preparación ya repite ─────────────────────────────────────
-
-   Aquí había un bloque que preguntaba los días dentro de la ficha, y arrastraba
-   un error de fondo: aplicaba los días a **todos** los momentos marcados arriba.
-   Quien decía «mangú, de desayuno y de cena, los lunes» acababa con mangú el
-   lunes de desayuno y el lunes de cena, cuando lo que quería era el lunes de
-   desayuno y el viernes de cena.
-
-   La ficha dice en qué momentos **puede** comerse. Cuándo **se pone** es una
-   regla aparte, una por momento, y se escribe en su propia ventana. Aquí solo se
-   enseñan las que ya hay, para no tener que ir a buscarlas a otra pantalla. */
-
-function bloqueDeRepeticiones(recipe) {
-  if (!recipe) {
-    return `<p class="small muted receta-repite-nota">Al guardar podrás decir qué días se repite. Se hace por separado para cada momento: los lunes de desayuno es una regla, los viernes de cena es otra.</p>`;
-  }
-  const suyas = reglasDePreparacion(state, recipe.id);
-  if (!suyas.length) {
-    return `<div class="field receta-repite">
-      <span>Todavía no se repite sola</span>
-      <p class="small muted">Está guardada y la puedes poner en el calendario cuando quieras. Con «Hacer que se repita» se coloca sola los días que digas.</p>
-    </div>`;
-  }
-  return `<div class="field receta-repite">
-    <span>Se repite ${suyas.length === 1 ? 'así' : 'así, en ' + suyas.length + ' reglas'}</span>
-    <ul class="receta-reglas">${suyas.map(regla => `<li>
-      <strong>${esc(cap(etiquetaDeMomento(regla.momento)))}</strong> · ${esc(describeRule(regla.weekdays, regla.weeks))}
-      ${regla.active === false ? '<span class="pill gray">en pausa</span>' : regla.scope === 'permanent' ? '' : `<span class="pill warm">solo ${esc(monthName(regla.month))}</span>`}
-    </li>`).join('')}</ul>
-    <small>Cada una se edita, se pausa y se quita por separado desde Plan mensual → «Lo que se repite».</small>
-  </div>`;
-}
 
 function renderModal() {
   const m = ui.modal;
@@ -914,29 +838,12 @@ function renderModal() {
       `<button type="button" class="quick-item" data-action="${action}" ${extra}><span class="quick-icon">${icono(dibujo, { tamano: 24 })}</span><span class="quick-text"><strong>${esc(titulo)}</strong><span>${esc(detalle)}</span></span></button>`).join('')}</div>`);
   }
 
-  if (m.type === 'rutina') return modalRutina(ctx(), m);
+  if (m.type === 'poner-en-dias') return modalPonerEnDias(ctx(), m);
 
   if (m.type === 'dia') return modalDia(ctx(), m);
 
   if (m.type === 'meal') return modalComida(m);
 
-  if (m.type === 'alcance-comida') {
-    const plan = state.plans.find(item => item.id === m.id);
-    const rutina = state.mealRoutines?.find(item => item.id === plan?.routineId);
-    const quitando = m.accion === 'quitar';
-    const cuantas = state.plans.filter(item => item.routineId === plan.routineId).length;
-    return modal('¿Qué quieres cambiar?', `${etiquetaDeMomento(plan.slot)} · ${niceDate(plan.date, { weekday: 'long', day: 'numeric', month: 'long' })}`,
-      `<p class="muted small">Esta comida viene de una rutina${rutina ? ` —${esc(describeRutina(rutina))}— que está puesta en ${cuantas} día(s)` : ''}. Dinos hasta dónde llega ${quitando ? 'lo que quitas' : 'el cambio'}.</p>
-       <div class="opcion-larga" style="margin-top:16px">
-         ${[['sola', 'Solo esta fecha', quitando ? 'Las demás se quedan igual, y la rutina también.' : 'Esta comida deja de seguir la rutina; las demás siguen igual.'],
-            ['siguientes', 'Esta y todas las siguientes', 'Las anteriores no se tocan.'],
-            ['todas', 'Toda la rutina', 'Incluidas las que ya pasaron este mes.']].map(([valor, titulo, detalle]) =>
-           `<button type="button" class="radio-bloque" data-action="alcance-elegido" data-id="${plan.id}" data-alcance="${valor}"><span><strong>${esc(titulo)}</strong>${esc(detalle)}</span></button>`).join('')}
-       </div>
-       ${rutina ? `<p class="small muted" style="margin-top:16px">Las tres cambian comidas ya puestas. Para cambiar <strong>la regla</strong> —qué días, en qué comida, desde cuándo, si es de todos los meses— hay que editarla:
-         <button type="button" class="enlace" data-action="open-routine" data-id="${esc(rutina.id)}">Editar la regla completa</button>.
-         Eso sí llega a los meses que vengan.</p>` : ''}`);
-  }
 
   /* ── Una preparación ──────────────────────────────────────────────────────
 
@@ -957,7 +864,7 @@ function renderModal() {
     const enCasa = personasActivas(state).length;
     return modal(recipe ? 'Editar preparación' : 'Nueva preparación',
       'Con el nombre y cuándo se come ya basta. Lo demás se puede añadir después.',
-      `<form data-form="recipe" data-id="${recipe?.id || ''}" data-volver-rutina="${esc(m.volverRutina || '')}" class="receta-form">
+      `<form data-form="recipe" data-id="${recipe?.id || ''}" data-volver-poner="${esc(m.volverPoner || '')}" class="receta-form">
         <label class="field"><span>¿Cómo se llama?</span><input name="name" required value="${esc(recipe?.name || '')}" placeholder="Ej. Mangú con salami"></label>
 
         <div class="field">
@@ -975,11 +882,9 @@ function renderModal() {
 
         <label class="field"><span>Nota para quien cocina (opcional)</span><textarea name="note" placeholder="Ej. guardar lo que sobre para el desayuno del día siguiente" autocapitalize="sentences" spellcheck="true" enterkeyhint="done">${esc(recipe?.note || '')}</textarea></label>
 
-        ${bloqueDeRepeticiones(recipe)}
 
         <div class="modal-actions">
           ${recipe ? '' : '<button class="btn btn-secondary" type="submit" name="seguir" value="1">Guardar y añadir otra</button>'}
-          <button class="btn btn-secondary" type="submit" name="repetir" value="1">Hacer que se repita</button>
           <button class="btn btn-primary" type="submit">Guardar</button>
         </div>
       </form>`, true);
@@ -1121,8 +1026,7 @@ function renderModal() {
         <div class="modal-actions"><button type="submit" class="btn btn-primary">${m.type === 'move' ? 'Mover' : 'Copiar'}</button></div></form>`);
   }
 
-  if (m.type === 'chat') return modal('Asistente', 'Dile lo que pasó en casa. Antes de tocar nada te enseña lo que entendió.', renderChat({ ...ctx(), chat: ui.chat }), true);
-  if (m.type === 'bulk') return modal('Escribir o dictar varios', 'De corrido, como se habla. La app lo separa y tú revisas antes de guardar.', renderBulk({ ...ctx(), bulk: ui.bulk }), true);
+  if (m.type === 'bulk') return modal('Escribir varios', 'De corrido, como se habla. La app lo separa y tú revisas antes de guardar.', renderBulk({ ...ctx(), bulk: ui.bulk }), true);
 
   if (m.type === 'correction') {
     const elegido = m.id || state.products[0]?.id;
@@ -1147,9 +1051,6 @@ function renderModal() {
   return '';
 }
 
-function describeRutina(rutina) {
-  return rutina.label || (rutina.kind === 'outside' ? 'comemos fuera' : rutina.kind === 'order' ? 'pedimos comida' : state.recipes.find(item => item.id === rutina.recipeId)?.name || 'preparación');
-}
 
 // La ventana de una comida es donde se decide entre «solo hoy» y «todos los
 // lunes». Ofrecer las dos cosas aquí es lo que evita tener que tocar dieciocho
@@ -1168,13 +1069,7 @@ function modalComida(m) {
       ${bloqueDeQuienCome('participants', marcados, m.date, m.slot, { abierto: bloqueDeQuienComeAbierto(ui) })}
       <div data-choque>${avisoDeAlergias(opciones[0]?.items || [], marcados, { conSalidas: true })}</div>
       ${opciones.length
-        ? `<div class="field"><span>¿Solo hoy, o se repite?</span>
-            <div class="radio-fila">
-              <label class="radio-pill"><input type="radio" name="repetir" value="sola" checked><span>Solo este día</span></label>
-              <label class="radio-pill"><input type="radio" name="repetir" value="rutina"><span>Hacerla rutina</span></label>
-            </div>
-            <small>«Hacerla rutina» te deja elegir los días de la semana y llena el mes entero de una vez.</small></div>
-           <button type="submit" class="btn btn-primary">Poner esta comida</button>`
+        ? `<button type="submit" class="btn btn-primary">Poner esta comida</button>`
         : `<div class="hint">Todavía no tienes preparaciones para ${esc(etiquetaDeMomento(m.slot).toLocaleLowerCase('es'))}. ${button('Crear una', 'open-recipe', 'btn-secondary btn-small')}</div>`}
       </form>
       <div class="divider"></div>
@@ -1189,15 +1084,13 @@ function modalComida(m) {
       <div class="modal-actions">${button('Cambiarla por una comida', 'delete-plan', 'btn-secondary', `data-id="${plan.id}"`)}${button('Quitar la marca', 'delete-plan', 'btn-quiet', `data-id="${plan.id}"`)}</div>`);
   }
   // Cambiar el plato de un solo día. Antes había que quitar la comida y volver a
-  // ponerla, y quien lo intentaba sobre una comida de una rutina se encontraba
-  // con la pregunta del alcance —solo esta, las siguientes, toda la rutina—
-  // cuando lo único que quería era cenar otra cosa ese jueves.
+  // ponerla, que son dos gestos para decir «ese jueves cenamos otra cosa».
   const cambiables = plan.kind === 'recipe'
     ? state.recipes.filter(recipe => recipe.uses.includes(plan.slot) && recipe.id !== plan.recipeId)
     : [];
   return modal(plan.kind === 'linked' ? 'Comida apartada' : 'Esta comida', contexto,
     `${lineaDeOrigen(plan)}
-     ${plan.routineId ? `<div class="hint">Esta comida viene de una costumbre. Lo que cambies aquí vale <strong>solo para este día</strong>, y la costumbre se queda como está; para cambiarla en los meses siguientes, edita la regla en Plan mensual.</div>` : '<div class="hint">Lo que cambies aquí afecta solo a este día.</div>'}
+     <div class="hint">Lo que cambies aquí afecta solo a este día.</div>
      ${cambiables.length ? `<form data-form="sustituir" data-id="${plan.id}" class="sustituir-comida">
         <label class="field"><span>Cambiar por otra preparación, solo este día</span>
           <select name="recipeId">${options(cambiables.map(recipe => [recipe.id, recipe.name]), '', 'Elegir otra…')}</select>
@@ -1221,16 +1114,16 @@ function modalComida(m) {
      </form>
      <div class="divider"></div>
      <div class="inline">
-       ${/* Desde una comida ya puesta: la ventana de la regla se abre con esta
-            preparación y este momento ya elegidos. Lo único que queda por decir
-            son los días, que es lo único que esta comida no sabe. */''}
-       ${plan.kind === 'recipe' && plan.recipeId && !plan.routineId
-         ? button('Hacer que se repita', 'mes-nueva-rutina', 'btn-secondary btn-small', `data-receta="${esc(plan.recipeId)}" data-slot="${esc(plan.slot)}"`)
+       ${/* Desde una comida ya puesta: la ventana de poner en varios días se abre
+            con esta preparación y este momento ya elegidos. Lo único que queda
+            por marcar son los días, que es lo único que esta comida no sabe. */''}
+       ${plan.kind === 'recipe' && plan.recipeId
+         ? button('Ponerla otros días', 'mes-poner-en-dias', 'btn-secondary btn-small', `data-receta="${esc(plan.recipeId)}" data-slot="${esc(plan.slot)}" data-kind="recipe"`)
          : ''}
        ${plan.kind === 'recipe' ? button('Apartar para otro día', 'open-link', 'btn-quiet btn-small', `data-id="${plan.id}"`) : ''}
        ${button('Mover', 'open-move', 'btn-quiet btn-small', `data-id="${plan.id}"`)}
        ${plan.kind !== 'linked' ? button('Copiar', 'open-copy', 'btn-quiet btn-small', `data-id="${plan.id}"`) : ''}
-       ${button('Quitar', plan.routineId ? 'open-alcance' : 'delete-plan', 'btn-quiet btn-small', `data-id="${plan.id}"`)}
+       ${button('Quitar', 'delete-plan', 'btn-quiet btn-small', `data-id="${plan.id}"`)}
      </div>
      <div class="small strong" style="margin:17px 0 8px">O cambiarla a</div>
      <div class="inline">${[['outside', 'Comemos fuera'], ['order', 'Pedimos comida'], ['unplanned', 'Todavía no sabemos']].map(([kind, label]) =>
@@ -1307,33 +1200,16 @@ function modalProducto(m) {
       <div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar</button></div></form>`);
 }
 
-// Sin esta pantalla, un «no me funciona el micrófono» es imposible de resolver a
-// distancia. Con ella, basta con que la persona mande esta lista.
+// Sin esta pantalla, un «se me cerró» es imposible de resolver a distancia. Con
+// ella, basta con que la persona mande esta lista.
 function modalDiagnostico() {
-  const d = diagnostico();
-  return modal('Detalle de este aparato', 'Lo que tu teléfono puede hacer solo.',
-    `<div class="cap-list">
-      <div class="cap-row ${d.dictar.ok ? 'si' : 'no'}">
-        <span class="cap-mark" aria-hidden="true">${d.dictar.ok ? '✓' : '—'}</span>
-        <div><strong>Dictar en vez de escribir</strong><span>${esc(d.dictar.detalle)}</span></div>
-        <span class="pill ${d.dictar.ok ? '' : 'gray'}">${d.dictar.ok ? (d.dictar.origen === 'telefono' ? 'En tu teléfono' : 'En el navegador') : 'No disponible'}</span>
-      </div>
-    </div>
-    ${avisoDeVoz()
-      ? notice('Dónde se convierte tu voz en texto.', esc(avisoDeVoz()), 'warn')
-      : notice('No hay nada que configurar.', 'El dictado viaja dentro de la aplicación: no hace falta cuenta, ni clave, y en este teléfono <strong>tu voz no sale del aparato</strong>.')}
-    <details class="more" style="margin-top:16px">
-      <summary>Detalle técnico</summary>
-      <p class="small muted">Para poder explicar un «no me funciona» sin tener el teléfono delante.</p>
-      <table class="data-table"><tbody>
-        <tr><td>Dónde corre</td><td class="num">${esc(d.plataforma)}</td></tr>
-        ${Object.entries(d.complementos || {}).map(([nombre, hay]) => `<tr><td>${esc(nombre)}</td><td class="num ${hay ? 'good' : 'pending'}">${hay ? 'presente' : 'ausente'}</td></tr>`).join('')}
-        ${d.voz?.ultimoError ? `<tr><td>Último fallo del micrófono</td><td class="num pending">${esc(d.voz.ultimoError.codigo || 'sin código')}</td></tr>` : ''}
-        <tr><td>Fallos del micrófono seguidos</td><td class="num ${seRindio() ? 'pending' : 'good'}">${fallosDeVoz()}${seRindio() ? ' · dejé de abrirlo solo' : ''}</td></tr>
-      </tbody></table>
-      ${listaDeFallos()}
-    </details>
-    ${notice('Esta app no habla con ningún servidor.', 'No hay dirección que configurar ni clave que guardar: lo que la asistente entiende, lo entiende aquí dentro, y lo que no entiende lo dice en vez de mandarlo fuera.')}`, true);
+  const instalada = Boolean(globalThis.Capacitor?.isNativePlatform?.());
+  const plataforma = instalada ? `Aplicación instalada (${globalThis.Capacitor?.getPlatform?.() || 'android'})` : 'Navegador';
+  return modal('Detalle de este aparato', 'Para poder explicar un fallo sin tener el teléfono delante.',
+    `<table class="data-table"><tbody>
+      <tr><td>Dónde corre</td><td class="num">${esc(plataforma)}</td></tr>
+    </tbody></table>
+    ${listaDeFallos()}`, true);
 }
 
 // Lo que la red global lleva recogido desde que se abrió la aplicación.
@@ -1343,8 +1219,8 @@ function modalDiagnostico() {
 // que nadie pueda seguir. Con esto, la respuesta cabe en una captura de
 // pantalla: la clase del error, el mensaje y de dónde salió.
 //
-// Se enseña dentro de un `<details>` que ya estaba plegado: quien no tenga un
-// problema no tiene por qué ver esto nunca.
+// Cuando no se ha roto nada lo dice con una línea, que es la respuesta que hace
+// falta cuando se abre esto por curiosidad y no por un problema.
 function listaDeFallos() {
   const filas = fallosRecientes();
   if (!filas.length) return '<p class="small muted">No se ha roto nada desde que abriste la aplicación.</p>';
@@ -1393,27 +1269,10 @@ const selected = (form, name) => [...form.querySelectorAll(`[name="${name}"]`)]
   .map(input => input.value);
 
 function closeModal() {
-  // Cerrar la ventana mientras el micrófono escucha tiene que apagarlo: si no,
-  // el motor sigue vivo detrás y el siguiente dictado arranca sobre el anterior.
-  cerrarLaVoz();
   ui.modal = null;
   render();
 }
 
-// Un solo sitio donde se apaga el micrófono al irse de donde estaba abierto.
-//
-// Antes había uno por pantalla, y cada uno miraba su propia bandera: la de la
-// revisión comprobaba `ui.mas.revisionEscuchando`, que dejó de existir al pasar
-// el dictado a `voz.js`, así que salir de la revisión con el micrófono abierto
-// lo habría dejado escuchando detrás. Ahora la bandera es una sola y esto la
-// mira siempre, venga de donde venga.
-function cerrarLaVoz() {
-  if (!ui.voz?.destino) return;
-  ui.voz.sesion += 1;
-  ui.voz.destino = '';
-  ui.voz.estado = 'quieto';
-  Promise.resolve(cancelarDictado()).catch(error => anotar('cerrar-la-voz', error));
-}
 function openModal(type, extras = {}) { ui.modal = { type, ...extras }; render(); }
 function sidebarOnMobile() { return window.matchMedia('(max-width: 700px)').matches; }
 function closeSidebar() {
@@ -1445,10 +1304,10 @@ function proximaComidaLibre() {
 
 /* ── Reparto de clics ──────────────────────────────────────────────────── */
 
-// Las acciones de las pantallas son la mitad `async` —todo lo que toca el
-// micrófono lo es—, y una función `async` que falla no cae dentro del `try` que
-// la llamó: su promesa se rechaza después, cuando ese `try` ya terminó. Así se
-// escapaban los fallos del dictado. `protegida` engancha los dos casos.
+// Las acciones de las pantallas son la mitad `async` —todo lo que toca la
+// cuenta o la nube lo es—, y una función `async` que falla no cae dentro del
+// `try` que la llamó: su promesa se rechaza después, cuando ese `try` ya
+// terminó. Por ahí se escapaban. `protegida` engancha los dos casos.
 const llamarAccion = (nombre, fn, el, contexto) =>
   protegida(`accion:${nombre}`, fn, fila => toast(mensajeDeFallo(fila), true))(el, contexto);
 
@@ -1462,22 +1321,14 @@ document.addEventListener('click', event => {
   const el = event.target.closest('[data-action]'); if (!el) return;
   const action = el.dataset.action;
   try {
-    // El panel de dictado va primero y es el mismo para las cuatro pantallas
-    // desde donde se puede dictar.
-    if (VOZ_ACTIONS[action]) { llamarAccion(action, VOZ_ACTIONS[action], el, ctxConVoz()); return; }
     if (CUENTA_ACTIONS[action]) { llamarAccion(action, CUENTA_ACTIONS[action], el, ctxCuenta()); return; }
 
     // Las pantallas que viven en su propio archivo traen sus propias acciones.
     if (SETUP_ACTIONS[action]) {
       llamarAccion(action, SETUP_ACTIONS[action], el, ctx());
-      // Salir del onboarding hacia el plan del mes tiene que abrirlo igual que
-      // entrar por la barra de abajo; si no, el mes queda sin estrenar y el
-      // aviso de «ya está preparado» aparecería más tarde y fuera de sitio.
-      if (ui.page === 'mes' && abrirMesSiHaceFalta(ctx(), ui.mes.month)) commit('');
       return;
     }
     if (HOGAR_ACTIONS[action]) { llamarAccion(action, HOGAR_ACTIONS[action], el, ctxHogar()); return; }
-    if (CHAT_ACTIONS[action]) { llamarAccion(action, CHAT_ACTIONS[action], el, { ...ctx(), chat: ui.chat }); return; }
     if (BULK_ACTIONS[action]) { llamarAccion(action, BULK_ACTIONS[action], el, { ...ctx(), bulk: ui.bulk }); return; }
     if (MES_ACTIONS[action]) { llamarAccion(action, MES_ACTIONS[action], el, ctx()); return; }
     if (COMPRA_ACTIONS[action]) { llamarAccion(action, COMPRA_ACTIONS[action], el, ctx()); return; }
@@ -1485,25 +1336,20 @@ document.addEventListener('click', event => {
 
     // Un atajo puede pedir que la app se sitúe antes en la pantalla donde se
     // verá el resultado de lo que se está por escribir.
-    if (el.dataset.goto) { ui.page = el.dataset.goto; if (ui.page === 'mes') abrirMesSiHaceFalta(ctx(), ui.mes.month); }
+    if (el.dataset.goto) ui.page = el.dataset.goto;
 
     if (action === 'navigate') {
-      // Cambiar de pantalla con el micrófono abierto lo dejaría escuchando
-      // detrás de una pantalla que ya no se ve.
-      cerrarLaVoz();
       ui.page = el.dataset.page;
       // Salir de la canasta se lleva el aviso: volver dentro de un rato y
       // encontrarse «guardado desde este mes» sería hablar de algo que ya pasó.
       if (ui.page !== 'canasta') ui.mas.corregibles = [];
       if (el.dataset.month) { ui.mas.canastaMes = el.dataset.month; ui.mas.canastaVista = 'cambios'; }
-      if (ui.page === 'mes') abrirMesSiHaceFalta(ctx(), ui.mes.month);
       ui.modal = null; ui.drawerOpen = false;
       commit('');
     }
     else if (action === 'solo-algunos') { if (ui.modal) ui.modal.soloAlgunos = !ui.modal.soloAlgunos; render(); }
     else if (action === 'open-quick') openModal('quick');
     else if (action === 'rapida-comida') openModal('meal', { date: today, slot: proximaComidaLibre() });
-    else if (action === 'open-chat') { ui.chat = ui.chat || emptyChat(); openModal('chat'); }
     else if (action === 'open-bulk') { ui.bulk = emptyBulk(el.dataset.destino || 'habitual'); ui.bulk.mes = el.dataset.month || ui.mas.canastaMes; openModal('bulk'); }
     else if (action === 'welcome-demo') { ui.welcome = false; ui.page = TOUR_STEPS[0].page; ui.tour = 0; commit('Este es un ejemplo. Puedes borrarlo cuando quieras.'); }
     // Empezar de cero lleva directo a organizar la casa: es lo único que hay
@@ -1524,17 +1370,11 @@ document.addEventListener('click', event => {
     else if (action === 'open-link') openModal('link', { id: el.dataset.id });
     else if (action === 'open-move') openModal('move', { id: el.dataset.id });
     else if (action === 'open-copy') openModal('copy', { id: el.dataset.id });
-    // Los dos destinos a los que manda la asistente cuando no entiende una
-    // frase de canasta o de rutina: el sitio donde eso se escribe a mano.
-    else if (action === 'open-basket') { ui.page = 'canasta'; ui.mas.canastaVista = 'habitual'; ui.modal = null; render(); }
-    else if (action === 'open-routine') openModal('rutina', { month: ui.mes.month, id: el.dataset.id || '' });
     // Salir del callejón: se escribe la primera preparación y se vuelve aquí.
-    else if (action === 'rutina-primera-preparacion') openModal('recipe', { id: '', volverRutina: el.dataset.month || ui.mes.month });
+    else if (action === 'poner-primera-preparacion') openModal('recipe', { id: '', volverPoner: el.dataset.month || ui.mes.month });
     else if (action === 'open-correction') openModal('correction', { id: el.dataset.id });
     else if (action === 'open-absence') openModal('absence');
     else if (action === 'open-import') openModal('import');
-    else if (action === 'open-alcance') openModal('alcance-comida', { id: el.dataset.id, accion: 'quitar' });
-    else if (action === 'alcance-elegido') aplicarPorAlcance(el.dataset.id, el.dataset.alcance);
     else if (action === 'review-mode') { const review = state.reviews.find(item => item.id === el.dataset.id); if (review && review.status === 'draft') { review.mode = el.dataset.mode; commit(''); } }
     else if (action === 'select-review') { ui.reviewId = el.dataset.id; ui.correctingReview = false; ui.page = 'revision'; render(); }
     else if (action === 'toggle-correct-review') { ui.correctingReview = !ui.correctingReview; render(); }
@@ -1589,14 +1429,8 @@ document.addEventListener('click', event => {
     }
     else if (action === 'delete-recipe') {
       if (!window.confirm('¿Quitar esta preparación? Las comidas que ya estén puestas se quedan con sus cantidades.')) return;
-      const rutinas = (state.mealRoutines || []).filter(rutina => rutina.recipeId === el.dataset.id);
       state.recipes = state.recipes.filter(item => item.id !== el.dataset.id);
-      for (const rutina of rutinas) rutina.active = false;
-      // Contadas como las escribió quien las escribió. Una regla es de un solo
-      // momento, así que «los lunes, de desayuno y de cena» son dos por dentro
-      // y decirle a la persona que eran dos sería contarle la implementación.
-      const cuantas = new Set(rutinas.map(rutina => rutina.grupoId || rutina.id)).size;
-      commit(cuantas ? `Preparación quitada. ${cuantas} rutina(s) que la usaban dejaron de repetirse.` : 'Preparación quitada.');
+      commit('Preparación quitada.');
     }
     else if (action === 'add-item') { const lista = el.closest('form').querySelector(`[data-item-list="${el.dataset.type}"]`); lista?.insertAdjacentHTML('beforeend', itemRow({}, el.dataset.type)); }
     else if (action === 'remove-item') el.closest('[data-item-row]')?.remove();
@@ -1624,9 +1458,8 @@ document.addEventListener('click', event => {
       commit('Copia descargada. Guárdala donde no dependa de este teléfono.');
     }
     else if (action === 'remove-absence') { setAbsence(state, el.dataset.date, el.dataset.slot, el.dataset.id, false); commit('Ausencia quitada.'); }
-    // Las dos salidas de una pantalla que se rompió al dibujarse.
+    // La salida de una pantalla que se rompió al dibujarse.
     else if (action === 'volver-a-hoy') { ui.page = 'hoy'; ui.modal = null; ui.drawerOpen = false; render(); }
-    else if (action === 'entendido-el-cierre') { ui.avisoDeArranque = ''; render(); }
   } catch (error) {
     // El mensaje sigue saliendo como siempre —es lo que la persona necesita—,
     // pero ahora además queda apuntado: sin esto, un fallo que se enseña cuatro
@@ -1644,59 +1477,10 @@ function deletePlanSeguro(id, cascade = false) {
   state.plans = state.plans.filter(plan => plan.id !== id);
 }
 
-// Tocar una comida que viene de una rutina obliga a preguntar hasta dónde llega
-// el cambio, tanto si se quita como si se edita. Suponerlo destruiría el trabajo
-// de alguien sin avisar: cambiar el desayuno del martes no es lo mismo que
-// cambiar todos los martes del año.
-function aplicarPorAlcance(planId, alcance) {
-  const plan = state.plans.find(item => item.id === planId);
-  if (!plan) return;
-  const quitando = ui.modal?.accion === 'quitar';
-  const desde = alcance === 'siguientes' ? plan.date : '0000-00-00';
-  const afectadas = alcance === 'sola'
-    ? [plan]
-    : state.plans.filter(item => item.routineId === plan.routineId && item.date >= desde);
-
-  if (quitando) {
-    if (alcance !== 'sola' && !window.confirm(`Se van a quitar ${afectadas.length} comida(s). ¿Continuar?`)) return;
-    for (const item of [...afectadas]) deletePlanSeguro(item.id, true);
-    if (alcance === 'todas') {
-      const rutina = (state.mealRoutines || []).find(item => item.id === plan.routineId);
-      if (rutina) rutina.active = false;
-    }
-    ui.modal = null;
-    commit(alcance === 'sola' ? 'Quitada solo esta fecha. La rutina sigue igual.'
-      : alcance === 'todas' ? 'Rutina quitada junto con sus comidas.'
-      : `${afectadas.length} comida(s) quitadas de aquí en adelante.`);
-    return;
-  }
-
-  // Editar: los cambios quedaron guardados al abrir esta ventana.
-  const cambios = ui.modal?.cambios;
-  if (!cambios) { ui.modal = null; render(); return; }
-  if (alcance !== 'sola' && !window.confirm(`Se van a cambiar ${afectadas.length} comida(s). ¿Continuar?`)) return;
-  for (const item of afectadas) {
-    updatePlan(state, item.id, {
-      title: cambios.title,
-      note: cambios.note,
-      // Los participantes y los alimentos se copian solo a esta fecha: en otra
-      // puede haber alguien ausente, y forzarlo rompería esa comida.
-      participants: item.id === plan.id ? cambios.participants : item.participants,
-      items: item.id === plan.id ? cambios.items : item.items
-    });
-    // Una fecha que se aparta deja de seguir la rutina; si no, la próxima vez
-    // que se aplique volvería a pisarla.
-    if (alcance === 'sola') item.routineId = null;
-  }
-  ui.modal = null;
-  commit(alcance === 'sola' ? 'Cambiada solo esta fecha. La rutina sigue igual.'
-    : alcance === 'todas' ? `Cambiadas las ${afectadas.length} comidas de la rutina.`
-    : `${afectadas.length} comida(s) cambiadas de aquí en adelante.`);
-}
 
 // Recalcula el aviso sin redibujar la ventana entera: quien está tocando
-// casillas perdería el sitio, y el desplegable de «solo hoy o se repite»
-// volvería a su valor de fábrica.
+// casillas perdería el sitio, y las que llevara marcadas volverían a su valor
+// de fábrica.
 function pintarChoques(form) {
   const caja = form?.querySelector('[data-choque]') || form?.parentElement?.querySelector('[data-choque]');
   if (!caja) return;
@@ -1730,11 +1514,9 @@ document.addEventListener('change', event => {
   // El grosor solo aparece en lo que se corta; se oculta sin volver a dibujar
   // el formulario para no perder lo ya escrito.
   if (el.name === 'controlUnit' && el.closest('[data-form="product"]')) { const campo = el.form.querySelector('[data-cut-field]'); if (campo) campo.hidden = !SLICEABLE.includes(el.value); }
-  // Escribir cuánto va en la primera quincena: la segunda es el resto, así que
-  // se recalcula al salir del campo. Las dos partes suman siempre el mes.
-  if (el.matches('[data-reparto-primera]')) { aplicarReparto(ctx(), el); return; }
+
   // Elegir «una preparación» o «fuera de casa» enseña u oculta el selector.
-  if (el.name === 'kind' && el.closest('[data-form="rutina"]')) { const campo = el.form.querySelector('[data-rutina-receta]'); if (campo) campo.hidden = el.value !== 'recipe'; }
+  if (el.name === 'kind' && el.closest('[data-form="poner-en-dias"]')) { const campo = el.form.querySelector('[data-poner-receta]'); if (campo) campo.hidden = el.value !== 'recipe'; }
 });
 
 let filtroTimer;
@@ -1805,7 +1587,6 @@ document.addEventListener('submit', async event => {
     if (CUENTA_FORMS[kind]) { await CUENTA_FORMS[kind](form, data, ctxCuenta()); return; }
     if (SETUP_FORMS[kind]) { SETUP_FORMS[kind](form, data, ctx()); return; }
     if (HOGAR_FORMS[kind]) { HOGAR_FORMS[kind](form, data, ctxHogar()); return; }
-    if (CHAT_FORMS[kind]) { await CHAT_FORMS[kind](form, data, { ...ctx(), chat: ui.chat }); return; }
     if (BULK_FORMS[kind]) { await BULK_FORMS[kind](form, data, { ...ctx(), bulk: ui.bulk }); return; }
     if (MES_FORMS[kind]) { MES_FORMS[kind](form, data, ctx()); return; }
     if (COMPRA_FORMS[kind]) { COMPRA_FORMS[kind](form, data, ctx()); return; }
@@ -1823,22 +1604,19 @@ document.addEventListener('submit', async event => {
       // escribiendo de una sentada las seis comidas de su casa no quiere
       // abrirla, cerrarla y volverla a abrir seis veces.
       const seguir = data.get('seguir') === '1';
-      // «Hacer que se repita» guarda y abre la ventana de la regla con esta
-      // preparación puesta. Es el camino corto de la ficha a la costumbre.
-      const repetir = data.get('repetir') === '1';
-      // Quien llegó aquí desde el formulario de una rutina porque no tenía
+      // Quien llegó aquí desde la ventana de poner una comida porque no tenía
       // ninguna preparación escrita vuelve por donde vino, y vuelve con la que
       // acaba de escribir ya elegida. El registro inicial no puede terminar en
       // una ventana que se cierra y te deja donde no estabas.
-      const volverARutina = form.dataset.volverRutina || '';
+      const volverAPoner = form.dataset.volverPoner || '';
       ui.modal = seguir ? { type: 'recipe', id: '' }
-        : repetir || volverARutina
-          ? { type: 'rutina', month: volverARutina || ui.mes.month || today.slice(0, 7), receta: receta.id, kind: 'recipe' }
+        : volverAPoner
+          ? { type: 'poner-en-dias', month: volverAPoner, receta: receta.id, kind: 'recipe' }
           : null;
       // Se guarda igual sin alimentos: la preparación ya sirve para llenar el
       // calendario. Lo único que no puede hacer es avisar de las alergias, y eso
       // se dice en voz baja en vez de bloquear el guardado.
-      const cola = seguir ? ' Escribe la siguiente.' : repetir ? ' Ahora dime qué días se repite.' : '';
+      const cola = seguir ? ' Escribe la siguiente.' : '';
       const base = receta.items.length
         ? `«${receta.name}» guardada.`
         : `«${receta.name}» guardada. Sin alimentos anotados no puede avisarte de las alergias de la casa.`;
@@ -1940,11 +1718,6 @@ document.addEventListener('submit', async event => {
     else if (kind === 'equivalence') { setEquivalence(state, form.dataset.id, data.get('unit'), data.get('factor')); ui.modal = null; commit('Guardado.'); }
     else if (kind === 'assign') {
       const receta = data.get('recipeId');
-      if (data.get('repetir') === 'rutina') {
-        ui.modal = { type: 'rutina', month: String(data.get('date')).slice(0, 7), receta, slot: data.get('slot') };
-        render();
-        return;
-      }
       makeRecipePlan(state, receta, data.get('date'), data.get('slot'), selected(form, 'participants'));
       ui.modal = null; commit('Comida puesta.');
     }
@@ -1978,9 +1751,6 @@ document.addEventListener('submit', async event => {
         participants: selected(form, 'participants'),
         items: collectItems(form).map(item => ({ ...item, id: item.id || nextId(state, 'alimento'), quantity: quantity(item.quantity) }))
       };
-      // Si esta comida la puso una rutina, no se guarda a ciegas: se pregunta
-      // primero si el cambio es de este día o de toda la costumbre.
-      if (plan.routineId) { ui.modal = { type: 'alcance-comida', id: plan.id, accion: 'editar', cambios }; render(); return; }
       updatePlan(state, plan.id, cambios);
       ui.modal = null; commit('Guardado.');
     }
@@ -2035,20 +1805,6 @@ instalarRed({
   }
 });
 
-// ¿Se cerró la aplicación sola la última vez que alguien dictó?
-//
-// Se pregunta por dos vías, porque cada una ve lo que la otra no. La marca de
-// JavaScript detecta el cierre venga de donde venga, incluso si la red nativa
-// no llegó a instalarse; el apunte nativo trae además la causa técnica, que es
-// lo que sirve para arreglarlo.
-try {
-  const cierre = comprobarSiElDictadoMatoLaApp();
-  if (cierre) {
-    ui.avisoDeArranque = cierre.texto;
-    anotar('cierre-al-dictar', new Error('La aplicación se cerró mientras dictaba.'), { fallos: cierre.fallos });
-  }
-} catch (error) { anotar('arranque:cierre', error); }
-
 falloAnterior()
   .then(fallo => {
     if (!fallo) return;
@@ -2062,11 +1818,6 @@ falloAnterior()
   })
   .catch(error => anotar('arranque:fallo-nativo', error));
 
-// El mes corriente se abre en cuanto arranca la app, no cuando alguien entra en
-// Plan mensual: así la pantalla de Hoy ya encuentra las comidas puestas.
-if (!ui.welcome) {
-  try { if (abrirMesSiHaceFalta(ctx(), mesActual)) saveState(state, undefined, cajon); } catch { /* Sin rutinas no hay nada que aplicar. */ }
-}
 render();
 
 /* ── La sesión, al arrancar ────────────────────────────────────────────────

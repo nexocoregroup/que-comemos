@@ -13,22 +13,20 @@ import java.io.StringWriter;
  *
  * ── El problema ────────────────────────────────────────────────────────────
  *
- * Al dictar, la aplicación se cerraba entera. Eso no lo puede provocar un error
- * de JavaScript: dentro de un WebView, un error de JavaScript rompe una pantalla
- * pero no mata el proceso. Lo que mata el proceso es una excepción de Java que
- * nadie recoge, y en el camino del dictado hay varias que nadie recoge. Son del
- * complemento de reconocimiento de voz, no de esta app, y por tanto no se pueden
- * arreglar desde aquí. Las que se han encontrado leyendo su código:
+ * Un error de JavaScript no puede cerrar esta aplicación: dentro de un WebView
+ * rompe una pantalla, pero no mata el proceso. Lo que mata el proceso es una
+ * excepción de Java que nadie recoge, y de esas hay en código que no es nuestro
+ * y que desde aquí no se puede arreglar: el puente de Capacitor, el propio
+ * WebView, los servicios del sistema a los que se les pregunta algo. Cuando una
+ * de ellas sube por un hilo que nadie vigila, Android se lleva la aplicación
+ * entera por delante y quien la tiene delante solo ve que desapareció.
  *
- *   · `mainExecutor()` devuelve `bridge.getActivity().runOnUiThread(...)`. El
- *     motor de voz contesta desde su propio hilo; si para entonces la Activity
- *     ya no está —la app pasó a segundo plano—, eso es un NPE en un hilo que
- *     nadie vigila, y un hilo sin vigilancia se lleva el proceso por delante.
- *   · `beginOnDeviceListening` llama a `startInlineListening` desde el callback
- *     del servicio de reconocimiento, y ahí `speechRecognizer.startListening()`
- *     no está dentro de ningún try. Lanza `SecurityException` si el permiso del
- *     micrófono se retira mientras se escucha.
- *   · `load()` crea un `SpeechRecognizer` al abrir la aplicación, sin try.
+ * Esta clase nació por un caso concreto —el complemento de reconocimiento de voz
+ * lanzaba varias de esas excepciones fuera de todo `try`, y dictar cerraba la
+ * aplicación—, y ese complemento ya no se instala. La red se queda igualmente,
+ * porque el problema nunca fue de ese complemento en particular: cualquier
+ * código nativo que no sea nuestro puede hacer lo mismo, y cerrarse sin decir
+ * nada sigue siendo la peor manera posible de fallar.
  *
  * ── Qué hace esta clase ────────────────────────────────────────────────────
  *
@@ -43,8 +41,8 @@ import java.io.StringWriter;
  *
  *      · Si el error viene de un hilo secundario, el proceso no necesita morir:
  *        ese hilo ya acabó y el resto de la aplicación —la pantalla, los datos,
- *        el WebView— está intacto. Se anota y se sigue. Aquí es donde caen los
- *        fallos del motor de voz, que es justo lo que se quería.
+ *        el WebView— está intacto. Se anota y se sigue, que es justo lo que se
+ *        quería.
  *
  *      · Si el error viene del hilo principal, el bucle de mensajes de Android
  *        ha muerto y la aplicación se quedaría congelada. Se vuelve a entrar en
@@ -88,7 +86,7 @@ final class GuardiaDeFallos {
         Thread.setDefaultUncaughtExceptionHandler((hilo, error) -> {
             anotar(app, hilo, error);
             // Un hilo secundario que muere no se lleva nada por delante: se deja
-            // ir y la aplicación sigue en pie. Este es el caso del motor de voz.
+            // ir y la aplicación sigue en pie.
             if (hilo != Looper.getMainLooper().getThread() && !rendirse(error)) return;
             if (anterior != null) anterior.uncaughtException(hilo, error);
         });
@@ -155,8 +153,9 @@ final class GuardiaDeFallos {
      *
      * Se guarda la clase, el mensaje, el hilo y las primeras líneas de la pila:
      * lo justo para saber de dónde salió. Nada de esto es información de la
-     * casa: ni comidas, ni despensa, ni lo que se dictó. Un informe de fallo con
-     * datos personales dentro es un problema nuevo, no la solución de uno viejo.
+     * casa: ni comidas, ni despensa, ni lo que nadie haya escrito. Un informe de
+     * fallo con datos personales dentro es un problema nuevo, no la solución de
+     * uno viejo.
      */
     private static void anotar(Context contexto, Thread hilo, Throwable error) {
         // Se escribe en el log del sistema primero, que es lo único que funciona

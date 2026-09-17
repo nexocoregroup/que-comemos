@@ -29,9 +29,8 @@
     @android.webkit.JavascriptInterface <methods>;
 }
 
-# Las respuestas del reconocimiento de voz viajan como objetos que Capacitor
-# convierte a JSON leyendo sus campos.
--keepclassmembers class app.capgo.speechrecognition.** { *; }
+# Las respuestas de los complementos viajan como objetos que Capacitor convierte
+# a JSON leyendo sus campos.
 -keepclassmembers class com.capacitorjs.plugins.** { *; }
 
 # Deja los números de línea en los informes de fallo. Sin esto, un error de

@@ -91,7 +91,7 @@ function vistaPortada(cuenta) {
     <div class="cuenta-marca">
       <span class="cuenta-logo">${BRAND_MARK}</span>
       <h2>¿Qué comemos?</h2>
-      <p>Organiza una vez lo habitual de tu casa y prepara cada mes cambiando solamente lo diferente.</p>
+      <p>Organiza una vez lo habitual de tu casa y decide con calma qué se come esta semana.</p>
     </div>
     ${cuenta.error ? notice('No se pudo', esc(cuenta.error), 'error') : ''}
     ${cuenta.aviso ? notice('Aviso', esc(cuenta.aviso), 'warn') : ''}

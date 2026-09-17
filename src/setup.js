@@ -28,7 +28,7 @@
 import { RUBROS, SEED_PRODUCTS, categoriaDelRubro, rubroDeCategoria, rubroPorIndice, seedByRubro } from './catalog-seed.js';
 import {
   FRECUENCIAS, MOMENTOS, UNITS, addProduct, deleteRecipe, etiquetaDeMomento, frecuenciaDe, habitualLines,
-  historialDeFrecuencia, personasActivas, ponerFrecuencia, ponerReparto, product, productByName, repartoDe,
+  historialDeFrecuencia, personasActivas, ponerFrecuencia, product, productByName,
   setHabitualBasket, todayISO, upsertRecipe
 } from './model.js';
 // La ficha de una persona se dibuja en un solo sitio, y ese sitio es `hogar.js`.
@@ -36,9 +36,7 @@ import {
 // ventana: dos formularios de persona serían dos sitios donde olvidarse de
 // preguntar si un alimento es alergia o manía.
 import { claseDe, resumenDeRestricciones } from './hogar.js';
-import { reglasDelMes } from './routines.js';
 import { normalizeName } from './text-parse.js';
-import { cancelarDictado } from './device.js';
 import { button, esc, monthName, notice, options } from './ui-kit.js';
 import { icono, iconoDeCategoria } from './icons.js';
 
@@ -70,17 +68,16 @@ export const PASOS = [
    la app tiene que hacer: una lista de compra se escribe a mano cada vez, y lo
    único que se necesita recordar es qué compra esta casa, no cuánto.
 
-   La pantalla del reparto no desaparece de la app —sigue en Más → Ajustes, para
-   quien de verdad quiera decir cuánto arroz va en cada quincena—; lo que
-   desaparece es la obligación de pasar por ella para poder empezar.
+   El reparto entre quincenas se retiró después, y por la misma razón: partía
+   en dos trozos una cantidad del mes que ya no se usa para nada.
 
    Los cinco pasos se enseñan siempre. Ya no hay ninguno condicional, así que la
    cuenta de «paso 3 de 5» no depende de lo que se haya contestado antes. */
 export const pasosDe = () => PASOS;
 
 // La numeración cambió al quitar esos dos, y hay gente con el avance guardado a
-// medias en la numeración vieja. Sin esta tabla, quien lo dejó en el paso 5 —el
-// reparto— volvería al paso 5 de ahora, que es el último, y se encontraría el
+// medias en la numeración vieja. Sin esta tabla, quien lo dejó en el paso 5 de
+// entonces volvería al paso 5 de ahora, que es el último, y se encontraría el
 // resumen de una casa que todavía no ha terminado de registrar.
 const ESQUEMA_DE_PASOS = 2;
 const PASO_DE_ANTES = { 0: 0, 1: PASO.personas, 2: PASO.alimentos, 3: PASO.compra, 4: PASO.preparaciones, 5: PASO.preparaciones, 6: PASO.preparaciones, 7: PASO.casa };
@@ -149,8 +146,8 @@ export function avanceGuardado(state) {
   // Un respaldo traído a mano puede venir con cualquier cosa escrita aquí. Se
   // recorta a lo que las pantallas saben pintar, en vez de confiar.
   // El 0 es la portada y no está en `PASOS`. De ahí en adelante, un número que
-  // no corresponda a ningún paso —porque se quitó uno, como pasó con el de
-  // dictar— cae al último que sí existe y no a una pantalla en blanco.
+  // no corresponda a ningún paso —porque se quitó alguno entre una versión y
+  // otra— cae al último que sí existe y no a una pantalla en blanco.
   const guardadoEnPaso = Math.max(0, Number(setup.paso) || 0);
   // Lo guardado con la numeración de antes se traduce; lo guardado con la de
   // ahora se respeta. Sin el sello de esquema no habría forma de distinguirlas:
@@ -202,11 +199,12 @@ const semillaPorNombre = nombre => POR_CLAVE.get(normalizeName(nombre)) || null;
 // El número de pasos se cuenta, no se escribe a mano.
 //
 // Decía «Ocho pasos cortos» y era verdad cuando se escribió: entonces había
-// ocho, y uno de ellos era un paso propio para dictar los alimentos de corrido.
-// Ese paso se quitó después —dictar es ahora un enlace dentro del paso de los
-// alimentos, que es donde hace falta— y el texto se quedó como estaba. Encima,
-// el paso del reparto solo se le enseña a quien compra por quincenas. Así que
-// a quien compra una vez al mes se le prometían ocho pasos y veía seis.
+// ocho, y uno de ellos era un paso propio para meter los alimentos de corrido.
+// Ese paso se quitó después —escribirlos de corrido es ahora un enlace dentro
+// del paso de los alimentos, que es donde hace falta— y el texto se quedó como
+// estaba, y además había un paso que solo se le enseñaba a quien compraba por
+// quincenas: a quien compra una vez al mes se le prometían ocho pasos y veía
+// seis.
 //
 // Escrito a mano vuelve a pasar la próxima vez que se toque un paso. Contado,
 // no. Hay una prueba que lo vigila.
@@ -284,7 +282,7 @@ function pantallaDeRubro(setup) {
       ${setup.anadiendo
         ? ventanitaDeAnadir(setup, rubro)
         : `<button type="button" class="enlace" data-action="setup-falta">¿No encuentras un alimento? Añadirlo</button>
-           <button type="button" class="enlace" data-action="open-bulk" data-destino="habitual">${icono('microfono', { tamano: 16 })}Decirlos de corrido</button>`}
+           <button type="button" class="enlace" data-action="open-bulk" data-destino="habitual">${icono('hoja', { tamano: 16 })}Escribirlos de corrido</button>`}
     </div>
 
     <div class="modal-actions setup-actions">
@@ -359,47 +357,9 @@ function pasoFrecuencia(ctx, setup) {
 }
 
 
-/* ── El reparto entre quincenas, ya fuera del recorrido ────────────────────
-
-   Esto era un paso del asistente y ya no lo es: decidir cuánto arroz va en cada
-   quincena, alimento por alimento, no es algo que se le pueda pedir a alguien
-   que todavía está registrando su casa —y que a estas alturas ni siquiera ha
-   escrito cantidades, porque ya no se le piden—.
-
-   La pantalla sigue viva y sigue haciendo lo mismo, pero ahora se entra por
-   Más → Ajustes → Organización de compra, que es donde va quien de verdad
-   quiere afinar eso. La fila la sigue dibujando esta función porque el reparto
-   nació aquí y `page-mas.js` la reutiliza tal cual. */
-
-export function filaDeReparto(ctx, linea, item) {
-  const reparto = repartoDe(ctx.state, linea.productId, linea.quantity);
-  const unidad = ETIQUETA_UNIDAD[linea.unit] || linea.unit;
-  const boton = (modo, texto) => `<button type="button" class="setup-reparto-modo ${reparto.modo === modo ? 'activo' : ''}"
-    data-action="reparto-modo" data-id="${esc(linea.productId)}" data-modo="${modo}" aria-pressed="${reparto.modo === modo}">${esc(texto)}</button>`;
-  return `<div class="setup-reparto-fila" data-reparto="${esc(linea.productId)}">
-    <div class="setup-reparto-nombre">
-      <strong>${esc(item.name)}</strong>
-      <span class="small muted">${esc(`${fmtNumero(linea.quantity)} ${unidad} al mes`)}</span>
-    </div>
-    <div class="setup-reparto-partes">
-      <label class="field"><span>1.ª quincena</span>
-        <input type="number" min="0" step="any" inputmode="decimal" value="${esc(fmtNumero(reparto.primera))}"
-          data-reparto-primera data-id="${esc(linea.productId)}" data-total="${esc(linea.quantity)}"
-          aria-label="Cuánto de ${esc(item.name)} en la primera quincena"></label>
-      <span class="setup-reparto-segunda" data-reparto-segunda>2.ª: <strong>${esc(fmtNumero(reparto.segunda))}</strong> ${esc(unidad)}</span>
-    </div>
-    <div class="setup-reparto-modos">
-      ${boton('mitad', 'A la mitad')}
-      ${boton('todo', 'Todo en la 1.ª')}
-      ${boton('nada', 'Todo en la 2.ª')}
-    </div>
-    ${reparto.sugerido ? '<p class="tiny muted setup-reparto-nota">Repartido a la mitad porque no lo has cambiado.</p>' : ''}
-  </div>`;
-}
 
 // Los números de esta pantalla son cantidades de comida, no dinero: «2.5» se
 // lee mal y «2,5» aún peor dentro de un campo numérico, que espera el punto.
-const fmtNumero = valor => String(Math.round((Number(valor) || 0) * 1000) / 1000);
 
 /* ── Paso 5: ver mi casa ───────────────────────────────────────────────────
 
@@ -421,7 +381,6 @@ function pasoCasa(ctx, setup) {
   const gente = personasActivas(state);
   const habituales = habitualLines(state);
   const recetas = state.recipes;
-  const reglas = reglasDelMes(state, mes).filter(rutina => rutina.kind === 'recipe');
   const sinMomentos = recetas.filter(receta => !receta.uses.length).length;
   const faltanPersonas = Math.max(0, Math.min(20, Number(setup.personas) || 0) - gente.length);
   // La frecuencia se mira donde de verdad está escrita y no solo en el borrador
@@ -452,14 +411,10 @@ function pasoCasa(ctx, setup) {
         : cuenta(recetas.length, 'preparación', 'preparaciones'), recetas.length > 0 && !sinMomentos)}
     </div>
 
-    ${reglas.length
-      ? notice(`${cuenta(reglas.length, 'comida se repite sola', 'comidas se repiten solas')}.`,
-          `El calendario de ${monthName(mes)} se llena con ellas y tú solo cambias lo que ese mes sea distinto.`)
-      : notice('Tu calendario va a empezar vacío.',
-          recetas.length
-            ? `Tienes ${cuenta(recetas.length, 'preparación escrita', 'preparaciones escritas')}, pero todavía no has dicho qué días se cocina cada una, así que la aplicación no puede colocarlas sola. Puedes ir poniéndolas día por día en Plan mensual mientras tanto.`
-            : 'Todavía no hay ninguna preparación escrita, así que no hay nada que colocar. Puedes volver atrás y escribir dos o tres, o hacerlo después desde Más → Preparaciones.',
-          'warn')}
+    ${notice('Tu calendario empieza vacío, y así se queda hasta que tú lo llenes.',
+      recetas.length
+        ? `Tienes ${cuenta(recetas.length, 'preparación escrita', 'preparaciones escritas')}. En Plan mensual eliges una, marcas los días en que la quieres comer —los siete de la semana que viene, por ejemplo— y se ponen esos. La aplicación no decide por ti.`
+        : 'Todavía no hay ninguna preparación escrita. Puedes volver atrás y escribir dos o tres, o hacerlo después desde Más → Preparaciones.')}
 
     <p class="tiny muted setup-nota">Puedes terminar ahora y completar las preparaciones cuando quieras. Nada de esto se pierde, y volver a pasar por aquí no borra lo que ya escribiste ni los cambios de ningún mes.</p>
 
@@ -762,52 +717,7 @@ function guardarLoMarcado(ctx) {
   return guardados;
 }
 
-/* ── El reparto entre quincenas, escrito a mano ────────────────────────────
 
-   Lo que se teclea en las casillas de la primera quincena vive en el DOM
-   mientras se edita, igual que las cantidades del paso anterior: cualquier cosa
-   que redibuje tiene que pasar antes por aquí.
-
-   La conversión a modo no es cosmética. Escribir exactamente la mitad se guarda
-   como «a la mitad» —es decir, no se guarda nada— para que la sugerencia siga
-   viva si mañana cambia la cantidad del mes; escribir el total se guarda como
-   «todo en la primera», que es lo que alguien quiso decir aunque el mes cambie
-   de número. Solo lo que está de verdad en medio se guarda como una cifra. */
-
-function guardarUnaParte(state, productId, escrito, total) {
-  const primera = Math.min(total, Math.max(0, Number(escrito) || 0));
-  const mitad = Math.round((total / 2) * 1000) / 1000;
-  try {
-    if (primera >= total && total > 0) ponerReparto(state, productId, 'todo');
-    else if (primera <= 0) ponerReparto(state, productId, 'nada');
-    else if (primera === mitad) ponerReparto(state, productId, 'mitad');
-    else ponerReparto(state, productId, 'cantidad', primera);
-  } catch { /* El alimento se borró mientras se editaba: no hay nada que repartir. */ }
-}
-
-export function leerRepartoEscrito(ctx) {
-  if (typeof document === 'undefined') return;
-  for (const campo of document.querySelectorAll('[data-reparto-primera]')) {
-    const total = Number(campo.dataset.total);
-    if (campo.value === '' || !Number.isFinite(total)) continue;
-    guardarUnaParte(ctx.state, campo.dataset.id, campo.value, total);
-  }
-}
-
-// Una casilla concreta, al salir de ella. Se redibuja porque la segunda
-// quincena y los tres botones de al lado tienen que decir la verdad.
-export function aplicarReparto(ctx, campo) {
-  const total = Number(campo?.dataset?.total);
-  if (!Number.isFinite(total)) return;
-  guardarUnaParte(ctx.state, campo.dataset.id, campo.value, total);
-  ctx.commit('');
-}
-
-// Salir de la pantalla o del paso del micrófono sin retirar los oyentes deja el
-// motor de voz escribiendo en una pantalla que ya no existe.
-// `cancelarDictado` es asíncrona: sin recoger el rechazo, un micrófono que falla
-// al cerrarse tumbaría la salida de la pantalla. Cerrarlo nunca puede impedir
-// irse.
 // Lo que esté escrito en la pantalla que se deja, sea cual sea. Antes esto era
 // un par de `if (paso === 2)` repetidos en tres acciones, y cada paso nuevo
 // obligaba a acordarse de los tres.
@@ -830,14 +740,6 @@ function ajustarPersonas(ctx, delta) {
   setup.personas = Math.min(20, Math.max(1, actual + delta));
   guardarAvance(ctx);
   ctx.render();
-}
-
-function soltarMicrofono(ctx) {
-  const voz = ctx?.ui?.voz;
-  // El panel de dictado es compartido: si el que estaba abierto era el de esta
-  // pantalla, se cierra con ella. Si era el de otra, no se toca.
-  if (voz?.destino === 'setup') { voz.sesion += 1; voz.destino = ''; voz.estado = 'quieto'; }
-  try { Promise.resolve(cancelarDictado()).catch(() => {}); } catch { /* Ya estaba cerrado. */ }
 }
 
 // Lo que ya está guardado se enseña marcado y con su cantidad escrita. Es la
@@ -889,9 +791,6 @@ const pintarFicha = (casilla, marcado) => casilla.closest('.setup-ficha')?.class
 
 /* ── Acciones ──────────────────────────────────────────────────────────── */
 
-let dictadoActual = 0;
-let avisadoDeVozAjena = false;
-
 export const SETUP_ACTIONS = {
   'setup-open': (el, ctx) => {
     ctx.ui.setup = ctx.ui.setup || emptySetup();
@@ -908,7 +807,6 @@ export const SETUP_ACTIONS = {
   },
   'setup-salir': (el, ctx) => {
     recordarLoEscrito(ctx);
-    soltarMicrofono(ctx);
     // Salir no descarta nada, y desde que no hay paso de cantidades tampoco deja
     // lo marcado a medio camino: la portada promete que lo que marques se guarda
     // solo, y eso solo es verdad si lo marcado llega a la canasta. Volver a
@@ -921,7 +819,6 @@ export const SETUP_ACTIONS = {
   'setup-atras': (el, ctx) => {
     const setup = ctx.ui.setup;
     recordarLoEscrito(ctx);
-    soltarMicrofono(ctx);
     // Volver al paso de los alimentos devuelve el último rubro, no el primero:
     // es donde estaba quien pulsó «Atrás».
     setup.paso = saltarA(setup, setup.paso, -1);
@@ -951,12 +848,6 @@ export const SETUP_ACTIONS = {
     ctx.commit('');
   },
 
-  // Paso 5: el reparto entre quincenas.
-  'reparto-modo': (el, ctx) => {
-    leerRepartoEscrito(ctx);
-    ponerReparto(ctx.state, el.dataset.id, el.dataset.modo);
-    ctx.commit('');
-  },
 
   /* ── Paso 1: los ocho rubros ─────────────────────────────────────────── */
 
@@ -1018,8 +909,6 @@ export const SETUP_ACTIONS = {
     pintarFicha(el, el.checked);
     refrescarContadores(ctx);
   },
-  // Dictar ya no vive aquí: lo lleva `voz.js`, igual que en las otras tres
-  // pantallas desde donde se puede dictar. El botón manda `voz-abrir`.
 
   /* ── Paso 1: cuántas personas comen en casa ──────────────────────────── */
 

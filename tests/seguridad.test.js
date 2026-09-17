@@ -17,11 +17,10 @@ import { resolve } from 'node:path';
 // aplicación, y es el que estas pruebas vigilan.
 
 import {
-  addProduct, addPurchase, correctStock, createEmptyState, createReview, importState,
-  makeRecipePlan, setHabitualLine, setMonthChange, todayISO, upsertPerson, upsertRecipe
+  addProduct, addPurchase, agregarALista, agregarOcasional, correctStock, crearLista, createEmptyState,
+  createReview, importState, makeRecipePlan, setHabitualLine, setMonthChange, todayISO, upsertPerson, upsertRecipe
 } from '../src/model.js';
-import { addRoutine } from '../src/routines.js';
-import { BLOQUES, emptyMes, modalDia, modalRutina, renderMes } from '../src/page-mes.js';
+import { emptyMes, modalDia, modalPonerEnDias, renderMes } from '../src/page-mes.js';
 import { emptyCompra, renderCompra } from '../src/page-compra.js';
 import { PAGINAS_MAS, emptyMas, renderMas } from '../src/page-mas.js';
 
@@ -40,7 +39,11 @@ function estadoEnvenenado() {
   const plan = makeRecipePlan(s, receta.id, todayISO(), 'almuerzo');
   plan.title = VENENO;
   plan.note = VENENO;
-  addRoutine(s, { kind: 'recipe', recipeId: receta.id, slots: ['cena'], weekdays: [1], weeks: null, scope: 'permanent', label: VENENO });
+  // El ataque también dentro de una lista de compra, que es donde más texto
+  // libre escribe una persona: el nombre de la lista y la nota de cada renglón.
+  const lista = crearLista(s, { fecha: todayISO(), nombre: VENENO });
+  agregarALista(s, lista.id, { productId: p.id, cantidad: 2, unidad: 'lb', nota: VENENO });
+  agregarOcasional(s, lista.id, { nombre: VENENO, cantidad: 1, unidad: 'unidad' });
   addPurchase(s, { date: todayISO(), lines: [{ productId: p.id, quantity: 2, unit: 'lb' }] });
   correctStock(s, p.id, 1, VENENO);
   createReview(s, todayISO());
@@ -51,8 +54,7 @@ function estadoEnvenenado() {
 const contexto = (state, extra = {}) => ({
   state,
   ui: { page: 'hoy', modal: null, reviewId: null, correctingReview: false, mes: emptyMes(MES), compra: emptyCompra(MES), mas: emptyMas(), ...extra },
-  commit: () => {}, toast: () => {}, render: () => {}, closeModal: () => {}, openModal: () => {}, startTour: () => {},
-  servicios: { transcribe: false, chat: false, enElAparato: { voz: false } }
+  commit: () => {}, toast: () => {}, render: () => {}, closeModal: () => {}, openModal: () => {}, startTour: () => {}
 });
 
 function todasLasPantallas(state) {
@@ -62,9 +64,7 @@ function todasLasPantallas(state) {
   ctx.ui.mes.vista = 'calendario';
   salida.push(['calendario', renderMes(ctx)]);
   ctx.ui.mes.vista = 'resumen';
-  for (const bloque of BLOQUES) { ctx.ui.mes.bloque = bloque.id; salida.push(['bloque ' + bloque.id, renderMes(ctx)]); }
-  ctx.ui.mes.bloque = null;
-  salida.push(['modal rutina', modalRutina(contexto(state), { month: MES })]);
+  salida.push(['modal poner en días', modalPonerEnDias(contexto(state), { month: MES })]);
   salida.push(['modal día', modalDia(contexto(state), { date: MES + '-05' })]);
   salida.push(['compra', renderCompra(contexto(state))]);
   for (const pagina of ['mas', ...PAGINAS_MAS]) salida.push([pagina, renderMas(contexto(state, { page: pagina }))]);
@@ -137,35 +137,22 @@ test('ninguna clave de esta app se queda fuera de «borrar mis datos»', async (
   assert.deepEqual([...almacen.keys()], [], 'claves que esta app escribe y «borrar mis datos» no borra');
 });
 
-// Prometer «tu voz no sale del teléfono» sin comprobarlo era falso en cualquier
-// aparato sin el paquete de español descargado: esos mandan el audio a Google.
-// La promesa tiene que salir de lo que se sabe del aparato, no de un texto fijo.
-test('la promesa sobre la voz depende de lo que se sabe del aparato', async () => {
-  const guardado = globalThis.Capacitor;
-  const { avisoDeVoz } = await import('../src/device.js');
-  try {
-    // Sin Capacitor y sin reconocimiento del navegador no hay dictado ni aviso.
-    delete globalThis.Capacitor;
-    assert.equal(avisoDeVoz(), null, 'sin dictado no hay nada que avisar');
-  } finally {
-    if (guardado === undefined) delete globalThis.Capacitor; else globalThis.Capacitor = guardado;
-  }
-
-  // Y ninguna pantalla puede llevar la promesa escrita a fuego.
+// Esta prueba nació cuando la app dictaba: prometer «tu voz no sale del
+// teléfono» era falso en cualquier aparato sin el paquete de español, porque
+// esos mandan el audio a Google. Ahora la app no escucha nada, así que la
+// promesa no es que esté sin comprobar: es que no tiene de qué hablar. Sigue
+// aquí porque el texto es lo que más fácil vuelve, copiado de una versión
+// vieja, y volvería diciendo que la app hace algo que ya no hace.
+test('ninguna pantalla habla de lo que hace la app con la voz', () => {
   const PROMESAS = ['tu voz no sale del teléfono', 'no sale del aparato'];
   const culpables = [];
   for (const archivo of readdirSync(SRC).filter(nombre => nombre.endsWith('.js'))) {
-    // `device.js` sí puede afirmarlo: es el único que ha preguntado primero.
-    // `legal.js` explica los dos casos enteros, que es lo contrario de prometer.
-    if (archivo === 'device.js' || archivo === 'legal.js') continue;
     const codigo = readFileSync(resolve(SRC, archivo), 'utf8').replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
     for (const promesa of PROMESAS) {
-      // Vale dentro de una condición sobre `avisoDeVoz()`; lo que no vale es
-      // soltarla sin más.
-      if (codigo.includes(promesa) && !codigo.includes('avisoDeVoz()')) culpables.push(`${archivo}: «${promesa}»`);
+      if (codigo.includes(promesa)) culpables.push(`${archivo}: «${promesa}»`);
     }
   }
-  assert.deepEqual(culpables, [], 'pantallas que prometen sobre la voz sin haberlo comprobado');
+  assert.deepEqual(culpables, [], 'pantallas que prometen sobre una voz que la app ya no escucha');
 });
 
 const SRC = resolve(import.meta.dirname, '..', 'src');
@@ -340,10 +327,13 @@ test('Android no saca los datos del teléfono por su cuenta', () => {
   assert.ok(red.includes('cleartextTrafficPermitted="false"'), 'se volvió a permitir tráfico sin cifrar');
 });
 
+// `RECORD_AUDIO` está en esta lista y no en ninguna otra parte a propósito: la
+// app dejó de tener voz propia, y el aviso de privacidad promete un solo
+// permiso. Pedir el micrófono sin usarlo convertiría esa promesa en mentira
+// delante del formulario de Play, que es donde eso se paga caro.
 test('el APK no pide permisos que ya no usa', () => {
   const manifiesto = readFileSync(resolve(import.meta.dirname, '..', 'android', 'app', 'src', 'main', 'AndroidManifest.xml'), 'utf8');
-  for (const permiso of ['CAMERA', 'READ_MEDIA_IMAGES', 'READ_EXTERNAL_STORAGE', 'ACCESS_FINE_LOCATION', 'READ_CONTACTS']) {
+  for (const permiso of ['RECORD_AUDIO', 'CAMERA', 'READ_MEDIA_IMAGES', 'READ_EXTERNAL_STORAGE', 'ACCESS_FINE_LOCATION', 'READ_CONTACTS']) {
     assert.ok(!manifiesto.includes('permission.' + permiso), 'el manifiesto pide ' + permiso + ' sin usarlo');
   }
-  assert.ok(manifiesto.includes('permission.RECORD_AUDIO'), 'el dictado necesita el micrófono');
 });

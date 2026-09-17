@@ -23,24 +23,12 @@
 
 .bulk { min-width: 0; }
 /* Un párrafo entero se escribe con sitio para verlo completo; el cuadro de tres
-   líneas obliga a releer a ciegas lo que uno mismo acaba de dictar. */
+   líneas obliga a releer a ciegas lo que uno mismo acaba de escribir. */
 .bulk-texto { min-height: 148px; line-height: 1.55; }
 .bulk-destino { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
 .bulk-entiende { margin: 8px 0 0; padding-left: 19px; display: grid; gap: 6px; line-height: 1.45; }
 .bulk-head { margin: 0; align-items: flex-start; flex-wrap: wrap; }
 .bulk-head p { margin: 5px 0 0; font-variant-numeric: tabular-nums; }
-
-/* ── Dictar ────────────────────────────────────────────────────────────── */
-
-/* El micrófono y su explicación van uno al lado del otro donde caben, y uno
-   encima del otro en un teléfono: el botón nunca se estrecha por debajo de lo
-   que se toca con el pulgar, y la explicación se pliega sola. */
-.bulk-dictado { display: flex; align-items: center; gap: 10px 12px; flex-wrap: wrap; }
-.bulk-dictado p { margin: 0; flex: 1 1 190px; line-height: 1.45; }
-/* `.btn` ya trae los 44 px de alto; aquí solo se deja que la etiqueta larga
-   —«Escuchando… toca para parar»— se parta en dos líneas en vez de desbordar. */
-.bulk-microfono { flex-wrap: wrap; max-width: 100%; text-align: left; }
-.bulk-microfono.escuchando { background: var(--clay-light); border-color: var(--clay); color: var(--clay-dark); }
 
 /* Lo que existe para el lector de pantalla y no para la vista: la ayuda de cada
    campo y, cuando la tabla es tabla, la etiqueta que ya repite la cabecera. Se

@@ -4,7 +4,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
-import android.provider.Settings;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -14,11 +13,6 @@ import org.json.JSONObject;
 
 /**
  * Lo poco que la aplicación necesita del teléfono y no puede hacer sola.
- *
- *   · `abrirAjustes()` — cuando alguien dice «no» al permiso del micrófono,
- *     Android no lo vuelve a preguntar nunca más. Sin esto, el único consejo
- *     posible es «búscalo tú en los ajustes del teléfono», que es exactamente el
- *     tipo de instrucción que hace abandonar a la gente. Con esto, hay un botón.
  *
  *   · `ultimoFallo()` / `olvidarFallo()` — la ventana por la que el JavaScript
  *     lee lo que `GuardiaDeFallos` dejó apuntado. Un fallo que mató el proceso
@@ -55,29 +49,6 @@ public class Aparato extends Plugin {
         enlacePendiente = enlace;
     }
 
-    /**
-     * Abre la ficha de esta aplicación en los ajustes del teléfono, que es donde
-     * están los permisos.
-     *
-     * Se apunta a la ficha de la app y no a la lista general de permisos porque
-     * es la única pantalla que existe igual en todas las versiones de Android y
-     * en todas las capas de los fabricantes. Llevar a alguien a una pantalla que
-     * en su teléfono no existe es peor que no llevarlo.
-     */
-    @PluginMethod
-    public void abrirAjustes(PluginCall call) {
-        try {
-            final Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-            intent.setData(Uri.fromParts("package", getContext().getPackageName(), null));
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            getContext().startActivity(intent);
-            call.resolve(new JSObject().put("abierto", true));
-        } catch (Throwable error) {
-            // Que no se pueda abrir no es motivo para romper nada: quien llama
-            // enseña entonces el camino a mano, que es lo que había antes.
-            call.resolve(new JSObject().put("abierto", false).put("motivo", String.valueOf(error.getMessage())));
-        }
-    }
 
     /**
      * Lo último que mató —o estuvo a punto de matar— a la aplicación.

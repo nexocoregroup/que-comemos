@@ -153,14 +153,6 @@
 }
 .chip-check:has(input:focus-visible) { outline: 2px solid var(--clay-dark); outline-offset: 2px; }
 
-/* Los siete días tienen que caber en una línea a 375 px: siete columnas iguales
-   y el texto abreviado a tres letras. Una rejilla, no un flex que se parta. */
-.dias-semana {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 6px;
-}
-.dias-semana .chip-check { padding: 0; font-size: .8rem; }
 
 /* Los días sueltos del mes: siete columnas, como un calendario, para que
    «los viernes» se vean alineados en una misma columna aunque se elijan a mano.
@@ -178,6 +170,11 @@
 }
 .dia-suelto span { display: flex; flex-direction: column; align-items: center; gap: 1px; }
 .dia-suelto em { font-style: normal; font-size: .62rem; opacity: .72; font-weight: 600; }
+/* El sábado y el domingo, marcados en bajito. Elegir «los tres viernes» o
+   «el fin de semana» sin tener que contar es la mitad del trabajo de esta
+   rejilla, y la inicial sola no basta cuando hay treinta y una fichas. */
+.dia-suelto.finde { background: color-mix(in srgb, var(--sage) 9%, transparent); }
+.dia-suelto.finde em { opacity: .95; color: var(--sage); }
 
 .radio-fila { display: flex; flex-wrap: wrap; gap: 8px; }
 .radio-pill {
@@ -403,7 +400,7 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
   .canasta-fila > button { grid-area: quitar; }
 }
 
-/* ── Revisión: buscar, filtrar y dictar ─────────────────────────────────── */
+/* ── Revisión: buscar y filtrar ─────────────────────────────────────────── */
 
 .revision-herramientas {
   display: flex;
@@ -417,12 +414,6 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
    estado se anuncia además con aria-pressed: un botón que solo cambia de color
    no existe para quien no distingue esos dos tonos. */
 .chip.activa { background: var(--clay); border-color: var(--clay); color: #fff; }
-.revision-aviso {
-  flex-basis: 100%;
-  margin: 0;
-  color: var(--sage);
-  line-height: 1.5;
-}
 
 /* ── Revisión: filas, no tabla ──────────────────────────────────────────── */
 

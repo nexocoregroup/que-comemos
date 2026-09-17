@@ -37,8 +37,7 @@ function contexto(state = createEmptyState()) {
     avisos: [],
     commit: mensaje => { if (mensaje) ctx.avisos.push(mensaje); },
     toast: mensaje => ctx.avisos.push(mensaje),
-    render: () => {}, guardar: () => {}, closeModal: () => {}, openModal: () => {},
-    servicios: { transcribe: false, chat: false, enElAparato: { voz: false } }
+    render: () => {}, guardar: () => {}, closeModal: () => {}, openModal: () => {}
   };
   return ctx;
 }
@@ -279,7 +278,7 @@ test('ni el botón + ni la pantalla de Hoy llevan ya al inventario', () => {
 test('ningún texto de la app promete calcular la compra ni llevar inventario', () => {
   // El punto 12 del encargo: los textos viejos que prometían lo que la app ya
   // no hace. Se leen los archivos que escriben en pantalla, no los comentarios.
-  const archivos = ['legal.js', 'onboarding.js', 'page-mas.js', 'page-compra.js', 'assistant.js'];
+  const archivos = ['legal.js', 'onboarding.js', 'page-mas.js', 'page-compra.js'];
   // Se busca la promesa, no la palabra: la app sí puede —y debe— decir que NO
   // promete una compra exacta, y eso es lo contrario de prometerla.
   const prohibidos = [/calcular la compra/i, /calcula la compra/i, /(?<!no promete una )compra exacta/i, /deja la compra exacta/i];

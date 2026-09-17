@@ -138,26 +138,6 @@
 </ul>
 <p>No es una promesa suelta: la app tiene <strong>una sola puerta de salida a la red</strong>, y solo sabe hablar con el proyecto de Supabase que guarda tu cuenta. Hay una prueba automática que se pone en rojo el día que alguien abra una segunda o le ponga otra dirección.</p>
 
-<h2>El micrófono y el dictado</h2>
-<p>La app pide permiso de micrófono (<code>RECORD_AUDIO</code>) por una sola razón: para que puedas <strong>dictar en vez de escribir</strong>.</p>
-<ul>
-  <li>El micrófono se abre <strong>solo cuando tú tocas el botón de dictar</strong>. Nunca antes, nunca de fondo, nunca mientras la app está cerrada.</li>
-  <li>La app <strong>no graba, no guarda y no envía audio por su cuenta</strong>. No hay ningún archivo de voz en tu teléfono ni en ningún otro lado.</li>
-  <li>Quien entiende lo que dices es el <strong>reconocedor de voz del propio Android</strong>, el mismo del micrófono del teclado. La app solo recibe el texto ya convertido.</li>
-</ul>
-
-<h3>Aquí viene la parte que hay que decir completa</h3>
-<p>Ese reconocedor de Android funciona de dos maneras, y cuál te toca depende de tu teléfono:</p>
-<ul>
-  <li><strong>Si tu teléfono entiende la voz por sí solo</strong> y tiene descargado el paquete de español, todo pasa dentro del aparato. Tu voz no sale del teléfono.</li>
-  <li><strong>Si tu teléfono no lo trae</strong>, Android hace lo que hace siempre en ese caso: <strong>manda el audio a sus servidores</strong> para entenderlo, y por eso ahí el dictado necesita conexión. Eso lo hace Android, no nosotros, pero pasa igual y tienes derecho a saberlo.</li>
-</ul>
-<p><strong>La app le pregunta a tu teléfono cuál de los dos casos es el suyo, y si el audio va a salir te lo dice en pantalla antes de abrir el micrófono.</strong> No lo supone: lo comprueba cada vez. Así que si no ves ningún aviso, es que en tu teléfono la voz se queda dentro.</p>
-<p>Puedes ver la respuesta para tu aparato, con calma, en <strong>Más → Ajustes → Detalle de este aparato</strong>.</p>
-<p>Cuando Android manda ese audio a sus servidores, lo que pase con él ya depende de Google y de los ajustes de voz de tu propio teléfono, no de esta app.</p>
-<p>Si usas la app <strong>desde un navegador</strong> en vez de instalada, el dictado lo hace el navegador, que necesita conexión y manda la voz a sus servidores. Ahí también te avisamos antes de abrir el micrófono.</p>
-<p>Y si prefieres no usar nada de esto: <strong>escribir a mano funciona siempre</strong>, en todos los campos. Puedes negar el permiso de micrófono y la app sigue completa.</p>
-
 <h2>El permiso de internet, y cuándo se usa de verdad</h2>
 <p>La app pide el permiso <code>INTERNET</code> y lo usa <strong>para una sola cosa: las cuentas</strong>. Ni una más.</p>
 <p><strong>Sin cuenta, la app no llama a ninguna parte.</strong> Ni al abrirse, ni al guardar, ni de fondo. Los alimentos, la canasta, el menú, la compra y el inventario salen todos de tu propio teléfono, y puedes usarla el mes completo en modo avión.</p>
@@ -173,6 +153,7 @@
 <h2>Permisos que la app no pide</h2>
 <p>Vale la pena decir también lo que no está:</p>
 <ul>
+  <li>No pide <strong>micrófono</strong>.</li>
   <li>No pide <strong>cámara</strong>.</li>
   <li>No pide <strong>galería ni fotos</strong>.</li>
   <li>No pide <strong>ubicación</strong>.</li>
@@ -180,7 +161,7 @@
   <li>No pide <strong>teléfono ni llamadas</strong>.</li>
   <li>No pide acceso a los <strong>archivos</strong> de tu teléfono.</li>
 </ul>
-<p>Son dos permisos en total —internet y micrófono— y ninguno más. Hay una prueba automática que falla si alguno de los otros se cuela.</p>
+<p>Es un permiso en total —internet— y ninguno más. Hay una prueba automática que falla si alguno de los otros se cuela.</p>
 
 <h2>Cómo borrar tus datos</h2>
 <p>Todos los caminos los recorres tú, desde tu teléfono, sin pedirle permiso a nadie:</p>

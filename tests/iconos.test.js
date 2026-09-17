@@ -101,10 +101,11 @@ test('una categoría desconocida cae en «otros» y no en un hueco', () => {
 });
 
 test('no quedan emoji de sistema haciendo de icono en la interfaz', () => {
-  // Los que quedan a propósito son tres, y los tres están en frases que hablan
-  // del teclado del teléfono —«toca el 🎤 de tu teclado»—, donde el emoji ES lo
-  // que la persona tiene que buscar con la vista. Ese no lo podemos sustituir
-  // por un dibujo nuestro sin mentir.
+  // No queda ninguno. La excepción sigue escrita porque el caso que describe
+  // puede volver: una frase que señala una tecla del teclado del teléfono
+  // —«toca el 🎤 de tu teclado»— necesita ese emoji, porque es justo lo que la
+  // persona tiene que buscar con la vista, y sustituirlo por un dibujo nuestro
+  // sería enseñarle algo que en su pantalla no está.
   const PERMITIDO = /de tu teclado|del teclado/;
   const PICTOGRAMA = /\p{Extended_Pictographic}/u;
   const sueltos = [];

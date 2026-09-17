@@ -19,8 +19,6 @@
 // avanzaría de paso.
 
 import { CATEGORIES, SEED_PRODUCTS } from './catalog-seed.js';
-import { cancelarDictado, capacidad } from './device.js';
-import { panelDeVoz } from './voz.js';
 import {
   UNITS, addProduct, agregarALista, anotarComprado, cerrarLista, crearLista, effectiveBasket, findSimilarProducts, habitualLines,
   normalizeName, product, productByName, setHabitualBasket, setMonthChange,
@@ -28,9 +26,8 @@ import {
 } from './model.js';
 import { parseProductText } from './text-parse.js';
 import { button, esc, measure, monthName, notice, options, productDatalist, productField } from './ui-kit.js';
-import { icono } from './icons.js';
 
-// El dictado de una quincena cualquiera en una casa dominicana. Se usa de
+// La compra de una quincena cualquiera en una casa dominicana. Se usa de
 // marcador de posición y detrás del botón «Usar el ejemplo»: quien nunca ha
 // visto la pantalla necesita ver el tono, no una instrucción abstracta.
 export const EJEMPLO = 'Compramos 30 plátanos maduros, 10 libras de arroz, 4 paquetes de salami, 30 huevos, 6 latas de atún y detergente.';
@@ -127,21 +124,6 @@ export function emptyBulk(destino = 'habitual') {
   };
 }
 
-// El panel de dictado es compartido. Si el que está abierto es el de esta
-// pantalla, se cierra con ella; si es el de otra, no se toca. Sin esto, pasar a
-// revisar dejaría el micrófono escuchando contra un cuadro que ya no se ve.
-function cerrarPanelDeVoz(ctx) {
-  const voz = ctx?.ui?.voz;
-  if (voz?.destino !== 'bulk') return;
-  voz.sesion += 1;
-  voz.destino = '';
-  voz.estado = 'quieto';
-  Promise.resolve(cancelarDictado()).catch(() => { /* Cerrar el micrófono no puede fallar hacia fuera. */ });
-}
-
-// Se dice entero: «pasa por sus servidores» es exactamente lo que pasa, y quien
-// lo lee tiene que poder decidir si prefiere escribirlo a mano.
-
 // La decisión de cada fila viaja en un solo `select`, así que el valor lleva
 // dentro con qué producto se une: `unir:producto-3`. Un control en vez de dos
 // evita tener que volver a dibujar la tabla al cambiar de opción, que es lo que
@@ -197,7 +179,7 @@ function construirFila(state, linea, indice) {
   // La unidad que se escribió manda siempre. Después, la de la ficha que ya
   // existe; después, la de la semilla. El último recurso es «unidad», y en ese
   // caso la fila lo dice: el desplegable trae algo escogible, no un dato que
-  // alguien haya dictado.
+  // alguien haya escrito.
   const unidad = linea.unit || conocido?.controlUnit || semilla?.controlUnit || 'unidad';
   const fila = {
     id: `fila-${indice + 1}`,
@@ -318,20 +300,19 @@ function textoGuardar(filas, destino, mes) {
 
 export function renderBulk(ctx) {
   const bulk = ctx.bulk || emptyBulk();
-  return bulk.paso === 'revisar' ? pasoRevisar(ctx, bulk) : pasoEscribir(ctx, bulk);
+  return bulk.paso === 'revisar' ? pasoRevisar(ctx, bulk) : pasoEscribir(bulk);
 }
 
-function pasoEscribir(ctx, bulk) {
+function pasoEscribir(bulk) {
   const mes = validMonth(bulk.mes) ? bulk.mes : todayISO().slice(0, 7);
   return `<form data-form="bulk-texto" class="stack bulk">
     <div class="card stack">
-      <h2>Díctalo o escríbelo como lo dirías</h2>
+      <h2>Escríbelo como lo dirías</h2>
       <p class="muted">Un párrafo con todo lo de la vuelta del mes. Se convierte en una tabla que revisas antes de que se guarde nada.</p>
       <label class="field">
         <span>Lo que compraste o lo que la casa consume</span>
         <textarea name="texto" class="bulk-texto" rows="6" autocapitalize="sentences" spellcheck="true" enterkeyhint="done" placeholder="${esc(EJEMPLO)}" required>${esc(bulk.texto)}</textarea>
       </label>
-      ${bloqueDictado(ctx)}
       <div class="bulk-destino">
         <label class="field">
           <span>Adónde van estas filas</span>
@@ -359,26 +340,6 @@ function pasoEscribir(ctx, bulk) {
       </div>
     </div>
   </form>`;
-}
-
-// El micrófono del paso 1. Dictar la compra de corrido —«30 plátanos, 10 libras
-// de arroz, 4 paquetes de salami»— es para lo que se hizo esta pantalla, así que
-// el botón va pegado al cuadro de texto y no escondido detrás de nada.
-//
-// Quién puede escuchar lo decide device.js, que ya elige entre el motor del
-// teléfono y el del navegador; aquí solo se pregunta si hay alguno. Y cuando no
-// lo hay se dice, con la salida que siempre funciona: el micrófono del teclado.
-function bloqueDictado(ctx) {
-  const motor = capacidad('dictar');
-  if (!motor.ok) return `<p class="hint">Este aparato no trae dictado dentro de la aplicación. Escribe en el cuadro de arriba, o toca el 🎤 de tu teclado estando dentro de él.</p>`;
-  return `<div class="bulk-dictado">
-    <button type="button" class="btn btn-secondary bulk-microfono" data-action="voz-abrir" data-destino="bulk"
-      aria-label="Dictar o escribir lo que compraste">
-      ${icono('microfono', { tamano: 18 })}<span>Dictar</span>
-    </button>
-    <p class="tiny muted">Dilo de corrido, con cantidades: «30 plátanos, 10 libras de arroz, 4 paquetes de salami». Puedes dictar en varias tandas: lo nuevo se añade a lo que ya está escrito.</p>
-  </div>
-  ${panelDeVoz(ctx, 'bulk')}`;
 }
 
 function pasoRevisar(ctx, bulk) {
@@ -548,7 +509,8 @@ const intentar = (ctx, fn) => {
 
 // El paso 1 se vuelve a dibujar entero en cada cambio, así que lo escrito y lo
 // elegido se guardan en el estado antes de cualquier redibujo: lo que no esté
-// ahí se pierde, y perder el párrafo que alguien acaba de dictar es imperdonable.
+// ahí se pierde, y perder el párrafo que alguien acaba de escribir es
+// imperdonable.
 function guardarLoEscrito(el, ctx) {
   const form = el?.closest('[data-form="bulk-texto"]') || globalThis.document?.querySelector('[data-form="bulk-texto"]');
   if (!form) return;
@@ -558,15 +520,13 @@ function guardarLoEscrito(el, ctx) {
 }
 
 export const BULK_ACTIONS = {
-  // Rellena el cuadro con el dictado de ejemplo, conservando el destino y el
-  // mes que ya estuvieran elegidos.
+  // Rellena el cuadro con el ejemplo, conservando el destino y el mes que ya
+  // estuvieran elegidos.
   'bulk-ejemplo': (el, ctx) => intentar(ctx, () => {
     guardarLoEscrito(el, ctx);
     ctx.bulk.texto = EJEMPLO;
     ctx.render();
   }),
-  // Dictar ya no vive aquí: lo lleva `voz.js`, el mismo panel de las otras tres
-  // pantallas desde donde se dicta. El botón manda `voz-abrir`.
   // Vuelve al paso 1 con el texto intacto: corregir el párrafo entero es a
   // veces más rápido que corregir seis filas.
   'bulk-escribir': (el, ctx) => intentar(ctx, () => {
@@ -597,10 +557,7 @@ export const BULK_ACTIONS = {
 export const BULK_FORMS = {
   'bulk-texto': (form, data, ctx) => intentar(ctx, () => {
     const valor = String(data.get('texto') || '');
-    // Pasar a revisar cierra el micrófono y da por vencido el dictado en curso:
-    // lo que llegara tarde escribiría en un cuadro que ya no se está mirando.
-    cerrarPanelDeVoz(ctx);
-    if (!texto(valor)) throw new Error('Escribe o dicta qué se compró antes de revisar.');
+    if (!texto(valor)) throw new Error('Escribe qué se compró antes de revisar.');
     const destino = String(data.get('destino') || ctx.bulk.destino);
     const mes = String(data.get('mes') || '') || ctx.bulk.mes;
     if (destino === 'mes' && !validMonth(mes)) throw new Error('Elige el mes al que van estos alimentos.');
@@ -679,10 +636,9 @@ function guardar(ctx, data) {
       return `${creados} ${alimentos(creados)} ${creados === 1 ? 'registrado' : 'registrados'} en el catálogo.${yaEstaban ? ` ${yaEstaban} ya ${yaEstaban === 1 ? 'estaba' : 'estaban'}.` : ''}`;
     }
     // Una compra que ya se hizo se guarda como lista cerrada, igual que la que
-    // se termina desde la pantalla de la compra y que la que se le dicta al
-    // asistente. Antes escribía en `purchases` y subía el inventario; ya no hay
-    // inventario que subir, y tres formas de anotar la misma compra tenían que
-    // acabar en el mismo sitio.
+    // se termina desde la pantalla de la compra. Antes escribía en `purchases` y
+    // subía el inventario; ya no hay inventario que subir, y dos formas de
+    // anotar la misma compra tenían que acabar en el mismo sitio.
     if (bulk.destino === 'compra') {
       const lista = crearLista(state, { fecha: todayISO(), nombre: 'Anotada por escrito' });
       for (const fila of filas) {

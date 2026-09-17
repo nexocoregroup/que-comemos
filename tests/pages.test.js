@@ -15,9 +15,8 @@ import { readFileSync } from 'node:fs';
 // campo que cambió de forma y el `undefined` que se cuela en la pantalla.
 
 import { createDemoState } from '../src/demo.js';
-import { addProduct, createEmptyState, createReview, saveReview, setHabitualLine, setMonthChange, setPersonActive, setReviewScope, todayISO, upsertPerson } from '../src/model.js';
-import { addRoutine } from '../src/routines.js';
-import { BLOQUES, emptyMes, modalDia, modalRutina, renderMes } from '../src/page-mes.js';
+import { addProduct, addPurchase, createEmptyState, createReview, saveReview, setHabitualLine, setMonthChange, setPersonActive, setReviewScope, todayISO, upsertPerson } from '../src/model.js';
+import { emptyMes, modalDia, modalPonerEnDias, renderMes } from '../src/page-mes.js';
 import { emptyCompra, renderCompra } from '../src/page-compra.js';
 import { PAGINAS_MAS, emptyMas, estadoDeLaCopia, renderMas } from '../src/page-mas.js';
 
@@ -35,8 +34,7 @@ function contexto(state, extra = {}) {
       ...extra
     },
     commit: () => {}, toast: () => {}, render: () => {},
-    closeModal: () => {}, openModal: () => {}, startTour: () => {},
-    servicios: { transcribe: false, chat: false, enElAparato: { voz: false } }
+    closeModal: () => {}, openModal: () => {}, startTour: () => {}
   };
 }
 
@@ -61,18 +59,24 @@ test('plan mensual se dibuja con datos', () => {
   revisar(renderMes(ctx), 'renderMes (calendario)');
 });
 
-test('los tres bloques de preparar el mes se dibujan', () => {
-  const ctx = contexto(createDemoState());
-  for (const bloque of BLOQUES) {
-    ctx.ui.mes.bloque = bloque.id;
-    revisar(renderMes(ctx), `bloque «${bloque.id}»`);
-  }
+test('la ventana de poner una comida en varios días se dibuja, venga de donde venga', () => {
+  const state = createDemoState();
+  const ctx = contexto(state);
+  revisar(modalPonerEnDias(ctx, { month: MES }), 'modalPonerEnDias');
+  // Desde una preparación y desde una comida del calendario llega con lo que
+  // ya se eligió: la ventana no puede volver a preguntarlo.
+  revisar(modalPonerEnDias(ctx, { month: MES, receta: state.recipes[0].id, slot: 'cena', kind: 'recipe' }), 'modalPonerEnDias (con preparación y momento)');
+  revisar(modalPonerEnDias(ctx, { month: MES, kind: 'outside' }), 'modalPonerEnDias (fuera de casa)');
 });
 
-test('el formulario de una rutina se dibuja, con atajo y sin él', () => {
-  const ctx = contexto(createDemoState());
-  revisar(modalRutina(ctx, { month: MES }), 'modalRutina');
-  revisar(modalRutina(ctx, { month: MES, atajo: 'primer-tercer', kind: 'outside' }), 'modalRutina (primer y tercer domingo)');
+test('la ventana de poner en varios días trae los treinta días del mes y sus atajos', () => {
+  const html = modalPonerEnDias(contexto(createDemoState()), { month: MES });
+  const dias = (html.match(/name="fechas"/g) || []).length;
+  assert.equal(dias, 30, 'septiembre tiene 30 días y todos tienen que poder marcarse');
+  for (const cuantos of ['7', '14', '0']) {
+    assert.ok(html.includes(`data-cuantos="${cuantos}"`), `falta el atajo de ${cuantos} días`);
+  }
+  assert.ok(!/weekdays|scope|permanent/.test(html), 'la ventana volvió a preguntar por una costumbre');
 });
 
 test('la compra se dibuja con las dos bases y los tres tramos', () => {
@@ -137,17 +141,16 @@ test('todas las pantallas se dibujan con el estado vacío', () => {
     ctx.ui.page = pagina;
     revisar(renderMas(ctx), `renderMas vacío («${pagina}»)`);
   }
-  for (const bloque of BLOQUES) {
-    ctx.ui.mes.bloque = bloque.id;
-    revisar(renderMes(ctx), `bloque vacío «${bloque.id}»`);
-  }
+  ctx.ui.mes.vista = 'calendario';
+  revisar(renderMes(ctx), 'renderMes vacío (calendario)');
 });
 
 test('un estado vacío ofrece qué hacer, no una pantalla en blanco', () => {
   const ctx = contexto(createEmptyState());
   const html = renderMes(ctx);
-  assert.ok(html.includes('rutina'), 'el plan mensual vacío no explica qué es una rutina');
+  assert.ok(/marcas los días|marca los días|varios días/i.test(html), 'el plan mensual vacío no explica cómo se llena');
   assert.ok(html.includes('data-action='), 'el plan mensual vacío no ofrece ninguna acción');
+  assert.ok(!/rutina/i.test(html), 'el plan mensual vacío vuelve a hablar de rutinas');
 });
 
 /* ── Que no se filtre el vocabulario que se quitó ──────────────────────── */
@@ -172,7 +175,7 @@ test('ninguna pantalla enseña el vocabulario técnico que se retiró', () => {
   // puede contarse por qué algo se llamó «canasta». Los tres nombres que
   // sobrevivieron a la última limpieza estaban justamente en un modal y en unos
   // cuantos avisos, no en una pantalla.
-  for (const archivo of ['app.js', 'assistant.js', 'bulk-entry.js', 'chat-ui.js', 'hogar.js', 'page-mas.js', 'setup.js']) {
+  for (const archivo of ['app.js', 'bulk-entry.js', 'hogar.js', 'page-mas.js', 'setup.js']) {
     const fuente = readFileSync(new URL(`../src/${archivo}`, import.meta.url), 'utf8')
       .split(/\r?\n/).filter(linea => !/^\s*(\/\/|\*|\/\*)/.test(linea)).join('\n')
       .toLocaleLowerCase('es');
@@ -202,10 +205,27 @@ test('un extra de un mes se enseña marcado, y no como parte de lo habitual', ()
   revisar(cambios, 'canasta (cambios con un extra)');
 });
 
-/* ── La revisión, que es la pantalla que más se toca ───────────────────── */
+/* ── La revisión: el archivo del inventario que se retiró ───────────────────
 
-test('la revisión ofrece buscar, esconder lo contestado y dictar', () => {
-  const state = createDemoState();
+   Ya no se producen revisiones nuevas. La pantalla sigue ahí, en solo lectura,
+   para quien tenga datos de cuando la app llevaba la cuenta de la despensa, y
+   sigue mereciendo que su buscador y su filtro funcionen: una lista de treinta
+   alimentos sin buscador no se lee.
+
+   La casa de ejemplo ya no trae inventario, así que estas tres se montan el
+   suyo: unos alimentos y una compra, que es lo único que una revisión
+   necesita para tener filas. */
+
+function casaConCompra() {
+  const state = createEmptyState();
+  const ids = ['Arroz', 'Huevo', 'Salami', 'Atún'].map(nombre =>
+    addProduct(state, { name: nombre, controlUnit: 'unidad', purchaseUnit: 'unidad', category: 'otros' }).id);
+  addPurchase(state, { date: todayISO(), lines: ids.map(id => ({ productId: id, quantity: 4, unidad: 'unidad', unit: 'unidad' })) });
+  return state;
+}
+
+test('la revisión ofrece buscar y esconder lo contestado', () => {
+  const state = casaConCompra();
   const revision = createReview(state, todayISO());
   const ctx = contexto(state, { page: 'revision' });
   ctx.ui.reviewId = revision.id;
@@ -221,12 +241,12 @@ test('la revisión ofrece buscar, esconder lo contestado y dictar', () => {
 // que venga en el formulario. Si una fila escondida no viajara, buscar «arroz»
 // borraría las otras veintinueve respuestas. Esta prueba existe por eso.
 test('buscar en la revisión no deja fuera lo ya contestado', () => {
-  const state = createDemoState();
+  const state = casaConCompra();
   const revision = createReview(state, todayISO());
   // Una revisión empieza por lo de la última compra. Aquí se quiere la despensa
   // entera, que es donde de verdad duele perder una fila al buscar.
   setReviewScope(state, revision.id, 'todo');
-  assert.ok(revision.productIds.length >= 3, 'el ejemplo debería traer varios alimentos');
+  assert.ok(revision.productIds.length >= 3, 'la casa de prueba debería traer varios alimentos');
   const ctx = contexto(state, { page: 'revision' });
   ctx.ui.reviewId = revision.id;
 
@@ -240,7 +260,7 @@ test('buscar en la revisión no deja fuera lo ya contestado', () => {
 });
 
 test('la revisión se puede mirar solo por lo que falta', () => {
-  const state = createDemoState();
+  const state = casaConCompra();
   const revision = createReview(state, todayISO());
   const [primero] = revision.productIds;
   saveReview(state, revision.id, { [primero]: 0 });
@@ -252,6 +272,26 @@ test('la revisión se puede mirar solo por lo que falta', () => {
   // El contestado sale del listado visible pero sigue en el formulario.
   assert.ok(!html.includes(`data-review-product="${primero}"`), 'el alimento ya contestado debería esconderse');
   assert.ok(html.includes(`name="consume-${primero}"`), 'y aun así seguir viajando al guardar');
+});
+
+/* ── Lo que una tarjeta promete ────────────────────────────────────────── */
+
+test('la tarjeta de una preparación no promete porciones que la ficha no pregunta', () => {
+  const state = createDemoState();
+  // Un dato de cuando sí se preguntaban. Sigue en el respaldo de quien lo
+  // escribió, y esa es la razón de que no se borre.
+  state.recipes[0].servings = 6;
+  const html = renderMas(contexto(state, { page: 'preparaciones' }));
+  assert.ok(!/6 porciones/.test(html), 'sigue enseñando un dato que ya no se puede escribir');
+  assert.equal(state.recipes[0].servings, 6, 'pero el dato no se borra: se conserva de cuando se preguntaba');
+});
+
+test('la tarjeta de una preparación tampoco promete que se repita sola', () => {
+  const html = renderMas(contexto(createDemoState(), { page: 'preparaciones' }));
+  for (const palabra of ['rutina', 'Se repite', 'repetición']) {
+    assert.ok(!html.includes(palabra), `la tarjeta vuelve a hablar de «${palabra}»`);
+  }
+  assert.ok(html.includes('mes-poner-en-dias'), 'la tarjeta no ofrece ponerla en el calendario');
 });
 
 /* ── La copia de seguridad, que ahora es la única red que hay ──────────── */
@@ -290,26 +330,24 @@ test('la app avisa de la copia cuando toca, y calla cuando no', () => {
   assert.equal(vieja.urgente, true, 'una copia de hace cuarenta días debería avisar');
 });
 
-/* ── Que una rutina se lea en palabras ─────────────────────────────────── */
+/* ── Los días se eligen mirando un calendario, no una lista ────────────── */
 
-test('el plan mensual describe una rutina en palabras, no en números', () => {
-  const state = createEmptyState();
-  addRoutine(state, { kind: 'outside', slots: ['almuerzo'], weekdays: [7], weeks: [1, 3], scope: 'permanent', label: 'Almuerzo fuera' });
-  const ctx = contexto(state);
-  const html = renderMes(ctx);
-  assert.ok(/domingo/i.test(html), 'la regla debería decir «domingo», no un número de día');
+test('los días del mes se ofrecen con su inicial y con el fin de semana marcado', () => {
+  const html = modalPonerEnDias(contexto(createDemoState()), { month: MES });
+  // Elegir «los tres viernes que viene mi mamá» sin la inicial del día obliga a
+  // mirar un calendario aparte y contar.
+  assert.ok(/<em>[LMXJVSD]<\/em>/.test(html), 'los días no dicen de qué día de la semana son');
+  assert.ok(html.includes('finde'), 'el fin de semana no se distingue del resto');
   assert.ok(!html.includes('weekdays') && !html.includes('[7]'), 'se está enseñando la estructura interna');
-  revisar(html, 'renderMes con una rutina de domingos');
 });
 
 
 /* ── Que el micrófono del teclado pueda escribir en los campos ─────────────
 
-   El micrófono del teclado es la alternativa que sigue funcionando cuando el de
-   la aplicación falla, y es además la que no puede llevarse la app por delante:
-   corre dentro del proceso del teclado, no dentro de este. Por eso importa que
-   los campos lo admitan, y por eso se comprueba aquí en vez de confiar en que
-   nadie añada mañana un `readonly` sin pensarlo.
+   La aplicación ya no escucha: el único micrófono que hay es el del teclado del
+   teléfono, y ese no es cosa nuestra salvo en una cosa —que nuestros campos lo
+   admitan—. Por eso se comprueba aquí, en vez de confiar en que nadie añada
+   mañana un `readonly` sin pensarlo.
 
    Lo que de verdad apaga la tecla del micrófono en un WebView de Android:
 
@@ -318,10 +356,8 @@ test('el plan mensual describe una rutina en palabras, no en números', () => {
 
    Aparte queda un caso que no es un fallo y conviene no confundir: en un campo
    `type="number"` el teclado que sale es el numérico, y el numérico no trae
-   tecla de micrófono. Eso lo decide Android, no esta aplicación. La respuesta a
-   eso es el panel de dictado, que oye una frase entera —«quedan dos libras de
-   arroz»— y la reparte entre las casillas; no es quitarle el `type="number"` a
-   un campo donde solo caben números. */
+   tecla de micrófono. Eso lo decide Android, no esta aplicación, y la respuesta
+   no es quitarle el `type="number"` a un campo donde solo caben números. */
 
 test('ningún campo de texto apaga el micrófono del teclado', () => {
   const state = createDemoState();
@@ -345,11 +381,12 @@ test('ningún campo de texto apaga el micrófono del teclado', () => {
   assert.deepEqual(culpables, [], 'campos donde el micrófono del teclado no podría escribir');
 });
 
-test('los cuadros de texto libre vienen preparados para dictar de corrido', () => {
-  // `autocapitalize="sentences"` hace que lo dictado empiece en mayúscula como
-  // una frase y no como un grito; `spellcheck` es lo que subraya la palabra que
-  // el reconocimiento oyó mal, que es exactamente lo que hay que repasar.
-  const fuentes = ['src/voz.js', 'src/bulk-entry.js', 'src/setup.js', 'src/app.js'];
+test('los cuadros de texto libre vienen preparados para escribir de corrido', () => {
+  // `autocapitalize="sentences"` hace que un párrafo empiece en mayúscula como
+  // una frase y no como un grito; `spellcheck` es lo que subraya la palabra mal
+  // escrita —o mal oída, si se usa el micrófono del teclado—, que es justo lo
+  // que hay que repasar antes de guardar.
+  const fuentes = ['src/bulk-entry.js', 'src/setup.js', 'src/app.js'];
   const sinPreparar = [];
   for (const archivo of fuentes) {
     const codigo = readFileSync(archivo, 'utf8');
@@ -357,5 +394,5 @@ test('los cuadros de texto libre vienen preparados para dictar de corrido', () =
       if (!/autocapitalize=/.test(etiqueta)) sinPreparar.push(`${archivo}: textarea sin autocapitalize`);
     }
   }
-  assert.deepEqual(sinPreparar, [], 'cuadros de texto sin preparar para el dictado');
+  assert.deepEqual(sinPreparar, [], 'cuadros de texto sin preparar para escribir de corrido');
 });

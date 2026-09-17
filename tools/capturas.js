@@ -67,21 +67,22 @@ const PANTALLAS = [
   },
   {
     archivo: '2-plan-mensual.png',
-    titulo: 'Plan mensual — el mes y las rutinas de la casa',
+    titulo: 'Plan mensual — cuánto hay decidido y qué falta',
     // Sin bajar: esta es la que enseña la cabecera de la app, y una cabecera
     // cortada por la mitad es lo primero que se nota en una ficha de tienda.
     hacer: ir('mes'),
     desplazar: 0
   },
   {
-    archivo: '3-rutina.png',
-    titulo: 'Una rutina — unos días de la semana llenan el mes',
-    // La del ejemplo, no una vacía: lunes, miércoles, viernes y sábado ya
-    // puestos es lo que hay que enseñar. Un formulario en blanco no explica
-    // nada a quien todavía no sabe para qué sirve.
+    archivo: '3-poner-en-dias.png',
+    titulo: 'Una comida en varios días — se marcan y se ponen',
+    // Con los siete días siguientes ya marcados, que es lo que hay que enseñar:
+    // una ventana vacía no explica nada a quien todavía no sabe para qué sirve.
     hacer: `${ir('mes')};
       await new Promise(r => setTimeout(r, 400));
-      document.querySelector('[data-action="open-routine"]')?.click();`
+      document.querySelector('[data-action="mes-poner-en-dias"]')?.click();
+      await new Promise(r => setTimeout(r, 500));
+      document.querySelector('[data-action="poner-dias-atajo"][data-cuantos="7"]')?.click();`
   },
   {
     archivo: '4-compra.png',

@@ -12,7 +12,7 @@
 //   había llegado a ejecutar.
 // - «Empezar una revisión» era el único botón de su pantalla vacía y no lo
 //   atendía nadie desde que se retiró el inventario.
-// - El asistente ofrecía «Editar una persona» con una acción inexistente.
+// - El chat ofrecía «Editar una persona» con una acción inexistente.
 //
 // Se lee el archivo en vez de ejecutarlo porque app.js toca el documento nada
 // más cargar y no se puede importar aquí.

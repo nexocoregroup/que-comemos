@@ -4,8 +4,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  addProduct, createEmptyState, effectiveBasket, habitualLines, product,
-  removeHabitualLine, setHabitualBasket, setHabitualLine, todayISO
+  addProduct, createEmptyState, effectiveBasket, habitualLines, product, promoteToHabitual,
+  removeHabitualLine, setHabitualBasket, setHabitualLine, setMonthChange, todayISO
 } from '../src/model.js';
 import { SCHEMA_VERSION, migrate } from '../src/migrate.js';
 
@@ -248,4 +248,165 @@ test('unir dos alimentos suma sus dos historias, mes a mes', async () => {
   assert.equal(cuanto(state, mesesAntes(3), arroz), 25, '20 y 5 en el mes en que convivieron');
   assert.equal(cuanto(state, mesesAntes(2), arroz), 35, 'y 30 y 5 cuando el primero subió');
   assert.ok(Number.isFinite(cuanto(state, ESTE_MES, arroz)), 'una cantidad que no es un número rompe la compra entera');
+});
+
+/* ── Un ocasional que pasa a ser de siempre ────────────────────────────────
+
+   Venía de las pruebas del cierre de períodos, que se fue con el cálculo de la
+   compra. Lo que probaba no se fue: ascender un alimento de excepción del mes a
+   costumbre de la casa sigue abriendo un tramo, y ese tramo sigue teniendo una
+   fecha de comienzo que ningún mes anterior puede ver. */
+
+test('añadir a la canasta base entra en vigor desde el mes que se diga', () => {
+  const { state } = casa();
+  const cangrejo = addProduct(state, { name: 'Cangrejo', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
+  setMonthChange(state, '2026-03', cangrejo, { quantity: 3, unit: 'lb' });
+  promoteToHabitual(state, '2026-03', [cangrejo], '2026-06');
+
+  const tiene = mes => effectiveBasket(state, mes).some(fila => fila.productId === cangrejo);
+  assert.equal(tiene('2026-02'), false, 'apareció en un mes anterior a la excepción');
+  assert.equal(tiene('2026-03'), true, 'el mes donde se compró de verdad lo perdió');
+  assert.equal(tiene('2026-04'), false, 'apareció antes de entrar en vigencia');
+  assert.equal(tiene('2026-06'), true);
+  assert.equal(tiene('2026-07'), true);
+  // Y en marzo sigue siendo la excepción que fue, no la norma.
+  assert.equal(effectiveBasket(state, '2026-03').find(fila => fila.productId === cangrejo).source, 'extra');
+});
+
+test('sin decir el mes, entra desde el mes del cambio', () => {
+  const { state } = casa();
+  const cangrejo = addProduct(state, { name: 'Cangrejo', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
+  setMonthChange(state, '2026-03', cangrejo, { quantity: 3, unit: 'lb' });
+  promoteToHabitual(state, '2026-03', [cangrejo]);
+  const tiene = mes => effectiveBasket(state, mes).some(fila => fila.productId === cangrejo);
+  assert.equal(tiene('2026-02'), false, 'se metió hacia atrás en un mes que ya pasó');
+  assert.equal(tiene('2026-03'), true);
+  assert.equal(tiene('2026-04'), true);
+});
+
+test('corregir la cantidad de una línea no cambia desde cuándo se compra', () => {
+  const { state } = casa();
+  const cangrejo = addProduct(state, { name: 'Cangrejo', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
+  setMonthChange(state, '2026-03', cangrejo, { quantity: 3, unit: 'lb' });
+  promoteToHabitual(state, '2026-03', [cangrejo], '2026-06');
+  setHabitualLine(state, cangrejo, 5, 'lb');
+  const tiene = mes => effectiveBasket(state, mes).some(fila => fila.productId === cangrejo);
+  assert.equal(tiene('2026-05'), false, 'corregir la cantidad lo adelantó dos meses');
+  assert.equal(cuanto(state, '2026-06', cangrejo), 3, 'junio se quedó con la cantidad que se dijo para junio');
+  assert.equal(cuanto(state, ESTE_MES, cangrejo), 5, 'y la corrección vale desde este mes');
+});
+
+/* ── Una línea nueva nace con su fecha ─────────────────────────────────────
+
+   Lo de arriba cubre el alimento que se asciende desde una excepción del mes,
+   que es el único sitio donde la app pregunta desde cuándo. Estas son de los
+   otros caminos: la pantalla de la canasta, la ficha del alimento, el dictado y
+   el asistente. Por todos ellos entraba antes sin fecha, y sin fecha quiere
+   decir «desde siempre»: añadir cangrejo hoy ponía a junio, julio y agosto a
+   comprar cangrejo. */
+
+// Una casa que ya venía funcionando antes de este mes, con su arroz marcado
+// como obligatorio, que es lo que hace el asistente de entrada con los
+// alimentos comunes del catálogo.
+function casaDeAntes() {
+  const state = createEmptyState();
+  const arroz = addProduct(state, { name: 'Arroz', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
+  setHabitualBasket(state, [{ productId: arroz, quantity: 20, unit: 'lb', priority: 'obligatorio', desde: '2025-01' }]);
+  return { state, arroz };
+}
+
+test('un alimento añadido hoy no aparece en los meses que ya pasaron', () => {
+  const { state } = casaDeAntes();
+  const cangrejo = addProduct(state, { name: 'Cangrejo', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
+  setHabitualLine(state, cangrejo, 5, 'lb');
+  const tiene = mes => effectiveBasket(state, mes).some(fila => fila.productId === cangrejo);
+  assert.equal(tiene(mesesAntes(3)), false, 'se metió tres meses hacia atrás');
+  assert.equal(tiene(mesesAntes(1)), false, 'se metió en el mes pasado');
+  assert.equal(tiene(ESTE_MES), true, 'no entró en el mes en curso');
+  assert.equal(tiene(mesesDespues(1)), true, 'no sigue el mes que viene');
+});
+
+test('la canasta de un mes que ya pasó no cambia porque hoy se añada algo', () => {
+  const { state, arroz } = casaDeAntes();
+  const pasado = mesesAntes(1);
+  const antes = effectiveBasket(state, pasado);
+  assert.equal(antes.length, 1, 'la casa de antes debería tener su arroz el mes pasado');
+  assert.equal(antes[0].productId, arroz);
+
+  const cangrejo = addProduct(state, { name: 'Cangrejo', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
+  setHabitualLine(state, cangrejo, 5, 'lb');
+
+  const despues = effectiveBasket(state, pasado);
+  assert.equal(despues.length, 1, 'la canasta del mes pasado cambió sola');
+  assert.equal(despues.find(fila => fila.productId === cangrejo), undefined, 'el mes pasado se puso a comprar cangrejo');
+  assert.ok(despues.find(fila => fila.productId === arroz), 'y de paso perdió el arroz de siempre');
+  // En el mes en curso sí está, que es lo que se pidió.
+  assert.equal(cuanto(state, ESTE_MES, cangrejo), 5);
+});
+
+test('guardar la canasta entera no vuelve a fechar lo que ya estaba', () => {
+  const { state, arroz } = casaDeAntes();
+  // La pantalla de la canasta reenvía todas sus líneas sin fecha al guardar. Si
+  // eso las volviera a fechar hoy, cada mes anterior se quedaría vacío de golpe
+  // por haber corregido una cantidad.
+  setHabitualBasket(state, [{ productId: arroz, quantity: 25, unit: 'lb' }]);
+  assert.equal(habitualLines(state)[0].desde, '2025-01', 'guardar la canasta vació todos los meses anteriores');
+  assert.equal(cuanto(state, '2025-06', arroz), 20, 'junio de 2025 se compró con 20 libras, y así tiene que quedarse');
+  assert.equal(habitualLines(state)[0].quantity, 25, 'y desde este mes son 25');
+});
+
+test('guardar la canasta entera tampoco rebaja lo que estaba en obligatorio', () => {
+  const { state, arroz } = casaDeAntes();
+  // Esa pantalla tampoco pinta la prioridad, así que la reenvía en blanco igual
+  // que la fecha: corregir unas libras de arroz no puede decidir que el arroz
+  // ha dejado de ser obligatorio en esta casa.
+  setHabitualBasket(state, [{ productId: arroz, quantity: 25, unit: 'lb' }]);
+  assert.equal(habitualLines(state)[0].priority, 'obligatorio', 'guardar la canasta borró las prioridades');
+
+  // Y corregir la cantidad desde la ficha del alimento, tampoco.
+  setHabitualLine(state, arroz, 30, 'lb');
+  assert.equal(habitualLines(state)[0].priority, 'obligatorio');
+  // Pero decirlo a propósito sí manda.
+  setHabitualLine(state, arroz, 30, 'lb', 'ocasional');
+  assert.equal(habitualLines(state)[0].priority, 'ocasional');
+});
+
+test('añadir varios de corrido fecha solo lo nuevo', () => {
+  const { state, arroz } = casaDeAntes();
+  const habichuela = addProduct(state, { name: 'Habichuela', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
+  // Así guardan el dictado y el asistente de entrada: lo de siempre delante, lo
+  // nuevo detrás, todo de una sentada.
+  setHabitualBasket(state, [
+    { productId: arroz, quantity: 20, unit: 'lb' },
+    { productId: habichuela, quantity: 4, unit: 'lb' }
+  ]);
+  const enLaCanasta = id => habitualLines(state).find(fila => fila.productId === id);
+  assert.equal(enLaCanasta(arroz).desde, '2025-01');
+  assert.equal(enLaCanasta(arroz).priority, 'obligatorio', 'el dictado rebajó lo que ya estaba');
+  assert.equal(enLaCanasta(habichuela).desde, ESTE_MES);
+  assert.equal(enLaCanasta(habichuela).priority, 'frecuente');
+
+  const anterior = effectiveBasket(state, mesesAntes(1)).map(fila => fila.productId);
+  assert.ok(anterior.includes(arroz), 'el mes pasado perdió el arroz de siempre');
+  assert.ok(!anterior.includes(habichuela), 'el mes pasado se puso a comprar habichuela');
+});
+
+test('corregir la cantidad de una línea sin fecha no le inventa un día de nacimiento', () => {
+  const { state, arroz } = casa();
+  // Tal cual quedaba guardada antes de que las líneas llevaran fecha.
+  state.habitualBasket.lines = [{ id: 'canasta-1', productId: arroz, quantity: 20, unit: 'lb', priority: 'frecuente', desde: null }];
+  setHabitualLine(state, arroz, 25, 'lb');
+  assert.equal(habitualLines(state)[0].desde, null, 'corregir la cantidad le inventó una fecha de nacimiento');
+  assert.ok(effectiveBasket(state, '2020-01').some(fila => fila.productId === arroz), 'un mes viejo perdió el arroz que sí compró');
+  assert.equal(cuanto(state, ESTE_MES, arroz), 25);
+});
+
+test('corregir hoy la cantidad de algo añadido hoy no lo adelanta ni lo atrasa', () => {
+  const { state } = casaDeAntes();
+  const cangrejo = addProduct(state, { name: 'Cangrejo', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
+  setHabitualLine(state, cangrejo, 5, 'lb');
+  setHabitualLine(state, cangrejo, 8, 'lb');
+  const fila = habitualLines(state).find(item => item.productId === cangrejo);
+  assert.equal(fila.desde, ESTE_MES);
+  assert.equal(fila.quantity, 8);
 });

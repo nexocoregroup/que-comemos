@@ -16,8 +16,5 @@
     "@capacitor/android": "^8.5.2",
     "@capacitor/cli": "^8.5.2",
     "@capacitor/core": "^8.5.2"
-  },
-  "dependencies": {
-    "@capgo/capacitor-speech-recognition": "^8.3.2"
   }
 }

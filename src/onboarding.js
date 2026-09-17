@@ -11,11 +11,14 @@
 // —qué es una equivalencia, qué significa una rueda— ahora se pregunta en el
 // momento en que hace falta y donde hace falta.
 //
+// Y ninguno promete que algo se llene solo. Lo prometía el del plan mensual,
+// cuando la app aplicaba rutinas; hoy el calendario lo llena una persona.
+//
 // Un paso puede pedir `highlight`, que app.js convierte en una clase del body.
 // Solo lo usa el botón +, que comparte esquina con la tarjeta.
 
 export const WELCOME = {
-  promise: 'Organiza una vez lo habitual de tu casa y prepara cada mes cambiando solamente lo diferente.',
+  promise: 'Organiza una vez lo habitual de tu casa y decide con calma qué se come esta semana.',
   foot: 'Todo se guarda en este aparato. Puedes crear una cuenta para no perderlo si cambias de teléfono, o seguir sin cuenta y guardar una copia de vez en cuando.'
 };
 
@@ -29,8 +32,8 @@ export const TOUR_STEPS = [
   {
     page: 'mes',
     title: 'Plan mensual',
-    body: 'Aquí se organiza el mes entero de una sentada. En vez de tocar noventa casillas, guardas lo que se repite —«mangú con salami, martes y jueves de desayuno»— y el calendario se llena solo, con los días reales del mes.',
-    tip: 'El mes siguiente se abre ya preparado con esas mismas costumbres. Solo revisas lo que será diferente.'
+    body: 'Aquí decides qué se come. Para no tocar treinta casillas: eliges una preparación, marcas los días que quieras —los siete de la semana que viene, o los catorce de las dos siguientes— y se ponen esos.',
+    tip: 'La app no elige por ti ni rellena el mes sola. Lo que no marques se queda vacío, y un día vacío no es un error.'
   },
   {
     page: 'compra',
@@ -42,7 +45,7 @@ export const TOUR_STEPS = [
     page: 'mas',
     highlight: 'fab',
     title: 'Más, y el botón +',
-    body: 'En «Más» está todo lo que no se usa a diario: tus productos habituales, las preparaciones, la familia, el respaldo. Y el botón + de la esquina pone una comida, crea una preparación, abre el dictado, prepara la compra o añade un alimento sin cambiar de pantalla.',
+    body: 'En «Más» está todo lo que no se usa a diario: tus productos habituales, las preparaciones, la familia, el respaldo. Y el botón + de la esquina pone una comida, crea una preparación, prepara la compra o añade un alimento sin cambiar de pantalla.',
     tip: 'Puedes volver a ver esto cuando quieras desde Más → Ajustes → Cómo funciona.'
   }
 ];

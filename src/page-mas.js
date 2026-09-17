@@ -12,21 +12,12 @@ import { CATEGORIES } from './catalog-seed.js';
 import {
   FRECUENCIAS, MOMENTOS, UNITS, archiveProduct, etiquetaDeMomento, effectiveBasket, esActiva, findSimilarProducts, frecuenciaDe,
   nombreEnElCierre, corregirHaciaAtras, habitualLines, historialDeFrecuencia, inventoryNow, lastStockReview, monthBasketSummary, monthChanges,
-  periodosDelMes, personasActivas, product, productByName, restoreProduct, restriccionesDe, listasCerradas, resumenDeLista,
+  periodosDelMes, personasActivas, product, restoreProduct, restriccionesDe, listasCerradas, resumenDeLista,
   reviewAvailability, sliceStyle, syncReviewProducts, todayISO
 } from './model.js';
-import { filaDeReparto } from './setup.js';
 import { claseDe, hogarDe, resumenDeRestricciones } from './hogar.js';
-import { describeRule, reglasDePreparacion } from './routines.js';
 import { button, cap, empty, esc, fmt, measure, monthName, niceDate, notice, options, shiftMonth, unitText } from './ui-kit.js';
 import { icono, iconoDeCategoria } from './icons.js';
-import { avisoDeVoz, capacidad, comprobarDictado } from './device.js';
-import { panelDeVoz } from './voz.js';
-// El intérprete de frases vive en el asistente, y entiende «quedan dos plátanos,
-// diez huevos y media libra de queso» desde hace tiempo. Escribir aquí un
-// segundo intérprete sería tener dos gramáticas que se van separando con los
-// meses; se reutiliza esa, que además ya está probada.
-import { interpretar } from './chat-ui.js';
 import { LEGAL } from './legal.js';
 
 const hoy = todayISO();
@@ -68,7 +59,7 @@ export const GRUPOS_MAS = [
     ['cuenta', 'persona', 'Mi cuenta', 'Entrar, sincronizar o cerrar sesión']
   ]],
   ['', [
-    ['ajustes', 'ajustes', 'Ajustes', 'Compra, micrófono, funciones avanzadas y ayuda']
+    ['ajustes', 'ajustes', 'Ajustes', 'Compra, funciones avanzadas y ayuda']
   ]]
 ];
 
@@ -106,7 +97,7 @@ export function emptyMas() {
     // Lo que se acaba de guardar sobre algo que ya venía de antes, para poder
     // ofrecer una vez el «estaba mal escrito». Se vacía al salir de la pantalla.
     corregibles: [],
-    revisionFiltro: '', revisionSoloFaltan: false, revisionAviso: '',
+    revisionFiltro: '', revisionSoloFaltan: false,
     // El buscador de preparaciones y qué bloques están abiertos. Empiezan todos
     // abiertos: una casa con seis preparaciones no quiere abrir cinco cajones.
     recetaFiltro: '', recetasPlegadas: [],
@@ -206,7 +197,7 @@ function vistaHabitual(ctx) {
   if (!lineas.length) {
     return empty('canasta', 'Todavía no has escrito tu canasta',
       'Es la lista de lo que se compra en tu casa todos los meses: los plátanos, el arroz, los huevos, el salami. Se escribe una vez y vale para siempre; después solo cambias lo diferente de cada mes.',
-      `${button('Marcarla de una lista', 'setup-open', 'btn-primary')}${button(`${icono('microfono', { tamano: 17 })}Dictarla de corrido`, 'open-bulk', 'btn-secondary', 'data-destino="habitual"')}`);
+      `${button('Marcarla de una lista', 'setup-open', 'btn-primary')}${button(`${icono('hoja', { tamano: 17 })}Escribirla de corrido`, 'open-bulk', 'btn-secondary', 'data-destino="habitual"')}`);
   }
   const porCategoria = new Map();
   for (const linea of lineas) {
@@ -233,7 +224,7 @@ function vistaHabitual(ctx) {
       <p class="small muted">Deja una cantidad en blanco si todavía no la sabes: el alimento sigue en la lista y la compra lo avisará.</p>
       <div class="pantalla-acciones">
         ${button('+ Añadir alimento', 'open-product', 'btn-secondary')}
-        ${button(`${icono('microfono', { tamano: 17 })}Añadir varios de corrido`, 'open-bulk', 'btn-quiet', 'data-destino="habitual"')}
+        ${button(`${icono('hoja', { tamano: 17 })}Añadir varios de corrido`, 'open-bulk', 'btn-quiet', 'data-destino="habitual"')}
         <button type="submit" class="btn btn-primary">Guardar</button>
       </div>
     </form>`;
@@ -323,7 +314,7 @@ function vistaCambios(ctx, mes, resumen) {
     : empty('visto', `${monthName(mes)} es un mes normal`, 'No hay nada diferente. Si este mes van a comprar algo especial —un cangrejo para una cena, o menos arroz porque estarán de viaje—, anótalo aquí.', '')}
     <div class="pantalla-acciones">
       ${button('+ Añadir algo solo para este mes', 'canasta-nuevo-cambio', 'btn-primary', `data-month="${mes}"`)}
-      ${button(`${icono('microfono', { tamano: 17 })}Dictar varios`, 'open-bulk', 'btn-quiet', `data-destino="mes" data-month="${mes}"`)}
+      ${button(`${icono('hoja', { tamano: 17 })}Escribir varios`, 'open-bulk', 'btn-quiet', `data-destino="mes" data-month="${mes}"`)}
     </div>`;
 }
 
@@ -405,7 +396,6 @@ function renderPreparaciones(ctx) {
 
 function tarjetaDeReceta(state, receta) {
   const momentos = (receta.uses || []).map(id => MOMENTOS.find(item => item.id === id)?.etiqueta || id);
-  const suyas = reglasDePreparacion(state, receta.id);
   // Lo que no se puede comprobar se dice. Una preparación sin alimentos no
   // choca con nada, y eso se leía igual que «revisada y limpia».
   const hayRestricciones = state.people.some(persona => restriccionesDe(persona).length);
@@ -418,25 +408,9 @@ function tarjetaDeReceta(state, receta) {
       : `<p class="small muted receta-incompleta">Sin alimentos anotados.${hayRestricciones ? ' La app <strong>no ha revisado</strong> si choca con lo que alguien de la casa evita: sin los alimentos no puede saberlo.' : ' Sirve igual para el calendario.'}</p>`}
     ${receta.note ? `<p class="small"><strong>Para quien cocina:</strong> ${esc(receta.note)}</p>` : ''}
 
-    <div class="receta-repeticiones">
-      <p class="receta-repeticiones-titulo">${suyas.length ? 'Se repite' : 'Todavía no se repite sola'}</p>
-      ${suyas.length
-        ? `<ul class="receta-reglas">${suyas.map(regla => `<li class="${regla.active === false ? 'pausada' : ''}">
-            <span class="receta-regla-texto"><strong>${esc(cap(etiquetaDeMomento(regla.momento)))}</strong> · ${esc(describeRule(regla.weekdays, regla.weeks))}
-              ${regla.active === false ? '<span class="pill gray">en pausa</span>' : regla.scope === 'permanent' ? '' : `<span class="pill warm">solo ${esc(monthName(regla.month))}</span>`}</span>
-            <span class="inline receta-regla-acciones">
-              ${button('Editar', 'open-routine', 'btn-quiet btn-small', `data-id="${regla.id}"`)}
-              ${regla.active === false
-                ? button('Reanudar', 'regla-reanudar', 'btn-quiet btn-small', `data-id="${regla.id}"`)
-                : button('Pausar', 'regla-pausar', 'btn-quiet btn-small', `data-id="${regla.id}"`)}
-              ${button('Quitar', 'mes-borrar-rutina', 'btn-quiet btn-small', `data-id="${regla.id}"`)}
-            </span>
-          </li>`).join('')}</ul>`
-        : '<p class="small muted">Está guardada y la puedes poner en el calendario cuando quieras.</p>'}
-    </div>
 
     <div class="inline">
-      ${button(suyas.length ? '+ Añadir otra repetición' : 'Hacer que se repita', 'mes-nueva-rutina', 'btn-secondary btn-small', `data-receta="${receta.id}"`)}
+      ${button('Ponerla en el calendario', 'mes-poner-en-dias', 'btn-secondary btn-small', `data-receta="${receta.id}" data-kind="recipe"`)}
       ${button('Editar', 'open-recipe', 'btn-quiet btn-small', `data-id="${receta.id}"`)}
       ${button('Eliminar', 'delete-recipe', 'btn-quiet btn-small', `data-id="${receta.id}"`)}
     </div>
@@ -527,8 +501,8 @@ function tablaDeRevision(ctx, revision) {
     return empty('canasta', 'No hay nada que revisar', 'No quedó ninguna cifra anotada de cuando la app llevaba la cuenta de la despensa.');
   }
   // Revisar treinta alimentos de corrido es donde se abandona la revisión. Por
-  // eso hay tres salidas: buscar el que se tiene en la mano, esconder los que ya
-  // están contestados, y dictar varios de un tirón.
+  // eso hay dos salidas: buscar el que se tiene en la mano y esconder los que ya
+  // están contestados.
   const filtro = String(ui.mas.revisionFiltro || '').trim().toLocaleLowerCase('es');
   const contestado = id => revision.consumed[id] !== undefined;
   const visibles = revision.productIds.filter(id => {
@@ -632,21 +606,16 @@ function ocultas(revision, visibles, queda, editando) {
   }).join('');
 }
 
-// La barra de herramientas de la revisión: buscar, esconder lo ya contestado y
-// dictar varios de corrido.
+// La barra de herramientas de la revisión: buscar y esconder lo ya contestado.
 function herramientasDeRevision(ctx, revision, faltan, queda) {
   const { ui } = ctx;
-  const motor = capacidad('dictar');
   return `<div class="revision-herramientas">
     <label class="field revision-buscar"><span class="sr-only">Buscar un alimento de esta revisión</span>
       <input type="search" id="revision-filtro" data-revision-buscar value="${esc(ui.mas.revisionFiltro)}" placeholder="Buscar un alimento…" aria-label="Buscar un alimento de esta revisión">
     </label>
     <div class="inline">
       <button type="button" class="chip ${ui.mas.revisionSoloFaltan ? 'activa' : ''}" data-action="revision-solo-faltan" aria-pressed="${ui.mas.revisionSoloFaltan}">Solo lo que falta · ${faltan}</button>
-      ${motor.ok ? `<button type="button" class="btn btn-secondary btn-small" data-action="voz-abrir" data-destino="revision" aria-label="Dictar o escribir lo que queda">${icono('microfono', { tamano: 17 })}Dictar</button>` : ''}
     </div>
-    ${panelDeVoz(ctx, 'revision')}
-    ${ui.mas.revisionAviso ? `<p class="small revision-aviso">${esc(ui.mas.revisionAviso)}</p>` : ''}
   </div>`;
 }
 
@@ -669,8 +638,8 @@ function renderAlimentos(ctx) {
     .sort((a, b) => Number(a.archived) - Number(b.archived) || a.name.localeCompare(b.name, 'es'));
   const archivados = state.products.filter(item => item.archived).length;
   return `${volver('Alimentos de la casa')}
-    <p class="pantalla-intro">La ficha de cada alimento: cómo se cuenta, cómo se compra y cuánto hay. Normalmente no hace falta entrar aquí; la app rellena esto sola cuando marcas o dictas alimentos.</p>
-    <div class="pantalla-acciones">${button('+ Añadir alimento', 'open-product', 'btn-primary')}${button(`${icono('microfono', { tamano: 17 })}Dictar varios`, 'open-bulk', 'btn-secondary')}</div>
+    <p class="pantalla-intro">La ficha de cada alimento: cómo se cuenta, cómo se compra y cuánto hay. Normalmente no hace falta entrar aquí; la app rellena esto sola cuando marcas o escribes alimentos.</p>
+    <div class="pantalla-acciones">${button('+ Añadir alimento', 'open-product', 'btn-primary')}${button(`${icono('hoja', { tamano: 17 })}Escribir varios`, 'open-bulk', 'btn-secondary')}</div>
     ${state.products.length ? `<div class="toolbar">
       <label class="field" style="flex:1"><span class="sr-only">Buscar</span><input type="search" id="alimento-filtro" value="${esc(ui.mas.filtroAlimento)}" placeholder="Buscar entre ${state.products.length} alimentos…" aria-label="Buscar un alimento"></label>
       ${archivados ? button(ui.mas.verArchivados ? 'Ocultar archivados' : `Ver ${archivados} archivados`, 'alimentos-archivados', 'btn-quiet btn-small') : ''}
@@ -904,15 +873,11 @@ function avisoDeCopia(state) {
 
 function renderAjustes(ctx) {
   const { state } = ctx;
-  const dictado = capacidad('dictar');
   return `${volver('Ajustes')}
     <div class="card">
-      <h3>Dictar en vez de escribir</h3>
-      <p class="muted small">Lo hace el propio teléfono. No hay que configurar nada, no hay cuentas ni claves.</p>
-      ${avisoDeVoz() ? `<p class="small revision-aviso">${esc(avisoDeVoz())}</p>` : '<p class="small muted">✓ En este teléfono la voz no sale del aparato.</p>'}
-      <p class="small ${dictado.ok ? '' : 'muted'}">${dictado.ok ? '✓ Disponible en este aparato.' : '· No disponible en este aparato. Puedes escribir a mano en cualquier campo, o usar el micrófono del teclado de Android.'}</p>
-      <p class="small muted">${esc(dictado.detalle)}</p>
-      ${button('Detalle técnico de este aparato', 'open-diagnostico', 'btn-quiet btn-small')}
+      <h3>Si algo se rompe</h3>
+      <p class="muted small">Lo que se haya roto desde que abriste la aplicación queda apuntado aquí dentro. No sale de este teléfono; sirve para poder explicar un fallo sin tenerlo delante.</p>
+      ${button('Detalle de este aparato', 'open-diagnostico', 'btn-quiet btn-small')}
     </div>
     <div class="card">
       <h3>Organización de compra</h3>
@@ -983,8 +948,7 @@ function renderOrganizacion(ctx) {
       ${ui.mas.cambiandoFrecuencia ? formularioDeFrecuencia(ctx, actual, mesActual) : `<div class="inline" style="margin-top:14px">${button('Cambiar la frecuencia', 'frecuencia-abrir', 'btn-secondary')}</div>`}
       <p class="tiny muted">Cambiarla no toca ninguna compra, revisión ni resultado de los meses anteriores: cada mes se queda con la frecuencia que tenía cuando se compró.</p>
     </div>
-
-    ${quincenal ? bloqueDeReparto(ctx) : ''}`;
+`;
 }
 
 function formularioDeFrecuencia(ctx, actual, mesActual) {
@@ -1018,24 +982,8 @@ function formularioDeFrecuencia(ctx, actual, mesActual) {
   </form>`;
 }
 
-// El reparto entre las dos quincenas, el mismo que enseña el asistente. Aquí
-// vive el resto del año, que es cuando de verdad se corrige.
-function bloqueDeReparto(ctx) {
-  const { state } = ctx;
-  const filas = habitualLines(state)
-    .map(linea => ({ linea, item: product(state, linea.productId) }))
-    .filter(fila => fila.item && fila.linea.quantity !== null)
-    .sort((a, b) => a.item.name.localeCompare(b.item.name));
-  if (!filas.length) {
-    return `<div class="card"><h3>Cómo se reparte el mes</h3>
-      <p class="muted small">Cuando escribas cuánto se compra al mes de cada alimento, aquí podrás decir cuánto de eso entra en la primera quincena.</p></div>`;
-  }
-  return `<div class="card">
-    <h3>Cómo se reparte el mes</h3>
-    <p class="muted small">La cantidad del mes no cambia: esto solo dice cuánto de ella entra en la primera compra. Lo que no toques se reparte a la mitad.</p>
-    <div class="setup-reparto">${filas.map(({ linea, item }) => filaDeReparto(ctx, linea, item)).join('')}</div>
-  </div>`;
-}
+// El reparto entre las dos quincenas, el mismo que enseña el recorrido guiado.
+// Aquí vive el resto del año, que es cuando de verdad se corrige.
 
 /* ── Privacidad y condiciones ──────────────────────────────────────────── */
 
@@ -1103,7 +1051,7 @@ function renderAvanzado(ctx) {
 
     <div class="card">
       <h3>Servicios externos</h3>
-      <p class="muted small">Sin cuenta, esta app no llama a ninguna parte: no hay dirección que configurar ni clave que guardar. Con cuenta, lo único que sale de aquí son tus datos hacia el servidor que los guarda para que los encuentres en otro teléfono. Lo que la asistente entiende, lo entiende dentro del aparato; lo que no, lo dice.</p>
+      <p class="muted small">Sin cuenta, esta app no llama a ninguna parte: no hay dirección que configurar ni clave que guardar. Con cuenta, lo único que sale de aquí son tus datos hacia el servidor que los guarda para que los encuentres en otro teléfono.</p>
       ${button('Ver el detalle de este aparato', 'open-diagnostico', 'btn-quiet')}
     </div>`;
 }
@@ -1125,53 +1073,9 @@ function paresParecidos(state) {
 
 /* ── Acciones ──────────────────────────────────────────────────────────── */
 
-// Dictar «quedan dos plátanos, diez huevos y media libra de queso» y que aparezca
-// en tres casillas.
-//
-// Lo dictado se escribe en el formulario y se guarda **a través del formulario**,
-// no directamente en el estado. Parece un rodeo y no lo es: así lo que la persona
-// ya había tecleado a mano viaja en el mismo envío y no se pierde al repintar.
-// Guardar por un lado y repintar por otro habría borrado media revisión.
-export function aplicarDictado(ctx, texto) {
-  const { state, ui } = ctx;
-  const revision = state.reviews.find(item => item.id === ui.reviewId) || [...state.reviews].reverse().find(item => item.status === 'draft');
-  const form = document.querySelector('[data-form="review"]');
-  if (!revision || !form) return;
-  const enLaRevision = new Set(revision.productIds);
-  const disponible = reviewAvailability(state, revision);
-  const queda = (revision.mode || 'restante') === 'restante';
-
-  const puestos = [], fuera = [];
-  for (const { action, arguments: args } of interpretar(texto).acciones || []) {
-    if (action !== 'registrar_restante') continue;
-    const item = productByName(state, args.producto) || findSimilarProducts(state, args.producto, { limit: 1 })[0]?.product;
-    if (!item || !enLaRevision.has(item.id)) { fuera.push(args.producto); continue; }
-    const campo = form.querySelector(`[name="consume-${item.id}"]`);
-    if (!campo) continue;
-    // El intérprete siempre dice cuánto QUEDA. Si la revisión está puesta en
-    // «lo consumido», lo que hay que escribir es la resta, no el mismo número.
-    const valor = queda ? args.queda : Math.max(0, (disponible[item.id] || 0) - Number(args.queda));
-    campo.value = valor;
-    campo.dispatchEvent(new Event('input', { bubbles: true }));
-    puestos.push(item.name);
-  }
-
-  ui.mas.revisionAviso = puestos.length
-    ? `Anotado: ${puestos.join(', ')}.${fuera.length ? ` No encontré en esta revisión: ${fuera.join(', ')}.` : ''}`
-    : `No reconocí ningún alimento de esta revisión en «${texto}». Puedes escribirlo a mano.`;
-
-  if (!puestos.length) { ctx.render(); return; }
-  // Guardar sin confirmar: la revisión sigue abierta y lo dictado queda a salvo.
-  const guardar = form.querySelector('[name="intent"][value="save"]');
-  if (guardar) form.requestSubmit(guardar); else ctx.render();
-}
-
 export const MAS_ACTIONS = {
   'cierre-ver': (el, ctx) => { ctx.ui.mas.cierreAbierto = ctx.ui.mas.cierreAbierto === el.dataset.id ? '' : el.dataset.id; ctx.render(); },
   'revision-solo-faltan': (el, ctx) => { ctx.ui.mas.revisionSoloFaltan = !ctx.ui.mas.revisionSoloFaltan; ctx.render(); },
-  // Dictar ya no vive aquí: lo lleva `voz.js`, el mismo panel que usan el
-  // asistente, la configuración inicial y la entrada rápida. Cuando la persona
-  // toca «Usar este texto», app.js llama a `aplicarDictado` con lo dictado.
   'legal-ver': (el, ctx) => { ctx.ui.mas.documento = el.dataset.doc; ctx.render(); },
   'canasta-vista': (el, ctx) => { ctx.ui.mas.canastaVista = el.dataset.vista; ctx.ui.mas.corregibles = []; ctx.render(); },
   'canasta-corregir-atras': (el, ctx) => {
@@ -1184,13 +1088,7 @@ export const MAS_ACTIONS = {
   'alimentos-archivados': (el, ctx) => { ctx.ui.mas.verArchivados = !ctx.ui.mas.verArchivados; ctx.render(); },
   'canasta-nuevo-cambio': (el, ctx) => ctx.openModal('cambio-mes', { month: el.dataset.month || ctx.ui.mas.canastaMes }),
   'open-avanzado-producto': (el, ctx) => ctx.openModal('avanzado-producto', { id: el.dataset.id }),
-  'open-diagnostico': (el, ctx) => {
-    ctx.openModal('diagnostico');
-    // Preguntarle al teléfono si entiende la voz por sí solo. Es asíncrono y no
-    // pide permisos, así que se lanza y se vuelve a pintar cuando conteste: es
-    // la diferencia entre decir «no se sabe» y decir la verdad.
-    comprobarDictado().then(() => { if (ctx.ui.modal?.type === 'diagnostico') ctx.render(); }).catch(() => {});
-  },
+  'open-diagnostico': (el, ctx) => ctx.openModal('diagnostico'),
   'receta-plegar': (el, ctx) => {
     const plegadas = new Set(ctx.ui.mas.recetasPlegadas || []);
     const momento = el.dataset.momento;

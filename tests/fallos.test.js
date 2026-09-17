@@ -3,12 +3,13 @@ import assert from 'node:assert/strict';
 
 // La red global, probada por donde se escapaban los fallos.
 //
-// El agujero que cierra: una acción declarada `async` —y el dictado lo es en las
-// cuatro pantallas— devuelve una promesa, y el `try` que la llama termina antes
-// de que esa promesa falle. El fallo no cae dentro del `try`: sale como «promesa
-// rechazada sin recoger», donde hasta ahora no había absolutamente nadie.
+// El agujero que cierra: una acción declarada `async` —entrar en la cuenta,
+// sincronizar, preguntarle algo al teléfono— devuelve una promesa, y el `try`
+// que la llama termina antes de que esa promesa falle. El fallo no cae dentro
+// del `try`: sale como «promesa rechazada sin recoger», donde hasta ahora no
+// había absolutamente nadie.
 
-import { anotar, fallosRecientes, hayFallos, instalarRed, olvidarFallos, protegida, reiniciarRed } from '../src/fallos.js';
+import { anotar, falloAnterior, fallosRecientes, hayFallos, instalarRed, olvidarFallos, olvidarFalloAnterior, protegida, reiniciarRed } from '../src/fallos.js';
 
 const esperar = () => new Promise(resolver => setTimeout(resolver, 0));
 
@@ -113,15 +114,15 @@ test('la red recoge los errores sueltos y las promesas rechazadas', () => {
     assert.ok(ventana.tiene('error'), 'falta la red de los errores');
     assert.ok(ventana.tiene('unhandledrejection'), 'falta la red de las promesas');
 
-    ventana.emitir('error', { error: new Error('desde un temporizador'), filename: 'src/voz.js', lineno: 12 });
-    ventana.emitir('unhandledrejection', { reason: new Error('desde el dictado') });
+    ventana.emitir('error', { error: new Error('desde un temporizador'), filename: 'src/sincronizar.js', lineno: 12 });
+    ventana.emitir('unhandledrejection', { reason: new Error('desde la nube') });
 
     const filas = fallosRecientes();
     assert.equal(filas.length, 2);
     assert.equal(filas[0].donde, 'promesa');
-    assert.equal(filas[0].mensaje, 'desde el dictado');
+    assert.equal(filas[0].mensaje, 'desde la nube');
     assert.equal(filas[1].donde, 'pantalla');
-    assert.equal(filas[1].archivo, 'src/voz.js');
+    assert.equal(filas[1].archivo, 'src/sincronizar.js');
     assert.equal(filas[1].linea, 12);
     assert.equal(avisos.length, 2, 'la aplicación tiene que enterarse de los dos');
   } finally { ventana.restaurar(); reiniciarRed(); }
@@ -155,4 +156,78 @@ test('si avisar del fallo falla, la red aguanta', () => {
     assert.doesNotThrow(() => ventana.emitir('unhandledrejection', { reason: new Error('el de verdad') }));
     assert.equal(fallosRecientes()[0].mensaje, 'el de verdad');
   } finally { ventana.restaurar(); reiniciarRed(); }
+});
+
+/* ── El fallo nativo de la vez anterior ────────────────────────────────────
+
+   Lo que el guardián de Android dejó apuntado cuando la aplicación se cerró
+   entera. No es un fallo de una función: es el que no dejó proceso vivo donde
+   apuntarlo, y por eso hay que ir a buscarlo al arrancar el siguiente. */
+
+const CAPACITOR_ORIGINAL = globalThis.Capacitor;
+const CONSOLA_ORIGINAL = globalThis.console;
+
+// Un teléfono de mentira con el complemento que se le quiera poner dentro. La
+// consola calla: `anotar` escribe ahí a propósito y aquí el fallo es provocado.
+function montarAparato(aparato) {
+  globalThis.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'android', Plugins: aparato ? { Aparato: aparato } : {} };
+  globalThis.console = { ...CONSOLA_ORIGINAL, error: () => {} };
+}
+
+function desmontarAparato() {
+  if (CAPACITOR_ORIGINAL === undefined) delete globalThis.Capacitor;
+  else globalThis.Capacitor = CAPACITOR_ORIGINAL;
+  globalThis.console = CONSOLA_ORIGINAL;
+  olvidarFallos();
+}
+
+test('el fallo que mató la aplicación se lee al arrancar la siguiente', async t => {
+  let olvidado = false;
+  montarAparato({
+    async ultimoFallo() {
+      return {
+        hay: true, cuando: 1700000000000, clase: 'java.lang.NullPointerException',
+        mensaje: 'Attempt to invoke virtual method on a null object reference',
+        hilo: 'Binder:1234_2', principal: false, pila: 'at com.nexocore.quecomemos…'
+      };
+    },
+    async olvidarFallo() { olvidado = true; }
+  });
+  t.after(desmontarAparato);
+
+  const fallo = await falloAnterior();
+  assert.equal(fallo.clase, 'java.lang.NullPointerException');
+  assert.equal(fallo.principal, false, 'saber si murió el hilo principal es la mitad del diagnóstico');
+  assert.ok(fallo.pila.length > 0);
+
+  await olvidarFalloAnterior();
+  assert.equal(olvidado, true, 'enseñar el mismo fallo en cada arranque para siempre es ruido');
+});
+
+test('sin fallo apuntado no se inventa ninguno', async t => {
+  montarAparato({ async ultimoFallo() { return { hay: false }; } });
+  t.after(desmontarAparato);
+  assert.equal(await falloAnterior(), null);
+});
+
+test('sin el complemento Aparato tampoco pasa nada', async t => {
+  montarAparato(null);
+  t.after(desmontarAparato);
+  assert.equal(await falloAnterior(), null);
+  await assert.doesNotReject(() => olvidarFalloAnterior());
+});
+
+// Un guardián roto no puede llevarse por delante el arranque de la aplicación:
+// es el último sitio donde se puede permitir un fallo sin red debajo.
+test('un complemento Aparato que lanza no rompe el arranque', async t => {
+  montarAparato({
+    async ultimoFallo() { throw new Error('el guardián se rompió'); },
+    async olvidarFallo() { throw new Error('y al olvidar también'); }
+  });
+  t.after(desmontarAparato);
+
+  assert.equal(await falloAnterior(), null, 'un guardián roto no puede inventarse un fallo');
+  await assert.doesNotReject(() => olvidarFalloAnterior());
+  // Y lo que se rompió queda apuntado, que es de lo que va este archivo.
+  assert.equal(fallosRecientes()[0].donde, 'telefono');
 });

@@ -84,22 +84,14 @@
         </provider>
     </application>
 
-    <!-- Permisos. Son estos dos y ninguno más: la app guarda todo en el propio
-         teléfono, así que no tiene nada que pedir sobre fotos ni sobre
-         archivos del usuario. -->
+    <!-- Permisos. Es este y ninguno más: la app guarda todo en el propio
+         teléfono, así que no tiene nada que pedir sobre el micrófono, ni sobre
+         fotos, ni sobre archivos del usuario. Internet hace falta para
+         identificarse con Google y para la copia en la nube, y para nada más.
+
+         Los campos de texto siguen admitiendo el teclado del teléfono, que trae
+         su propio micrófono: ese dictado es del teclado y el permiso lo tiene
+         él, no esta aplicación. -->
 
     <uses-permission android:name="android.permission.INTERNET" />
-
-    <!-- Dictar. El reconocimiento corre dentro del aparato cuando el teléfono
-         lo soporta, pero el micrófono sigue necesitando permiso del usuario. -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-
-    <!-- Android 11 y posteriores esconden qué apps hay instaladas. Sin esto, el
-         teléfono no encuentra su propio motor de reconocimiento de voz y el
-         dictado falla sin decir por qué. -->
-    <queries>
-        <intent>
-            <action android:name="android.speech.RecognitionService" />
-        </intent>
-    </queries>
 </manifest>
