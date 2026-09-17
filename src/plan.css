@@ -90,6 +90,11 @@
   line-height: 1;
 }
 .plegable[open] > summary::before { transform: rotate(90deg); }
+/* La flecha sigue girando —el estado abierto tiene que verse— pero sin
+   recorrido: llega girada en vez de girar. */
+@media (prefers-reduced-motion: reduce) {
+  .plegable > summary::before { transition: none; }
+}
 .plegable > summary:hover { background: var(--surface-soft); }
 .plegable > *:not(summary) { margin: 0 15px 15px; }
 .plegable > .card { box-shadow: none; }

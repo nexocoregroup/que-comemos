@@ -172,6 +172,3 @@ input.text:focus, select.text:focus, textarea.text:focus { border-color: var(--c
 .start-hero { align-items: center; }
 .start-hero p { max-width: 54ch; }
 
-@media (max-width: 700px) {
-}
-

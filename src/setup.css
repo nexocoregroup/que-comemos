@@ -248,9 +248,6 @@
 .organizacion-historial { margin-top: 4px; }
 .organizacion-form { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 16px; }
 
-@media (max-width: 700px) {
-      }
-
 /* ── Quiénes comen aquí, y qué se cocina de costumbre ──────────────────────
 
    Los dos pasos que faltaban. El primero abre la ficha de siempre —la de

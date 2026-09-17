@@ -80,6 +80,25 @@
   --ico-1: 16px;
   --ico-2: 20px;
   --ico-3: 24px;
+
+  /* ── Las capas ───────────────────────────────────────────────────────────
+     Siete valores, de abajo arriba, y ninguno suelto. Antes había ocho números
+     repartidos en seis archivos —1, 20, 25, 30, 35, 41, 42, 50— que nadie
+     eligió juntos, y el orden que salía estaba mal en un sitio: el cajón
+     lateral quedaba en 42 y el modal en 30, así que el cajón se dibujaba
+     ENCIMA de una ventana abierta. Con el dedo no se llegaba —el velo del modal
+     tapa el botón de menú— pero bastaba que algún día apareciera otra forma de
+     abrirlo para que la ventana quedara detrás.
+
+     El hueco de diez entre escalones es para que quepa un velo justo debajo de
+     lo que tapa, sin volver a inventar un número. */
+  --z-barra: 20;      /* la barra de abajo, en el teléfono */
+  --z-flotante: 30;   /* el botón + y lo que despliega */
+  --z-recorrido: 40;  /* la tarjeta del recorrido de bienvenida */
+  --z-cajon-velo: 50;
+  --z-cajon: 51;      /* el menú lateral del teléfono */
+  --z-modal: 60;      /* una ventana tapa todo lo anterior: es la tarea de ahora */
+  --z-aviso: 70;      /* el aviso de abajo se lee siempre, incluso sobre un modal */
 }
 
 /* ── Los iconos ───────────────────────────────────────────────────────────
@@ -328,19 +347,6 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
    y es justo lo que hacía que una robara los toques de la de al lado. */
 .ficha-toque::after { content: none; }
 
-/* ── 9. Los títulos del menú se partían en dos líneas ─────────────────────
-   La fila es [dibujo] [título + explicación] [pista] [flecha], los cuatro en
-   una línea. En pantalla ancha caben. En 375 px, después de descontar el
-   dibujo, la flecha y una pista como «última: 16 sept», al título le quedaban
-   136 px para una palabra que necesita 150, y «Mi canasta habitual» se partía
-   en dos renglones. Todas las filas quedaban de alturas distintas y la lista se
-   veía desigual.
-
-   La pista baja a su propia línea y se alinea bajo el texto, no bajo el dibujo.
-   El título recupera 100 px y ya no se parte. */
-@media (max-width: 700px) {
-      }
-
 /* La escala de gravedad de las restricciones es una escala tipográfica —«!»,
    «·», «?»— y solo el primer escalón era un emoji: el ⚠ que Android dibuja
    amarillo, rompiendo la paleta justo en el aviso más serio. Ahora es nuestro,
@@ -353,21 +359,35 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
    quitaba sitio. Un objetivo táctil no negocia su tamaño. */
 .icon-btn { flex: none; }
 
-/* La columna del botón de quitar, en las filas de cantidad del asistente,
-   medía 34 px. Quitar un alimento de la canasta por error es de las pocas cosas
-   de esta pantalla que cuesta deshacer, así que es justo el botón que no puede
-   fallarse. Los 6 px salen de la columna del nombre, que va sobrada. */
-@media (max-width: 700px) {
-}
-/* Y lo mismo en las filas de la canasta y de los alimentos sueltos. */
+/* Las filas con cuatro columnas —nombre, cantidad, unidad y quitar— ya solo
+   las usa el asistente de entrada. Dentro de una preparación la fila es la
+   simple de aquí abajo. */
 .item-row { grid-template-columns: minmax(110px, 2fr) minmax(70px, .7fr) minmax(90px, 1fr) var(--toque-chico); }
-@media (max-width: 700px) {
-}
 
 /* La fila de un alimento dentro de una preparación: solo el alimento y el botón
    de quitarlo. La ficha ya no pregunta cuánto lleva —eso se decide en la lista
    de cada compra—, así que la cuadrícula de cuatro columnas sobra. */
 .item-row-simple { grid-template-columns: minmax(0, 1fr) var(--toque-chico); }
+
+/* Y el botón vuelve a su columna.
+   ────────────────────────────────────────────────────────────────────────────
+   En styles.css, dentro de la consulta de 700 px, sobrevive
+   `.item-row .remove-item { grid-column: 3 }`. Es de cuando la fila tenía tres
+   columnas en el teléfono —nombre, cantidad, unidad— y el botón iba en la
+   tercera. La Fase 3 quitó las cantidades y dejó dos columnas; aquella regla se
+   quedó, y con dos pesos de selector (0,2,0) le gana a `.item-row-simple`
+   (0,1,0), que no puede contradecirla desde la plantilla.
+
+   El resultado, medido en un teléfono de 375 px: la cuadrícula resolvía a
+   `263px 40px 30px` —tres columnas donde se declararon dos—, la de 40 px
+   quedaba vacía, y el botón de quitar el alimento acababa en una tercera
+   columna inventada, midiendo 30 px de ancho y separado del campo por 50 px de
+   nada. Treinta píxeles en el botón que borra un ingrediente.
+
+   `auto` lo devuelve al flujo normal de la cuadrícula, que es la segunda
+   columna. Va aquí y no dentro de styles.css porque esa hoja es una sola línea
+   de catorce mil caracteres; la regla de esta casa es corregirla desde aquí. */
+.item-row-simple .remove-item { grid-column: auto; }
 
 /* ── Cinco secciones, y un engranaje ───────────────────────────────────────
 
@@ -404,3 +424,27 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
    `.secondary` ya trae. */
 .sidebar .secondary button { display: flex; align-items: center; gap: 12px; }
 .sidebar .secondary button svg { flex: none; }
+
+/* ── 10. Las capas, aplicadas a lo que vive en styles.css ─────────────────
+   Las otras hojas usan las variables en su propio sitio; estas tres están
+   dentro de la línea minificada, así que se repiten aquí. Ver la escala
+   completa arriba, en `:root`. */
+.mobile-nav { z-index: var(--z-barra); }
+.modal-overlay { z-index: var(--z-modal); }
+#toast { z-index: var(--z-aviso); }
+
+/* ── 11. La altura de la ventana en un teléfono ───────────────────────────
+   `100vh` en un navegador móvil mide la ventana CON las barras del navegador
+   retraídas, que es un alto que muchas veces no existe: la página se queda más
+   larga que lo que se ve y aparece un desplazamiento que nadie pidió. Dentro
+   del WebView del APK pasa lo mismo cuando el teclado sube.
+
+   `dvh` mide lo que de verdad hay. Las dos líneas van juntas y en este orden a
+   propósito: un navegador que no entienda `dvh` se queda con `vh` y todo sigue
+   como antes. Ya se hizo así en la portada de la cuenta y en el recorrido; esto
+   cierra los dos que faltaban.
+
+   `.sidebar` no entra: por encima de 700 px las dos unidades valen lo mismo, y
+   por debajo el cajón ya se mide solo en `sidebar.css` con `min-height: 0`.
+   Repetirlo aquí pisaría ese cero y estiraría el cajón. */
+body, .shell { min-height: 100vh; min-height: 100dvh; }

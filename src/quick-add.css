@@ -22,7 +22,7 @@
   display: grid;
   place-items: center;
   box-shadow: 0 8px 22px #75391642, 0 2px 6px #30241c1f;
-  z-index: 25;
+  z-index: var(--z-flotante);
 }
 .fab span { display: block; margin-top: -3px; }
 .fab:hover { background: var(--clay-dark); }

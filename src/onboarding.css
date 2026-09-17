@@ -52,7 +52,7 @@
   position: fixed;
   right: 24px;
   bottom: 24px;
-  z-index: 35;
+  z-index: var(--z-recorrido);
   width: min(392px, calc(100vw - 48px));
   background: var(--surface);
   border: 1px solid var(--clay-line);
