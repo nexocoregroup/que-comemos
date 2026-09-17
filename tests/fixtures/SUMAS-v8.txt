@@ -1,0 +1,2 @@
+7e2c1c9b04c4e96c5b2b03d620d6b3d78dad5ef8b4d47ade48af66e1130ffb69  estado-v8-completo.json
+035c6b12114c3fb63949fe9c139eb7e78245d891525389d885ff9a189b7a9836  estado-v8-demo.json

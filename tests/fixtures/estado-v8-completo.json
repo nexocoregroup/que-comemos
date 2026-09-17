@@ -1,0 +1,1221 @@
+{
+  "version": 8,
+  "seq": 76,
+  "demo": false,
+  "products": [
+    {
+      "id": "producto-1",
+      "name": "Arroz",
+      "normalized": "arroz",
+      "aliases": [],
+      "category": "granos",
+      "controlUnit": "taza",
+      "purchaseUnit": "lb",
+      "equivalences": {
+        "lb": 2
+      },
+      "slice": null,
+      "archived": false,
+      "origin": "manual",
+      "createdAt": "2026-09-16",
+      "updatedAt": "2026-09-16"
+    },
+    {
+      "id": "producto-2",
+      "name": "Plátano maduro",
+      "normalized": "platano maduro",
+      "aliases": [],
+      "category": "viveres",
+      "controlUnit": "unidad",
+      "purchaseUnit": "unidad",
+      "equivalences": {},
+      "slice": null,
+      "archived": false,
+      "origin": "manual",
+      "createdAt": "2026-09-16",
+      "updatedAt": "2026-09-16"
+    },
+    {
+      "id": "producto-3",
+      "name": "Salami",
+      "normalized": "salami",
+      "aliases": [],
+      "category": "embutidos",
+      "controlUnit": "rueda",
+      "purchaseUnit": "paquete",
+      "equivalences": {
+        "paquete": 16
+      },
+      "slice": null,
+      "archived": false,
+      "origin": "manual",
+      "createdAt": "2026-09-16",
+      "updatedAt": "2026-09-16"
+    },
+    {
+      "id": "producto-4",
+      "name": "Huevo",
+      "normalized": "huevo",
+      "aliases": [],
+      "category": "lacteos",
+      "controlUnit": "unidad",
+      "purchaseUnit": "unidad",
+      "equivalences": {},
+      "slice": null,
+      "archived": false,
+      "origin": "manual",
+      "createdAt": "2026-09-16",
+      "updatedAt": "2026-09-16"
+    },
+    {
+      "id": "producto-5",
+      "name": "Jabón de cuaba",
+      "normalized": "jabon de cuaba",
+      "aliases": [],
+      "category": "limpieza",
+      "controlUnit": "unidad",
+      "purchaseUnit": "unidad",
+      "equivalences": {},
+      "slice": null,
+      "archived": false,
+      "origin": "manual",
+      "createdAt": "2026-09-16",
+      "updatedAt": "2026-09-16"
+    },
+    {
+      "id": "producto-6",
+      "name": "Café",
+      "normalized": "cafe",
+      "aliases": [],
+      "category": "bebidas",
+      "controlUnit": "taza",
+      "purchaseUnit": "paquete",
+      "equivalences": {
+        "paquete": 40
+      },
+      "slice": null,
+      "archived": false,
+      "origin": "manual",
+      "createdAt": "2026-09-16",
+      "updatedAt": "2026-09-16"
+    },
+    {
+      "id": "producto-7",
+      "name": "Leche en polvo",
+      "normalized": "leche en polvo",
+      "aliases": [],
+      "category": "lacteos",
+      "controlUnit": "taza",
+      "purchaseUnit": "paquete",
+      "equivalences": {},
+      "slice": null,
+      "archived": true,
+      "origin": "manual",
+      "createdAt": "2026-09-16",
+      "updatedAt": "2026-09-16"
+    }
+  ],
+  "people": [
+    {
+      "id": "persona-8",
+      "name": "Ana",
+      "kind": "adulto",
+      "activo": true,
+      "restricciones": [],
+      "habitual": []
+    },
+    {
+      "id": "persona-9",
+      "name": "Luis",
+      "kind": "adolescente",
+      "activo": true,
+      "restricciones": [
+        {
+          "productId": "producto-4",
+          "texto": "",
+          "motivo": "alergia"
+        },
+        {
+          "productId": null,
+          "texto": "maní",
+          "motivo": "alergia"
+        }
+      ],
+      "habitual": []
+    },
+    {
+      "id": "persona-10",
+      "name": "Abuela",
+      "kind": "adulto",
+      "activo": false,
+      "restricciones": [],
+      "habitual": []
+    }
+  ],
+  "recipes": [
+    {
+      "id": "preparacion-11",
+      "name": "Mangú con salami",
+      "uses": [
+        "desayuno",
+        "cena"
+      ],
+      "items": [
+        {
+          "productId": "producto-2",
+          "quantity": 4,
+          "unit": "unidad",
+          "personId": null
+        },
+        {
+          "productId": "producto-3",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": null
+        }
+      ],
+      "servings": 4,
+      "note": "El agua bien caliente."
+    },
+    {
+      "id": "preparacion-12",
+      "name": "Locrio de pollo",
+      "uses": [
+        "almuerzo"
+      ],
+      "items": [
+        {
+          "productId": "producto-1",
+          "quantity": 3,
+          "unit": "taza",
+          "personId": null
+        }
+      ],
+      "servings": null,
+      "note": ""
+    },
+    {
+      "id": "preparacion-13",
+      "name": "Sancocho",
+      "uses": [
+        "almuerzo"
+      ],
+      "items": [],
+      "servings": null,
+      "note": "Domingo de lluvia."
+    }
+  ],
+  "plans": [
+    {
+      "id": "comida-24",
+      "date": "2026-08-03",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-11",
+      "routineId": "rutina-21",
+      "origen": "rutina",
+      "title": "Mangú con salami",
+      "note": "El agua bien caliente.",
+      "servings": 4,
+      "participants": [
+        "persona-8",
+        "persona-9"
+      ],
+      "items": [
+        {
+          "productId": "producto-2",
+          "quantity": 4,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-25"
+        },
+        {
+          "productId": "producto-3",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": null,
+          "id": "alimento-26"
+        }
+      ]
+    },
+    {
+      "id": "comida-27",
+      "date": "2026-08-05",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-11",
+      "routineId": "rutina-21",
+      "origen": "rutina",
+      "title": "Mangú con salami",
+      "note": "El agua bien caliente.",
+      "servings": 4,
+      "participants": [
+        "persona-8",
+        "persona-9"
+      ],
+      "items": [
+        {
+          "productId": "producto-2",
+          "quantity": 4,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-28"
+        },
+        {
+          "productId": "producto-3",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": null,
+          "id": "alimento-29"
+        }
+      ]
+    },
+    {
+      "id": "comida-30",
+      "date": "2026-08-07",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-11",
+      "routineId": "rutina-21",
+      "origen": "rutina",
+      "title": "Mangú con salami",
+      "note": "El agua bien caliente.",
+      "servings": 4,
+      "participants": [
+        "persona-8",
+        "persona-9"
+      ],
+      "items": [
+        {
+          "productId": "producto-2",
+          "quantity": 4,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-31"
+        },
+        {
+          "productId": "producto-3",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": null,
+          "id": "alimento-32"
+        }
+      ]
+    },
+    {
+      "id": "comida-33",
+      "date": "2026-08-10",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-11",
+      "routineId": "rutina-21",
+      "origen": "rutina",
+      "title": "Mangú con salami",
+      "note": "El agua bien caliente.",
+      "servings": 4,
+      "participants": [
+        "persona-8",
+        "persona-9"
+      ],
+      "items": [
+        {
+          "productId": "producto-2",
+          "quantity": 4,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-34"
+        },
+        {
+          "productId": "producto-3",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": null,
+          "id": "alimento-35"
+        }
+      ]
+    },
+    {
+      "id": "comida-36",
+      "date": "2026-08-12",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-11",
+      "routineId": "rutina-21",
+      "origen": "rutina",
+      "title": "Mangú con salami",
+      "note": "El agua bien caliente.",
+      "servings": 4,
+      "participants": [
+        "persona-8",
+        "persona-9"
+      ],
+      "items": [
+        {
+          "productId": "producto-2",
+          "quantity": 4,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-37"
+        },
+        {
+          "productId": "producto-3",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": null,
+          "id": "alimento-38"
+        }
+      ]
+    },
+    {
+      "id": "comida-39",
+      "date": "2026-08-14",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-11",
+      "routineId": "rutina-21",
+      "origen": "rutina",
+      "title": "Mangú con salami",
+      "note": "El agua bien caliente.",
+      "servings": 4,
+      "participants": [
+        "persona-8",
+        "persona-9"
+      ],
+      "items": [
+        {
+          "productId": "producto-2",
+          "quantity": 4,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-40"
+        },
+        {
+          "productId": "producto-3",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": null,
+          "id": "alimento-41"
+        }
+      ]
+    },
+    {
+      "id": "comida-42",
+      "date": "2026-08-17",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-11",
+      "routineId": "rutina-21",
+      "origen": "rutina",
+      "title": "Mangú con salami",
+      "note": "El agua bien caliente.",
+      "servings": 4,
+      "participants": [
+        "persona-8",
+        "persona-9"
+      ],
+      "items": [
+        {
+          "productId": "producto-2",
+          "quantity": 4,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-43"
+        },
+        {
+          "productId": "producto-3",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": null,
+          "id": "alimento-44"
+        }
+      ]
+    },
+    {
+      "id": "comida-45",
+      "date": "2026-08-19",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-11",
+      "routineId": "rutina-21",
+      "origen": "rutina",
+      "title": "Mangú con salami",
+      "note": "El agua bien caliente.",
+      "servings": 4,
+      "participants": [
+        "persona-8",
+        "persona-9"
+      ],
+      "items": [
+        {
+          "productId": "producto-2",
+          "quantity": 4,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-46"
+        },
+        {
+          "productId": "producto-3",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": null,
+          "id": "alimento-47"
+        }
+      ]
+    },
+    {
+      "id": "comida-48",
+      "date": "2026-08-21",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-11",
+      "routineId": "rutina-21",
+      "origen": "rutina",
+      "title": "Mangú con salami",
+      "note": "El agua bien caliente.",
+      "servings": 4,
+      "participants": [
+        "persona-8",
+        "persona-9"
+      ],
+      "items": [
+        {
+          "productId": "producto-2",
+          "quantity": 4,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-49"
+        },
+        {
+          "productId": "producto-3",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": null,
+          "id": "alimento-50"
+        }
+      ]
+    },
+    {
+      "id": "comida-51",
+      "date": "2026-08-24",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-11",
+      "routineId": "rutina-21",
+      "origen": "rutina",
+      "title": "Mangú con salami",
+      "note": "El agua bien caliente.",
+      "servings": 4,
+      "participants": [
+        "persona-8",
+        "persona-9"
+      ],
+      "items": [
+        {
+          "productId": "producto-2",
+          "quantity": 4,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-52"
+        },
+        {
+          "productId": "producto-3",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": null,
+          "id": "alimento-53"
+        }
+      ]
+    },
+    {
+      "id": "comida-54",
+      "date": "2026-08-26",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-11",
+      "routineId": "rutina-21",
+      "origen": "rutina",
+      "title": "Mangú con salami",
+      "note": "El agua bien caliente.",
+      "servings": 4,
+      "participants": [
+        "persona-8",
+        "persona-9"
+      ],
+      "items": [
+        {
+          "productId": "producto-2",
+          "quantity": 4,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-55"
+        },
+        {
+          "productId": "producto-3",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": null,
+          "id": "alimento-56"
+        }
+      ]
+    },
+    {
+      "id": "comida-57",
+      "date": "2026-08-28",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-11",
+      "routineId": "rutina-21",
+      "origen": "rutina",
+      "title": "Mangú con salami",
+      "note": "El agua bien caliente.",
+      "servings": 4,
+      "participants": [
+        "persona-8",
+        "persona-9"
+      ],
+      "items": [
+        {
+          "productId": "producto-2",
+          "quantity": 4,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-58"
+        },
+        {
+          "productId": "producto-3",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": null,
+          "id": "alimento-59"
+        }
+      ]
+    },
+    {
+      "id": "comida-60",
+      "date": "2026-08-31",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-11",
+      "routineId": "rutina-21",
+      "origen": "rutina",
+      "title": "Mangú con salami",
+      "note": "El agua bien caliente.",
+      "servings": 4,
+      "participants": [
+        "persona-8",
+        "persona-9"
+      ],
+      "items": [
+        {
+          "productId": "producto-2",
+          "quantity": 4,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-61"
+        },
+        {
+          "productId": "producto-3",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": null,
+          "id": "alimento-62"
+        }
+      ]
+    },
+    {
+      "id": "comida-63",
+      "date": "2026-08-02",
+      "slot": "desayuno",
+      "kind": "outside",
+      "routineId": "rutina-22",
+      "origen": "rutina",
+      "participants": [],
+      "items": []
+    },
+    {
+      "id": "comida-64",
+      "date": "2026-08-02",
+      "slot": "almuerzo",
+      "kind": "outside",
+      "routineId": "rutina-22",
+      "origen": "rutina",
+      "participants": [],
+      "items": []
+    },
+    {
+      "id": "comida-65",
+      "date": "2026-08-02",
+      "slot": "cena",
+      "kind": "outside",
+      "routineId": "rutina-22",
+      "origen": "rutina",
+      "participants": [],
+      "items": []
+    },
+    {
+      "id": "comida-66",
+      "date": "2026-08-16",
+      "slot": "desayuno",
+      "kind": "outside",
+      "routineId": "rutina-22",
+      "origen": "rutina",
+      "participants": [],
+      "items": []
+    },
+    {
+      "id": "comida-67",
+      "date": "2026-08-16",
+      "slot": "almuerzo",
+      "kind": "outside",
+      "routineId": "rutina-22",
+      "origen": "rutina",
+      "participants": [],
+      "items": []
+    },
+    {
+      "id": "comida-68",
+      "date": "2026-08-16",
+      "slot": "cena",
+      "kind": "outside",
+      "routineId": "rutina-22",
+      "origen": "rutina",
+      "participants": [],
+      "items": []
+    },
+    {
+      "id": "comida-69",
+      "date": "2026-08-11",
+      "slot": "almuerzo",
+      "kind": "recipe",
+      "recipeId": "preparacion-12",
+      "routineId": null,
+      "origen": "manual",
+      "title": "Locrio de pollo",
+      "note": "",
+      "servings": null,
+      "participants": [
+        "persona-8",
+        "persona-9"
+      ],
+      "items": [
+        {
+          "productId": "producto-1",
+          "quantity": 3,
+          "unit": "taza",
+          "personId": null,
+          "id": "alimento-70"
+        }
+      ]
+    },
+    {
+      "id": "comida-71",
+      "date": "2026-08-12",
+      "slot": "almuerzo",
+      "kind": "recipe",
+      "recipeId": "preparacion-13",
+      "routineId": null,
+      "origen": "manual",
+      "title": "Sancocho",
+      "note": "Domingo de lluvia.",
+      "servings": null,
+      "participants": [
+        "persona-8",
+        "persona-9"
+      ],
+      "items": []
+    },
+    {
+      "id": "comida-72",
+      "date": "2026-08-13",
+      "slot": "cena",
+      "kind": "order",
+      "routineId": null,
+      "origen": "excepcion",
+      "participants": [],
+      "items": []
+    }
+  ],
+  "absences": [
+    {
+      "date": "2026-08-11",
+      "slot": "almuerzo",
+      "personId": "persona-10"
+    }
+  ],
+  "opening": {
+    "producto-1": 0,
+    "producto-2": 0,
+    "producto-3": 0,
+    "producto-4": 0,
+    "producto-5": 0,
+    "producto-6": 0,
+    "producto-7": 0
+  },
+  "purchases": [
+    {
+      "id": "compra-73",
+      "seq": 73,
+      "date": "2026-08-02",
+      "period": "2026-08",
+      "basis": "casa",
+      "lines": [
+        {
+          "productId": "producto-1",
+          "quantity": 10,
+          "unit": "lb",
+          "controlQuantity": 20
+        },
+        {
+          "productId": "producto-2",
+          "quantity": 30,
+          "unit": "unidad",
+          "controlQuantity": 30
+        },
+        {
+          "productId": "producto-3",
+          "quantity": 2,
+          "unit": "paquete",
+          "controlQuantity": 32
+        }
+      ]
+    }
+  ],
+  "reviews": [
+    {
+      "id": "revision-74",
+      "seq": 74,
+      "date": "2026-08-16",
+      "status": "confirmed",
+      "mode": "restante",
+      "origen": "compra",
+      "purchaseId": "compra-73",
+      "productIds": [
+        "producto-1",
+        "producto-2",
+        "producto-3"
+      ],
+      "consumed": {
+        "producto-1": 14,
+        "producto-2": 25,
+        "producto-3": 22
+      },
+      "remaining": {
+        "producto-1": 6,
+        "producto-2": 5,
+        "producto-3": 10
+      }
+    }
+  ],
+  "corrections": [
+    {
+      "id": "ajuste-75",
+      "seq": 75,
+      "date": "2026-09-16",
+      "productId": "producto-2",
+      "delta": 3,
+      "actual": 8,
+      "reason": "Se dañaron tres"
+    }
+  ],
+  "manualItems": [],
+  "habitualBasket": {
+    "lines": [
+      {
+        "id": "canasta-14",
+        "productId": "producto-1",
+        "tramos": [
+          {
+            "desde": "2026-06",
+            "quantity": 20,
+            "unit": "lb",
+            "priority": "obligatorio"
+          },
+          {
+            "desde": "2026-08",
+            "quantity": 25,
+            "unit": "lb",
+            "priority": "obligatorio"
+          }
+        ]
+      },
+      {
+        "id": "canasta-15",
+        "productId": "producto-2",
+        "tramos": [
+          {
+            "desde": "2026-06",
+            "quantity": 40,
+            "unit": "unidad",
+            "priority": "obligatorio"
+          }
+        ]
+      },
+      {
+        "id": "canasta-16",
+        "productId": "producto-3",
+        "tramos": [
+          {
+            "desde": "2026-06",
+            "quantity": 4,
+            "unit": "paquete",
+            "priority": "frecuente"
+          }
+        ]
+      },
+      {
+        "id": "canasta-17",
+        "productId": "producto-5",
+        "tramos": [
+          {
+            "desde": "2026-06",
+            "quantity": null,
+            "unit": "unidad",
+            "priority": "ocasional"
+          }
+        ]
+      },
+      {
+        "id": "canasta-18",
+        "productId": "producto-6",
+        "tramos": [
+          {
+            "desde": "2026-06",
+            "quantity": 2,
+            "unit": "paquete",
+            "priority": "frecuente"
+          },
+          {
+            "desde": "2026-09",
+            "fuera": true
+          }
+        ]
+      }
+    ],
+    "updatedAt": "2026-09-16",
+    "history": []
+  },
+  "monthOverrides": {
+    "2026-08": {
+      "month": "2026-08",
+      "changes": [
+        {
+          "id": "cambio-19",
+          "productId": "producto-2",
+          "quantity": 60,
+          "unit": "unidad",
+          "priority": "obligatorio",
+          "removed": false,
+          "extra": false,
+          "note": "Vino la familia",
+          "createdAt": "2026-09-16"
+        },
+        {
+          "id": "cambio-20",
+          "productId": "producto-4",
+          "quantity": 30,
+          "unit": "unidad",
+          "priority": "frecuente",
+          "removed": false,
+          "extra": true,
+          "note": "",
+          "createdAt": "2026-09-16"
+        }
+      ],
+      "createdAt": "2026-09-16",
+      "updatedAt": "2026-09-16"
+    }
+  },
+  "mealRoutines": [
+    {
+      "id": "rutina-21",
+      "kind": "recipe",
+      "recipeId": "preparacion-11",
+      "slots": [
+        "desayuno"
+      ],
+      "weekdays": [
+        1,
+        3,
+        5
+      ],
+      "weeks": null,
+      "scope": "permanent",
+      "month": null,
+      "desde": "2026-08-01",
+      "until": null,
+      "label": "Todos los lunes, miércoles y viernes",
+      "active": true,
+      "createdAt": "2026-09-16",
+      "updatedAt": "2026-09-16"
+    },
+    {
+      "id": "rutina-22",
+      "kind": "outside",
+      "recipeId": null,
+      "slots": [
+        "desayuno",
+        "almuerzo",
+        "cena"
+      ],
+      "weekdays": [
+        7
+      ],
+      "weeks": [
+        1,
+        3
+      ],
+      "scope": "permanent",
+      "month": null,
+      "desde": null,
+      "until": null,
+      "label": "Domingo de playa",
+      "active": true,
+      "createdAt": "2026-09-16",
+      "updatedAt": "2026-09-16"
+    },
+    {
+      "id": "rutina-23",
+      "kind": "order",
+      "recipeId": null,
+      "slots": [
+        "cena"
+      ],
+      "weekdays": [
+        6
+      ],
+      "weeks": null,
+      "scope": "month",
+      "month": "2026-08",
+      "desde": null,
+      "until": null,
+      "label": "Sábados de pedido",
+      "active": false,
+      "createdAt": "2026-09-16",
+      "updatedAt": "2026-09-16"
+    }
+  ],
+  "monthPlans": {
+    "2026-08": {
+      "month": "2026-08",
+      "openedAt": "2026-09-16",
+      "preparedAt": null,
+      "summary": null
+    }
+  },
+  "closedPeriods": [
+    {
+      "id": "cierre-76",
+      "seq": 76,
+      "month": "2026-08",
+      "periodo": "primera",
+      "start": "2026-08-01",
+      "end": "2026-08-15",
+      "closedAt": "2026-09-16",
+      "basis": "casa",
+      "frecuencia": "quincenal",
+      "canasta": [
+        {
+          "productId": "producto-1",
+          "quantity": 25,
+          "unit": "lb",
+          "priority": "obligatorio",
+          "source": "habitual"
+        },
+        {
+          "productId": "producto-2",
+          "quantity": 60,
+          "unit": "unidad",
+          "priority": "obligatorio",
+          "source": "cambio"
+        },
+        {
+          "productId": "producto-3",
+          "quantity": 4,
+          "unit": "paquete",
+          "priority": "frecuente",
+          "source": "habitual"
+        },
+        {
+          "productId": "producto-5",
+          "quantity": null,
+          "unit": "unidad",
+          "priority": "ocasional",
+          "source": "habitual"
+        },
+        {
+          "productId": "producto-6",
+          "quantity": 2,
+          "unit": "paquete",
+          "priority": "frecuente",
+          "source": "habitual"
+        },
+        {
+          "productId": "producto-4",
+          "quantity": 30,
+          "unit": "unidad",
+          "priority": "frecuente",
+          "source": "extra"
+        }
+      ],
+      "excepciones": [
+        {
+          "id": "cambio-19",
+          "productId": "producto-2",
+          "quantity": 60,
+          "unit": "unidad",
+          "priority": "obligatorio",
+          "removed": false,
+          "extra": false,
+          "note": "Vino la familia",
+          "createdAt": "2026-09-16"
+        },
+        {
+          "id": "cambio-20",
+          "productId": "producto-4",
+          "quantity": 30,
+          "unit": "unidad",
+          "priority": "frecuente",
+          "removed": false,
+          "extra": true,
+          "note": "",
+          "createdAt": "2026-09-16"
+        }
+      ],
+      "compras": [
+        {
+          "purchaseId": "compra-73",
+          "date": "2026-08-02",
+          "basis": "casa",
+          "lines": [
+            {
+              "productId": "producto-1",
+              "quantity": 10,
+              "unit": "lb",
+              "controlQuantity": 20
+            },
+            {
+              "productId": "producto-2",
+              "quantity": 30,
+              "unit": "unidad",
+              "controlQuantity": 30
+            },
+            {
+              "productId": "producto-3",
+              "quantity": 2,
+              "unit": "paquete",
+              "controlQuantity": 32
+            }
+          ]
+        }
+      ],
+      "existencia": {
+        "origen": "calculada",
+        "revisionId": null,
+        "fecha": "2026-09-16",
+        "valores": {
+          "producto-1": 6,
+          "producto-2": 8,
+          "producto-3": 10,
+          "producto-4": 0,
+          "producto-5": 0,
+          "producto-6": 0,
+          "producto-7": 0
+        }
+      },
+      "menu": null,
+      "nombres": {
+        "producto-1": "Arroz",
+        "producto-6": "Café",
+        "producto-4": "Huevo",
+        "producto-2": "Plátano maduro",
+        "producto-3": "Salami",
+        "producto-5": "Jabón de cuaba",
+        "producto-7": "Leche en polvo"
+      },
+      "lista": [
+        {
+          "productId": "producto-1",
+          "need": 25,
+          "available": 6,
+          "shortfall": 19,
+          "purchaseQuantity": 9.5,
+          "purchaseUnit": "lb",
+          "acquiredControl": 19
+        },
+        {
+          "productId": "producto-6",
+          "need": 40,
+          "available": 0,
+          "shortfall": 40,
+          "purchaseQuantity": 1,
+          "purchaseUnit": "paquete",
+          "acquiredControl": 40
+        },
+        {
+          "productId": "producto-4",
+          "need": 15,
+          "available": 0,
+          "shortfall": 15,
+          "purchaseQuantity": 15,
+          "purchaseUnit": "unidad",
+          "acquiredControl": 15
+        },
+        {
+          "productId": "producto-2",
+          "need": 30,
+          "available": 8,
+          "shortfall": 22,
+          "purchaseQuantity": 22,
+          "purchaseUnit": "unidad",
+          "acquiredControl": 22
+        },
+        {
+          "productId": "producto-3",
+          "need": 32,
+          "available": 10,
+          "shortfall": 22,
+          "purchaseQuantity": 2,
+          "purchaseUnit": "paquete",
+          "acquiredControl": 32
+        }
+      ],
+      "pendientes": [
+        {
+          "productId": "producto-5",
+          "unit": "unidad",
+          "date": null,
+          "reason": "cantidad"
+        }
+      ],
+      "sinCantidades": []
+    }
+  ],
+  "settings": {
+    "reviewWeekday": 5,
+    "onboarded": false,
+    "hogar": {
+      "paso": 3,
+      "terminado": true
+    },
+    "canasta": {
+      "rubro": 2
+    },
+    "compra": {
+      "frecuencia": [
+        {
+          "desde": "2026-08",
+          "tipo": "quincenal"
+        }
+      ],
+      "reparto": {}
+    }
+  },
+  "activity": [
+    {
+      "id": "act-1",
+      "date": "2026-08-02",
+      "kind": "compra",
+      "text": "Compra de la primera quincena"
+    }
+  ]
+}

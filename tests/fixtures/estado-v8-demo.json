@@ -1,0 +1,1417 @@
+{
+  "version": 8,
+  "seq": 113,
+  "demo": true,
+  "products": [
+    {
+      "id": "producto-1",
+      "name": "Plátano maduro",
+      "normalized": "platano maduro",
+      "aliases": [],
+      "category": "viveres",
+      "controlUnit": "unidad",
+      "purchaseUnit": "unidad",
+      "equivalences": {},
+      "slice": null,
+      "archived": false,
+      "origin": "catalogo",
+      "createdAt": "2026-09-16",
+      "updatedAt": "2026-09-16"
+    },
+    {
+      "id": "producto-2",
+      "name": "Huevo",
+      "normalized": "huevo",
+      "aliases": [],
+      "category": "lacteos",
+      "controlUnit": "unidad",
+      "purchaseUnit": "unidad",
+      "equivalences": {},
+      "slice": null,
+      "archived": false,
+      "origin": "catalogo",
+      "createdAt": "2026-09-16",
+      "updatedAt": "2026-09-16"
+    },
+    {
+      "id": "producto-3",
+      "name": "Arroz",
+      "normalized": "arroz",
+      "aliases": [],
+      "category": "granos",
+      "controlUnit": "taza",
+      "purchaseUnit": "lb",
+      "equivalences": {},
+      "slice": null,
+      "archived": false,
+      "origin": "catalogo",
+      "createdAt": "2026-09-16",
+      "updatedAt": "2026-09-16"
+    },
+    {
+      "id": "producto-4",
+      "name": "Carne",
+      "normalized": "carne",
+      "aliases": [],
+      "category": "carnes",
+      "controlUnit": "lb",
+      "purchaseUnit": "lb",
+      "equivalences": {},
+      "slice": null,
+      "archived": false,
+      "origin": "catalogo",
+      "createdAt": "2026-09-16",
+      "updatedAt": "2026-09-16"
+    },
+    {
+      "id": "producto-5",
+      "name": "Salami",
+      "normalized": "salami",
+      "aliases": [],
+      "category": "embutidos",
+      "controlUnit": "rueda",
+      "purchaseUnit": "paquete",
+      "equivalences": {
+        "paquete": 16
+      },
+      "slice": null,
+      "archived": false,
+      "origin": "catalogo",
+      "createdAt": "2026-09-16",
+      "updatedAt": "2026-09-16"
+    },
+    {
+      "id": "producto-6",
+      "name": "Jamón",
+      "normalized": "jamon",
+      "aliases": [],
+      "category": "embutidos",
+      "controlUnit": "rebanada",
+      "purchaseUnit": "paquete",
+      "equivalences": {
+        "paquete": 12
+      },
+      "slice": null,
+      "archived": false,
+      "origin": "catalogo",
+      "createdAt": "2026-09-16",
+      "updatedAt": "2026-09-16"
+    },
+    {
+      "id": "producto-7",
+      "name": "Atún",
+      "normalized": "atun",
+      "aliases": [],
+      "category": "mar",
+      "controlUnit": "lata",
+      "purchaseUnit": "lata",
+      "equivalences": {},
+      "slice": null,
+      "archived": false,
+      "origin": "catalogo",
+      "createdAt": "2026-09-16",
+      "updatedAt": "2026-09-16"
+    },
+    {
+      "id": "producto-8",
+      "name": "Pan",
+      "normalized": "pan",
+      "aliases": [],
+      "category": "panes",
+      "controlUnit": "rebanada",
+      "purchaseUnit": "paquete",
+      "equivalences": {
+        "paquete": 12
+      },
+      "slice": null,
+      "archived": false,
+      "origin": "catalogo",
+      "createdAt": "2026-09-16",
+      "updatedAt": "2026-09-16"
+    }
+  ],
+  "people": [
+    {
+      "id": "persona-9",
+      "name": "Ana · ejemplo",
+      "kind": "adulto",
+      "activo": true,
+      "restricciones": [],
+      "habitual": []
+    },
+    {
+      "id": "persona-10",
+      "name": "Luis · ejemplo",
+      "kind": "adulto",
+      "activo": true,
+      "restricciones": [],
+      "habitual": []
+    },
+    {
+      "id": "persona-11",
+      "name": "Niña · ejemplo",
+      "kind": "adulto",
+      "activo": true,
+      "restricciones": [],
+      "habitual": [
+        {
+          "productId": "producto-2",
+          "quantity": 2,
+          "unit": "unidad"
+        }
+      ]
+    },
+    {
+      "id": "persona-12",
+      "name": "Niño · ejemplo",
+      "kind": "adulto",
+      "activo": true,
+      "restricciones": [],
+      "habitual": [
+        {
+          "productId": "producto-5",
+          "quantity": 4,
+          "unit": "rueda"
+        }
+      ]
+    }
+  ],
+  "recipes": [
+    {
+      "id": "preparacion-13",
+      "name": "Huevos con jamón",
+      "uses": [
+        "desayuno",
+        "cena"
+      ],
+      "items": [
+        {
+          "productId": "producto-2",
+          "quantity": 4,
+          "unit": "unidad",
+          "personId": null
+        },
+        {
+          "productId": "producto-6",
+          "quantity": 4,
+          "unit": "rebanada",
+          "personId": null
+        }
+      ],
+      "servings": null,
+      "note": ""
+    },
+    {
+      "id": "preparacion-14",
+      "name": "Arroz con carne",
+      "uses": [
+        "almuerzo",
+        "cena"
+      ],
+      "items": [
+        {
+          "productId": "producto-3",
+          "quantity": 3,
+          "unit": "taza",
+          "personId": null
+        },
+        {
+          "productId": "producto-4",
+          "quantity": 1,
+          "unit": "lb",
+          "personId": null
+        }
+      ],
+      "servings": null,
+      "note": "Preparar el arroz y la carne para quienes comen en casa."
+    },
+    {
+      "id": "preparacion-15",
+      "name": "Plátano maduro con acompañamientos",
+      "uses": [
+        "desayuno",
+        "cena"
+      ],
+      "items": [
+        {
+          "productId": "producto-1",
+          "quantity": 1,
+          "unit": "unidad",
+          "personId": null
+        },
+        {
+          "productId": "producto-2",
+          "quantity": 2,
+          "unit": "unidad",
+          "personId": "persona-11"
+        },
+        {
+          "productId": "producto-5",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": "persona-12"
+        }
+      ],
+      "servings": null,
+      "note": "Ejemplo: guardar la mitad del plátano para el desayuno siguiente."
+    },
+    {
+      "id": "preparacion-16",
+      "name": "Arroz con atún",
+      "uses": [
+        "almuerzo",
+        "cena"
+      ],
+      "items": [
+        {
+          "productId": "producto-3",
+          "quantity": 2,
+          "unit": "taza",
+          "personId": null
+        },
+        {
+          "productId": "producto-7",
+          "quantity": 2,
+          "unit": "lata",
+          "personId": null
+        }
+      ],
+      "servings": null,
+      "note": ""
+    },
+    {
+      "id": "preparacion-17",
+      "name": "Sándwich de jamón",
+      "uses": [
+        "desayuno",
+        "cena"
+      ],
+      "items": [
+        {
+          "productId": "producto-8",
+          "quantity": 4,
+          "unit": "rebanada",
+          "personId": null
+        },
+        {
+          "productId": "producto-6",
+          "quantity": 4,
+          "unit": "rebanada",
+          "personId": null
+        }
+      ],
+      "servings": null,
+      "note": ""
+    }
+  ],
+  "plans": [
+    {
+      "id": "comida-18",
+      "date": "2026-09-16",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-13",
+      "routineId": null,
+      "origen": "manual",
+      "title": "Huevos con jamón",
+      "note": "",
+      "servings": null,
+      "participants": [
+        "persona-9",
+        "persona-10",
+        "persona-11",
+        "persona-12"
+      ],
+      "items": [
+        {
+          "productId": "producto-2",
+          "quantity": 4,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-19"
+        },
+        {
+          "productId": "producto-6",
+          "quantity": 4,
+          "unit": "rebanada",
+          "personId": null,
+          "id": "alimento-20"
+        }
+      ]
+    },
+    {
+      "id": "comida-21",
+      "date": "2026-09-16",
+      "slot": "almuerzo",
+      "kind": "recipe",
+      "recipeId": "preparacion-14",
+      "routineId": null,
+      "origen": "manual",
+      "title": "Arroz con carne",
+      "note": "Preparar el arroz y la carne para quienes comen en casa.",
+      "servings": null,
+      "participants": [
+        "persona-9",
+        "persona-10",
+        "persona-11",
+        "persona-12"
+      ],
+      "items": [
+        {
+          "productId": "producto-3",
+          "quantity": 3,
+          "unit": "taza",
+          "personId": null,
+          "id": "alimento-22"
+        },
+        {
+          "productId": "producto-4",
+          "quantity": 1,
+          "unit": "lb",
+          "personId": null,
+          "id": "alimento-23"
+        }
+      ]
+    },
+    {
+      "id": "comida-24",
+      "date": "2026-09-16",
+      "slot": "cena",
+      "kind": "recipe",
+      "recipeId": "preparacion-15",
+      "routineId": null,
+      "origen": "manual",
+      "title": "Plátano maduro con acompañamientos",
+      "note": "Ejemplo: guardar la mitad del plátano para el desayuno siguiente.",
+      "servings": null,
+      "participants": [
+        "persona-9",
+        "persona-10",
+        "persona-11",
+        "persona-12"
+      ],
+      "items": [
+        {
+          "productId": "producto-1",
+          "quantity": 1,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-25"
+        },
+        {
+          "productId": "producto-2",
+          "quantity": 2,
+          "unit": "unidad",
+          "personId": "persona-11",
+          "id": "alimento-26"
+        },
+        {
+          "productId": "producto-5",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": "persona-12",
+          "id": "alimento-27"
+        }
+      ]
+    },
+    {
+      "id": "comida-28",
+      "date": "2026-09-17",
+      "slot": "desayuno",
+      "kind": "linked",
+      "sourceId": "comida-24",
+      "routineId": null,
+      "title": "Plátano maduro con acompañamientos",
+      "participants": [
+        "persona-11",
+        "persona-12"
+      ],
+      "reservedItems": [
+        {
+          "sourceItemId": "alimento-25",
+          "quantity": 0.5
+        }
+      ],
+      "items": [],
+      "note": ""
+    },
+    {
+      "id": "comida-29",
+      "date": "2026-09-17",
+      "slot": "almuerzo",
+      "kind": "recipe",
+      "recipeId": "preparacion-16",
+      "routineId": null,
+      "origen": "manual",
+      "title": "Arroz con atún",
+      "note": "",
+      "servings": null,
+      "participants": [
+        "persona-9",
+        "persona-10",
+        "persona-11",
+        "persona-12"
+      ],
+      "items": [
+        {
+          "productId": "producto-3",
+          "quantity": 2,
+          "unit": "taza",
+          "personId": null,
+          "id": "alimento-30"
+        },
+        {
+          "productId": "producto-7",
+          "quantity": 2,
+          "unit": "lata",
+          "personId": null,
+          "id": "alimento-31"
+        }
+      ]
+    },
+    {
+      "id": "comida-32",
+      "date": "2026-09-17",
+      "slot": "cena",
+      "kind": "recipe",
+      "recipeId": "preparacion-17",
+      "routineId": null,
+      "origen": "manual",
+      "title": "Sándwich de jamón",
+      "note": "",
+      "servings": null,
+      "participants": [
+        "persona-9",
+        "persona-10",
+        "persona-11",
+        "persona-12"
+      ],
+      "items": [
+        {
+          "productId": "producto-8",
+          "quantity": 4,
+          "unit": "rebanada",
+          "personId": null,
+          "id": "alimento-33"
+        },
+        {
+          "productId": "producto-6",
+          "quantity": 4,
+          "unit": "rebanada",
+          "personId": null,
+          "id": "alimento-34"
+        }
+      ]
+    },
+    {
+      "id": "comida-35",
+      "date": "2026-09-18",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-17",
+      "routineId": null,
+      "origen": "manual",
+      "title": "Sándwich de jamón",
+      "note": "",
+      "servings": null,
+      "participants": [
+        "persona-9",
+        "persona-10",
+        "persona-11",
+        "persona-12"
+      ],
+      "items": [
+        {
+          "productId": "producto-8",
+          "quantity": 4,
+          "unit": "rebanada",
+          "personId": null,
+          "id": "alimento-36"
+        },
+        {
+          "productId": "producto-6",
+          "quantity": 4,
+          "unit": "rebanada",
+          "personId": null,
+          "id": "alimento-37"
+        }
+      ]
+    },
+    {
+      "id": "comida-38",
+      "date": "2026-09-18",
+      "slot": "almuerzo",
+      "kind": "recipe",
+      "recipeId": "preparacion-14",
+      "routineId": null,
+      "origen": "manual",
+      "title": "Arroz con carne",
+      "note": "Preparar el arroz y la carne para quienes comen en casa.",
+      "servings": null,
+      "participants": [
+        "persona-9",
+        "persona-10",
+        "persona-11",
+        "persona-12"
+      ],
+      "items": [
+        {
+          "productId": "producto-3",
+          "quantity": 3,
+          "unit": "taza",
+          "personId": null,
+          "id": "alimento-39"
+        },
+        {
+          "productId": "producto-4",
+          "quantity": 1,
+          "unit": "lb",
+          "personId": null,
+          "id": "alimento-40"
+        }
+      ]
+    },
+    {
+      "id": "comida-51",
+      "date": "2026-09-02",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-15",
+      "routineId": "rutina-49",
+      "origen": "rutina",
+      "title": "Plátano maduro con acompañamientos",
+      "note": "Ejemplo: guardar la mitad del plátano para el desayuno siguiente.",
+      "servings": null,
+      "participants": [
+        "persona-9",
+        "persona-10",
+        "persona-11",
+        "persona-12"
+      ],
+      "items": [
+        {
+          "productId": "producto-1",
+          "quantity": 1,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-52"
+        },
+        {
+          "productId": "producto-2",
+          "quantity": 2,
+          "unit": "unidad",
+          "personId": "persona-11",
+          "id": "alimento-53"
+        },
+        {
+          "productId": "producto-5",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": "persona-12",
+          "id": "alimento-54"
+        }
+      ]
+    },
+    {
+      "id": "comida-55",
+      "date": "2026-09-04",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-15",
+      "routineId": "rutina-49",
+      "origen": "rutina",
+      "title": "Plátano maduro con acompañamientos",
+      "note": "Ejemplo: guardar la mitad del plátano para el desayuno siguiente.",
+      "servings": null,
+      "participants": [
+        "persona-9",
+        "persona-10",
+        "persona-11",
+        "persona-12"
+      ],
+      "items": [
+        {
+          "productId": "producto-1",
+          "quantity": 1,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-56"
+        },
+        {
+          "productId": "producto-2",
+          "quantity": 2,
+          "unit": "unidad",
+          "personId": "persona-11",
+          "id": "alimento-57"
+        },
+        {
+          "productId": "producto-5",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": "persona-12",
+          "id": "alimento-58"
+        }
+      ]
+    },
+    {
+      "id": "comida-59",
+      "date": "2026-09-05",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-15",
+      "routineId": "rutina-49",
+      "origen": "rutina",
+      "title": "Plátano maduro con acompañamientos",
+      "note": "Ejemplo: guardar la mitad del plátano para el desayuno siguiente.",
+      "servings": null,
+      "participants": [
+        "persona-9",
+        "persona-10",
+        "persona-11",
+        "persona-12"
+      ],
+      "items": [
+        {
+          "productId": "producto-1",
+          "quantity": 1,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-60"
+        },
+        {
+          "productId": "producto-2",
+          "quantity": 2,
+          "unit": "unidad",
+          "personId": "persona-11",
+          "id": "alimento-61"
+        },
+        {
+          "productId": "producto-5",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": "persona-12",
+          "id": "alimento-62"
+        }
+      ]
+    },
+    {
+      "id": "comida-63",
+      "date": "2026-09-07",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-15",
+      "routineId": "rutina-49",
+      "origen": "rutina",
+      "title": "Plátano maduro con acompañamientos",
+      "note": "Ejemplo: guardar la mitad del plátano para el desayuno siguiente.",
+      "servings": null,
+      "participants": [
+        "persona-9",
+        "persona-10",
+        "persona-11",
+        "persona-12"
+      ],
+      "items": [
+        {
+          "productId": "producto-1",
+          "quantity": 1,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-64"
+        },
+        {
+          "productId": "producto-2",
+          "quantity": 2,
+          "unit": "unidad",
+          "personId": "persona-11",
+          "id": "alimento-65"
+        },
+        {
+          "productId": "producto-5",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": "persona-12",
+          "id": "alimento-66"
+        }
+      ]
+    },
+    {
+      "id": "comida-67",
+      "date": "2026-09-09",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-15",
+      "routineId": "rutina-49",
+      "origen": "rutina",
+      "title": "Plátano maduro con acompañamientos",
+      "note": "Ejemplo: guardar la mitad del plátano para el desayuno siguiente.",
+      "servings": null,
+      "participants": [
+        "persona-9",
+        "persona-10",
+        "persona-11",
+        "persona-12"
+      ],
+      "items": [
+        {
+          "productId": "producto-1",
+          "quantity": 1,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-68"
+        },
+        {
+          "productId": "producto-2",
+          "quantity": 2,
+          "unit": "unidad",
+          "personId": "persona-11",
+          "id": "alimento-69"
+        },
+        {
+          "productId": "producto-5",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": "persona-12",
+          "id": "alimento-70"
+        }
+      ]
+    },
+    {
+      "id": "comida-71",
+      "date": "2026-09-11",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-15",
+      "routineId": "rutina-49",
+      "origen": "rutina",
+      "title": "Plátano maduro con acompañamientos",
+      "note": "Ejemplo: guardar la mitad del plátano para el desayuno siguiente.",
+      "servings": null,
+      "participants": [
+        "persona-9",
+        "persona-10",
+        "persona-11",
+        "persona-12"
+      ],
+      "items": [
+        {
+          "productId": "producto-1",
+          "quantity": 1,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-72"
+        },
+        {
+          "productId": "producto-2",
+          "quantity": 2,
+          "unit": "unidad",
+          "personId": "persona-11",
+          "id": "alimento-73"
+        },
+        {
+          "productId": "producto-5",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": "persona-12",
+          "id": "alimento-74"
+        }
+      ]
+    },
+    {
+      "id": "comida-75",
+      "date": "2026-09-12",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-15",
+      "routineId": "rutina-49",
+      "origen": "rutina",
+      "title": "Plátano maduro con acompañamientos",
+      "note": "Ejemplo: guardar la mitad del plátano para el desayuno siguiente.",
+      "servings": null,
+      "participants": [
+        "persona-9",
+        "persona-10",
+        "persona-11",
+        "persona-12"
+      ],
+      "items": [
+        {
+          "productId": "producto-1",
+          "quantity": 1,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-76"
+        },
+        {
+          "productId": "producto-2",
+          "quantity": 2,
+          "unit": "unidad",
+          "personId": "persona-11",
+          "id": "alimento-77"
+        },
+        {
+          "productId": "producto-5",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": "persona-12",
+          "id": "alimento-78"
+        }
+      ]
+    },
+    {
+      "id": "comida-79",
+      "date": "2026-09-14",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-15",
+      "routineId": "rutina-49",
+      "origen": "rutina",
+      "title": "Plátano maduro con acompañamientos",
+      "note": "Ejemplo: guardar la mitad del plátano para el desayuno siguiente.",
+      "servings": null,
+      "participants": [
+        "persona-9",
+        "persona-10",
+        "persona-11",
+        "persona-12"
+      ],
+      "items": [
+        {
+          "productId": "producto-1",
+          "quantity": 1,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-80"
+        },
+        {
+          "productId": "producto-2",
+          "quantity": 2,
+          "unit": "unidad",
+          "personId": "persona-11",
+          "id": "alimento-81"
+        },
+        {
+          "productId": "producto-5",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": "persona-12",
+          "id": "alimento-82"
+        }
+      ]
+    },
+    {
+      "id": "comida-83",
+      "date": "2026-09-19",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-15",
+      "routineId": "rutina-49",
+      "origen": "rutina",
+      "title": "Plátano maduro con acompañamientos",
+      "note": "Ejemplo: guardar la mitad del plátano para el desayuno siguiente.",
+      "servings": null,
+      "participants": [
+        "persona-9",
+        "persona-10",
+        "persona-11",
+        "persona-12"
+      ],
+      "items": [
+        {
+          "productId": "producto-1",
+          "quantity": 1,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-84"
+        },
+        {
+          "productId": "producto-2",
+          "quantity": 2,
+          "unit": "unidad",
+          "personId": "persona-11",
+          "id": "alimento-85"
+        },
+        {
+          "productId": "producto-5",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": "persona-12",
+          "id": "alimento-86"
+        }
+      ]
+    },
+    {
+      "id": "comida-87",
+      "date": "2026-09-21",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-15",
+      "routineId": "rutina-49",
+      "origen": "rutina",
+      "title": "Plátano maduro con acompañamientos",
+      "note": "Ejemplo: guardar la mitad del plátano para el desayuno siguiente.",
+      "servings": null,
+      "participants": [
+        "persona-9",
+        "persona-10",
+        "persona-11",
+        "persona-12"
+      ],
+      "items": [
+        {
+          "productId": "producto-1",
+          "quantity": 1,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-88"
+        },
+        {
+          "productId": "producto-2",
+          "quantity": 2,
+          "unit": "unidad",
+          "personId": "persona-11",
+          "id": "alimento-89"
+        },
+        {
+          "productId": "producto-5",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": "persona-12",
+          "id": "alimento-90"
+        }
+      ]
+    },
+    {
+      "id": "comida-91",
+      "date": "2026-09-23",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-15",
+      "routineId": "rutina-49",
+      "origen": "rutina",
+      "title": "Plátano maduro con acompañamientos",
+      "note": "Ejemplo: guardar la mitad del plátano para el desayuno siguiente.",
+      "servings": null,
+      "participants": [
+        "persona-9",
+        "persona-10",
+        "persona-11",
+        "persona-12"
+      ],
+      "items": [
+        {
+          "productId": "producto-1",
+          "quantity": 1,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-92"
+        },
+        {
+          "productId": "producto-2",
+          "quantity": 2,
+          "unit": "unidad",
+          "personId": "persona-11",
+          "id": "alimento-93"
+        },
+        {
+          "productId": "producto-5",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": "persona-12",
+          "id": "alimento-94"
+        }
+      ]
+    },
+    {
+      "id": "comida-95",
+      "date": "2026-09-25",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-15",
+      "routineId": "rutina-49",
+      "origen": "rutina",
+      "title": "Plátano maduro con acompañamientos",
+      "note": "Ejemplo: guardar la mitad del plátano para el desayuno siguiente.",
+      "servings": null,
+      "participants": [
+        "persona-9",
+        "persona-10",
+        "persona-11",
+        "persona-12"
+      ],
+      "items": [
+        {
+          "productId": "producto-1",
+          "quantity": 1,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-96"
+        },
+        {
+          "productId": "producto-2",
+          "quantity": 2,
+          "unit": "unidad",
+          "personId": "persona-11",
+          "id": "alimento-97"
+        },
+        {
+          "productId": "producto-5",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": "persona-12",
+          "id": "alimento-98"
+        }
+      ]
+    },
+    {
+      "id": "comida-99",
+      "date": "2026-09-26",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-15",
+      "routineId": "rutina-49",
+      "origen": "rutina",
+      "title": "Plátano maduro con acompañamientos",
+      "note": "Ejemplo: guardar la mitad del plátano para el desayuno siguiente.",
+      "servings": null,
+      "participants": [
+        "persona-9",
+        "persona-10",
+        "persona-11",
+        "persona-12"
+      ],
+      "items": [
+        {
+          "productId": "producto-1",
+          "quantity": 1,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-100"
+        },
+        {
+          "productId": "producto-2",
+          "quantity": 2,
+          "unit": "unidad",
+          "personId": "persona-11",
+          "id": "alimento-101"
+        },
+        {
+          "productId": "producto-5",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": "persona-12",
+          "id": "alimento-102"
+        }
+      ]
+    },
+    {
+      "id": "comida-103",
+      "date": "2026-09-28",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-15",
+      "routineId": "rutina-49",
+      "origen": "rutina",
+      "title": "Plátano maduro con acompañamientos",
+      "note": "Ejemplo: guardar la mitad del plátano para el desayuno siguiente.",
+      "servings": null,
+      "participants": [
+        "persona-9",
+        "persona-10",
+        "persona-11",
+        "persona-12"
+      ],
+      "items": [
+        {
+          "productId": "producto-1",
+          "quantity": 1,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-104"
+        },
+        {
+          "productId": "producto-2",
+          "quantity": 2,
+          "unit": "unidad",
+          "personId": "persona-11",
+          "id": "alimento-105"
+        },
+        {
+          "productId": "producto-5",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": "persona-12",
+          "id": "alimento-106"
+        }
+      ]
+    },
+    {
+      "id": "comida-107",
+      "date": "2026-09-30",
+      "slot": "desayuno",
+      "kind": "recipe",
+      "recipeId": "preparacion-15",
+      "routineId": "rutina-49",
+      "origen": "rutina",
+      "title": "Plátano maduro con acompañamientos",
+      "note": "Ejemplo: guardar la mitad del plátano para el desayuno siguiente.",
+      "servings": null,
+      "participants": [
+        "persona-9",
+        "persona-10",
+        "persona-11",
+        "persona-12"
+      ],
+      "items": [
+        {
+          "productId": "producto-1",
+          "quantity": 1,
+          "unit": "unidad",
+          "personId": null,
+          "id": "alimento-108"
+        },
+        {
+          "productId": "producto-2",
+          "quantity": 2,
+          "unit": "unidad",
+          "personId": "persona-11",
+          "id": "alimento-109"
+        },
+        {
+          "productId": "producto-5",
+          "quantity": 4,
+          "unit": "rueda",
+          "personId": "persona-12",
+          "id": "alimento-110"
+        }
+      ]
+    },
+    {
+      "id": "comida-111",
+      "date": "2026-09-06",
+      "slot": "almuerzo",
+      "kind": "outside",
+      "routineId": "rutina-50",
+      "origen": "rutina",
+      "participants": [],
+      "items": []
+    },
+    {
+      "id": "comida-112",
+      "date": "2026-09-20",
+      "slot": "almuerzo",
+      "kind": "outside",
+      "routineId": "rutina-50",
+      "origen": "rutina",
+      "participants": [],
+      "items": []
+    }
+  ],
+  "absences": [],
+  "opening": {
+    "producto-1": 8,
+    "producto-2": 6,
+    "producto-3": 2,
+    "producto-4": 1,
+    "producto-5": 0,
+    "producto-6": 0,
+    "producto-7": 2,
+    "producto-8": 0
+  },
+  "purchases": [
+    {
+      "id": "compra-41",
+      "seq": 41,
+      "date": "2026-09-16",
+      "period": null,
+      "basis": null,
+      "lines": [
+        {
+          "productId": "producto-5",
+          "quantity": 1,
+          "unit": "paquete",
+          "controlQuantity": 16
+        },
+        {
+          "productId": "producto-6",
+          "quantity": 1,
+          "unit": "paquete",
+          "controlQuantity": 12
+        }
+      ]
+    }
+  ],
+  "reviews": [],
+  "corrections": [],
+  "manualItems": [
+    {
+      "id": "otro-42",
+      "name": "Detergente · ejemplo",
+      "quantity": "",
+      "done": false
+    }
+  ],
+  "habitualBasket": {
+    "lines": [
+      {
+        "id": "canasta-43",
+        "productId": "producto-3",
+        "tramos": [
+          {
+            "desde": "2026-09",
+            "quantity": 90,
+            "unit": "taza",
+            "priority": "obligatorio"
+          }
+        ]
+      },
+      {
+        "id": "canasta-44",
+        "productId": "producto-2",
+        "tramos": [
+          {
+            "desde": "2026-09",
+            "quantity": 60,
+            "unit": "unidad",
+            "priority": "obligatorio"
+          }
+        ]
+      },
+      {
+        "id": "canasta-45",
+        "productId": "producto-4",
+        "tramos": [
+          {
+            "desde": "2026-09",
+            "quantity": 8,
+            "unit": "lb",
+            "priority": "frecuente"
+          }
+        ]
+      },
+      {
+        "id": "canasta-46",
+        "productId": "producto-1",
+        "tramos": [
+          {
+            "desde": "2026-09",
+            "quantity": 40,
+            "unit": "unidad",
+            "priority": "obligatorio"
+          }
+        ]
+      },
+      {
+        "id": "canasta-47",
+        "productId": "producto-5",
+        "tramos": [
+          {
+            "desde": "2026-09",
+            "quantity": 4,
+            "unit": "paquete",
+            "priority": "frecuente"
+          }
+        ]
+      },
+      {
+        "id": "canasta-48",
+        "productId": "producto-7",
+        "tramos": [
+          {
+            "desde": "2026-09",
+            "quantity": 8,
+            "unit": "lata",
+            "priority": "ocasional"
+          }
+        ]
+      }
+    ],
+    "updatedAt": "2026-09-16",
+    "history": []
+  },
+  "monthOverrides": {
+    "2026-09": {
+      "month": "2026-09",
+      "changes": [
+        {
+          "id": "cambio-113",
+          "productId": "producto-4",
+          "quantity": 12,
+          "unit": "lb",
+          "priority": "frecuente",
+          "removed": false,
+          "extra": false,
+          "note": "",
+          "createdAt": "2026-09-16"
+        }
+      ],
+      "createdAt": "2026-09-16",
+      "updatedAt": "2026-09-16"
+    }
+  },
+  "mealRoutines": [
+    {
+      "id": "rutina-49",
+      "kind": "recipe",
+      "recipeId": "preparacion-15",
+      "slots": [
+        "desayuno"
+      ],
+      "weekdays": [
+        1,
+        3,
+        5,
+        6
+      ],
+      "weeks": null,
+      "scope": "permanent",
+      "month": null,
+      "desde": null,
+      "until": null,
+      "label": "Todos los lunes, miércoles, viernes y sábados",
+      "active": true,
+      "createdAt": "2026-09-16",
+      "updatedAt": "2026-09-16"
+    },
+    {
+      "id": "rutina-50",
+      "kind": "outside",
+      "recipeId": null,
+      "slots": [
+        "almuerzo"
+      ],
+      "weekdays": [
+        7
+      ],
+      "weeks": [
+        1,
+        3
+      ],
+      "scope": "permanent",
+      "month": null,
+      "desde": null,
+      "until": null,
+      "label": "Almuerzo fuera",
+      "active": true,
+      "createdAt": "2026-09-16",
+      "updatedAt": "2026-09-16"
+    }
+  ],
+  "monthPlans": {
+    "2026-09": {
+      "month": "2026-09",
+      "openedAt": "2026-09-16",
+      "preparedAt": null,
+      "summary": null
+    }
+  },
+  "closedPeriods": [],
+  "settings": {
+    "reviewWeekday": 5,
+    "onboarded": false,
+    "hogar": null,
+    "canasta": null,
+    "compra": null
+  },
+  "activity": []
+}
