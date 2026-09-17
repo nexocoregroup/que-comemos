@@ -36,7 +36,7 @@ import {
 } from './model.js';
 import {
   addRoutine, applyRoutine, applyRoutines, copyPatternFromMonth, datesForRule, deleteRoutine,
-  describeRule, detachPlanFromRoutine, monthProgress, openMonth, routinesFor
+  describeRule, detachPlanFromRoutine, gruposDeReglas, monthProgress, openMonth, routinesFor
 } from './routines.js';
 import { normalizeName } from './nombres.js';
 import { unitText } from './ui-kit.js';
@@ -365,7 +365,9 @@ export const ACTIONS = {
     describe: a => `Ver las rutinas de comida que valen en ${mesTexto(a.mes || mesActual())}.`,
     run: (state, a) => {
       const mes = a.mes || mesActual();
-      return routinesFor(state, mes).map(rutina => ({
+      // Por grupos: quien preguntó «¿qué rutinas tengo?» quiere oír las que
+      // escribió, no una por cada momento del día que cubren.
+      return gruposDeReglas(state, mes).map(rutina => ({
         id: rutina.id, etiqueta: rutina.label, regla: describeRule(rutina.weekdays, rutina.weeks),
         comidas: rutina.slots, alcance: rutina.scope === 'permanent' ? 'siempre' : 'mes',
         que: rutina.kind === 'recipe' ? state.recipes.find(item => item.id === rutina.recipeId)?.name : rutina.kind,
@@ -440,7 +442,7 @@ export const ACTIONS = {
     },
     describe: (a, state) => {
       const mes = a.mes || mesActual();
-      const rutinas = routinesFor(state, mes);
+      const rutinas = gruposDeReglas(state, mes);
       if (!rutinas.length) return `No hay ninguna rutina que valga en ${mesTexto(mes)}.`;
       return `Pasar ${rutinas.length} rutina(s) por ${mesTexto(mes)}: ${rutinas.map(rutina => rutina.label).join(', ')}. Solo se llenan las comidas vacías.`;
     },

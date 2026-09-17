@@ -1,7 +1,7 @@
 import { containsWords, normalizeName, similarity } from './nombres.js';
-import { CLASES_DE_PERSONA, MOTIVOS_DE_RESTRICCION, SCHEMA_VERSION, migrate } from './migrate.js';
+import { CLASES_DE_PERSONA, MOTIVOS_DE_RESTRICCION, RUBROS_IDS, SCHEMA_VERSION, migrate, rubroDeCategoria } from './migrate.js';
 
-export { normalizeName, SCHEMA_VERSION, CLASES_DE_PERSONA, MOTIVOS_DE_RESTRICCION };
+export { normalizeName, SCHEMA_VERSION, CLASES_DE_PERSONA, MOTIVOS_DE_RESTRICCION, RUBROS_IDS, rubroDeCategoria };
 
 /* ── Los momentos del día ──────────────────────────────────────────────────
 
@@ -100,6 +100,11 @@ export const createEmptyState = () => ({
   // La fotografía de cada período que se da por cerrado. Desde que existe, la
   // app no vuelve a calcular ese período: lo lee. Ver `cerrarPeriodo`.
   closedPeriods: [],
+  // Las listas de compra. Una lista es una salida concreta al supermercado: lo
+  // que se va a buscar, cuánto decidió llevar quien la escribió, y qué se fue
+  // tachando por el pasillo. No es un inventario y no descuenta nada de nada.
+  // Ver `crearLista`.
+  listasDeCompra: [],
   // `hogar` guarda por dónde va la configuración guiada de la casa. Va en el
   // estado y no en la interfaz a propósito: quien cierra la app a mitad de la
   // tercera ficha tiene que encontrarla abierta por la tercera ficha, y quien
@@ -515,7 +520,11 @@ function escribirTramo(state, productId, { quantity, unit, priority, desde, corr
 
   if (!line) {
     if (fuera) return null;   // Quitar algo que nunca estuvo no escribe nada.
-    line = { id: nextId(state, 'canasta'), productId, tramos: [] };
+    // El rubro sale de la categoría del alimento y no se pregunta: quien
+    // escribe «arroz» ya dijo que es un grano. Se guarda en la línea y no se
+    // deduce al leer para que se pueda mover de rubro sin recategorizar el
+    // alimento, que es otra cosa y se usa en otro sitio.
+    line = { id: nextId(state, 'canasta'), productId, rubro: rubroDeCategoria(product(state, productId)?.category), nota: '', tramos: [] };
     lines.push(line);
   }
 
@@ -661,6 +670,99 @@ export function removeHabitualLine(state, productId, { desde = null } = {}) {
   if (!quedaHistoria) state.habitualBasket.lines = state.habitualBasket.lines.filter(row => row.productId !== productId);
   state.habitualBasket.updatedAt = todayISO();
   return true;
+}
+
+/* ── Productos habituales ──────────────────────────────────────────────────
+
+   Lo que la familia suele comprar, agrupado por rubros. Es la misma lista que
+   antes se llamaba «canasta habitual», y sigue guardada en el mismo sitio
+   —`habitualBasket.lines`, con sus tramos y sus fechas— por una razón que no es
+   pereza: esas cantidades son con las que se calcularon las compras de meses
+   que ya se cerraron, y moverlas de sitio o tirarlas dejaría el historial
+   diciendo otra cosa.
+
+   Lo que cambia es para qué sirve. Antes era un presupuesto: cuánto consume la
+   casa al mes, para restarle la despensa y sacar cuánto falta comprar. Ahora es
+   una lista de la que uno se acuerda: lo que nunca falta en esta casa, para que
+   al escribir la lista del supermercado no haya que recordarlo todo de cero.
+
+   Por eso la cantidad deja de ser obligatoria. Quien sabe que compra arroz
+   todos los meses no tiene por qué saber cuántas libras, y ya no hace falta que
+   lo sepa. La que hay escrita se conserva y se sigue leyendo; la que no, no se
+   inventa. */
+
+// El rubro de un alimento. La línea manda —se puede mover de rubro sin
+// recategorizar el alimento— y, si no dice nada, sale de su categoría.
+export function rubroDe(state, productId) {
+  const line = state.habitualBasket.lines.find(row => row.productId === productId);
+  if (line && RUBROS_IDS.includes(line.rubro)) return line.rubro;
+  return rubroDeCategoria(product(state, productId)?.category);
+}
+
+// Registrar un alimento como habitual, con cantidad o sin ella. Es el camino
+// que usa quien está llenando la lista por primera vez: nombre y poco más.
+//
+// Acepta un alimento que ya existe (`productId`) o un nombre suelto, que se
+// registra en el catálogo al vuelo —igual que hace la canasta al guardarse—
+// para que nadie tenga que dar de alta un producto antes de poder decir que lo
+// compra siempre.
+export function agregarHabitual(state, fields = {}) {
+  const nombre = String(fields.name || '').trim();
+  const existente = nombre ? productByName(state, nombre) : product(state, fields.productId);
+  if (!existente && !nombre) throw new Error('Escribe el nombre del alimento.');
+  // La unidad no es una cantidad: dice cómo se cuenta eso en esta casa, y sin
+  // ella la lista del supermercado no sabría si son libras o unidades. Si no
+  // viene, se hereda del alimento, que ya lo sabe.
+  const unidad = UNITS.includes(fields.unit) ? fields.unit : (existente?.controlUnit || 'unidad');
+  const item = existente || addProduct(state, {
+    name: nombre, controlUnit: unidad, purchaseUnit: unidad,
+    category: fields.category || 'otros', origin: fields.origin || 'canasta'
+  });
+  const cantidad = optionalQuantity(fields.quantity);
+  // Volver a anotar algo que ya está en la lista no le borra la cantidad que
+  // tuviera escrita. Quien lo apunta otra vez está diciendo «esto lo compro
+  // siempre», no «ya no sé cuánto», y tomárselo al pie de la letra reescribiría
+  // un dato que nadie pidió cambiar.
+  const yaEstaba = state.habitualBasket.lines.some(row => row.productId === item.id);
+  if (!yaEstaba || cantidad !== null) {
+    escribirTramo(state, item.id, { quantity: cantidad, unit: unidad, priority: fields.priority, desde: fields.desde });
+  }
+  return actualizarHabitual(state, item.id, {
+    rubro: fields.rubro,
+    ...(fields.nota === undefined ? {} : { nota: fields.nota })
+  });
+}
+
+// El rubro y la nota de un habitual. La nota es para quien hace la compra —«el
+// de la bolsa azul», «el grande»—, no para quien cocina: esa va en la
+// preparación.
+export function actualizarHabitual(state, productId, fields = {}) {
+  const line = state.habitualBasket.lines.find(row => row.productId === productId);
+  if (!line) return null;
+  if ('rubro' in fields && RUBROS_IDS.includes(fields.rubro)) line.rubro = fields.rubro;
+  if (!RUBROS_IDS.includes(line.rubro)) line.rubro = rubroDeCategoria(product(state, productId)?.category);
+  if ('nota' in fields) line.nota = String(fields.nota || '').trim();
+  state.habitualBasket.updatedAt = todayISO();
+  return line;
+}
+
+// Los habituales agrupados por rubro, en el orden en que se preguntan y sin los
+// rubros que estén vacíos. Es lo que necesita cualquier pantalla que los
+// enseñe, y así no hay dos agrupaciones distintas dando vueltas.
+export function habitualesPorRubro(state, month = null) {
+  const grupos = new Map(RUBROS_IDS.map(id => [id, []]));
+  const guardadas = new Map(state.habitualBasket.lines.map(row => [row.productId, row]));
+  for (const linea of habitualLines(state, month)) {
+    const guardada = guardadas.get(linea.productId);
+    const rubro = RUBROS_IDS.includes(guardada?.rubro) ? guardada.rubro : rubroDeCategoria(product(state, linea.productId)?.category);
+    grupos.get(rubro).push({ ...linea, rubro, nota: guardada?.nota || '' });
+  }
+  return [...grupos]
+    .filter(([, lineas]) => lineas.length)
+    .map(([rubro, lineas]) => ({
+      rubro,
+      lineas: lineas.sort((a, b) => (product(state, a.productId)?.name || '').localeCompare(product(state, b.productId)?.name || ''))
+    }));
 }
 
 // Preguntar por un mes no puede abrirlo. Si leer noviembre lo creara, la app
@@ -951,9 +1053,16 @@ export function upsertRecipe(state, fields) {
   const marcados = new Set(fields.uses || []);
   const uses = MOMENTOS_IDS.filter(id => marcados.has(id));
   if (!uses.length) throw new Error('Selecciona en cuáles momentos suelen comerla.');
+  // Los alimentos que lleva son opcionales, y su cantidad también. Una casa
+  // apunta «locrio: arroz, pollo, aceitunas» mucho antes de saber cuántas
+  // tazas, y perder la preparación entera por no saber el número sería el peor
+  // de los dos males. Sin cantidad no se guarda unidad: «3 de nada» no dice
+  // nada, y dejarla escrita haría creer que hay una medida donde no la hay.
   const items = (fields.items || []).map(item => {
-    if (!product(state, item.productId) || !UNITS.includes(item.unit)) throw new Error('Selecciona un alimento y su unidad.');
-    return { productId: item.productId, quantity: quantity(item.quantity), unit: item.unit, personId: item.personId || null };
+    if (!product(state, item.productId)) throw new Error('Selecciona un alimento de la lista.');
+    const cantidad = optionalQuantity(item.quantity);
+    if (cantidad !== null && !UNITS.includes(item.unit)) throw new Error('Elige la unidad de los alimentos que lleven cantidad.');
+    return { productId: item.productId, quantity: cantidad, unit: cantidad === null ? null : item.unit, personId: item.personId || null };
   });
   // Una preparación se guarda con el nombre y poco más. Exigir un alimento
   // convertía «mangú con salami» en un formulario de inventario antes de dejar
@@ -1138,6 +1247,10 @@ export function linkPlan(state, sourceId, date, slot, allocation, extraItems = [
   const reservedItems = Object.entries(allocation).filter(([, amount]) => Number(amount) > 0).map(([sourceItemId, amount]) => {
     const item = source.items.find(row => row.id === sourceItemId);
     if (!item) throw new Error('El alimento de origen ya no existe.');
+    // Reservar la mitad de algo que no dice cuánto es no significa nada. Se
+    // dice así, en vez de dejar que la comparación de abajo lo rechace con un
+    // «no puedes reservar más» que no explicaría por qué.
+    if (item.quantity === null || item.quantity === undefined) throw new Error(`${product(state, item.productId)?.name || 'Ese alimento'} no tiene cantidad anotada en la preparación, así que no se puede reservar una parte.`);
     const total = quantity(amount) + reservedQuantity(state, sourceId, sourceItemId);
     if (total > item.quantity + EPS) throw new Error(`No puedes reservar más ${product(state, item.productId)?.name || 'alimento'} del preparado.`);
     return { sourceItemId, quantity: quantity(amount) };
@@ -1157,7 +1270,9 @@ export function linkPlan(state, sourceId, date, slot, allocation, extraItems = [
 export function updatePlan(state, planId, fields) {
   const plan = state.plans.find(item => item.id === planId);
   if (!plan || !['recipe', 'linked'].includes(plan.kind)) throw new Error('Comida no encontrada.');
-  const items = fields.items.map(item => ({ ...item, quantity: quantity(item.quantity) }));
+  // Opcional, igual que en la preparación de la que salió: una comida puede
+  // llevar un alimento del que todavía no se sabe cuánto.
+  const items = fields.items.map(item => ({ ...item, quantity: optionalQuantity(item.quantity) }));
   if (plan.kind === 'recipe') {
     for (const old of plan.items) {
       const replacement = items.find(item => item.id === old.id);
@@ -1474,8 +1589,15 @@ export function shoppingList(state, start, end, basis = 'casa') {
       // puede calcular se dice: inventar media libra de arroz porque «algo
       // llevará» es peor que no calcularlo, porque la compra sale mal y nadie
       // sabe por qué.
-      if (!plan.items.length) { sinCantidades.push({ planId: plan.id, date: plan.date, slot: plan.slot, title: plan.title || 'Sin nombre', recipeId: plan.recipeId || null }); continue; }
-      for (const item of plan.items) {
+      // Un alimento sin cantidad tampoco se puede sumar, y desde que la
+      // cantidad es opcional puede haber preparaciones a medio medir. La comida
+      // se avisa igual —lo que no se puede medir no entra en la lista— y lo que
+      // sí tiene cantidad se suma, que es mejor que descartar la comida entera.
+      const medibles = plan.items.filter(item => item.quantity !== null && item.quantity !== undefined);
+      if (medibles.length < plan.items.length || !plan.items.length) {
+        sinCantidades.push({ planId: plan.id, date: plan.date, slot: plan.slot, title: plan.title || 'Sin nombre', recipeId: plan.recipeId || null });
+      }
+      for (const item of medibles) {
         const converted = convert(state, item.productId, item.quantity, item.unit);
         if (converted === null) { pending.push({ productId: item.productId, unit: item.unit, date: plan.date, reason: 'equivalencia' }); continue; }
         need[item.productId] = round((need[item.productId] || 0) + converted);
@@ -1535,6 +1657,167 @@ export function shoppingList(state, start, end, basis = 'casa') {
   return { start, end, basis: resolved, lines, missing, pending, sinCantidades, months, fuera, lastReview: lastStockReview(state), future: start > todayISO(), congelado: false, cierre: null, ...share };
 }
 export const basisLabel = basis => ({ casa: 'mi canasta habitual', menu: 'el menú' })[normalizeBasis(basis)];
+
+/* ── La lista de una salida al supermercado ────────────────────────────────
+
+   Una lista pertenece a una salida concreta: la del sábado, la de fin de mes.
+   Tiene lo que se va a buscar, cuánto decidió llevar quien la escribió, y qué
+   se fue tachando por el pasillo. Nada más.
+
+   No es un inventario, y la diferencia importa. Un inventario dice cuánto hay
+   en la casa y se equivoca solo: nadie anota el arroz que se le cayó, ni las
+   dos tazas que se llevó la vecina, y a los tres meses la cuenta no se parece a
+   la despensa. Una lista no puede equivocarse porque no afirma nada sobre la
+   casa: afirma lo que alguien decidió comprar. Por eso cerrarla no descuenta,
+   no suma y no toca las existencias.
+
+   Y es manual. La escribe una persona. Lo único que hace la app es acordarse
+   por ella de lo que esta casa siempre compra —ver `sugerenciasDeLista`—, que
+   es la ayuda que se pidió y no más que esa. */
+
+export const ESTADOS_DE_LISTA = ['abierta', 'cerrada'];
+export const listaDeCompra = (state, id) => state.listasDeCompra.find(item => item.id === id) || null;
+export const listasAbiertas = state => state.listasDeCompra.filter(item => item.estado === 'abierta');
+
+function exigirListaAbierta(state, listaId) {
+  const lista = listaDeCompra(state, listaId);
+  if (!lista) throw new Error('Esa lista de compra no existe.');
+  if (lista.estado !== 'abierta') throw new Error('Esa lista ya se cerró. Ábrela otra vez si quieres cambiarla.');
+  return lista;
+}
+
+export function crearLista(state, fields = {}) {
+  const fecha = fields.fecha || todayISO();
+  if (!validDate(fecha)) throw new Error('Elige una fecha válida para la salida.');
+  const date = todayISO();
+  // El nombre es opcional: «la compra del sábado» no hace falta escribirla, la
+  // fecha ya lo dice. Quien quiera distinguir dos salidas del mismo día le pone
+  // nombre.
+  const lista = {
+    id: nextId(state, 'lista'), nombre: String(fields.nombre || '').trim(), fecha,
+    estado: 'abierta', lineas: [], nota: String(fields.nota || '').trim(),
+    createdAt: date, updatedAt: date, cerradaEl: null,
+    // A dónde fue a parar esta lista cuando se cerró, si alguien anotó la
+    // compra. Hoy nadie lo escribe; existe para que la etapa que una las dos
+    // cosas no tenga que migrar otra vez.
+    compraId: null
+  };
+  state.listasDeCompra.push(lista);
+  return lista;
+}
+
+// Apuntar algo. O es un alimento del catálogo —lo normal, viene de los
+// habituales— o es texto suelto: «servilletas», «lo del cumpleaños». El texto
+// no crea un alimento nuevo, a propósito: una lista se llenaría el catálogo de
+// cosas de una sola vez y después habría que limpiarlo a mano.
+export function agregarALista(state, listaId, fields = {}) {
+  const lista = exigirListaAbierta(state, listaId);
+  const item = fields.productId ? product(state, fields.productId) : null;
+  if (fields.productId && !item) throw new Error('Ese alimento ya no existe.');
+  const texto = String(fields.texto || '').trim();
+  if (!item && !texto) throw new Error('Escribe qué hay que comprar.');
+
+  const cantidad = optionalQuantity(fields.cantidad);
+  const unidad = UNITS.includes(fields.unidad) ? fields.unidad : (item?.purchaseUnit || null);
+  // Tocar dos veces el mismo alimento de los habituales es lo que pasa cuando
+  // se va apuntando con el teléfono en una mano. Se actualiza el renglón que ya
+  // estaba en vez de dejar el arroz dos veces en la misma lista.
+  const repetido = item ? lista.lineas.find(linea => linea.productId === item.id) : null;
+  if (repetido) {
+    if (cantidad !== null) repetido.cantidad = cantidad;
+    if (unidad) repetido.unidad = unidad;
+    if ('nota' in fields) repetido.nota = String(fields.nota || '').trim();
+    lista.updatedAt = todayISO();
+    return repetido;
+  }
+
+  const linea = {
+    id: nextId(state, 'renglon'),
+    productId: item?.id || null,
+    texto: item ? '' : texto,
+    cantidad, unidad,
+    rubro: item ? rubroDe(state, item.id) : (RUBROS_IDS.includes(fields.rubro) ? fields.rubro : 'otros'),
+    nota: String(fields.nota || '').trim(),
+    comprado: false
+  };
+  lista.lineas.push(linea);
+  lista.updatedAt = todayISO();
+  return linea;
+}
+
+export function actualizarLineaDeLista(state, listaId, lineaId, fields = {}) {
+  const lista = exigirListaAbierta(state, listaId);
+  const linea = lista.lineas.find(row => row.id === lineaId);
+  if (!linea) throw new Error('Ese renglón ya no está en la lista.');
+  if ('cantidad' in fields) linea.cantidad = optionalQuantity(fields.cantidad);
+  if ('unidad' in fields) linea.unidad = UNITS.includes(fields.unidad) ? fields.unidad : null;
+  if ('nota' in fields) linea.nota = String(fields.nota || '').trim();
+  if ('rubro' in fields && RUBROS_IDS.includes(fields.rubro)) linea.rubro = fields.rubro;
+  if ('texto' in fields && !linea.productId) {
+    const texto = String(fields.texto || '').trim();
+    if (!texto) throw new Error('Escribe qué hay que comprar.');
+    linea.texto = texto;
+  }
+  lista.updatedAt = todayISO();
+  return linea;
+}
+
+// Tachar y destachar. Es lo único que se toca dentro del supermercado, así que
+// no exige nada más y no puede fallar por otra cosa.
+export function marcarComprado(state, listaId, lineaId, comprado = true) {
+  const lista = exigirListaAbierta(state, listaId);
+  const linea = lista.lineas.find(row => row.id === lineaId);
+  if (!linea) throw new Error('Ese renglón ya no está en la lista.');
+  linea.comprado = Boolean(comprado);
+  lista.updatedAt = todayISO();
+  return linea;
+}
+
+export function quitarDeLista(state, listaId, lineaId) {
+  const lista = exigirListaAbierta(state, listaId);
+  const antes = lista.lineas.length;
+  lista.lineas = lista.lineas.filter(row => row.id !== lineaId);
+  lista.updatedAt = todayISO();
+  return lista.lineas.length < antes;
+}
+
+// Cerrar una lista es decir «ya volví del supermercado». No descuenta, no suma
+// y no toca las existencias: una lista no afirma nada sobre lo que hay en la
+// casa. Lo que quedó sin tachar se queda sin tachar, que es la verdad de lo que
+// pasó —no se consiguió, se olvidó— y no un error que corregir.
+export function cerrarLista(state, listaId) {
+  const lista = exigirListaAbierta(state, listaId);
+  lista.estado = 'cerrada';
+  lista.cerradaEl = todayISO();
+  lista.updatedAt = lista.cerradaEl;
+  return lista;
+}
+
+export function reabrirLista(state, listaId) {
+  const lista = listaDeCompra(state, listaId);
+  if (!lista) throw new Error('Esa lista de compra no existe.');
+  lista.estado = 'abierta';
+  lista.cerradaEl = null;
+  lista.updatedAt = todayISO();
+  return lista;
+}
+
+export const resumenDeLista = lista => {
+  const lineas = lista?.lineas || [];
+  const comprados = lineas.filter(linea => linea.comprado).length;
+  return { total: lineas.length, comprados, pendientes: lineas.length - comprados };
+};
+
+// La ayuda, y toda la ayuda: los habituales de la casa que todavía no están en
+// esta lista, agrupados por rubro. Nada de cantidades sugeridas —la cantidad la
+// decide quien compra— y nada de añadirlos solos.
+export function sugerenciasDeLista(state, listaId) {
+  const lista = listaDeCompra(state, listaId);
+  const puestos = new Set((lista?.lineas || []).map(linea => linea.productId).filter(Boolean));
+  return habitualesPorRubro(state)
+    .map(grupo => ({ ...grupo, lineas: grupo.lineas.filter(linea => !puestos.has(linea.productId)) }))
+    .filter(grupo => grupo.lineas.length);
+}
 
 /* ── Un período cerrado no se vuelve a calcular ────────────────────────────
 
@@ -1801,7 +2084,7 @@ export function importState(json) {
   const data = result.state;
   const empty = createEmptyState();
   if (!Number.isInteger(data.seq) || Object.keys(empty).some(key => !(key in data))) throw new Error('Este archivo no es un respaldo válido de ¿Qué comemos?.');
-  for (const key of ['products', 'people', 'recipes', 'plans', 'absences', 'purchases', 'reviews', 'corrections', 'manualItems', 'mealRoutines', 'activity']) {
+  for (const key of ['products', 'people', 'recipes', 'plans', 'absences', 'purchases', 'reviews', 'corrections', 'manualItems', 'mealRoutines', 'listasDeCompra', 'activity']) {
     if (!Array.isArray(data[key])) throw new Error('El respaldo tiene datos incompletos.');
   }
   if (typeof data.opening !== 'object' || data.opening === null) throw new Error('El respaldo no tiene existencias válidas.');

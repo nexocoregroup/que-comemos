@@ -31,7 +31,7 @@ import {
 // ventana: dos formularios de persona serían dos sitios donde olvidarse de
 // preguntar si un alimento es alergia o manía.
 import { claseDe, resumenDeRestricciones } from './hogar.js';
-import { datesForRule, describeRule, monthProgress, routinesFor } from './routines.js';
+import { datesForRule, describeRule, gruposDeReglas, monthProgress } from './routines.js';
 import { normalizeName } from './text-parse.js';
 import { cancelarDictado } from './device.js';
 import { button, esc, monthName, notice, options } from './ui-kit.js';
@@ -475,7 +475,7 @@ function pasoMenu(ctx, setup) {
   const mes = todayISO().slice(0, 7);
   const recetas = state.recipes.length;
   const gente = personasActivas(state).length;
-  const reglas = routinesFor(state, mes).filter(rutina => rutina.kind === 'recipe');
+  const reglas = gruposDeReglas(state, mes).filter(rutina => rutina.kind === 'recipe');
   const nombreDe = rutina => state.recipes.find(item => item.id === rutina.recipeId)?.name || 'Preparación eliminada';
 
   const hecho = `<div class="setup-hecho">

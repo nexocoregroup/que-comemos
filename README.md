@@ -206,10 +206,13 @@ Lo que ninguna app puede evitar: que alguien coja el teléfono desbloqueado, o q
 
 Los datos se guardan en `localStorage` **solo en ese navegador y dispositivo**, sin sincronización. *Más → Respaldo* escribe un JSON; traerlo de vuelta reemplaza los datos actuales.
 
-El esquema va por la **versión 3**. Un respaldo de la versión 1 o de la 2 se convierte al importarlo y al cargarlo, en cadena:
+El esquema va por la **versión 9**. Un respaldo de cualquier versión anterior se convierte al importarlo y al cargarlo, en cadena. Cada paso está escrito y comentado en `src/migrate.js`; estos son los dos primeros y el último:
 
 - **v1 → v2.** Los productos pasan a la ficha de catálogo. La categoría queda en «otros» y el origen en «manual»: **no se adivinan**, porque adivinar llenaría la app de etiquetas que nadie eligió.
 - **v2 → v3.** La canasta base pasa a ser **la canasta habitual**. Cada mes que tuviera canasta propia se convierte en **diferencias** contra ella: lo que tenía otra cantidad queda como cambio, lo que no estaba en la base queda como extra, lo que faltaba queda como quitado, y lo que era idéntico **no se guarda** —porque no era una excepción—. No se inventan rutinas a partir del historial. Las facturas guardadas salen del estado vivo; siguen en el respaldo previo.
+- **v8 → v9.** La app deja de calcular la compra y pasa a ayudar a decidir la comida. Cada línea de la canasta dice a qué **rubro** pertenece y su cantidad deja de ser obligatoria —la que hubiera escrita se conserva con sus fechas, porque con ella se calcularon compras que ya se cerraron—. Una **regla de repetición** pasa a unir una preparación con **un** momento: las que cubrían varios se parten en una por momento y las comidas que habían puesto se reasignan a la que les toca por su momento. Y aparece dónde guardar las **listas de compra**, que nacen vacías: una lista es una salida concreta al supermercado, no un inventario, y las compras ya anotadas son historial.
+
+El respaldo de los datos de prueba de antes de esa conversión está congelado en `tests/fixtures/`, con su huella en `SUMAS-v8.txt`. Se comprueba desde fuera con `sha256sum -c SUMAS-v8.txt` y desde dentro con `tests/respaldo-v8.test.js`, que además exige que migrarlo no pierda ni un registro.
 
 Compras, revisiones, correcciones, preparaciones, personas, planes, ausencias, identificadores y el contador de secuencia se conservan intactos. La migración es **idempotente**: ejecutarla dos veces da exactamente lo mismo.
 

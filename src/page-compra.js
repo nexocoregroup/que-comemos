@@ -323,7 +323,7 @@ function avisoSinCantidades(ctx, lista) {
   return `<div class="notice warn"><span>?</span><div>
     <strong>${nombres.length === 1 ? 'Esta preparación no tiene cantidades suficientes para calcularla' : `${nombres.length} preparaciones no tienen cantidades suficientes para calcularlas`}</strong>
     ${nombres.slice(0, 6).map(nombre => esc(nombre)).join(' · ')}${nombres.length > 6 ? ' · y más' : ''}.
-    Están puestas en ${sin.length} comida(s) de este período y no suman nada a la lista: la app no se inventa lo que lleva un plato.
+    Están puestas en ${sin.length} comida(s) de este período y lo que no tiene cantidad no suma nada a la lista: la app no se inventa lo que lleva un plato.
     <div class="inline" style="margin-top:10px">${button('Ir a las preparaciones', 'navigate', 'btn-secondary btn-small', 'data-page="preparaciones"')}</div>
   </div></div>`;
 }

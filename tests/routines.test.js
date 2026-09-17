@@ -102,7 +102,10 @@ test('un mes mal escrito se rechaza en vez de devolver una lista vacía que pare
 test('una rutina se escribe una vez y se explica sola', () => {
   const { state, mangu } = cocina();
   const rutina = addRoutine(state, { kind: 'recipe', recipeId: mangu, slots: ['desayuno'], weekdays: [1, 3] });
-  assert.match(rutina.id, /^rutina-/);
+  assert.match(rutina.id, /^regla-/, 'desde que una regla es de un solo momento, se llama regla');
+  assert.equal(rutina.momento, 'desayuno', 'una regla, un momento');
+  assert.deepEqual(rutina.slots, ['desayuno'], 'y `slots` lo repite mientras las pantallas viejas lo lean');
+  assert.equal(rutina.grupoId, rutina.id, 'la primera de un grupo es de la que cuelga el grupo');
   assert.equal(rutina.scope, 'permanent');
   assert.equal(rutina.month, null);
   assert.equal(rutina.weeks, null, 'sin semanas escritas es «todas»');

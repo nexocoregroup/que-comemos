@@ -21,7 +21,7 @@
 // atreverse a cambiarla.
 
 import { MOMENTOS, ORIGENES, SLOTS, SLOTS_PRINCIPALES, dateRange, deletePlan, effectiveBasket, esOpcional, etiquetaDeMomento, etiquetaDeOrigen, makeRecipePlan, momentoDe, monthBasketSummary, monthBounds, origenDe, planFor, restore, setStatusPlan, shoppingList, snapshot, todayISO } from './model.js';
-import { WEEKDAY_SHORT, WEEKDAYS, addRoutine, applyRoutine, applyRoutines, copyPatternFromMonth, datesForRule, deleteRoutine, describeRule, extenderAMesesAbiertos, monthProgress, ocupadasEnMesesAbiertos, openMonth, routinesFor, updateRoutine } from './routines.js';
+import { WEEKDAY_SHORT, WEEKDAYS, addRoutine, applyRoutine, applyRoutines, copyPatternFromMonth, datesForRule, deleteRoutine, describeRule, extenderAMesesAbiertos, grupoComoRegla, grupoDeRegla, gruposDeReglas, monthProgress, ocupadasEnMesesAbiertos, openMonth, routinePlans, updateRoutine } from './routines.js';
 import { button, cap, empty, esc, measure, modal, monthName, niceDate, notice, options, shiftMonth } from './ui-kit.js';
 import { icono } from './icons.js';
 
@@ -93,7 +93,10 @@ function renderResumen(ctx) {
   const { state, ui } = ctx;
   const month = ui.mes.month;
   const progreso = monthProgress(state, month);
-  const rutinas = routinesFor(state, month);
+  // Por grupos y no regla por regla: quien escribió «los domingos comemos
+  // fuera: desayuno, almuerzo y cena» escribió una rutina, aunque por dentro
+  // ahora sean tres reglas. Contarle tres sería contarle la implementación.
+  const rutinas = gruposDeReglas(state, month);
   const cerrado = state.monthPlans?.[month]?.preparedAt || null;
   const sinNada = !rutinas.length && !progreso.encasa && !progreso.fuera;
 
@@ -355,7 +358,7 @@ function resumenDeOrigenes(cuentas, month) {
 function bloqueBase(ctx) {
   const { state, ui } = ctx;
   const month = ui.mes.month;
-  const rutinas = routinesFor(state, month);
+  const rutinas = gruposDeReglas(state, month);
   const permanentes = rutinas.filter(rutina => rutina.scope === 'permanent');
   const anterior = shiftMonth(month, -1);
   const seOrganizoAntes = Boolean(state.monthPlans?.[anterior]) || state.plans.some(plan => plan.date.slice(0, 7) === anterior);
@@ -431,7 +434,7 @@ const ATAJOS_SALIDA = [
 function bloqueExcepciones(ctx) {
   const { state, ui } = ctx;
   const month = ui.mes.month;
-  const reglas = routinesFor(state, month).filter(rutina => rutina.kind === 'outside' || rutina.kind === 'order');
+  const reglas = gruposDeReglas(state, month).filter(rutina => rutina.kind === 'outside' || rutina.kind === 'order');
   const { start, end } = monthBounds(month);
 
   const sueltas = [];
@@ -654,7 +657,10 @@ export function modalDia(ctx, extras = {}) {
 export function modalRutina(ctx, extras = {}) {
   const { state } = ctx;
   const month = extras.month;
-  const editando = extras.id ? (state.mealRoutines || []).find(item => item.id === extras.id) : null;
+  // El grupo entero y no la regla suelta: esta ventana pregunta los momentos con
+  // casillas, y si abriera marcado solo el de la primera regla, guardar borraría
+  // las demás sin decir nada.
+  const editando = extras.id ? grupoComoRegla(state, extras.id) : null;
   const prefijo = extras.atajo ? ATAJOS_SALIDA.find(item => item.id === extras.atajo) : null;
 
   /* ── Lo que ya se sabe no se vuelve a preguntar ──────────────────────────
@@ -919,8 +925,10 @@ export const MES_ACTIONS = {
   },
 
   'mes-borrar-rutina': (el, ctx) => {
-    const rutina = ctx.state.mealRoutines.find(item => item.id === el.dataset.id);
-    const planes = ctx.state.plans.filter(plan => plan.routineId === el.dataset.id);
+    const rutina = grupoComoRegla(ctx.state, el.dataset.id);
+    // Del grupo, no de la primera regla: si contara solo los desayunos diría
+    // «está puesta en 4 comidas» antes de quitar ocho.
+    const planes = routinePlans(ctx.state, el.dataset.id);
     // Quitar la rutina sin tocar las comidas ya puestas es casi siempre lo que
     // se quiere: «ya no comemos esto los lunes» no significa «borra el lunes
     // pasado». Por eso se pregunta en vez de decidirlo nosotros.
@@ -1104,8 +1112,12 @@ export const MES_FORMS = {
     let liberadas = 0;
     if (editandoId) {
       const vigentes = new Set(fechas.flatMap(date => slots.map(slot => `${date}|${slot}`)));
+      // Las comidas cuelgan de la regla de su momento, no de la primera del
+      // grupo. Mirando solo la primera se soltarían los desayunos y se quedarían
+      // colgando cenas de una regla que ya no las cubre.
+      const suyas = new Set(grupoDeRegla(state, rutina.id).reglas.map(regla => regla.id));
       for (const plan of state.plans) {
-        if (plan.routineId !== rutina.id) continue;
+        if (!suyas.has(plan.routineId)) continue;
         if (plan.date.slice(0, 7) !== month) continue;
         if (vigentes.has(`${plan.date}|${plan.slot}`)) continue;
         plan.routineId = null;

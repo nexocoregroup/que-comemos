@@ -850,9 +850,18 @@ function checkPeople(name, selected, date = null, slot = null) {
 // La regla de repetición de esta preparación, si tiene una sola. Con varias no
 // se toca ninguna desde aquí: adivinar cuál de las tres quiso cambiar sería
 // pisarle dos.
+// Cuántas reglas tiene esta preparación, contadas como las escribió quien las
+// escribió. Una regla es de un solo momento, así que «mangú los lunes, de
+// desayuno y de cena» son dos reglas por dentro; preguntarle a la persona por
+// dos sería preguntarle por algo que ella nunca dijo dos veces.
 function rutinaDeLaReceta(recipeId) {
-  const suyas = (state.mealRoutines || []).filter(item =>
-    item.kind === 'recipe' && item.recipeId === recipeId && item.active !== false);
+  const grupos = new Map();
+  for (const regla of state.mealRoutines || []) {
+    if (regla.kind !== 'recipe' || regla.recipeId !== recipeId || regla.active === false) continue;
+    const grupoId = regla.grupoId || regla.id;
+    if (!grupos.has(grupoId)) grupos.set(grupoId, regla);
+  }
+  const suyas = [...grupos.values()];
   return { rutina: suyas.length === 1 ? suyas[0] : null, cuantas: suyas.length };
 }
 
@@ -1595,7 +1604,11 @@ document.addEventListener('click', event => {
       const rutinas = (state.mealRoutines || []).filter(rutina => rutina.recipeId === el.dataset.id);
       state.recipes = state.recipes.filter(item => item.id !== el.dataset.id);
       for (const rutina of rutinas) rutina.active = false;
-      commit(rutinas.length ? `Preparación quitada. ${rutinas.length} rutina(s) que la usaban dejaron de repetirse.` : 'Preparación quitada.');
+      // Contadas como las escribió quien las escribió. Una regla es de un solo
+      // momento, así que «los lunes, de desayuno y de cena» son dos por dentro
+      // y decirle a la persona que eran dos sería contarle la implementación.
+      const cuantas = new Set(rutinas.map(rutina => rutina.grupoId || rutina.id)).size;
+      commit(cuantas ? `Preparación quitada. ${cuantas} rutina(s) que la usaban dejaron de repetirse.` : 'Preparación quitada.');
     }
     else if (action === 'add-item') { const lista = el.closest('form').querySelector(`[data-item-list="${el.dataset.type}"]`); lista?.insertAdjacentHTML('beforeend', itemRow({}, el.dataset.type)); }
     else if (action === 'fill-habitual') traerCantidadesHabituales(el);

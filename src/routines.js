@@ -80,12 +80,68 @@ export function describeRule(weekdays, weeks) {
 
 /* ── Escribir y leer rutinas ───────────────────────────────────────────── */
 
+/* ── Una regla, un momento ─────────────────────────────────────────────────
+
+   Una regla une UNA preparación con UN momento del día y unos días o semanas.
+   Antes una sola regla podía cubrir varios momentos a la vez, y eso hacía
+   imposible lo que una casa pide todo el tiempo: cambiar el desayuno de los
+   lunes sin tocar la cena. Ahora son reglas distintas, y cada una se edita, se
+   apaga y se borra sola.
+
+   `momento` es el campo que manda. `slots` se sigue escribiendo —siempre con un
+   solo elemento— porque es lo que leen las pantallas que todavía no se han
+   rehecho; desaparecerá cuando se rehagan.
+
+   `grupoId` recuerda qué reglas se escribieron de una vez, en una sola
+   respuesta. No las ata: es lo que permite que la ventana que pregunta «¿en qué
+   momentos?» de una sentada siga enseñando una regla donde ahora hay tres. */
+
+const momentosPedidos = (fields, previous) => {
+  const crudos = 'momento' in fields && fields.momento ? [fields.momento]
+    : 'slots' in fields ? fields.slots
+      : (previous?.momento ? [previous.momento] : previous?.slots) || [];
+  const marcados = new Set(crudos);
+  return SLOTS.filter(slot => marcados.has(slot));
+};
+
+export const reglasDelGrupo = (state, grupoId) => (state.mealRoutines || []).filter(regla => (regla.grupoId || regla.id) === grupoId);
+
+// El grupo al que pertenece una regla, por su id o por el del grupo. Es lo que
+// usa todo lo de aquí abajo para seguir tratando «una rutina» como lo que hoy
+// son varias reglas hermanas.
+export function grupoDeRegla(state, id) {
+  const regla = (state.mealRoutines || []).find(item => item.id === id);
+  const grupoId = regla ? (regla.grupoId || regla.id) : id;
+  return { grupoId, reglas: reglasDelGrupo(state, grupoId) };
+}
+
+// Todas las reglas de una preparación. Una preparación puede tener varias, y
+// son independientes: «mangú los lunes en el desayuno» y «mangú los viernes en
+// la cena» no se estorban.
+export const reglasDePreparacion = (state, recipeId) =>
+  (state.mealRoutines || []).filter(regla => regla.kind === 'recipe' && regla.recipeId === recipeId);
+
+// El grupo presentado como una sola regla, que es lo que necesita la ventana
+// que lo edita: pregunta «¿en qué momentos?» con casillas, y tiene que abrirlas
+// todas marcadas. Abriendo solo la del momento de la primera regla, guardar
+// borraría en silencio las demás.
+export function grupoComoRegla(state, id) {
+  const { grupoId, reglas } = grupoDeRegla(state, id);
+  if (!reglas.length) return null;
+  const base = reglas.find(regla => regla.id === id) || reglas[0];
+  // Las apagadas no se marcan: una regla que alguien apagó no puede volver sola
+  // solo porque se abrió la ventana a cambiar los días.
+  const encendidas = reglas.filter(regla => regla.active !== false);
+  const momentos = SLOTS.filter(slot => (encendidas.length ? encendidas : reglas).some(regla => regla.momento === slot));
+  return { ...base, grupoId, slots: momentos, reglas };
+}
+
 function normalizeRoutine(state, fields, previous = null) {
   const kind = ROUTINE_KINDS.includes(fields.kind) ? fields.kind : previous?.kind;
   if (!ROUTINE_KINDS.includes(kind)) throw new Error('Elige si la rutina es una preparación, comer fuera o pedir.');
   const recipeId = 'recipeId' in fields ? fields.recipeId || null : previous?.recipeId ?? null;
   if (kind === 'recipe' && !state.recipes.some(item => item.id === recipeId)) throw new Error('Selecciona la preparación de la rutina.');
-  const slots = [...new Set(('slots' in fields ? fields.slots : previous?.slots) || [])].filter(slot => SLOTS.includes(slot));
+  const slots = momentosPedidos(fields, previous);
   if (!slots.length) throw new Error('Selecciona al menos una comida del día.');
   const weekdays = [...new Set((('weekdays' in fields ? fields.weekdays : previous?.weekdays) || []).map(Number))].filter(day => WEEKDAYS.includes(day)).sort((a, b) => a - b);
   if (!weekdays.length) throw new Error('Selecciona al menos un día de la semana.');
@@ -113,21 +169,66 @@ function normalizeRoutine(state, fields, previous = null) {
   if (desde && until && desde > until) throw new Error('La fecha de inicio no puede ser posterior a la del final.');
   const label = String(('label' in fields ? fields.label : previous?.label) || '').trim() || describeRule(weekdays, weeks);
   const active = 'active' in fields ? Boolean(fields.active) : previous?.active ?? true;
-  return { kind, recipeId: kind === 'recipe' ? recipeId : null, slots, weekdays, weeks, scope, month: month || null, desde, until, label, active };
+  return { momentos: slots, comunes: { kind, recipeId: kind === 'recipe' ? recipeId : null, weekdays, weeks, scope, month: month || null, desde, until, label, active } };
 }
 
-export function addRoutine(state, fields) {
+// Escribir una regla por momento. Quien pide tres momentos de una sentada
+// —«los domingos comemos fuera: desayuno, almuerzo y cena»— escribe tres
+// reglas, no una que valga para tres cosas. Se devuelven todas.
+export function addRoutines(state, fields) {
+  const { momentos, comunes } = normalizeRoutine(state, fields);
   const date = todayISO();
-  const routine = { id: nextId(state, 'rutina'), ...normalizeRoutine(state, fields), createdAt: date, updatedAt: date };
-  state.mealRoutines.push(routine);
-  return routine;
+  const creadas = [];
+  let grupoId = null;
+  for (const momento of momentos) {
+    const id = nextId(state, 'regla');
+    grupoId = grupoId || id;
+    const regla = { id, grupoId, momento, slots: [momento], ...comunes, createdAt: date, updatedAt: date };
+    state.mealRoutines.push(regla);
+    creadas.push(regla);
+  }
+  return creadas;
 }
 
+// La primera de las que escribió, que es de la que cuelga el grupo. Todo lo de
+// aquí abajo entiende ese id como «esta regla y sus hermanas».
+export function addRoutine(state, fields) {
+  return addRoutines(state, fields)[0];
+}
+
+/* ── Editar cambia el grupo entero ─────────────────────────────────────────
+
+   Editando se pueden añadir y quitar momentos: quien tenía «los lunes, mangú de
+   desayuno» y ahora marca también la cena está escribiendo una regla nueva, no
+   ensanchando la que había. Así que se reconcilia:
+
+    · el momento que ya tenía regla, se actualiza —conserva su id, y con él las
+      comidas que ya había puesto—;
+    · el momento nuevo estrena regla;
+    · el momento que se desmarca deja de tener regla, y las comidas que puso se
+      quedan escritas, sueltas. Borrarlas sería tirar decisiones de alguien. */
 export function updateRoutine(state, id, fields) {
-  const routine = state.mealRoutines.find(item => item.id === id);
-  if (!routine) throw new Error('Rutina no encontrada.');
-  Object.assign(routine, normalizeRoutine(state, fields, routine), { updatedAt: todayISO() });
-  return routine;
+  const { grupoId, reglas } = grupoDeRegla(state, id);
+  if (!reglas.length) throw new Error('Rutina no encontrada.');
+  const principal = reglas.find(regla => regla.id === id) || reglas[0];
+  const { momentos, comunes } = normalizeRoutine(state, fields, principal);
+  const date = todayISO();
+  const sobrantes = new Map(reglas.map(regla => [regla.momento, regla]));
+  const quedan = [];
+  for (const momento of momentos) {
+    const existente = sobrantes.get(momento);
+    if (existente) {
+      Object.assign(existente, comunes, { momento, slots: [momento], grupoId, updatedAt: date });
+      sobrantes.delete(momento);
+      quedan.push(existente);
+      continue;
+    }
+    const regla = { id: nextId(state, 'regla'), grupoId, momento, slots: [momento], ...comunes, createdAt: date, updatedAt: date };
+    state.mealRoutines.push(regla);
+    quedan.push(regla);
+  }
+  for (const sobrante of sobrantes.values()) borrarUna(state, sobrante.id, { comidas: 'conservar' });
+  return quedan.find(regla => regla.id === id) || quedan[0];
 }
 
 /* ── Borrar una rutina ─────────────────────────────────────────────────────
@@ -144,7 +245,23 @@ export function updateRoutine(state, id, fields) {
    `desde` acota el borrado: por defecto solo se quitan las de hoy en adelante,
    porque quitar las de la semana pasada no deshace ninguna cena. */
 
-export function deleteRoutine(state, id, { comidas = 'conservar', desde = todayISO() } = {}) {
+// Borrar se pide sobre lo que la persona ve, y lo que ve es la regla con sus
+// hermanas: quien quita «los domingos comemos fuera» quiere quitar las tres
+// comidas de ese domingo, no el desayuno y que se queden el almuerzo y la cena.
+export function deleteRoutine(state, id, opciones = {}) {
+  const { reglas } = grupoDeRegla(state, id);
+  if (!reglas.length) return false;
+  const total = { borrada: true, conservadas: 0, quitadas: 0 };
+  for (const regla of reglas) {
+    const parcial = borrarUna(state, regla.id, opciones);
+    if (!parcial) continue;
+    total.conservadas += parcial.conservadas;
+    total.quitadas += parcial.quitadas;
+  }
+  return total;
+}
+
+function borrarUna(state, id, { comidas = 'conservar', desde = todayISO() } = {}) {
   const before = state.mealRoutines.length;
   state.mealRoutines = state.mealRoutines.filter(item => item.id !== id);
   if (before === state.mealRoutines.length) return false;
@@ -176,6 +293,31 @@ export function routinesFor(state, month) {
     if (routine.until && routine.until < start) return false;
     return !(routine.desde && routine.desde > end);
   });
+}
+
+/* ── Las reglas como las escribió quien las escribió ───────────────────────
+
+   `routinesFor` devuelve reglas: una por momento, que es lo que son. Las
+   pantallas que todavía preguntan «¿en qué momentos?» de una sola vez enseñan
+   una fila por respuesta, no una por momento, y con las reglas sueltas «los
+   domingos comemos fuera» aparecería tres veces seguidas.
+
+   Esto las vuelve a juntar para enseñarlas: una entrada por grupo, con el id de
+   la primera —que es el que entienden editar, borrar y aplicar— y con `slots`
+   diciendo todos sus momentos, igual que antes. Cuando esas pantallas se
+   rehagan y enseñen una fila por regla, esta función sobra. */
+export function gruposDeReglas(state, month) {
+  const vistos = new Map();
+  for (const regla of routinesFor(state, month)) {
+    const grupoId = regla.grupoId || regla.id;
+    const grupo = vistos.get(grupoId);
+    if (!grupo) { vistos.set(grupoId, { ...regla, grupoId, slots: [regla.momento].filter(Boolean), reglas: [regla] }); continue; }
+    grupo.reglas.push(regla);
+    if (regla.momento && !grupo.slots.includes(regla.momento)) grupo.slots.push(regla.momento);
+  }
+  // En el orden del día, no en el que se guardaron.
+  for (const grupo of vistos.values()) grupo.slots = SLOTS.filter(slot => grupo.slots.includes(slot));
+  return [...vistos.values()];
 }
 
 /* ── Llevar una costumbre nueva a los meses que ya estaban abiertos ────────
@@ -216,17 +358,17 @@ export function extenderAMesesAbiertos(state, routineId, mesDeOrigen, options = 
 // reemplazar nada, que es lo que pide el encargo: rellenar huecos sin avisar,
 // pisar decisiones solo con permiso.
 export function ocupadasEnMesesAbiertos(state, routineId, mesDeOrigen) {
-  const routine = state.mealRoutines.find(item => item.id === routineId);
-  if (!routine || routine.scope !== 'permanent') return [];
+  const { reglas } = grupoDeRegla(state, routineId);
   const ocupadas = [];
-  for (const mes of mesesAbiertosDesde(state, mesDeOrigen)) {
-    if (!routinesFor(state, mes).some(item => item.id === routineId)) continue;
-    for (const date of datesForRule(mes, routine.weekdays, routine.weeks)) {
-      if (routine.desde && date < routine.desde) continue;
-      if (routine.until && date > routine.until) continue;
-      for (const slot of routine.slots) {
-        const plan = planFor(state, date, slot);
-        if (plan) ocupadas.push({ mes, date, slot, titulo: plan.title || plan.kind });
+  for (const routine of reglas) {
+    if (routine.scope !== 'permanent') continue;
+    for (const mes of mesesAbiertosDesde(state, mesDeOrigen)) {
+      if (!routinesFor(state, mes).some(item => item.id === routine.id)) continue;
+      for (const date of datesForRule(mes, routine.weekdays, routine.weeks)) {
+        if (routine.desde && date < routine.desde) continue;
+        if (routine.until && date > routine.until) continue;
+        const plan = planFor(state, date, routine.momento);
+        if (plan) ocupadas.push({ mes, date, slot: routine.momento, titulo: plan.title || plan.kind });
       }
     }
   }
@@ -234,8 +376,9 @@ export function ocupadasEnMesesAbiertos(state, routineId, mesDeOrigen) {
 }
 
 export function routinePlans(state, routineId, { from = null } = {}) {
+  const suyas = new Set(grupoDeRegla(state, routineId).reglas.map(regla => regla.id));
   return state.plans
-    .filter(plan => plan.routineId === routineId && (!from || plan.date >= from))
+    .filter(plan => suyas.has(plan.routineId) && (!from || plan.date >= from))
     .sort((a, b) => a.date.localeCompare(b.date) || SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot));
 }
 
@@ -251,9 +394,22 @@ export function detachPlanFromRoutine(state, planId) {
 
 /* ── Aplicar rutinas a un mes ──────────────────────────────────────────── */
 
+// Aplicar se pide sobre lo que la persona ve, igual que editar y borrar: la
+// regla con sus hermanas.
 export function applyRoutine(state, routineId, month, options = {}) {
-  const routine = state.mealRoutines.find(item => item.id === routineId);
-  if (!routine) throw new Error('Rutina no encontrada.');
+  const { reglas } = grupoDeRegla(state, routineId);
+  if (!reglas.length) throw new Error('Rutina no encontrada.');
+  const out = { creados: [], saltados: [], reemplazados: [] };
+  for (const regla of reglas) {
+    const parcial = aplicarRegla(state, regla, month, options);
+    out.creados.push(...parcial.creados);
+    out.saltados.push(...parcial.saltados);
+    out.reemplazados.push(...parcial.reemplazados);
+  }
+  return out;
+}
+
+function aplicarRegla(state, routine, month, options = {}) {
   if (!validMonth(month)) throw new Error('Elige un mes válido.');
   if (routine.scope === 'month' && routine.month !== month) throw new Error(`Esta rutina es solo de ${routine.month}.`);
   const modo = options.modo === 'reemplazar' ? 'reemplazar' : 'vacios';
@@ -299,8 +455,10 @@ export function applyRoutine(state, routineId, month, options = {}) {
 
 export function applyRoutines(state, month, options = {}) {
   const out = { creados: [], saltados: [], reemplazados: [] };
+  // Una por una y no por grupos: recorrer los grupos aplicaría cada regla
+  // tantas veces como hermanas tenga.
   for (const routine of routinesFor(state, month)) {
-    const result = applyRoutine(state, routine.id, month, options);
+    const result = aplicarRegla(state, routine, month, options);
     out.creados.push(...result.creados);
     out.saltados.push(...result.saltados);
     out.reemplazados.push(...result.reemplazados);
@@ -324,7 +482,7 @@ export function openMonth(state, month) {
   const creados = [];
   for (const routine of routinesFor(state, month)) {
     if (routine.scope !== 'permanent') continue;
-    creados.push(...applyRoutine(state, routine.id, month, { modo: 'vacios' }).creados);
+    creados.push(...aplicarRegla(state, routine, month, { modo: 'vacios' }).creados);
   }
   return { yaAbierto: false, resumen: monthProgress(state, month), creados };
 }

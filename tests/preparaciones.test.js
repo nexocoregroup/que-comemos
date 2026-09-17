@@ -305,3 +305,62 @@ test('una preparación que se quedó sin momento se avisa en vez de esconderse',
   assert.ok(html.includes('sin momento'));
   assert.ok(html.includes('Sancocho'));
 });
+
+/* ── La ficha sin cantidades ───────────────────────────────────────────────
+
+   Desde la etapa 1 una preparación es una ficha reutilizable con nombre,
+   momentos y nota para quien cocina. Los alimentos que lleva son un dato
+   opcional, y su cantidad también: una casa apunta «locrio: arroz, pollo,
+   aceitunas» mucho antes de saber cuántas tazas, y muchas veces no lo sabe
+   nunca. Exigir el número era pedir un inventario antes de dejar apuntar la
+   idea. */
+
+test('una instalación nueva puede crear una preparación sin ninguna cantidad', () => {
+  const { state, platano, salami } = casa();
+  const receta = upsertRecipe(state, {
+    name: 'Mangú con salami', uses: ['desayuno'], note: 'El agua bien caliente.',
+    items: [{ productId: platano }, { productId: salami }]
+  });
+  assert.equal(receta.items.length, 2, 'los alimentos se guardan igual');
+  for (const item of receta.items) {
+    assert.equal(item.quantity, null);
+    assert.equal(item.unit, null, 'sin cantidad no se guarda unidad: «3 de nada» no dice nada');
+  }
+  assert.equal(receta.note, 'El agua bien caliente.');
+});
+
+test('se pueden mezclar alimentos medidos y sin medir en la misma preparación', () => {
+  const { state, platano, salami } = casa();
+  const receta = upsertRecipe(state, {
+    name: 'Mangú', uses: ['desayuno'],
+    items: [{ productId: platano, quantity: 4, unit: 'unidad' }, { productId: salami }]
+  });
+  assert.equal(receta.items[0].quantity, 4);
+  assert.equal(receta.items[0].unit, 'unidad');
+  assert.equal(receta.items[1].quantity, null);
+});
+
+test('lo que sigue sin poderse guardar es una cantidad imposible o un alimento que no existe', () => {
+  const { state, platano } = casa();
+  assert.throws(() => upsertRecipe(state, { name: 'X', uses: ['cena'], items: [{ productId: platano, quantity: 0, unit: 'unidad' }] }), /mayor que cero/);
+  assert.throws(() => upsertRecipe(state, { name: 'X', uses: ['cena'], items: [{ productId: 'no-existe' }] }), /Selecciona un alimento/);
+  assert.throws(() => upsertRecipe(state, { name: 'X', uses: ['cena'], items: [{ productId: platano, quantity: 3 }] }), /unidad/);
+});
+
+test('una preparación sin cantidades se puede poner en el calendario igual', () => {
+  const { state, platano } = casa();
+  const receta = upsertRecipe(state, { name: 'Sancocho', uses: ['almuerzo'], items: [{ productId: platano }] });
+  const plan = makeRecipePlan(state, receta.id, '2026-10-05', 'almuerzo', null);
+  assert.equal(plan.title, 'Sancocho');
+  assert.equal(plan.items.length, 1);
+  assert.equal(plan.items[0].quantity, null, 'la comida tampoco se inventa cuánto lleva');
+});
+
+test('un respaldo viejo no cambia: sus cantidades siguen donde estaban', () => {
+  const { state, platano } = casa();
+  upsertRecipe(state, { name: 'Mangú', uses: ['desayuno'], items: [{ productId: platano, quantity: 4, unit: 'unidad' }] });
+  const { ok, state: despues } = migrate(state);
+  assert.ok(ok);
+  assert.equal(despues.version, SCHEMA_VERSION);
+  assert.deepEqual(despues.recipes[0].items[0], { productId: platano, quantity: 4, unit: 'unidad', personId: null });
+});
