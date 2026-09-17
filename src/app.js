@@ -1013,7 +1013,7 @@ function renderModal() {
 
      «Este mes compré cangrejo» y «en esta casa ahora se come cangrejo» son dos
      cosas distintas, y entre una y otra hay una fecha. Sin preguntarla, pasar
-     algo a la canasta base lo metía hacia atrás en todos los meses que ya
+     algo a los productos habituales lo metía hacia atrás en todos los meses que ya
      habían pasado —incluido el historial— y eso es reescribir lo que la casa
      compró de verdad. */
   if (m.type === 'promover') {
@@ -1024,7 +1024,7 @@ function renderModal() {
     // primera vez; nunca se ofrece nada anterior a él.
     const meses = [...new Set([m.month, mesActual, siguiente, shiftMonth(mesActual, 2), shiftMonth(mesActual, 3)])]
       .filter(mes => mes >= m.month).sort();
-    return modal('Añadir a mi canasta base', esc(item?.name || ''),
+    return modal('Añadir a mis habituales', esc(item?.name || ''),
       `<form data-form="promover" data-id="${esc(m.id)}" data-month="${esc(m.month)}" class="stack">
         <p class="muted">Pasará a comprarse <strong>todos los meses</strong>, sin tener que anotarlo cada vez.</p>
         <label class="field"><span>¿Desde qué mes?</span>
@@ -1241,7 +1241,7 @@ function modalComida(m) {
 
    Lo que se compra una vez y lo que se compra siempre son dos cosas distintas y
    se escribían igual. El cangrejo que se compra en Navidad acababa en la
-   canasta habitual —«lo que consume tu casa en un mes corriente»— y aparecía en
+   productos habituales —«lo que consume tu casa en un mes corriente»— y aparecía en
    la lista de febrero, de marzo y de todos los demás.
 
    Así que se pregunta, y la respuesta que toca la costumbre nunca viene
@@ -1249,7 +1249,7 @@ function modalComida(m) {
 
 const DESTINOS = [
   ['mes', 'Solo para este mes', 'Entra en la compra de este mes y no vuelve a aparecer.'],
-  ['siempre', 'Añadir a mi canasta base', 'Aparecerá en la compra de todos los meses, desde ahora.'],
+  ['siempre', 'Añadir a mis habituales', 'Aparecerá en la compra de todos los meses, desde ahora.'],
   ['ficha', 'Solo guardar la ficha', 'Queda anotado como alimento de la casa, sin entrar en ninguna compra.']
 ];
 
@@ -1858,10 +1858,10 @@ document.addEventListener('submit', async event => {
       let mensaje = 'Guardado.';
       if (destino === 'siempre') {
         setHabitualLine(state, item.id, data.get('monthly'), data.get('monthlyUnit'));
-        mensaje = `«${item.name}» entra en tu canasta base desde ${monthName(mesActual)}: aparecerá todos los meses. Los anteriores no cambian.`;
+        mensaje = `«${item.name}» entra en tus productos habituales desde ${monthName(mesActual)}: aparecerá todos los meses. Los anteriores no cambian.`;
       } else if (destino === 'mes') {
         setMonthChange(state, mesActual, item.id, { quantity: data.get('monthly'), unit: data.get('monthlyUnit') || controlUnit });
-        mensaje = `«${item.name}» entra solo en la compra de ${monthName(mesActual)}. Tu canasta base no cambia.`;
+        mensaje = `«${item.name}» entra solo en la compra de ${monthName(mesActual)}. Tus productos habituales no cambian.`;
       } else {
         mensaje = `«${item.name}» queda guardado. No entra en ninguna compra hasta que lo digas.`;
       }
@@ -1872,7 +1872,7 @@ document.addEventListener('submit', async event => {
       const desde = String(data.get('desde') || '');
       promoteToHabitual(state, form.dataset.month, [form.dataset.id], desde);
       ui.modal = null;
-      commit(`«${productName(form.dataset.id)}» entra en tu canasta base desde ${monthName(desde)}. Lo anterior no cambia.`);
+      commit(`«${productName(form.dataset.id)}» entra en tus productos habituales desde ${monthName(desde)}. Lo anterior no cambia.`);
     }
     else if (kind === 'canasta-habitual') {
       const lineas = [];
@@ -1891,7 +1891,7 @@ document.addEventListener('submit', async event => {
           && antes.get(linea.productId) !== `${linea.quantity}|${linea.unit}`
           && linea.tramos.length > 1)
         .map(linea => linea.productId);
-      commit(`Canasta guardada con ${lineas.length} alimento(s).`);
+      commit(`Productos habituales guardados: ${lineas.length} alimento(s).`);
     }
     else if (kind === 'cambio-mes') {
       const mes = form.dataset.month;
@@ -1906,7 +1906,7 @@ document.addEventListener('submit', async event => {
           // Se estrena en el mes que se está mirando, no hoy: quien lo escribe
           // estando en octubre no quiere comprarlo también en septiembre.
           setHabitualLine(state, existente.id, data.get('cantidad'), data.get('unidad'), null, mes);
-          mensaje = `«${existente.name}» entra en tu canasta habitual desde ${monthName(mes)}: aparecerá todos los meses. Los anteriores no cambian.`;
+          mensaje = `«${existente.name}» entra en tus productos habituales desde ${monthName(mes)}: aparecerá todos los meses. Los anteriores no cambian.`;
         } else {
           setMonthChange(state, mes, existente.id, { quantity: data.get('cantidad'), unit: data.get('unidad') });
           mensaje = `«${existente.name}» solo para ${monthName(mes)}. Los demás meses no cambian.`;
@@ -1926,10 +1926,6 @@ document.addEventListener('submit', async event => {
       ponerFrecuencia(state, tipo, desde);
       Object.assign(ui.mas, { cambiandoFrecuencia: false, frecuenciaNueva: '', frecuenciaDesde: '' });
       commit(`Desde ${monthName(desde)} la compra es ${tipo === 'quincenal' ? 'quincenal' : 'mensual'}. Los meses anteriores se quedan como estaban.`);
-    }
-    else if (kind === 'ajuste-revision') {
-      state.settings = { ...(state.settings || {}), reviewWeekday: Number(data.get('dia')) };
-      commit('Guardado.');
     }
     else if (kind === 'merge') {
       const otro = data.get('otro');

@@ -111,7 +111,7 @@ function v1toV2(data) {
   const monthlyBaskets = {};
   if (lines.length) {
     monthlyBaskets[mesActual] = { month: mesActual, lines: clone(lines), createdAt: fecha, updatedAt: fecha, basedOn: fecha };
-    notes.push(`La canasta que tenías escrita es ahora la canasta base, y ${mesActual} se abrió con una copia.`);
+    notes.push(`La canasta que tenías escrita es ahora los productos habituales, y ${mesActual} se abrió con una copia.`);
   }
 
   return {
@@ -228,7 +228,7 @@ function v2toV3(data) {
     activity: data.activity || []
   };
 
-  notes.push('Tu canasta de siempre ahora se llama «canasta habitual» y es la misma de antes.');
+  notes.push('Tu canasta de siempre ahora se llama «productos habituales» y es la misma de antes.');
   if (totalCambios) notes.push(`De los meses que tenías escritos se guardaron ${totalCambios} cambio(s): solo aquello en lo que cada mes se apartaba de tu canasta. Lo que era igual no hacía falta repetirlo.`);
   else if (Object.keys(monthlyBaskets).length) notes.push('Los meses que tenías escritos eran iguales a tu canasta, así que no hizo falta guardar ningún cambio.');
   if (Object.keys(monthPlans).length) notes.push(`${Object.keys(monthPlans).length} mes(es) quedaron marcados como abiertos.`);

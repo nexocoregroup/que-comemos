@@ -156,7 +156,7 @@ test('un estado vacío ofrece qué hacer, no una pantalla en blanco', () => {
 // que obligaban a entender la estructura interna para usar la app. Que no
 // vuelvan por una plantilla olvidada.
 test('ninguna pantalla enseña el vocabulario técnico que se retiró', () => {
-  const PROHIBIDAS = ['canasta base', 'canasta del mes', 'canasta mensual', 'base de cálculo', 'unidad de control', 'promover a base', 'instancia mensual'];
+  const PROHIBIDAS = ['canasta base', 'canasta habitual', 'canasta del mes', 'canasta mensual', 'base de cálculo', 'unidad de control', 'promover a base', 'instancia mensual'];
   const state = createDemoState();
   const ctx = contexto(state);
   const pantallas = [['mes', () => renderMes(ctx)], ['compra', () => renderCompra(ctx)]];
@@ -166,6 +166,17 @@ test('ninguna pantalla enseña el vocabulario técnico que se retiró', () => {
   for (const [nombre, dibujar] of pantallas) {
     const html = dibujar().toLocaleLowerCase('es');
     for (const termino of PROHIBIDAS) if (html.includes(termino)) encontradas.push(`${nombre}: «${termino}»`);
+  }
+  // Las ventanas y los avisos no se dibujan aquí —piden un `state` y un `ui`
+  // concretos—, así que se leen como texto. Sin las líneas de comentario: ahí sí
+  // puede contarse por qué algo se llamó «canasta». Los tres nombres que
+  // sobrevivieron a la última limpieza estaban justamente en un modal y en unos
+  // cuantos avisos, no en una pantalla.
+  for (const archivo of ['app.js', 'assistant.js', 'bulk-entry.js', 'chat-ui.js', 'hogar.js', 'page-mas.js', 'setup.js']) {
+    const fuente = readFileSync(new URL(`../src/${archivo}`, import.meta.url), 'utf8')
+      .split(/\r?\n/).filter(linea => !/^\s*(\/\/|\*|\/\*)/.test(linea)).join('\n')
+      .toLocaleLowerCase('es');
+    for (const termino of PROHIBIDAS) if (fuente.includes(termino)) encontradas.push(`${archivo}: «${termino}»`);
   }
   assert.deepEqual(encontradas, [], 'términos técnicos que volvieron a la interfaz');
 });

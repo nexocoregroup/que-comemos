@@ -275,24 +275,24 @@ export const ACTIONS = {
     run: (state, a) => { setEquivalence(state, a.producto.id, a.unidad, a.equivale); return { ok: true }; }
   },
 
-  /* Mi canasta habitual — lo que la casa compra todos los meses */
+  /* Mis productos habituales — lo que la casa compra de costumbre */
   ver_canasta_habitual: {
     kind: 'consulta', args: {},
-    describe: () => 'Ver mi canasta habitual.',
+    describe: () => 'Ver mis productos habituales.',
     run: state => habitualLines(state).map(line => ({ nombre: product(state, line.productId)?.name, cantidad: line.quantity, unidad: line.unit, prioridad: line.priority }))
   },
   agregar_a_habitual: {
     kind: 'cambio',
     args: { producto: { type: 'alimento' }, cantidad: { type: 'numero' }, unidad: { type: 'unidad' }, prioridad: { type: 'prioridad', required: false } },
     alcance: () => deSiempre(),
-    revisa: a => (a.cantidad > 0 ? null : 'Para la canasta habitual hace falta una cantidad mayor que cero.'),
-    describe: a => `${a.producto.nuevo ? `Registrar «${a.producto.name}» como alimento nuevo y p` : 'P'}oner ${medida(a.cantidad, a.unidad)} de ${a.producto.name} al mes en mi canasta habitual. Desde ahora, todos los meses.`,
+    revisa: a => (a.cantidad > 0 ? null : 'Para los productos habituales hace falta una cantidad mayor que cero.'),
+    describe: a => `${a.producto.nuevo ? `Registrar «${a.producto.name}» como alimento nuevo y p` : 'P'}oner ${medida(a.cantidad, a.unidad)} de ${a.producto.name} al mes en mis productos habituales. Desde ahora, todos los meses.`,
     run: (state, a) => setHabitualLine(state, idDelAlimento(state, a.producto, a.unidad), a.cantidad, a.unidad, a.prioridad)
   },
   quitar_de_habitual: {
     kind: 'sensible', args: { producto: { type: 'producto' } },
     alcance: () => deSiempre(),
-    describe: a => `Quitar ${a.producto.name} de mi canasta habitual. Deja de comprarse todos los meses.`,
+    describe: a => `Quitar ${a.producto.name} de mis productos habituales. Deja de comprarse todos los meses.`,
     run: (state, a) => ({ quitado: removeHabitualLine(state, a.producto.id) })
   },
 
@@ -308,7 +308,7 @@ export const ACTIONS = {
   ver_cambios_del_mes: {
     kind: 'consulta', args: { mes: { type: 'mes', required: false } },
     alcance: a => deUnMes(a.mes || mesActual()),
-    describe: a => `Ver en qué se aparta ${mesTexto(a.mes || mesActual())} de mi canasta habitual.`,
+    describe: a => `Ver en qué se aparta ${mesTexto(a.mes || mesActual())} de mis productos habituales.`,
     run: (state, a) => {
       const mes = a.mes || mesActual();
       const resumen = monthBasketSummary(state, mes);
@@ -335,7 +335,7 @@ export const ACTIONS = {
   quitar_solo_este_mes: {
     kind: 'cambio', args: { mes: { type: 'mes', required: false }, producto: { type: 'producto' } },
     alcance: a => deUnMes(a.mes || mesActual()),
-    describe: a => `No comprar ${a.producto.name} en ${mesTexto(a.mes || mesActual())}. Sigue en mi canasta habitual y en los demás meses.`,
+    describe: a => `No comprar ${a.producto.name} en ${mesTexto(a.mes || mesActual())}. Sigue en mis productos habituales y en los demás meses.`,
     run: (state, a) => setMonthChange(state, a.mes || mesActual(), a.producto.id, { removed: true })
   },
   volver_a_lo_habitual: {
@@ -347,7 +347,7 @@ export const ACTIONS = {
   pasar_a_habitual: {
     kind: 'sensible', args: { mes: { type: 'mes' }, productos: { type: 'lista' } },
     alcance: () => deSiempre(),
-    describe: (a, state) => `Pasar a mi canasta habitual ${a.productos.length} cambio(s) de ${mesTexto(a.mes)}: ${a.productos.map(valor => {
+    describe: (a, state) => `Pasar a mis productos habituales ${a.productos.length} cambio(s) de ${mesTexto(a.mes)}: ${a.productos.map(valor => {
       const found = resolveEntity(state.products, valor, 'un alimento');
       return found.ok ? found.value.name : String(valor);
     }).join(', ')}. Desde ahora se compran todos los meses.`,
@@ -471,7 +471,7 @@ export const ACTIONS = {
   abrir_mes: {
     kind: 'cambio', args: { mes: { type: 'mes' } },
     alcance: a => deUnMes(a.mes),
-    describe: a => `Abrir ${mesTexto(a.mes)} y pasarle las rutinas de siempre. No copia los cambios de otros meses ni toca mi canasta habitual.`,
+    describe: a => `Abrir ${mesTexto(a.mes)} y pasarle las rutinas de siempre. No copia los cambios de otros meses ni toca mis productos habituales.`,
     run: (state, a) => {
       const abierto = openMonth(state, a.mes);
       return { mes: a.mes, yaAbierto: abierto.yaAbierto, creados: abierto.creados?.length || 0, resumen: abierto.resumen };
@@ -1048,15 +1048,15 @@ const SOBRE = {
   "reactivar_producto": "Vuelve a ofrecer un alimento archivado.",
   "unir_productos": "Une dos alimentos duplicados en uno solo. No se puede deshacer.",
   "configurar_equivalencia": "Dice cuántas unidades de control trae una unidad de compra.",
-  "ver_canasta_habitual": "Devuelve mi canasta habitual: lo que la casa compra todos los meses.",
-  "agregar_a_habitual": "Pone o corrige un alimento en mi canasta habitual, desde ahora y todos los meses. NO se usa para un mes suelto.",
-  "quitar_de_habitual": "Quita un alimento de mi canasta habitual: deja de comprarse todos los meses.",
+  "ver_canasta_habitual": "Devuelve mis productos habituales: lo que la casa compra todos los meses.",
+  "agregar_a_habitual": "Pone o corrige un alimento en mis productos habituales, desde ahora y todos los meses. NO se usa para un mes suelto.",
+  "quitar_de_habitual": "Quita un alimento de mis productos habituales: deja de comprarse todos los meses.",
   "ver_canasta_del_mes": "Devuelve la canasta real de un mes, con los cambios de ese mes ya aplicados.",
-  "ver_cambios_del_mes": "Dice en qué se aparta un mes de mi canasta habitual.",
-  "cambiar_solo_este_mes": "Cambia o agrega un alimento SOLO en un mes, sin tocar mi canasta habitual.",
-  "quitar_solo_este_mes": "Marca que un alimento no se compra en un mes, sin quitarlo de mi canasta habitual.",
+  "ver_cambios_del_mes": "Dice en qué se aparta un mes de mis productos habituales.",
+  "cambiar_solo_este_mes": "Cambia o agrega un alimento SOLO en un mes, sin tocar mis productos habituales.",
+  "quitar_solo_este_mes": "Marca que un alimento no se compra en un mes, sin quitarlo de mis productos habituales.",
   "volver_a_lo_habitual": "Deshace el cambio de un alimento en un mes y lo devuelve a lo habitual.",
-  "pasar_a_habitual": "Convierte los cambios de un mes en costumbre: pasan a mi canasta habitual.",
+  "pasar_a_habitual": "Convierte los cambios de un mes en costumbre: pasan a mis productos habituales.",
   "ver_rutinas": "Lista las rutinas de comida que valen en un mes, con sus fechas.",
   "crear_rutina": "Crea una rutina de comida: una preparación, comer fuera o pedir, en unos días de la semana. Hay que decir si es solo de ese mes o desde ahora, todos los meses.",
   "eliminar_rutina": "Borra una rutina de comida. Las comidas que ya puso se quedan escritas.",

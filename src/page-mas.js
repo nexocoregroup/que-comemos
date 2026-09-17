@@ -17,7 +17,7 @@ import {
 } from './model.js';
 import { filaDeReparto } from './setup.js';
 import { claseDe, hogarDe, resumenDeRestricciones } from './hogar.js';
-import { WEEKDAY_LABELS, WEEKDAYS, describeRule, reglasDePreparacion } from './routines.js';
+import { describeRule, reglasDePreparacion } from './routines.js';
 import { button, cap, empty, esc, fmt, measure, monthName, niceDate, notice, options, shiftMonth, unitText } from './ui-kit.js';
 import { icono, iconoDeCategoria } from './icons.js';
 import { avisoDeVoz, capacidad, comprobarDictado } from './device.js';
@@ -306,19 +306,19 @@ function vistaCambios(ctx, mes, resumen) {
           <div class="list-row-sub">${linea.quantity === null ? 'cantidad pendiente' : esc(measure(linea.quantity, linea.unit))} este mes</div>
         </div>
         <div class="inline">
-          ${button('Añadir a mi canasta base', 'canasta-promover', 'btn-secondary btn-small', `data-id="${linea.productId}" data-month="${mes}"`)}
+          ${button('Añadir a mis habituales', 'canasta-promover', 'btn-secondary btn-small', `data-id="${linea.productId}" data-month="${mes}"`)}
           ${button('Quitar', 'canasta-quitar-cambio', 'btn-quiet btn-small', `data-id="${linea.productId}" data-month="${mes}"`)}
         </div>
       </div>`).join('')}
       ${quitadas.map(cambio => `<div class="list-row">
         <div class="list-row-main">
           <div class="list-row-title">${esc(product(state, cambio.productId)?.name || 'Alimento eliminado')} <span class="pill gray">este mes no</span></div>
-          <div class="list-row-sub">Sigue en tu canasta habitual; solo este mes no se compra.</div>
+          <div class="list-row-sub">Sigue en tus productos habituales; solo este mes no se compra.</div>
         </div>
         ${button('Volver a comprarlo', 'canasta-quitar-cambio', 'btn-quiet btn-small', `data-id="${cambio.productId}" data-month="${mes}"`)}
       </div>`).join('')}
     </div>
-    <p class="small muted">«Añadir a mi canasta base» lo pasa a lo de todos los meses, y te pregunta <strong>desde qué mes</strong> entra en vigencia. Los meses anteriores a esa fecha no se tocan: seguirán diciendo lo que dijeron.</p>
+    <p class="small muted">«Añadir a mis habituales» lo pasa a lo de todos los meses, y te pregunta <strong>desde qué mes</strong> entra en vigencia. Los meses anteriores a esa fecha no se tocan: seguirán diciendo lo que dijeron.</p>
     <p class="tiny muted">Un período que hayas cerrado tampoco cambia, porque no se vuelve a calcular: se lee la fotografía que se guardó al cerrarlo. Los meses abiertos sí se recalculan con tu canasta de hoy, que es lo que se quiere mientras todavía no han pasado.</p>`
     : empty('visto', `${monthName(mes)} es un mes normal`, 'No hay nada diferente. Si este mes van a comprar algo especial —un cangrejo para una cena, o menos arroz porque estarán de viaje—, anótalo aquí.', '')}
     <div class="pantalla-acciones">
@@ -905,18 +905,7 @@ function avisoDeCopia(state) {
 function renderAjustes(ctx) {
   const { state } = ctx;
   const dictado = capacidad('dictar');
-  const diaRevision = state.settings?.reviewWeekday ?? 5;
   return `${volver('Ajustes')}
-    <div class="card">
-      <h3>¿Qué día revisas lo que queda?</h3>
-      <p class="muted small">Ese día la app te lo recuerda en la pantalla de la compra. Nada más: no manda notificaciones.</p>
-      <form data-form="ajuste-revision" class="inline">
-        <label class="field" style="max-width:220px"><span class="sr-only">Día de revisión</span>
-          <select name="dia">${options(WEEKDAYS.map((dia, indice) => [dia, WEEKDAY_LABELS[indice]]), diaRevision)}</select>
-        </label>
-        <button type="submit" class="btn btn-secondary">Guardar</button>
-      </form>
-    </div>
     <div class="card">
       <h3>Dictar en vez de escribir</h3>
       <p class="muted small">Lo hace el propio teléfono. No hay que configurar nada, no hay cuentas ni claves.</p>
@@ -1114,7 +1103,7 @@ function renderAvanzado(ctx) {
 
     <div class="card">
       <h3>Servicios externos</h3>
-      <p class="muted small">No hay ninguno, y no es un descuido: <strong>esta app no habla con ningún servidor</strong>. No hay dirección que configurar, ni clave que guardar, ni nada que pueda salir de aquí. Lo que la asistente entiende, lo entiende dentro del teléfono; lo que no, lo dice.</p>
+      <p class="muted small">Sin cuenta, esta app no llama a ninguna parte: no hay dirección que configurar ni clave que guardar. Con cuenta, lo único que sale de aquí son tus datos hacia el servidor que los guarda para que los encuentres en otro teléfono. Lo que la asistente entiende, lo entiende dentro del aparato; lo que no, lo dice.</p>
       ${button('Ver el detalle de este aparato', 'open-diagnostico', 'btn-quiet')}
     </div>`;
 }

@@ -22,7 +22,7 @@ import { CATEGORIES, SEED_PRODUCTS } from './catalog-seed.js';
 import { cancelarDictado, capacidad } from './device.js';
 import { panelDeVoz } from './voz.js';
 import {
-  UNITS, addProduct, addPurchase, effectiveBasket, findSimilarProducts, habitualLines,
+  UNITS, addProduct, agregarALista, anotarComprado, cerrarLista, crearLista, effectiveBasket, findSimilarProducts, habitualLines,
   normalizeName, product, productByName, setHabitualBasket, setMonthChange,
   todayISO, transaction, updateProduct, validMonth
 } from './model.js';
@@ -52,26 +52,26 @@ const LISTA = 'bulk-alimentos';
 const DESTINOS = {
   habitual: {
     opcion: 'Mis productos habituales: lo que se compra de costumbre',
-    titulo: 'tu canasta habitual',
-    explica: 'Se añaden a lo que tu casa consume normalmente en un mes. Lo que ya estaba se queda como estaba.',
-    verbo: n => `Guardar ${n} ${alimentos(n)} en mi canasta habitual`
+    titulo: 'tus productos habituales',
+    explica: 'Se añaden a la lista de lo que esta casa compra de costumbre. Lo que ya estaba se queda como estaba.',
+    verbo: n => `Guardar ${n} ${alimentos(n)} en mis productos habituales`
   },
   mes: {
     opcion: 'Solo para un mes concreto',
     titulo: 'los cambios de ese mes',
-    explica: 'Se añaden solo a ese mes, como algo extraordinario. Tu canasta habitual no se toca y los demás meses tampoco.',
+    explica: 'Se añaden solo a ese mes, como algo extraordinario. Tus productos habituales no se tocan y los demás meses tampoco.',
     verbo: (n, mes) => `Guardar ${n} ${alimentos(n)} solo para ${mesLegible(mes)}`
   },
   compra: {
-    opcion: 'Compra confirmada: ya está en casa',
-    titulo: 'una compra confirmada',
-    explica: 'Una compra confirmada sube las existencias: la app contará que esos alimentos ya están en casa.',
-    verbo: n => `Guardar ${n} ${alimentos(n)} como compra confirmada`
+    opcion: 'Una compra que ya hiciste',
+    titulo: 'tu historial de compras',
+    explica: 'Queda anotada con su fecha, sus alimentos y sus cantidades. No cambia nada más: la app no lleva la cuenta de lo que hay en tu despensa.',
+    verbo: n => `Guardar ${n} ${alimentos(n)} como compra hecha`
   },
   catalogo: {
     opcion: 'Catálogo: solo registrar los alimentos',
     titulo: 'el catálogo de alimentos',
-    explica: 'Solo se registran los alimentos, sin cantidades ni existencias. Sirve para tener la lista lista antes de escribir nada más.',
+    explica: 'Solo se registran los alimentos, sin cantidades. Sirve para tener los nombres puestos antes de escribir nada más.',
     verbo: n => `Registrar ${n} ${alimentos(n)} en el catálogo`
   }
 };
@@ -338,7 +338,7 @@ function pasoEscribir(ctx, bulk) {
           <select name="destino">${options(Object.entries(DESTINOS).map(([id, item]) => [id, item.opcion]), bulk.destino)}</select>
         </label>
         <label class="field">
-          <span>Mes (solo si eliges la canasta del mes)</span>
+          <span>Mes (solo si eliges un mes concreto)</span>
           <input type="month" name="mes" value="${esc(mes)}">
         </label>
       </div>
@@ -404,7 +404,7 @@ function pasoRevisar(ctx, bulk) {
       ${bulk.destino === 'compra' ? notice('Una compra necesita cantidades', 'Las filas sin cantidad no pueden entrar en una compra: escribe cuánto compraste o márcalas para ignorar.', 'warn') : ''}
       ${tabla.length ? tablaFilas(ctx, bulk, tabla) : `<p class="muted">No queda ninguna fila. Vuelve a escribir el texto o añade una a mano.</p>`}
       ${negadas.length ? bloqueNegadas(negadas) : ''}
-      ${bulk.destino === 'compra' ? `<label class="check-chip bulk-confirma"><input type="checkbox" name="confirmo" value="si" required> Sí: confirmo que estos alimentos ya están en casa y que las existencias deben subir.</label>` : ''}
+      ${bulk.destino === 'compra' ? `<label class="check-chip bulk-confirma"><input type="checkbox" name="confirmo" value="si" required> Sí: esta compra ya se hizo y quiero que quede en el historial.</label>` : ''}
       <div class="modal-actions">
         ${button('Volver a escribir', 'bulk-escribir', 'btn-quiet')}
         <button type="submit" class="btn btn-primary" data-bulk-guardar>${esc(textoGuardar(tabla, bulk.destino, bulk.mes))}</button>
@@ -639,7 +639,7 @@ function guardar(ctx, data) {
     if (!sinCantidad(fila) && !(Number(fila.cantidad) > 0)) throw new Error(`La cantidad de «${fila.nombre}» tiene que ser mayor que cero, o déjala vacía para dejarla pendiente.`);
   }
   if (bulk.destino === 'compra') {
-    if (data.get('confirmo') !== 'si') throw new Error('Marca la casilla de confirmación: una compra sube las existencias.');
+    if (data.get('confirmo') !== 'si') throw new Error('Marca la casilla de confirmación: esto guarda una compra en tu historial.');
     const faltan = filas.filter(sinCantidad);
     if (faltan.length) throw new Error(`Una compra necesita cantidades. Escribe cuánto compraste de ${faltan.map(fila => `«${fila.nombre}»`).join(', ')} o marca esas filas para ignorar.`);
   }
@@ -678,22 +678,31 @@ function guardar(ctx, data) {
       if (!creados) throw new Error('Todos estos alimentos ya estaban en el catálogo: no hay nada nuevo que registrar.');
       return `${creados} ${alimentos(creados)} ${creados === 1 ? 'registrado' : 'registrados'} en el catálogo.${yaEstaban ? ` ${yaEstaban} ya ${yaEstaban === 1 ? 'estaba' : 'estaban'}.` : ''}`;
     }
+    // Una compra que ya se hizo se guarda como lista cerrada, igual que la que
+    // se termina desde la pantalla de la compra y que la que se le dicta al
+    // asistente. Antes escribía en `purchases` y subía el inventario; ya no hay
+    // inventario que subir, y tres formas de anotar la misma compra tenían que
+    // acabar en el mismo sitio.
     if (bulk.destino === 'compra') {
-      addPurchase(state, {
-        date: todayISO(),
-        lines: filas.map(fila => ({ productId: ids.get(fila.id), quantity: fila.cantidad, unit: fila.unidad }))
-      });
-      return `Compra confirmada con ${filas.length} ${alimentos(filas.length)}. Las existencias subieron.${creados ? ` ${creados} se ${creados === 1 ? 'registró' : 'registraron'} por primera vez.` : ''}`;
+      const lista = crearLista(state, { fecha: todayISO(), nombre: 'Anotada por escrito' });
+      for (const fila of filas) {
+        const linea = agregarALista(state, lista.id, { productId: ids.get(fila.id), cantidad: fila.cantidad, unidad: fila.unidad });
+        // Se anota como traída: quien escribe «compré» cuenta lo que ya metió en
+        // casa, no lo que piensa buscar.
+        anotarComprado(state, lista.id, linea.id, fila.cantidad);
+      }
+      cerrarLista(state, lista.id);
+      return `Compra guardada en el historial con ${filas.length} ${alimentos(filas.length)}.${creados ? ` ${creados} se ${creados === 1 ? 'registró' : 'registraron'} por primera vez.` : ''}`;
     }
     // Un mes concreto guarda excepciones, no una canasta entera: lo que se
     // dicta «para octubre» tiene que poder desaparecer en noviembre sin que
     // nadie lo borre a mano.
     if (bulk.destino === 'mes') {
       for (const fila of filas) setMonthChange(state, bulk.mes, ids.get(fila.id), { quantity: fila.cantidad, unit: fila.unidad, origin: 'texto' });
-      return `${filas.length} ${alimentos(filas.length)} solo para ${mesLegible(bulk.mes)}. Tu canasta habitual no cambió.${creados ? ` ${creados} se ${creados === 1 ? 'registró' : 'registraron'} por primera vez.` : ''}`;
+      return `${filas.length} ${alimentos(filas.length)} solo para ${mesLegible(bulk.mes)}. Tus productos habituales no cambiaron.${creados ? ` ${creados} se ${creados === 1 ? 'registró' : 'registraron'} por primera vez.` : ''}`;
     }
     setHabitualBasket(state, anadirLineas(state, bulk, filas, ids), { origin: 'texto' });
-    return `Canasta habitual: ${filas.length} ${alimentos(filas.length)} ${filas.length === 1 ? 'añadido' : 'añadidos'}.${creados ? ` ${creados} se ${creados === 1 ? 'registró' : 'registraron'} por primera vez.` : ''}`;
+    return `Productos habituales: ${filas.length} ${alimentos(filas.length)} ${filas.length === 1 ? 'añadido' : 'añadidos'}.${creados ? ` ${creados} se ${creados === 1 ? 'registró' : 'registraron'} por primera vez.` : ''}`;
   });
 }
 

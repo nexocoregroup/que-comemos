@@ -595,7 +595,7 @@ function describirResultado(accion, resultado, argumentos = {}) {
     return lista(resultado.map(fila => `${cap(fila.comida)}: ${fila.titulo || ESTADO_COMIDA[fila.estado] || fila.estado}`));
   }
   if ((accion === 'ver_canasta_habitual' || accion === 'ver_canasta_del_mes') && Array.isArray(resultado)) {
-    if (!resultado.length) return 'Esa canasta está vacía.';
+    if (!resultado.length) return 'No hay ningún producto habitual guardado.';
     const marca = { cambio: ' (cambiado este mes)', extra: ' (extra de este mes)' };
     return lista(resultado.slice(0, 30).map(fila => `• ${cantidadTexto(fila.cantidad, fila.unidad)} de ${fila.nombre}${marca[fila.origen] || ''}`));
   }
@@ -614,7 +614,7 @@ function describirResultado(accion, resultado, argumentos = {}) {
     return `De ${resultado.huecos} comidas del mes, ${resultado.pendientes} siguen sin decidir (${resultado.porcentaje}% listo). En casa ${resultado.encasa}, fuera ${resultado.fuera}, pedidas ${resultado.pedido}.`;
   }
   if (accion === 'ver_cambios_del_mes' && resultado?.cambios) {
-    if (!resultado.cambios.length) return `En ${mesLegible(resultado.mes)} no hay ningún cambio: es mi canasta habitual tal cual.`;
+    if (!resultado.cambios.length) return `En ${mesLegible(resultado.mes)} no hay ningún cambio: es mis productos habituales tal cual.`;
     return lista(resultado.cambios.map(fila => fila.quitado
       ? `• ${fila.nombre}: este mes no se compra.`
       : `• ${fila.nombre}: ${cantidadTexto(fila.cantidad, fila.unidad)}${fila.extra ? ' (solo este mes)' : ' en vez de lo habitual'}.`));
@@ -709,7 +709,7 @@ function sugerirFormulario(llano, state) {
       ? { etiqueta: 'Ponerlo en el calendario', accion: 'open-routine', datos: { goto: 'mes' } }
       : { etiqueta: 'Crear una preparación', accion: 'open-recipe' };
   }
-  if (/\bcanasta|\bhabitual|\btodos\s+los\s+meses/.test(llano)) return { etiqueta: 'Abrir mi canasta habitual', accion: 'open-basket', datos: { goto: 'canasta' } };
+  if (/\bcanasta|\bhabitual|\btodos\s+los\s+meses/.test(llano)) return { etiqueta: 'Abrir mis productos habituales', accion: 'open-basket', datos: { goto: 'canasta' } };
   return { etiqueta: 'Registrar un alimento', accion: 'open-product' };
 }
 

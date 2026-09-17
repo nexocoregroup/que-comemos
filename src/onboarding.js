@@ -35,14 +35,14 @@ export const TOUR_STEPS = [
   {
     page: 'compra',
     title: 'La compra',
-    body: 'Una sola lista: lo que tu casa consume al mes, más lo que cambie este mes, menos lo que ya queda en casa. No hay que planificar el menú para que salga.',
-    tip: 'La lista la escribes tú: se toca lo que haga falta esta vez y se dice cuánto. Que algo esté en tus productos habituales no significa que hoy haya que comprarlo.'
+    body: 'Una lista para un viaje al colmado. Tus productos habituales están ahí para no tener que acordarte de todo: tocas lo que hace falta esta vez y dices cuánto llevas.',
+    tip: 'Aquí no se echan cuentas ni se sabe lo que queda en tu despensa: decides tú qué entra en la lista y en qué cantidad.'
   },
   {
     page: 'mas',
     highlight: 'fab',
     title: 'Más, y el botón +',
-    body: 'En «Más» está todo lo que no se usa a diario: tu canasta habitual, las preparaciones, la familia, la revisión de lo que queda, el respaldo. Y el botón + de la esquina anota una comida, una compra o un alimento sin cambiar de pantalla.',
+    body: 'En «Más» está todo lo que no se usa a diario: tus productos habituales, las preparaciones, la familia, el respaldo. Y el botón + de la esquina pone una comida, crea una preparación, abre el dictado, prepara la compra o añade un alimento sin cambiar de pantalla.',
     tip: 'Puedes volver a ver esto cuando quieras desde Más → Ajustes → Cómo funciona.'
   }
 ];

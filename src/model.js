@@ -485,7 +485,7 @@ export function lineaDeLaCanasta(state, productId) {
    el día que se hizo. Por eso:
 
     · La fecha escrita manda. Es alguien diciendo explícitamente desde cuándo,
-      como hace «Añadir a mi canasta base».
+      como hace «Añadir a mis habituales».
     · Una línea que ya estaba conserva la suya, aunque sea «desde siempre».
     · Una línea nueva nace fechada en el mes en curso.
 
@@ -675,7 +675,7 @@ export function removeHabitualLine(state, productId, { desde = null } = {}) {
 /* ── Productos habituales ──────────────────────────────────────────────────
 
    Lo que la familia suele comprar, agrupado por rubros. Es la misma lista que
-   antes se llamaba «canasta habitual», y sigue guardada en el mismo sitio
+   antes se llamaba «productos habituales», y sigue guardada en el mismo sitio
    —`habitualBasket.lines`, con sus tramos y sus fechas— por una razón que no es
    pereza: esas cantidades son con las que se calcularon las compras de meses
    que ya se cerraron, y moverlas de sitio o tirarlas dejaría el historial
@@ -854,11 +854,11 @@ export function removeMonthChange(state, month, productId) {
 // pollo». Confundirlos reescribiría la costumbre sin que nadie lo pidiera.
 export function promoteToHabitual(state, month, productIds, desde = null) {
   if (!validMonth(month)) throw new Error('Elige un mes válido.');
-  if (desde !== null && !validMonth(desde)) throw new Error('Elige desde qué mes entra en tu canasta base.');
+  if (desde !== null && !validMonth(desde)) throw new Error('Elige desde qué mes entra en tus productos habituales.');
   const wanted = [...new Set(productIds || [])];
-  if (!wanted.length) throw new Error('Selecciona qué alimentos pasan a la canasta habitual.');
+  if (!wanted.length) throw new Error('Selecciona qué alimentos pasan a los productos habituales.');
   const override = state.monthOverrides[month];
-  if (!override || !override.changes.length) throw new Error('Ese mes no tiene cambios que pasar a la canasta habitual.');
+  if (!override || !override.changes.length) throw new Error('Ese mes no tiene cambios que pasar a los productos habituales.');
   let applied = 0;
   for (const id of wanted) {
     const change = override.changes.find(row => row.productId === id);
@@ -1656,7 +1656,7 @@ export function shoppingList(state, start, end, basis = 'casa') {
   const fuera = state.plans.filter(plan => plan.date >= start && plan.date <= end && ['outside', 'order'].includes(plan.kind)).length;
   return { start, end, basis: resolved, lines, missing, pending, sinCantidades, months, fuera, lastReview: lastStockReview(state), future: start > todayISO(), congelado: false, cierre: null, ...share };
 }
-export const basisLabel = basis => ({ casa: 'mi canasta habitual', menu: 'el menú' })[normalizeBasis(basis)];
+export const basisLabel = basis => ({ casa: 'mis productos habituales', menu: 'el menú' })[normalizeBasis(basis)];
 
 /* ── La lista de una salida al supermercado ────────────────────────────────
 
@@ -2171,7 +2171,7 @@ export function importState(json) {
     if (!Array.isArray(data[key])) throw new Error('El respaldo tiene datos incompletos.');
   }
   if (typeof data.opening !== 'object' || data.opening === null) throw new Error('El respaldo no tiene existencias válidas.');
-  if (!data.habitualBasket || !Array.isArray(data.habitualBasket.lines)) throw new Error('El respaldo no tiene una canasta habitual válida.');
+  if (!data.habitualBasket || !Array.isArray(data.habitualBasket.lines)) throw new Error('El respaldo no tiene unos productos habituales válidos.');
   if (typeof data.monthOverrides !== 'object' || data.monthOverrides === null) throw new Error('El respaldo no tiene cambios mensuales válidos.');
   for (const [month, override] of Object.entries(data.monthOverrides)) {
     if (!validMonth(month) || !Array.isArray(override?.changes)) throw new Error(`Los cambios de ${month} están dañados.`);

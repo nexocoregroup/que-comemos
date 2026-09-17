@@ -441,7 +441,7 @@ test('añadir un alimento ocasional no toca la canasta base', () => {
 test('la ventana de añadir alimento pregunta dónde entra, y lo permanente no viene marcado', () => {
   const codigo = readFileSync(resolve(import.meta.dirname, '..', 'src', 'app.js'), 'utf8');
   assert.ok(/name="destino"/.test(codigo), 'la ventana no pregunta dónde entra el alimento');
-  assert.ok(/Añadir a mi canasta base/.test(codigo), 'falta la opción de añadirlo para siempre');
+  assert.ok(/Añadir a mis habituales/.test(codigo), 'falta la opción de añadirlo para siempre');
   assert.ok(/Solo para \$\{monthName\(mesActual\)\}/.test(codigo), 'falta la opción de solo este mes');
   // El destino permanente nunca puede venir marcado de fábrica.
   const bloque = codigo.slice(codigo.indexOf('const DESTINOS'), codigo.indexOf('function modalProducto'));

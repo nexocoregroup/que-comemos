@@ -220,7 +220,7 @@ test('las facturas salen del estado vivo pero no se borran a espaldas de nadie',
 test('las notas de la migración se le pueden leer a cualquiera', () => {
   const { notes } = migrate(respaldoV2());
   assert.ok(notes.length > 0);
-  assert.ok(notes.some(note => /canasta habitual/i.test(note)));
+  assert.ok(notes.some(note => /productos habituales/i.test(note)));
   assert.ok(notes.every(note => typeof note === 'string' && note.trim().length > 10));
 });
 

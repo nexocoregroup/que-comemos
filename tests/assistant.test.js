@@ -113,7 +113,7 @@ test('quitar algo de un mes no se confunde con quitarlo de la costumbre', () => 
   const { state, atun } = casa();
   const mes = pedir(state, 'quitar_solo_este_mes', { mes: '2026-10', producto: 'Atún' }, { confirmed: true });
   assert.equal(mes.ok, true);
-  assert.match(mes.summary, /Sigue en mi canasta habitual/);
+  assert.match(mes.summary, /Sigue en mis productos habituales/);
   assert.ok(enHabitual(state, atun), 'sigue siendo parte del hábito');
   assert.equal(effectiveBasket(state, '2026-10').some(line => line.productId === atun), false);
   assert.equal(effectiveBasket(state, '2026-11').some(line => line.productId === atun), true);

@@ -335,7 +335,7 @@ export const LEGAL = {
           'Abre la app y toca Más, abajo a la derecha. Entra en Respaldo.',
           'Si quieres conservar una copia, toca primero «Guardar una copia»: se descarga un archivo a tu teléfono.',
           'Toca «Borrar todos mis datos» y confirma.',
-          'Esto borra todo lo que la app guardó en tu teléfono: los alimentos, las cantidades, la canasta habitual, las comidas planificadas, las rutinas, las personas, las compras, las revisiones, el historial, la copia interna de seguridad y tus preferencias de pantalla. La app queda como recién instalada.',
+          'Esto borra todo lo que la app guardó en tu teléfono: los alimentos, las cantidades, los productos habituales, las comidas planificadas, las rutinas, las personas, las compras, las revisiones, el historial, la copia interna de seguridad y tus preferencias de pantalla. La app queda como recién instalada.',
           'Úsalo cuando quieras empezar de cero pero seguir usando la app.'
         ]
       },
@@ -371,7 +371,7 @@ export const LEGAL = {
       {
         titulo: 'Qué se borra con cada camino',
         parrafos: [
-          'Los caminos 1 y 2 borran lo que está en el teléfono: los alimentos y cantidades, la canasta habitual, las comidas y rutinas, las personas de la casa, las compras, las revisiones, el historial, la copia interna de seguridad y las preferencias de la pantalla.',
+          'Los caminos 1 y 2 borran lo que está en el teléfono: los alimentos y cantidades, los productos habituales, las comidas y rutinas, las personas de la casa, las compras, las revisiones, el historial, la copia interna de seguridad y las preferencias de la pantalla.',
           'Solo desinstalar borra además la caché del navegador interno de Android, y solo desinstalar quita la app del teléfono: con el botón de dentro, la app se queda instalada y lista para empezar de cero.',
           'El camino 3 borra lo que está en la cuenta —correo, nombre, contraseña y la casa que hubieras subido— y también lo del teléfono.',
           'Ninguno de los tres borra el archivo de respaldo que descargaste tú: ese es tuyo y está donde tú lo pusiste. Ni la app ni Android lo tocan. Si quieres deshacerte de él, bórralo tú del teléfono, del correo o de donde lo hayas guardado.'
