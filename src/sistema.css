@@ -448,3 +448,22 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
    por debajo el cajón ya se mide solo en `sidebar.css` con `min-height: 0`.
    Repetirlo aquí pisaría ese cero y estiraría el cajón. */
 body, .shell { min-height: 100vh; min-height: 100dvh; }
+
+/* ── 12. Bloques apilados que se tocaban ──────────────────────────────────
+   Catorce sitios donde dos bloques grandes quedaban pegados, sin un píxel
+   entre ellos: las seis tarjetas de Ajustes una detrás de otra, las tres de
+   Respaldo, las cinco de Funciones avanzadas, las de Historial, y en la
+   portada de Hoy el bloque de terracota contra las tarjetas de comida.
+
+   La causa es que en esta aplicación el aire entre hermanos lo pone siempre el
+   contenedor —`.grid` con `gap: 18px`, `.stack` con 14— y `.card` no trae
+   margen propio a propósito, para no sumar al hueco cuando va dentro de uno de
+   ellos. Las pantallas que escriben las tarjetas sueltas, colgando de `.main`,
+   se quedan sin contenedor y por tanto sin aire.
+
+   Por eso el selector pide `.main >`: así solo alcanza a las que cuelgan
+   directamente, y una tarjeta dentro de un `.grid` o un `.stack` sigue sin
+   margen, que es lo correcto —si no, la fila de Desayuno, Almuerzo y Cena
+   sumaría 16 px a los 18 del hueco y solo en dos de las tres tarjetas—. */
+.main > .card + .card,
+.main > .hero + * { margin-top: var(--aire-4); }
