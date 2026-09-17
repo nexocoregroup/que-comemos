@@ -255,7 +255,7 @@ function tarjetaDeReceta(state, receta) {
     <div class="between"><h3>${esc(receta.name)}</h3></div>
     <p class="small muted">${momentos.map(texto => `<span class="pill warm">${esc(texto)}</span>`).join(' ')}</p>
     ${receta.items.length
-      ? `<ul class="food-list">${receta.items.map(item => `<li>${esc(product(state, item.productId)?.name || '—')}${item.quantity === null || item.quantity === undefined ? '' : ` · ${esc(measure(item.quantity, item.unit))}`}</li>`).join('')}</ul>`
+      ? `<ul class="food-list">${receta.items.map(item => `<li>${esc(product(state, item.productId)?.name || '—')}</li>`).join('')}</ul>`
       : `<p class="small muted receta-incompleta">Sin alimentos anotados.${hayRestricciones ? ' La app <strong>no ha revisado</strong> si choca con lo que alguien de la casa evita: sin los alimentos no puede saberlo.' : ' Sirve igual para el calendario.'}</p>`}
     ${receta.note ? `<p class="small"><strong>Para quien cocina:</strong> ${esc(receta.note)}</p>` : ''}
 
@@ -296,7 +296,6 @@ function renderFamilia(ctx) {
       </div>
     </div>
     ${resumenDeRestricciones(state, persona)}
-    ${persona.habitual?.length ? `<p class="small" style="margin-top:12px"><strong>Come normalmente:</strong> ${persona.habitual.map(item => `${esc(measure(item.quantity, item.unit))} de ${esc(nombreProducto(item.productId))}`).join(' · ')}</p>` : ''}
     <div class="familia-acciones">
       ${button('Editar', 'hogar-editar', 'btn-secondary btn-small', `data-id="${persona.id}"`)}
       ${activa

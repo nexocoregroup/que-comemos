@@ -39,23 +39,14 @@ export function createDemoState() {
   // lleva porciones: no son obligatorias y el ejemplo no debe sugerir que lo
   // sean.
   const recipe = (name, uses, items, note = '') => upsertRecipe(state, { name, uses, items, note }).id;
-  const eggsHam = recipe('Huevos con jamón', ['desayuno', 'cena'], [
-    { productId: huevo, quantity: 4, unit: 'unidad' }, { productId: jamon, quantity: 4, unit: 'rebanada' }
-  ]);
-  const riceMeat = recipe('Arroz con carne', ['almuerzo', 'cena'], [
-    { productId: arroz, quantity: 3, unit: 'taza' }, { productId: carne, quantity: 1, unit: 'lb' }
-  ], 'Preparar el arroz y la carne para quienes comen en casa.');
-  const plantain = recipe('Plátano maduro con acompañamientos', ['desayuno', 'cena'], [
-    { productId: platano, quantity: 1, unit: 'unidad' },
-    { productId: huevo, quantity: 2, unit: 'unidad', personId: nina },
-    { productId: salami, quantity: 4, unit: 'rueda', personId: nino }
-  ], 'Ejemplo: guardar la mitad del plátano para el desayuno siguiente.');
-  const tunaRice = recipe('Arroz con atún', ['almuerzo', 'cena'], [
-    { productId: arroz, quantity: 2, unit: 'taza' }, { productId: atun, quantity: 2, unit: 'lata' }
-  ]);
-  const sandwich = recipe('Sándwich de jamón', ['desayuno', 'cena'], [
-    { productId: pan, quantity: 4, unit: 'rebanada' }, { productId: jamon, quantity: 4, unit: 'rebanada' }
-  ]);
+  const eggsHam = recipe('Huevos con jamón', ['desayuno', 'cena'], [{ productId: huevo }, { productId: jamon }]);
+  const riceMeat = recipe('Arroz con carne', ['almuerzo', 'cena'], [{ productId: arroz }, { productId: carne }],
+    'Preparar el arroz y la carne para quienes comen en casa.');
+  const plantain = recipe('Plátano maduro con acompañamientos', ['desayuno', 'cena'],
+    [{ productId: platano }, { productId: huevo }, { productId: salami }],
+    'Ejemplo: guardar la mitad del plátano para el desayuno siguiente.');
+  const tunaRice = recipe('Arroz con atún', ['almuerzo', 'cena'], [{ productId: arroz }, { productId: atun }]);
+  const sandwich = recipe('Sándwich de jamón', ['desayuno', 'cena'], [{ productId: pan }, { productId: jamon }]);
   const merienda = recipe('Fruta y galletas', ['merienda-manana', 'merienda-tarde'], [], 'Lo que haya. La merienda es opcional: hay días que nadie meriendo.');
 
   /* ── Doce días puestos a mano ────────────────────────────────────────────

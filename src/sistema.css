@@ -360,7 +360,7 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
 @media (max-width: 700px) {
 }
 /* Y lo mismo en las filas de la canasta y de los alimentos sueltos. */
-.item-row { grid-template-columns: minmax(110px, 2fr) minmax(70px, .7fr) minmax(90px, 1fr) minmax(105px, 1.1fr) var(--toque-chico); }
+.item-row { grid-template-columns: minmax(110px, 2fr) minmax(70px, .7fr) minmax(90px, 1fr) var(--toque-chico); }
 @media (max-width: 700px) {
 }
 

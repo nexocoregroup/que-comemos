@@ -492,13 +492,19 @@ test('la ficha de una preparación no pregunta los días: los días se marcan ap
 
 test('la ficha ya no pide porciones ni cantidades de los alimentos', () => {
   const codigo = readFileSync(resolve(import.meta.dirname, '..', 'src', 'app.js'), 'utf8');
-  const ventana = codigo.slice(codigo.indexOf("if (m.type === 'recipe')"), codigo.indexOf("// La ficha de una persona"));
+  // El corte va de un trozo de código a otro, no a un comentario: un
+  // comentario se reescribe, y el día que su frase aparezca antes en el
+  // archivo esta prueba se queda mirando una ventana vacía.
+  const ventana = codigo.slice(codigo.indexOf("if (m.type === 'recipe')"), codigo.indexOf("if (m.type === 'persona')"));
   assert.ok(ventana.length > 200, 'no se encontró la ventana de la preparación');
   assert.ok(!/name="servings"/.test(ventana), 'vuelve a pedir cuántas porciones rinde');
   assert.ok(!/name="participants"/.test(ventana), 'vuelve a preguntar quiénes comen normalmente');
-  assert.ok(/itemRow\(item, 'receta'\)/.test(ventana), 'ya no se pueden anotar los alimentos');
-  // Y las filas de una preparación no llevan cantidad ni unidad.
-  const fila = codigo.slice(codigo.indexOf("if (type === 'receta')"), codigo.indexOf("if (type === 'receta')") + 600);
+  assert.ok(/itemRow\(item\)/.test(ventana), 'ya no se pueden anotar los alimentos');
+  // Y la fila de un alimento no lleva cantidad ni unidad. Hay una sola fila
+  // desde que se retiró el reparto por raciones, así que comprobarla aquí la
+  // comprueba también para la ventana de una comida.
+  const desde = codigo.indexOf('function itemRow');
+  const fila = codigo.slice(desde, desde + 900);
   assert.ok(!/name="quantity"/.test(fila), 'la fila de un alimento vuelve a pedir cuánto');
   assert.ok(!/name="unit"/.test(fila));
   // Lo que la ventana no pregunta, tampoco lo borra.

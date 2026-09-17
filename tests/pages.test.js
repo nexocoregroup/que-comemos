@@ -532,15 +532,18 @@ test('«para toda la casa» es una respuesta escrita, no una casilla sin marcar'
     'vuelve a leerse solo lo marcado');
 });
 
-test('un alimento sin cantidad se escribe por su nombre, no como «0»', () => {
-  /* El fallo: desde que una preparación puede llevar alimentos sin decir
-     cuánto, la pantalla de quien cocina pintaba la medida a ciegas y salía
-     «0 · Arroz». `measure(null, null)` devuelve «0 », que es peor que callar. */
+test('un alimento dentro de una comida se escribe por su nombre y nada más', () => {
+  /* Esto empezó siendo el arreglo de un «0 · Arroz»: una preparación podía
+     llevar alimentos sin decir cuánto, y la pantalla pintaba la medida a
+     ciegas —`measure(null, null)` devuelve «0 »—. La regla de hoy es más
+     simple y se comprueba mejor: dentro de una comida no se pinta ninguna
+     medida, ni la que traigan las comidas de antes. */
   const codigo = readFileSync('src/app.js', 'utf8');
-  assert.ok(/const sinMedida = item => item\.quantity === null \|\| item\.quantity === undefined;/.test(codigo));
-  assert.ok(/sinMedida\(item\) \? esc\(productName\(item\.productId\)\)/.test(codigo), 'sin cantidad vuelve a pintarse una medida');
-  // Y la lista de la comida tampoco escribe «0 de Arroz».
-  assert.ok(/\$\{sinMedida\(item\) \? `<strong>\$\{esc\(productName\(item\.productId\)\)\}<\/strong>`/.test(codigo));
+  const bloque = codigo.slice(codigo.indexOf('function queLleva'), codigo.indexOf('function pieDeHoy'));
+  assert.ok(bloque.length > 200, 'no se encontró lo que pinta los alimentos de una comida');
+  assert.ok(!/measure\(/.test(bloque), 'una comida vuelve a pintar la medida de sus alimentos');
+  assert.ok(/const itemText = item => esc\(productName\(item\.productId\)\);/.test(codigo),
+    'el texto de un alimento vuelve a llevar cantidad');
 });
 
 test('«cambiar solo este día» existe, y deja la comida nueva suelta de cualquier regla', () => {

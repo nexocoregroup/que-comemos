@@ -18,9 +18,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import {
-  addProduct, agregarHabitual, createEmptyState, habitualLines, habitualesPorRubro,
-  product, productByName, removeHabitualLine, rubroDe, setHabitualLine, setMonthChange, todayISO
+  addProduct, agregarHabitual, choquesDeLaComida, createEmptyState, habitualLines, habitualesPorRubro,
+  makeRecipePlan, product, productByName, removeHabitualLine, rubroDe, setHabitualLine, setMonthChange,
+  todayISO, upsertPerson, upsertRecipe
 } from '../src/model.js';
+import { createDemoState } from '../src/demo.js';
 import { emptyMas, renderMas } from '../src/page-mas.js';
 import { BULK_FORMS, emptyBulk, renderBulk } from '../src/bulk-entry.js';
 
@@ -237,4 +239,88 @@ test('volver a nombrar algo que ya tiene cantidad escrita no se la borra', () =>
   agregarHabitual(state, { productId: arroz });
   assert.equal(habitualLines(state).find(linea => linea.productId === arroz).quantity, 20,
     'apuntarlo otra vez le borró la cantidad que tenía');
+});
+
+/* ── 3. Dentro de una comida tampoco ───────────────────────────────────────
+
+   El formulario de una preparación dejó de preguntar la cantidad en la Fase 1,
+   pero las pantallas seguían pintando la que trajera el dato. Una casa que
+   viene de la versión anterior —y el propio ejemplo— veía «Huevo · 4 unidades»
+   en una ficha donde nadie puede escribir ese 4.
+
+   Los alimentos se quedan: son lo que permite avisar de una alergia. Lo que se
+   va es la medida. */
+
+// Una preparación con cantidades escritas, como las que trae una casa vieja.
+function conPorciones() {
+  const state = createEmptyState();
+  const huevo = addProduct(state, { name: 'Huevo', controlUnit: 'unidad', purchaseUnit: 'unidad', category: 'lacteos' }).id;
+  const jamon = addProduct(state, { name: 'Jamón', controlUnit: 'rebanada', purchaseUnit: 'rebanada', category: 'embutidos' }).id;
+  const receta = upsertRecipe(state, {
+    name: 'Huevos con jamón', uses: ['desayuno', 'cena'], note: '',
+    items: [{ productId: huevo, quantity: 4, unit: 'unidad' }, { productId: jamon, quantity: 4, unit: 'rebanada' }]
+  });
+  return { state, receta, huevo, jamon };
+}
+
+test('la ficha de una preparación dice qué lleva, no cuánto', () => {
+  const { state, receta } = conPorciones();
+  const html = renderMas(contexto(state, 'preparaciones'));
+
+  assert.ok(html.includes('Huevo') && html.includes('Jamón'), 'la ficha dejó de decir qué lleva');
+  const visible = html.replace(/<[^>]*>/g, ' ');
+  assert.ok(!/4 unidades|4 rebanadas/.test(visible), 'la ficha vuelve a pintar las porciones');
+  assert.ok(!/·\s*\d/.test(visible), 'quedó alguna medida pegada a un alimento');
+
+  // Y el dato sigue guardado: no se enseña, no se destruye.
+  assert.equal(state.recipes.find(item => item.id === receta.id).items[0].quantity, 4,
+    'la porción vieja se perdió al cambiar la pantalla');
+});
+
+test('los alimentos siguen sirviendo para lo que sirven: avisar de una alergia', () => {
+  const { state, huevo } = conPorciones();
+  const persona = upsertPerson(state, { name: 'Sofía', kind: 'nino', restricciones: [{ productId: huevo, motivo: 'alergia' }] });
+  const receta = state.recipes[0];
+  const plan = makeRecipePlan(state, receta.id, todayISO(), 'desayuno', [persona.id]);
+
+  const choques = choquesDeLaComida(state, plan.items, plan.participants);
+  assert.ok(choques.length, 'una comida con huevo dejó de avisar a quien es alérgico al huevo');
+  assert.equal(choques[0].productId, huevo);
+});
+
+test('el ejemplo que ve alguien nuevo no trae ni una porción', () => {
+  const state = createDemoState();
+  const conCantidad = state.recipes.flatMap(receta => receta.items).filter(item => item.quantity !== undefined && item.quantity !== null);
+  assert.deepEqual(conCantidad, [], 'el ejemplo vuelve a sugerir que hay que anotar porciones');
+
+  const html = renderMas(contexto(state, 'preparaciones')).replace(/<[^>]*>/g, ' ');
+  assert.ok(!/·\s*\d+\s*(unidad|rebanada|taza|lb|lata|rueda)/.test(html), 'el ejemplo pinta medidas en sus preparaciones');
+});
+
+test('la ficha de una persona ya no dice cuánto come', () => {
+  const { state, huevo } = conPorciones();
+  upsertPerson(state, { name: 'Luis', kind: 'adulto', restricciones: [], habitual: [{ productId: huevo, quantity: 2, unit: 'unidad' }] });
+
+  const html = renderMas(contexto(state, 'familia'));
+  assert.ok(html.includes('Luis'), 'la persona desapareció de la familia');
+  assert.ok(!/Come normalmente/.test(html), 'volvió «come normalmente»');
+  // Guardado sigue estando: era de cuando la app repartía raciones.
+  assert.equal(state.people[0].habitual.length, 1, 'se borró lo que la persona tenía escrito');
+});
+
+test('no queda ninguna fila donde escribir cuánto lleva una comida', () => {
+  // Hay una sola fila de alimento, y no tiene dónde. Esto es más fuerte que
+  // comprobar que las pantallas no la pintan: si no hay campo, no hay manera.
+  const fila = APP.slice(APP.indexOf('function itemRow'), APP.indexOf('function itemRow') + 900);
+  assert.ok(!/name="quantity"/.test(fila), 'la fila de un alimento vuelve a pedir cuánto');
+  assert.ok(!/name="unit"/.test(fila), 'vuelve a pedir la medida');
+  assert.ok(!/name="personId"/.test(fila), 'volvió el «para quién» por alimento');
+
+  // Y lo que lee esas filas tampoco busca ninguna cantidad.
+  const lector = APP.slice(APP.indexOf('function collectItems'), APP.indexOf('const formValues'));
+  assert.ok(!/quantity|unit/.test(lector), 'volvió a leerse una cantidad del formulario');
+
+  // Al guardar, lo que ya estaba no se toca.
+  const guardado = APP.slice(APP.indexOf("else if (kind === 'plan')"), APP.indexOf("else if (kind === 'sobras')"));
+  assert.ok(/antes\.get\(item\.id\)/.test(guardado), 'guardar una comida vieja le borraría lo que traía');
 });

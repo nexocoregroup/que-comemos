@@ -9,8 +9,8 @@
 import {
   ESTADOS_SIN_COMIDA, MOMENTOS, SLOTS, SLOTS_PRINCIPALES, UNITS, addDays, actualizarHabitual, agregarHabitual, anotarComidaSuelta, copyPlan, correctReview, correctStock, createEmptyState, dependents, choquesDeLaComida, esOpcional, gravedadDeLaComida,
   etiquetaDeMomento, exportState, findSimilarProducts, habitualLines, importState, inventoryNow, esActiva, isAbsent, makeRecipePlan, mergeProducts, movePlan, nextId,
-  personasActivas, planFor, ponerFrecuencia, product, quantity, removeHabitualLine, rubroDe,
-  reservedQuantity, restriccionesDe, resumenDeLista, reutilizarComida, saveReview, setAbsence, setEquivalence,
+  personasActivas, planFor, ponerFrecuencia, product, removeHabitualLine, rubroDe,
+  restriccionesDe, resumenDeLista, reutilizarComida, saveReview, setAbsence, setEquivalence,
   detalleDeOrigen, etiquetaDeOrigen, origenDe, setReviewScope, setStatusPlan, sliceStyle, todayISO, updatePlan, updateProduct, upsertRecipe
 } from './model.js';
 import { clearAll, hasSavedState, loadStateDetailed, saveState } from './storage.js';
@@ -359,8 +359,11 @@ const stockText = (amount, item) => `${measure(amount, item?.controlUnit || '')}
 // Sin cantidad, solo el nombre. Desde que una preparación puede llevar los
 // alimentos sin decir cuánto, pintar la medida a ciegas dejaba «0 · Arroz»
 // en la pantalla de quien cocina, que es peor que no decir nada.
-const sinMedida = item => item.quantity === null || item.quantity === undefined;
-const itemText = item => (sinMedida(item) ? esc(productName(item.productId)) : `${measure(item.quantity, item.unit)} · ${esc(productName(item.productId))}`);
+// Dentro de una comida se nombra el alimento y nada más. Las cantidades que
+// traigan las comidas de antes siguen guardadas —y en el respaldo—, pero no se
+// pintan: eran del reparto por raciones, que se retiró, y enseñar un número que
+// nadie puede cambiar ni usar es peor que no enseñarlo.
+const itemText = item => esc(productName(item.productId));
 // El título de una comida lo decide `page-semana.js`, que es quien pinta el
 // calendario. Tenerlo escrito dos veces era tenerlo mal en uno de los dos: al
 // aparecer las comidas escritas a mano, esta copia las llamaba «Sin decidir».
@@ -431,12 +434,12 @@ function ctx() {
   };
 }
 
-// El hogar necesita una cosa más que las demás pantallas: saber leer las filas
-// de «cuánto come normalmente», que las dibuja `itemRow` de este archivo. Se le
-// pasa la función en vez de mudar `itemRow` a `hogar.js`, porque esas filas las
-// comparten las preparaciones y las compras.
+// La ficha de una persona preguntaba «cuánto come normalmente» y este contexto
+// existía para leer esas filas. Ya no se pregunta, así que no se le pasa nada:
+// `guardarFicha` conserva lo que la persona tuviera escrito cuando no le llega
+// una lista, que es justo lo que hace falta para no borrarlo.
 function ctxHogar() {
-  return { ...ctx(), leerHabitual: form => collectItems(form) };
+  return ctx();
 }
 
 const TITULOS = { hoy: 'Hoy en casa', semana: 'Plan semanal', compra: 'La compra', setup: 'Organizar mi casa', hogar: 'Mi hogar', legal: 'Privacidad y condiciones', cuenta: 'Mi cuenta', ...TITULOS_MAS };
@@ -561,7 +564,7 @@ function pintar() {
       ${avisoDeSesion ? notice('Sobre tu cuenta', `${esc(avisoDeSesion)} <button type="button" class="enlace" data-action="navigate" data-page="cuenta">Ir a mi cuenta</button>`, 'warn') : ''}
       ${migratedFrom ? notice('Tus datos se actualizaron al formato nuevo.', 'La canasta que tenías es ahora <strong>tus productos habituales</strong>, y lo que cambiaba en algún mes quedó guardado como cambio de ese mes. Nada se perdió, y lo anterior quedó a salvo por si acaso.') : ''}
       ${loadError ? notice('No se pudieron leer los datos guardados.', `${esc(loadError)} Trae una copia desde Ajustes → Respaldo, o borra los datos para empezar de nuevo.`, 'error') : ''}
-      ${state.demo ? `<div class="demo-banner">${icono('chispa')}<div><strong>Estás viendo un ejemplo</strong>Las cantidades son inventadas para que veas cómo funciona; no son recomendaciones de alimentación.</div>${button('Borrar el ejemplo', 'clear-demo', 'btn-secondary btn-small')}</div>` : ''}
+      ${state.demo ? `<div class="demo-banner">${icono('chispa')}<div><strong>Estás viendo un ejemplo</strong>Los datos son inventados para que veas cómo funciona; no son recomendaciones de alimentación.</div>${button('Borrar el ejemplo', 'clear-demo', 'btn-secondary btn-small')}</div>` : ''}
       ${cuerpo}
     </main>
     ${ui.modal || ui.page === 'setup' || ui.page === 'hogar' ? '' : `<button type="button" class="fab" data-action="open-quick" aria-label="Anotar algo">${icono('mas', { tamano: 26 })}</button>`}
@@ -634,7 +637,7 @@ function bloqueDeMeriendas(date) {
     }
     return `<article class="card soft merienda-card"><div class="slot">${esc(etiquetaDeMomento(slot))}</div>
       <div class="meal-title">${esc(tituloDePlan(plan))}</div>
-      ${plan.items.length ? cantidades(plan) : ''}
+      ${plan.items.length ? queLleva(plan) : ''}
       ${avisoDeAlergias(plan.items, plan.participants)}
       ${button('Ver o cambiar', 'open-meal', 'btn-quiet btn-small', `data-date="${date}" data-slot="${slot}"`)}</article>`;
   }).join('')}</div>`;
@@ -658,7 +661,7 @@ function tarjetaDeComida(slot, date) {
     <div class="meal-body">
       <div class="meal-title">${esc(tituloDePlan(plan))}</div>
       <div class="meal-people">${plan.participants.length ? `Para ${plan.participants.map(id => esc(personName(id))).join(', ')}` : 'Para quien coma en casa'}</div>
-      ${cantidades(plan)}
+      ${queLleva(plan)}
       ${plan.note ? `<p class="small nota-cocina"><strong>Nota:</strong> ${esc(plan.note)}</p>` : ''}
       ${avisoDeAlergias(plan.items, plan.participants)}
     </div>
@@ -667,7 +670,7 @@ function tarjetaDeComida(slot, date) {
 
 // Lo que se reserva para otro día va en negrita y con su fecha: quien cocina
 // tiene que saber que de esas ocho libras, dos no se sirven hoy.
-function cantidades(plan) {
+function queLleva(plan) {
   if (plan.kind === 'linked') {
     const origen = state.plans.find(item => item.id === plan.sourceId);
     const apartado = plan.reservedItems || [];
@@ -682,15 +685,12 @@ function cantidades(plan) {
     return `<p class="small muted">${apartado.length ? `Se usa la parte que se apartó de ${deDonde}.` : `Es lo que sobre de ${deDonde}.`}</p>
       <ul class="food-list">${apartado.map(fila => {
         const item = origen?.items.find(row => row.id === fila.sourceItemId);
-        return item ? `<li>${esc(measure(fila.quantity, item.unit))} de ${esc(productName(item.productId))}</li>` : '<li>Reserva sin alimento de origen</li>';
+        return item ? `<li>${esc(productName(item.productId))}</li>` : '<li>Reserva sin alimento de origen</li>';
       }).join('')}</ul>
       ${plan.items.length ? `<p class="small strong">Además hay que preparar:</p><ul class="food-list">${plan.items.map(item => `<li>${itemText(item)}</li>`).join('')}</ul>` : ''}`;
   }
   if (!plan.items.length) return '<p class="small muted">Sin alimentos anotados.</p>';
-  const filas = plan.items.map(item => {
-    const reservado = reservedQuantity(state, plan.id, item.id);
-    return `<li>${sinMedida(item) ? `<strong>${esc(productName(item.productId))}</strong>` : `<strong>${esc(measure(item.quantity, item.unit))}</strong> de ${esc(productName(item.productId))}`}${item.personId ? ` · para ${esc(personName(item.personId))}` : ''}${reservado ? `<br><span class="muted small">Apartar ${esc(measure(reservado, item.unit))} para otra comida.</span>` : ''}</li>`;
-  }).join('');
+  const filas = plan.items.map(item => `<li><strong>${esc(productName(item.productId))}</strong></li>`).join('');
   const hijos = dependents(state, plan.id);
   return `<ul class="food-list">${filas}</ul>${hijos.length ? `<p class="small muted">De esta comida se vuelve a comer en ${hijos.map(hijo => `${cap(etiquetaDeMomento(hijo.slot))} del ${niceDate(hijo.date, { day: 'numeric', month: 'short' })}`).join(', ')}. Guarda una parte.</p>` : ''}`;
 }
@@ -727,26 +727,18 @@ function lineaDeCompra() {
 
 const unitOptions = selected => options(UNITS.map(unit => [unit, unit]), selected);
 const productOptions = selected => options(state.products.filter(item => !item.archived).map(item => [item.id, item.name]), selected, 'Elegir un alimento');
-const personOptions = selected => options([['', 'Para todos'], ...personasActivas(state).map(item => [item.id, item.name])], selected || '');
 
-function itemRow(item = {}, type = 'ingredient') {
-  const isPurchase = type === 'purchase';
-  const noPerson = type !== 'ingredient';
-  const defaultProduct = product(state, item.productId);
-  // En una preparación solo se dice qué lleva. La cantidad no se pregunta: una
-  // casa apunta «locrio: arroz, pollo, aceitunas» mucho antes de saber cuántas
-  // tazas, y muchas veces no lo sabe nunca. Lo que llevan sirve para avisar de
-  // las alergias, y para eso el nombre basta.
-  if (type === 'receta') {
-    return `<div class="item-row item-row-simple" data-item-row><input type="hidden" name="itemId" value="${esc(item.id || '')}">
-      <label class="field"><span>Alimento</span><select name="productId" required>${productOptions(item.productId || '')}</select></label>
-      <button type="button" class="btn btn-quiet remove-item" data-action="remove-item" aria-label="Quitar alimento">${icono('cerrar', { tamano: 18 })}</button></div>`;
-  }
-  return `<div class="item-row" data-item-row><input type="hidden" name="itemId" value="${esc(item.id || '')}">
+// La fila de un alimento dentro de una comida: el alimento y nada más.
+//
+// Una casa apunta «locrio: arroz, pollo, aceitunas» mucho antes de saber
+// cuántas tazas, y muchas veces no lo sabe nunca. Lo que lleva sirve para
+// avisar de las alergias, y para eso el nombre basta.
+//
+// Cuánto se compra es otra cosa y se escribe en otro sitio: en la compra,
+// delante del estante, donde sí se sabe.
+function itemRow(item = {}) {
+  return `<div class="item-row item-row-simple" data-item-row><input type="hidden" name="itemId" value="${esc(item.id || '')}">
     <label class="field"><span>Alimento</span><select name="productId" required>${productOptions(item.productId || '')}</select></label>
-    <label class="field"><span>Cantidad</span><input name="quantity" type="number" min="0" step="any" inputmode="decimal" value="${item.quantity ?? ''}" placeholder="0"></label>
-    <label class="field"><span>Unidad</span><select name="unit">${unitOptions(item.unit || defaultProduct?.[isPurchase ? 'purchaseUnit' : 'controlUnit'] || 'unidad')}</select></label>
-    ${noPerson ? '<span></span>' : `<label class="field person-select"><span>Para quién</span><select name="personId">${personOptions(item.personId)}</select></label>`}
     <button type="button" class="btn btn-quiet remove-item" data-action="remove-item" aria-label="Quitar alimento">${icono('cerrar', { tamano: 18 })}</button></div>`;
 }
 
@@ -910,7 +902,7 @@ function renderModal() {
         <div class="field">
           <span>¿Qué alimentos lleva? (opcional)</span>
           <p class="small muted">Sirve para avisarte si alguien de la casa debe evitar alguno. No hace falta decir cuánto, y no hace falta anotar la sal, el agua, el aceite ni los condimentos.</p>
-          <div data-item-list="receta">${(recipe?.items || []).map(item => itemRow(item, 'receta')).join('')}</div>
+          <div data-item-list="receta">${(recipe?.items || []).map(item => itemRow(item)).join('')}</div>
           <div class="inline">${button('+ Añadir alimento', 'add-item', 'btn-secondary btn-small', 'data-type="receta"')}</div>
         </div>
 
@@ -928,21 +920,11 @@ function renderModal() {
   // mismo formulario que el de la configuración guiada, y tenerlo dos veces
   // escrito sería tener dos sitios donde olvidarse de preguntar el motivo.
   //
-  // Lo único que añade esta ventana es «cuánto come normalmente», que vive aquí
-  // porque las filas de alimento con cantidad y unidad las dibuja `itemRow`, de
-  // este archivo. El asistente guiado no la pregunta a propósito: son dos
-  // campos por alimento y no hacen falta para avisar de una alergia.
   if (m.type === 'persona') {
     const person = state.people.find(item => item.id === m.id);
     const ficha = fichaActiva(ctxHogar());
     return modal(person ? 'Editar persona' : 'Añadir persona', '', `<form data-form="persona" data-id="${esc(person?.id || '')}">
       ${cuerpoDeFicha(ctxHogar(), ficha, { prefijo: 'hogar' })}
-      <details class="more" style="margin-top:16px" ${person?.habitual?.length ? 'open' : ''}>
-        <summary>Más opciones: cuánto come normalmente</summary>
-        <p class="small muted">Queda guardado y no hay que volver a escribirlo: al crear una preparación se suman con un toque las de todos los que comen.</p>
-        <div data-item-list="habitual">${(person?.habitual || []).map(item => itemRow(item, 'habitual')).join('')}</div>
-        ${button('+ Añadir cantidad', 'add-item', 'btn-secondary btn-small', 'data-type="habitual"')}
-      </details>
       <div class="modal-actions">${person ? button(esActiva(person) ? 'Ya no vive aquí' : 'Vuelve a vivir aquí', esActiva(person) ? 'hogar-baja' : 'hogar-alta', 'btn-quiet', `data-id="${esc(person.id)}"`) : ''}<button type="submit" class="btn btn-primary">Guardar</button></div></form>`, true);
   }
 
@@ -1103,7 +1085,7 @@ function modalComida(m) {
         </label>
         <button type="submit" class="btn btn-secondary btn-small">Cambiar solo este día</button>
       </form>` : ''}
-     ${plan.kind === 'linked' ? cantidades(plan) : dependents(state, plan.id).length ? `<div class="notice warn">${icono('aviso')}<div><strong>De esta comida se aparta una parte para otro día.</strong>Si bajas las cantidades, deja suficiente.</div></div>` : ''}
+     ${plan.kind === 'linked' ? queLleva(plan) : dependents(state, plan.id).length ? `<div class="notice warn">${icono('aviso')}<div><strong>De esta comida se come otro día.</strong>Cocina de más, o guarda una parte antes de servir.</div></div>` : ''}
      <div data-choque>${avisoDeAlergias(plan.items, plan.participants, { conSalidas: true })}</div>
      <form data-form="plan" data-id="${plan.id}">
       <div class="form-grid">
@@ -1112,7 +1094,8 @@ function modalComida(m) {
       </div>
       <label class="field" style="margin-top:14px"><span>Nota para quien cocina</span><textarea name="note" placeholder="Ej. dejar una parte para mañana" autocapitalize="sentences" spellcheck="true" enterkeyhint="done">${esc(plan.note || '')}</textarea></label>
       <details class="more" style="margin-top:16px" ${plan.items.length ? 'open' : ''}>
-        <summary>${plan.kind === 'linked' ? 'Alimentos que hay que preparar además' : 'Cantidades'}</summary>
+        <summary>${plan.kind === 'linked' ? 'Alimentos que hay que preparar además' : 'Qué lleva esta comida'}</summary>
+        <p class="small muted">Sirve para avisarte si alguien de la casa debe evitar alguno. No hace falta decir cuánto.</p>
         <div data-item-list="ingredient">${plan.items.map(item => itemRow(item)).join('')}</div>
         ${button('+ Añadir alimento', 'add-item', 'btn-secondary btn-small', 'data-type="ingredient"')}
       </details>
@@ -1202,19 +1185,15 @@ function listaDeFallos() {
 
 /* ── Utilidades de formulario ──────────────────────────────────────────── */
 
-// `sinCantidad` es para las filas que no la preguntan —las de una preparación—.
-// Sin él, el filtro de abajo tiraría todas: una fila sin casilla de cantidad
-// devuelve `undefined`, que no es `''` pero tampoco es un número.
-function collectItems(form, { sinCantidad = false } = {}) {
-  const filas = [...form.querySelectorAll('[data-item-row]')].map(row => ({
-    id: row.querySelector('[name="itemId"]')?.value || undefined,
-    productId: row.querySelector('[name="productId"]')?.value,
-    quantity: row.querySelector('[name="quantity"]')?.value,
-    unit: row.querySelector('[name="unit"]')?.value,
-    personId: row.querySelector('[name="personId"]')?.value || null
-  }));
-  if (sinCantidad) return filas.filter(item => item.productId).map(({ productId, id }) => ({ id, productId }));
-  return filas.filter(item => item.productId && item.quantity !== '');
+// Los alimentos que lleva una comida. Solo cuáles: las filas no preguntan
+// cuánto, así que aquí no hay ninguna cantidad que leer.
+function collectItems(form) {
+  return [...form.querySelectorAll('[data-item-row]')]
+    .map(row => ({
+      id: row.querySelector('[name="itemId"]')?.value || undefined,
+      productId: row.querySelector('[name="productId"]')?.value
+    }))
+    .filter(item => item.productId);
 }
 // El segundo argumento no es opcional por capricho: sin él, el botón que envió
 // el formulario no entra en los datos, y dos botones con el mismo `name` y
@@ -1401,7 +1380,7 @@ document.addEventListener('click', event => {
       state.recipes = state.recipes.filter(item => item.id !== el.dataset.id);
       commit('Preparación quitada.');
     }
-    else if (action === 'add-item') { const lista = el.closest('form').querySelector(`[data-item-list="${el.dataset.type}"]`); lista?.insertAdjacentHTML('beforeend', itemRow({}, el.dataset.type)); }
+    else if (action === 'add-item') { const lista = el.closest('form').querySelector(`[data-item-list="${el.dataset.type}"]`); lista?.insertAdjacentHTML('beforeend', itemRow()); }
     else if (action === 'remove-item') el.closest('[data-item-row]')?.remove();
     else if (action === 'clear-demo') {
       if (!window.confirm('¿Borrar todos los datos de esta app en este aparato? No se puede deshacer sin una copia guardada.')) return;
@@ -1473,11 +1452,6 @@ document.addEventListener('change', event => {
   if (['date', 'slot'].includes(el.name) && el.closest('[data-form="absence"]')) {
     const form = el.closest('form'), date = form.querySelector('[name="date"]').value, slot = form.querySelector('[name="slot"]').value;
     form.querySelectorAll('[name="absent"]').forEach(input => input.checked = isAbsent(state, date, slot, input.value));
-  }
-  if (el.name === 'productId' && el.closest('[data-item-row]')) {
-    const fila = el.closest('[data-item-row]');
-    const item = product(state, el.value);
-    if (item) fila.querySelector('[name="unit"]').value = fila.closest('[data-item-list="purchase"]') ? item.purchaseUnit : item.controlUnit;
   }
   if (el.name === 'productId' && el.closest('[data-form="correction"]')) el.form.querySelector('[name="actual"]').value = inventoryNow(state)[el.value] || 0;
   // El grosor solo aparece en lo que se corta; se oculta sin volver a dibujar
@@ -1563,7 +1537,7 @@ document.addEventListener('submit', async event => {
       const anterior = state.recipes.find(item => item.id === form.dataset.id);
       const receta = upsertRecipe(state, {
         id: form.dataset.id, name: data.get('name'), uses: selected(form, 'uses'),
-        items: collectItems(form, { sinCantidad: true }), note: data.get('note'),
+        items: collectItems(form), note: data.get('note'),
         // Esta ventana ya no pregunta cuánto rinde, y lo que no pregunta no lo
         // borra: quien lo escribió cuando se preguntaba lo conserva.
         servings: anterior?.servings ?? null
@@ -1661,11 +1635,17 @@ document.addEventListener('submit', async event => {
     }
     else if (kind === 'plan') {
       const plan = state.plans.find(item => item.id === form.dataset.id);
+      // Lo que ya estaba se queda como estaba. La ventana dejó de preguntar la
+      // cantidad, así que leerla del formulario devolvería vacío para todos y
+      // guardar una comida vieja le borraría lo que traía escrito.
+      const antes = new Map(plan.items.map(item => [item.id, item]));
       const cambios = {
         title: data.get('title'),
         note: data.get('note'),
         participants: selected(form, 'participants'),
-        items: collectItems(form).map(item => ({ ...item, id: item.id || nextId(state, 'alimento'), quantity: quantity(item.quantity) }))
+        items: collectItems(form).map(item => ({
+          ...(antes.get(item.id) || {}), id: item.id || nextId(state, 'alimento'), productId: item.productId
+        }))
       };
       updatePlan(state, plan.id, cambios);
       ui.modal = null; commit('Guardado.');
