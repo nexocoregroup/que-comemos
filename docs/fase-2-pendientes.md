@@ -41,19 +41,31 @@ respaldo y en los meses cerrados, que se calcularon con ellas. Quitar un
 producto de la lista escribe un tramo de baja desde este mes; los anteriores
 siguen diciendo lo que dijeron. Lo defiende `tests/sin-cantidades.test.js`.
 
-### B3 · Organización de compra — **Fase 3**
+### B3 · Organización de compra — **cerrado a medias, y a propósito**
 
-`Ajustes → Preferencias de la aplicación → Organización de compra`. Lo único que
-queda ahí es la **frecuencia** (mensual o quincenal), que hoy solo dice cuándo
-toca la próxima lista. La pantalla tiene más marco que contenido.
+La pantalla se queda, con la frecuencia y su historial. Lo que se fue es la
+mentira que contaba: decía que de ahí salían «los períodos que ves en la
+pantalla de la compra», y la compra no enseña ningún período. Ahora dice lo que
+es: un dato de la casa, que no divide cantidades, no calcula listas y no impide
+abrir una compra cualquier día.
 
-### B4 · El historial del inventario retirado — **Fase 3**
+Sigue teniendo más marco que contenido. **Eso es una decisión tuya**, no un
+fallo: si quieres que la frecuencia deje de existir como pantalla, se quita en
+diez minutos y el dato se conserva.
 
-Tres pantallas viven de datos que ya no se producen, todas dentro de Ajustes:
-*Historial → Períodos cerrados*, *Lo que revisaste antes*, y *Funciones
-avanzadas → Corregir un conteo viejo*. Son honestas —dicen que hablan de datos
-antiguos—, pero la pregunta sigue siendo si merecen sitio en el menú o basta con
-que los datos estén en el respaldo.
+### B4 · El historial del inventario retirado — **cerrado**
+
+De las tres pantallas, dos se quedan como lectura y la tercera se fue:
+
+| Pantalla | Cómo quedó |
+|---|---|
+| *Historial → Períodos cerrados* | Se queda. Es la fotografía de un mes que se cerró, con su aviso de que esas cifras no están comprobadas |
+| *Lo que revisaste antes* | Se queda, **solo lectura**. Se fueron el botón «Corregir», los dos modos de contar, el alcance, el buscador y los campos donde se escribía |
+| *Funciones avanzadas → Corregir un conteo viejo* | **Retirada**, junto con «Corregir lo que hay» dentro de las opciones de un alimento |
+
+Las tres eran escrituras sobre un libro que no alimenta ninguna pantalla. Lo
+único que hacían era afirmar, con un botón, que la app sabe lo que hay en tu
+despensa. Los datos siguen enteros en el respaldo.
 
 ### B5 · Una comida escrita a mano no se puede volver a usar sin reescribirla
 
@@ -62,8 +74,13 @@ llenarlo de cosas que pasaron un jueves haría ilegible la lista que más se mir
 Pero si alguien escribe «sancocho de la vecina» tres semanas seguidas, lo
 escribe tres veces.
 
-**Posible remedio para la Fase 3:** al escribir una comida a mano, ofrecer —una
-sola vez, y sin marcarlo por defecto— «guardarla también en mis preparaciones».
+**Posible remedio:** al escribir una comida a mano, ofrecer —una sola vez, y sin
+marcarlo por defecto— «guardarla también en mis preparaciones».
+
+**Sigue abierto después de la Fase 3, a propósito.** No estaba en lo que
+pediste, y añadir una casilla al camino más corto de la app —escribir una comida
+en dos segundos— es exactamente el tipo de cosa que hay que decidir mirándola,
+no de paso. Queda aquí para cuando quieras.
 
 ---
 
@@ -85,15 +102,19 @@ Sin cambios respecto a la Fase 1, más uno nuevo:
 
 Exportaciones del modelo que hoy solo usan las pruebas: `WEEKDAYS`,
 `WEEKDAY_LABELS`, `monthExtras`, `addPurchase`, `createReview`,
-`actualizarLineaDeLista`, `reabrirLista`, `cierresDe`, `CLASES_DE_COMIDA` y,
-desde que se retiró la cantidad del mes, `setMonthChange`, `removeMonthChange`,
-`promoteToHabitual` y `monthBasketSummary`.
+`actualizarLineaDeLista`, `reabrirLista`, `cierresDe`, `CLASES_DE_COMIDA`,
+`setMonthChange`, `removeMonthChange`, `promoteToHabitual`,
+`monthBasketSummary` y, desde la Fase 3, `saveReview`, `correctReview`,
+`correctStock` y `setReviewScope`.
 
-Esas cuatro últimas se quedan a propósito: son las que leen y escriben los
-cambios de mes que siguen guardados, y las pruebas que las usan
-—`baskets.test.js`, `migrate.test.js`— son justo las que comprueban que un
+Se quedan a propósito. Son las que leen y escriben los datos antiguos que
+siguen guardados, y las pruebas que las usan —`baskets.test.js`,
+`migrate.test.js`, `respaldo-v10.test.js`— son justo las que comprueban que un
 respaldo viejo se abre sin perder nada. Borrarlas obligaría a borrar esas
 pruebas, que es lo contrario de lo que hay que hacer.
+
+Lo que sí desapareció es el camino para llamarlas desde la app: ninguna
+pantalla las alcanza. Eso lo defiende `tests/textos-retirados.test.js`.
 
 ---
 
@@ -108,9 +129,8 @@ pruebas, que es lo contrario de lo que hay que hacer.
   se arregla actualizando la app. **Si eso te parece demasiado, dilo y subo el
   esquema**: el precio es que los teléfonos sin actualizar dejan de poder bajar
   los datos.
-- **La sincronización sigue sin probarse con dos aparatos de verdad.**
-- **Las seis capturas de la tienda hay que rehacerlas.** El generador
-  (`tools/capturas.js`) ya está puesto al día —la 2 es el plan semanal, la 3 la
-  ventana de poner en varios días, la 6 entra directo a los habituales—, pero los
-  PNG de `tienda/capturas/` siguen siendo los viejos. Hace falta `npm start`
-  levantado y Chrome instalado: `npm run capturas`.
+- **La sincronización sigue sin probarse con dos aparatos de verdad.** Sigue
+  abierto después de la Fase 3, y es lo único que no puedo cerrar yo.
+- ~~Las seis capturas de la tienda hay que rehacerlas.~~ **Hecho en la Fase 3**:
+  `npm run capturas` regeneró las seis y las cuatro viejas se borraron. Falta
+  subirlas a Play Console, que eso lo tienes que hacer tú.
