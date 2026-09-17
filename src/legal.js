@@ -108,7 +108,7 @@ export const LEGAL = {
         titulo: 'El permiso de internet, y cuándo se usa de verdad',
         parrafos: [
           'La app pide el permiso de internet y lo usa para una sola cosa: las cuentas. Ni una más.',
-          'Sin cuenta, la app no llama a ninguna parte. Ni al abrirse, ni al guardar, ni de fondo. Los alimentos, la canasta, el menú, la compra y el inventario salen todos de tu propio teléfono, y puedes usarla el mes completo en modo avión.',
+          'Sin cuenta, la app no llama a ninguna parte. Ni al abrirse, ni al guardar, ni de fondo. Los alimentos, tus productos habituales, el calendario del mes y la lista de la compra salen todos de tu propio teléfono, y puedes usarla el mes completo en modo avión.',
           'Esto no es una promesa de buena fe, es cómo está escrito: al arrancar, la app mira si hay una sesión guardada en este teléfono, y si no la hay se detiene ahí mismo, sin tocar la red.',
           'Si creas una cuenta, la app habla con un sitio y solo con uno: el proyecto de Supabase donde viven las cuentas. Ahí van tu correo y tu contraseña al registrarte y al entrar, y ahí va tu casa solo si además enciendes la sincronización.',
           'No hay ninguna otra puerta de salida a la red, y hay una prueba automática que se pone en rojo el día que alguien abra una segunda o le cambie la dirección a esta.',

@@ -524,7 +524,7 @@ function tablaDeRevision(ctx, revision) {
   const editando = revision.status === 'draft' || ui.correctingReview;
   const queda = (revision.mode || 'restante') === 'restante';
   if (!revision.productIds.length) {
-    return empty('canasta', 'No hay nada que revisar', 'Todavía no hay alimentos con existencias anotadas. Anota una compra primero.', button('Ir a la compra', 'navigate', 'btn-secondary', 'data-page="compra"'));
+    return empty('canasta', 'No hay nada que revisar', 'No quedó ninguna cifra anotada de cuando la app llevaba la cuenta de la despensa.');
   }
   // Revisar treinta alimentos de corrido es donde se abandona la revisión. Por
   // eso hay tres salidas: buscar el que se tiene en la mano, esconder los que ya
@@ -935,7 +935,7 @@ function renderAjustes(ctx) {
     </div>
     <div class="card">
       <h3>Funciones avanzadas</h3>
-      <p class="muted small">Medidas y equivalencias, unir dos alimentos que son el mismo, corregir existencias a mano. Están aquí y no en la lista de Más porque una casa las abre una vez cada muchos meses —y cuando las abre, las necesita enteras.</p>
+      <p class="muted small">Medidas y equivalencias, unir dos alimentos que son el mismo, corregir un conteo viejo. Están aquí y no en la lista de Más porque una casa las abre una vez cada muchos meses —y cuando las abre, las necesita enteras.</p>
       ${button('Abrir funciones avanzadas', 'navigate', 'btn-secondary btn-small', 'data-page="avanzado"')}
     </div>
     <div class="card">
@@ -1089,15 +1089,15 @@ function renderAvanzado(ctx) {
 
     <div class="card">
       <h3>Alimentos que podrían ser el mismo</h3>
-      <p class="muted small">Un alimento anotado dos veces parte su inventario en dos, y eso se descubre semanas después, cuando las cuentas no cuadran. Unirlos suma sus existencias y junta su historial. <strong>No se puede deshacer.</strong></p>
+      <p class="muted small">Un alimento anotado dos veces aparece dos veces en la lista de la compra, y parte su historial en dos mitades que no se pueden leer juntas. Unirlos deja una sola ficha con todo. <strong>No se puede deshacer.</strong></p>
       ${parecidos.length
         ? `<div class="card soft">${parecidos.slice(0, 6).map(([uno, otro]) => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${esc(uno.name)} · ${esc(otro.name)}</div><div class="list-row-sub">Los dos se cuentan en ${esc(unitText(uno.controlUnit, 2))}</div></div>${button('Revisar', 'open-merge', 'btn-quiet btn-small', `data-id="${uno.id}"`)}</div>`).join('')}</div>`
         : '<p class="small muted">✓ No encontré parecidos sospechosos.</p>'}
     </div>
 
     <div class="card">
-      <h3>Corregir existencias a mano</h3>
-      <p class="muted small">Para cuando algo se dañó, se perdió, o el conteo no cuadra y no quieres esperar a la próxima revisión. Queda anotado en el historial con su motivo.</p>
+      <h3>Corregir un conteo viejo</h3>
+      <p class="muted small">La app ya no lleva la cuenta de lo que hay en tu despensa. Esto sirve para arreglar una cifra de cuando sí la llevaba, si el historial de entonces te dice algo que no cuadra. Queda anotado con su motivo.</p>
       ${button('Corregir un alimento', 'open-correction', 'btn-secondary')}
     </div>
 

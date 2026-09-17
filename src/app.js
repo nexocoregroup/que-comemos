@@ -1065,7 +1065,7 @@ function renderModal() {
     const item = product(state, m.id);
     return modal('Más opciones', item?.name || '', `<div class="opcion-larga">
       <button type="button" class="radio-bloque" data-action="open-equivalence" data-id="${m.id}"><span><strong>Cómo lo compras</strong>Si lo cuentas de una forma y lo compras de otra —ruedas y paquetes, por ejemplo—, aquí se dice cuánto trae cada uno.</span></button>
-      <button type="button" class="radio-bloque" data-action="open-merge" data-id="${m.id}"><span><strong>Unir con otro alimento</strong>Si el mismo alimento quedó anotado dos veces con nombres distintos, esto junta su historial y sus existencias.</span></button>
+      <button type="button" class="radio-bloque" data-action="open-merge" data-id="${m.id}"><span><strong>Unir con otro alimento</strong>Si el mismo alimento quedó anotado dos veces con nombres distintos, esto junta las dos fichas en una y le pasa todo su historial.</span></button>
       <button type="button" class="radio-bloque" data-action="open-correction" data-id="${m.id}"><span><strong>Corregir lo que hay</strong>Si se dañó algo, o el conteo no cuadra.</span></button>
       <button type="button" class="radio-bloque" data-action="archive-product" data-id="${m.id}"><span><strong>Archivar</strong>Deja de aparecer en las listas, pero su historial se conserva entero. Se puede reactivar cuando quieras.</span></button>
     </div>`);
@@ -1075,7 +1075,7 @@ function renderModal() {
     const item = product(state, m.id);
     const parecidos = findSimilarProducts(state, item?.name || '', { limit: 6, threshold: 0.45, exclude: m.id });
     const compatibles = state.products.filter(other => other.id !== m.id && other.controlUnit === item?.controlUnit);
-    return modal('Unir con otro alimento', item?.name || '', `<div class="notice warn">${icono('aviso')}<div><strong>Esto no se puede deshacer.</strong>Se suman las existencias y se junta todo el historial —compras, revisiones, preparaciones— bajo un solo alimento. El otro deja de existir.</div></div>
+    return modal('Unir con otro alimento', item?.name || '', `<div class="notice warn">${icono('aviso')}<div><strong>Esto no se puede deshacer.</strong>Todo el historial —compras, listas, preparaciones— queda bajo un solo alimento. El otro deja de existir.</div></div>
       ${parecidos.length ? `<p class="small"><strong>Se parecen a este:</strong> ${parecidos.map(row => esc(row.product.name)).join(', ')}.</p>` : ''}
       <form data-form="merge" data-id="${m.id}" class="stack">
         <label class="field"><span>¿Con cuál se une?</span><select name="otro" required>${options(compatibles.map(other => [other.id, other.name]), parecidos[0]?.product.id, 'Elegir un alimento')}</select>
@@ -1126,10 +1126,10 @@ function renderModal() {
 
   if (m.type === 'correction') {
     const elegido = m.id || state.products[0]?.id;
-    return modal('Corregir lo que hay', 'Para cuando algo se dañó, se perdió o el conteo no cuadra.',
+    return modal('Corregir un conteo viejo', 'Para arreglar una cifra de cuando la app llevaba la cuenta de la despensa.',
       `<form data-form="correction" class="stack">
         <label class="field"><span>¿Qué alimento?</span><select name="productId" required>${productOptions(elegido)}</select></label>
-        <label class="field"><span>¿Cuánto queda de verdad?</span><input name="actual" type="number" min="0" step="any" inputmode="decimal" value="${inventoryNow(state)[elegido] || 0}" required></label>
+        <label class="field"><span>¿Qué cifra debería decir?</span><input name="actual" type="number" min="0" step="any" inputmode="decimal" value="${inventoryNow(state)[elegido] || 0}" required></label>
         <label class="field"><span>¿Por qué? (opcional)</span><input name="reason" placeholder="Ej. se dañaron 2"></label>
         <div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar</button></div></form>`);
   }
@@ -1292,7 +1292,7 @@ function modalProducto(m) {
         <summary>Más opciones</summary>
         <label class="field"><span>Categoría</span><select name="category">${options(CATEGORIES.map(cat => [cat.id, cat.label]), item?.category || 'otros')}</select><small>Solo sirve para ordenar y buscar.</small></label>
         ${item
-          ? `<div class="field"><span>Lo que hay ahora</span><div class="hint" style="min-height:42px;display:flex;align-items:center">${stockText(stock, item)}</div><small>Cambia con una compra, una revisión o una corrección.</small></div>`
+          ? `<div class="field"><span>Lo último que se anotó</span><div class="hint" style="min-height:42px;display:flex;align-items:center">${stockText(stock, item)}</div><small>De cuando la app llevaba la cuenta de la despensa. No dice lo que hay hoy en casa.</small></div>`
           : `<label class="field"><span>¿Cuánto tienes ahora mismo?</span><input name="opening" type="number" min="0" step="any" inputmode="decimal" value="0" placeholder="0"><small>Déjalo en 0 si no tienes nada.</small></label>`}
         <div class="field" data-cut-field ${SLICEABLE.includes(controlUnit) ? '' : 'hidden'}>
           <span>¿De qué grosor lo cortan en casa?</span>
@@ -1932,7 +1932,7 @@ document.addEventListener('submit', async event => {
       const conservar = data.get('conservar') === 'otro' ? otro : form.dataset.id;
       const eliminar = conservar === otro ? form.dataset.id : otro;
       const nombres = [productName(conservar), productName(eliminar)];
-      if (!window.confirm(`Se unirá «${nombres[1]}» dentro de «${nombres[0]}». Sus existencias se suman y «${nombres[1]}» deja de existir. Esto no se puede deshacer. ¿Continuar?`)) return;
+      if (!window.confirm(`Se unirá «${nombres[1]}» dentro de «${nombres[0]}». Su historial pasa al primero y «${nombres[1]}» deja de existir. Esto no se puede deshacer. ¿Continuar?`)) return;
       mergeProducts(state, conservar, eliminar);
       ui.modal = null;
       commit(`«${nombres[1]}» se unió a «${nombres[0]}».`);

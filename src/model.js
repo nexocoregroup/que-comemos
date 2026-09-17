@@ -1694,7 +1694,7 @@ export function crearLista(state, fields = {}) {
   // nombre.
   const lista = {
     id: nextId(state, 'lista'), nombre: String(fields.nombre || '').trim(), fecha,
-    estado: 'abierta', lineas: [], nota: String(fields.nota || '').trim(),
+    estado: 'abierta', lineas: [],
     // Y cuándo se cerró. Una lista cerrada ES el historial de esa compra: no se
     // copia a ningún otro sitio. Aquí hubo un `compraId` esperando a que
     // alguien uniera las listas con el registro de compras del inventario; esa
@@ -2171,7 +2171,7 @@ export function importState(json) {
     if (!Array.isArray(data[key])) throw new Error('El respaldo tiene datos incompletos.');
   }
   if (typeof data.opening !== 'object' || data.opening === null) throw new Error('El respaldo no tiene existencias válidas.');
-  if (!data.habitualBasket || !Array.isArray(data.habitualBasket.lines)) throw new Error('El respaldo no tiene unos productos habituales válidos.');
+  if (!data.habitualBasket || !Array.isArray(data.habitualBasket.lines)) throw new Error('El respaldo no trae bien la lista de productos habituales.');
   if (typeof data.monthOverrides !== 'object' || data.monthOverrides === null) throw new Error('El respaldo no tiene cambios mensuales válidos.');
   for (const [month, override] of Object.entries(data.monthOverrides)) {
     if (!validMonth(month) || !Array.isArray(override?.changes)) throw new Error(`Los cambios de ${month} están dañados.`);
