@@ -356,8 +356,8 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
 /* La columna del botón de quitar, en las filas de cantidad del asistente,
    medía 34 px. Quitar un alimento de la canasta por error es de las pocas cosas
    de esta pantalla que cuesta deshacer, así que es justo el botón que no puede
-   fallarse. Los 6 px salen de la columna del nombre, que va sobrada. */
-@media (max-width: 700px) {
+   fallarse. Los 6 px salen de la columna del nombre, que va sobrada. */
+@media (max-width: 700px) {
 }
 /* Y lo mismo en las filas de la canasta y de los alimentos sueltos. */
 .item-row { grid-template-columns: minmax(110px, 2fr) minmax(70px, .7fr) minmax(90px, 1fr) var(--toque-chico); }

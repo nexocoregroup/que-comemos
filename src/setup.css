@@ -116,7 +116,7 @@
   background: linear-gradient(to bottom, #fffefd00, var(--surface) 35%);
 }
 .setup-falta .enlace { min-height: 44px; font-size: .92rem; font-weight: 650; }
-
+
 
 /* ── Paso 4: una preparación ───────────────────────────────────────────────
 
@@ -191,7 +191,7 @@
 .setup-plan-opcion:hover { border-color: var(--clay-line); }
 .setup-plan-opcion.puesta { background: var(--clay); border-color: var(--clay); color: #fff; }
 
-
+
 
 /* Solo para lectores de pantalla: las etiquetas de las filas apretadas, donde
    enseñar el texto rompería la cuadrícula pero quitarlo dejaría campos mudos. */
@@ -216,7 +216,7 @@
      teléfono es una trampa para el pulgar. */
   .setup-lista { max-height: none; overflow: visible; }
 
-  /* El nombre se lleva su propia línea; debajo, cantidad, unidad y quitar. */
+  /* El nombre se lleva su propia línea; debajo, cantidad, unidad y quitar. */
 
   .setup-actions .btn { flex: 1 1 auto; }
 }
@@ -271,5 +271,5 @@
 .setup-persona .restricciones { margin-top: 6px; }
 .setup-persona.pendiente .list-row-title { color: var(--ink-muted); }
 .setup-persona.pendiente .list-row-sub { font-style: italic; }
-
-
+
+
