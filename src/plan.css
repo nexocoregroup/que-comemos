@@ -558,19 +558,46 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 
 /* ── Mi lista ──────────────────────────────────────────────────────────── */
 
+/* ── Un renglón: el nombre, la cantidad, y lo demás plegado ────────────────
+
+   Enseñaba cuatro controles a la vez —la casilla de traje con su Anotar,
+   cambiar lo pedido y quitar— y medía unos 170 px de alto. Con cuarenta cosas
+   apuntadas eso no es una lista que se lee: es una que se recorre. Lo que se
+   hace de pie en un pasillo es mirar el nombre, mirar cuánto y tocar una vez;
+   corregir es la excepción, y ahora se pide.
+
+   Rejilla y no flex, y por un motivo concreto: los controles tienen que ocupar
+   la fila entera debajo mientras el botón que los abre se queda arriba a la
+   derecha. Con `flex-wrap` eso obliga a envolver los controles y el botón en un
+   mismo contenedor, y entonces el botón baja con ellos. */
 .compra-lista { display: grid; gap: 0; }
 .compra-renglon {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: var(--aire-3); flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--aire-2);
   border-top: 1px solid var(--line); padding: var(--aire-3) 0;
 }
 .compra-renglon:first-child { border-top: 0; }
 .compra-tachar {
   display: flex; align-items: center; gap: var(--aire-3);
-  flex: 1 1 200px; min-width: 0; min-height: var(--toque);
+  min-width: 0; min-height: var(--toque);
   border: 0; background: none; text-align: left; color: var(--ink);
   padding: 0;
 }
+
+/* La flecha que despliega. Es la misma «›» que gira en los cuatro sitios que se
+   pliegan en la app: el mismo dibujo para el mismo gesto. */
+.compra-mas {
+  width: var(--toque); height: var(--toque);
+  display: grid; place-items: center;
+  border: 0; background: none; color: var(--clay);
+  font-size: 1.3rem; line-height: 1; border-radius: 10px;
+}
+.compra-mas span { display: block; transition: transform .18s ease; }
+.compra-mas[aria-expanded="true"] span { transform: rotate(90deg); }
+.compra-mas:hover { background: var(--clay-light); }
+@media (prefers-reduced-motion: reduce) { .compra-mas span { transition: none; } }
 .compra-tachar-caja {
   flex: none; display: grid; place-items: center;
   width: 26px; height: 26px; border-radius: 8px;
@@ -580,7 +607,7 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 .compra-renglon-texto { display: grid; gap: 2px; min-width: 0; }
 .compra-renglon.tachado .compra-renglon-texto strong { text-decoration: line-through; opacity: .62; }
 .compra-renglon.a-medias .compra-tachar-caja { border-color: var(--clay); background: var(--clay-light); }
-.compra-renglon-acciones { gap: var(--aire-2); }
+.compra-renglon-acciones { grid-column: 1 / -1; gap: var(--aire-2); margin-top: var(--aire-2); }
 /* «Traje 3» y no un cuadro mudo con un «¿cuánto?» que desaparece al escribir.
    La etiqueta cabe delante sin robarle ancho al nombre del producto: el
    contenedor es flex y el cuadro se queda en sus 84 px. */

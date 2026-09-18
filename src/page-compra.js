@@ -49,6 +49,11 @@ export function emptyCompra() {
     anadiendo: false,
     nombreNuevo: '',
     errorNuevo: '',
+    // Qué renglón tiene desplegados sus controles —traje, cambiar lo pedido,
+    // quitar—. Uno cada vez, como la casilla de «¿cuánto?» del otro lado: con
+    // cuarenta cosas apuntadas, una lista de renglones desplegados que nadie
+    // cerró es la lista que se dejó de mirar.
+    abierto: '',
     // La foto del estado justo antes de lo último que se deshizo o se cerró.
     // Quitar un renglón y terminar una compra son las dos cosas de esta pantalla
     // que cuesta recuperar a mano, y las dos se hacen andando y con una mano.
@@ -287,7 +292,7 @@ function vistaLista(ctx, lista) {
     <p class="compra-conteo" data-conteo><strong data-pendientes>${resumen.pendientes}</strong> por buscar · <span data-comprados>${resumen.comprados}</span> ya en el carrito</p>
 
     ${grupos.map(grupo => `${conRubros ? cabeceraDeRubro(grupo.rubro) : ''}
-      <div class="card compra-lista">${grupo.lineas.map(linea => renglon(state, lista, linea, editando)).join('')}</div>`).join('')}
+      <div class="card compra-lista">${grupo.lineas.map(linea => renglon(state, lista, linea, editando, { abierto: ui.compra.abierto === linea.id })).join('')}</div>`).join('')}
 
     <div class="card plan-ok" data-todo-hecho ${resumen.pendientes ? 'hidden' : ''}><span class="plan-ok-icono">✓</span><div><strong>No queda nada por buscar.</strong><span>Cuando salgas del supermercado, dale a «Terminar la compra».</span></div></div>
 
@@ -340,7 +345,7 @@ function repintarRenglon(ctx, lista, linea, foco = 'tachar') {
     .find(nodo => nodo.dataset.renglon === linea.id);
   if (!fila) { ctx.render(); return; }
   const molde = document.createElement('div');
-  molde.innerHTML = renglon(ctx.state, lista, linea, '');
+  molde.innerHTML = renglon(ctx.state, lista, linea, '', { abierto: ctx.ui.compra?.abierto === linea.id });
   const nueva = molde.firstElementChild;
   if (!nueva) { ctx.render(); return; }
   fila.replaceWith(nueva);
@@ -365,7 +370,7 @@ function actualizarConteo(lista) {
   if (hecho) hecho.hidden = resumen.pendientes > 0;
 }
 
-function renglon(state, lista, linea, editando) {
+function renglon(state, lista, linea, editando, { abierto = false } = {}) {
   const nombre = nombreDeLinea(state, linea);
   const falta = pendienteDe(linea);
   const pedido = cuanto(linea.cantidad, linea.unidad);
@@ -410,7 +415,23 @@ function renglon(state, lista, linea, editando) {
      sin decir de qué.
 
      `data-renglon` es cómo vuelve a encontrarse esta fila para reescribirla sola
-     cuando se tacha, sin repintar la pantalla. Ver `repintarRenglon`. */
+     cuando se tacha, sin repintar la pantalla. Ver `repintarRenglon`.
+
+     ── Y todo eso va plegado ────────────────────────────────────────────────
+
+     Un renglón enseñaba cuatro controles a la vez: la casilla de traje con su
+     Anotar, cambiar lo pedido y quitar. Tres renglones de alto cada uno, unos
+     170 px, y con cuarenta cosas apuntadas eso es una lista que no se lee: se
+     recorre. Lo que se hace de pie en un pasillo es mirar el nombre, mirar
+     cuánto, y tocar una vez. Corregir es la excepción.
+
+     Así que el renglón enseña el nombre y la cantidad, y lo demás se despliega.
+     El gesto principal —un toque tacha— no cambia: sigue siendo toda la fila
+     menos el botoncito de la derecha.
+
+     Uno abierto cada vez, como la casilla de «¿cuánto?» del otro lado de esta
+     misma pantalla: abrir el siguiente cierra el anterior, y así la lista no se
+     va llenando de renglones desplegados que nadie cerró. */
   return `<div class="compra-renglon ${linea.comprado ? 'tachado' : ''} ${aMedias ? 'a-medias' : ''}" data-renglon="${esc(linea.id)}">
     <button type="button" class="compra-tachar" data-action="compra-tachar" data-id="${esc(linea.id)}"
       aria-pressed="${linea.comprado}" aria-label="${linea.comprado ? 'Quitar la marca de' : 'Marcar como comprado'} ${esc(nombre)}">
@@ -420,7 +441,10 @@ function renglon(state, lista, linea, editando) {
         <span class="small muted">${pedido || 'sin cantidad'}${aMedias ? ` · se trajo ${esc(traido)}${falta ? `, faltan ${esc(cuanto(falta, linea.unidad))}` : ''}` : ''}${linea.nota ? ` · ${esc(linea.nota)}` : ''}</span>
       </span>
     </button>
-    <div class="inline compra-renglon-acciones">
+    <button type="button" class="compra-mas" data-action="compra-renglon-mas" data-id="${esc(linea.id)}"
+      aria-expanded="${abierto}" aria-controls="acciones-${esc(linea.id)}"
+      aria-label="Corregir ${esc(nombre)}"><span aria-hidden="true">›</span></button>
+    <div class="inline compra-renglon-acciones" id="acciones-${esc(linea.id)}" ${abierto ? '' : 'hidden'}>
       ${linea.comprado ? '' : `<form data-form="compra-parcial" data-lista="${esc(lista.id)}" data-id="${esc(linea.id)}" class="compra-parcial">
         <label class="compra-parcial-etiqueta" for="parcial-${esc(linea.id)}">Traje<span class="sr-only"> de ${esc(nombre)}</span></label>
         <input id="parcial-${esc(linea.id)}" name="comprada" type="number" min="0" step="any" inputmode="decimal"
@@ -558,6 +582,29 @@ const ACCIONES = {
     const lista = listaEnCurso(ctx.state);
     if (!lista) return;
     terminar(ctx, lista, el.dataset.trasladar === '1');
+  },
+  /* Desplegar los controles de un renglón.
+
+     No repinta: se toca el DOM a mano, igual que tachar, porque esto pasa de
+     pie y con una mano. Lo que sí se apunta es cuál quedó abierto, porque el
+     siguiente repintado —tachar, quitar, anotar— reconstruye la fila desde el
+     estado y se llevaría el atributo por delante.
+
+     Abrir uno cierra el que estuviera: uno cada vez. */
+  'compra-renglon-mas': (el, ctx) => {
+    const id = el.dataset.id;
+    const abrir = ctx.ui.compra.abierto !== id;
+    ctx.ui.compra.abierto = abrir ? id : '';
+    for (const boton of document.querySelectorAll('[data-action="compra-renglon-mas"]')) {
+      const suyo = boton.dataset.id === id && abrir;
+      boton.setAttribute('aria-expanded', String(suyo));
+      const caja = boton.parentElement?.querySelector('.compra-renglon-acciones');
+      if (caja) caja.hidden = !suyo;
+    }
+    if (abrir) {
+      const dentro = el.parentElement?.querySelector('.compra-renglon-acciones');
+      (dentro?.querySelector('input') || dentro?.querySelector('button'))?.focus({ preventScroll: true });
+    }
   },
   'compra-editar': (el, ctx) => { ctx.ui.compra.editando = el.dataset.id; ctx.render(); },
   'compra-cancelar-editar': (el, ctx) => { ctx.ui.compra.editando = ''; ctx.render(); },

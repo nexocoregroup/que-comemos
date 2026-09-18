@@ -65,9 +65,17 @@ test('todo lo que se pliega en la app se pliega con el mismo <details>', () => {
   for (const nombre of archivos) {
     const codigo = fuente(nombre).split(/\r?\n/).filter(linea => !/^\s*(\/\/|\*|\/\*)/.test(linea)).join('\n');
     for (const encaje of codigo.matchAll(/<button[^>]*aria-expanded[^>]*>/g)) {
-      // El único `aria-expanded` legítimo es el del menú lateral, que no es un
-      // bloque plegable: abre un cajón que tapa la pantalla.
-      if (/menu-toggle/.test(encaje[0])) continue;
+      /* Dos excepciones, y las dos son estructurales, no un atajo.
+
+         El menú lateral no es un bloque plegable: abre un cajón que tapa la
+         pantalla.
+
+         Y el renglón de la compra no puede ser un `<details>`: sus controles
+         tienen que ocupar la fila entera DEBAJO de un renglón cuya primera
+         celda es otro botón —el de tachar—, y un `<details>` obliga a que su
+         contenido cuelgue de él, así que arrastraría también la flecha. El
+         gesto sí es el mismo: la misma «›» que gira, con `aria-expanded`. */
+      if (/menu-toggle|compra-mas/.test(encaje[0])) continue;
       culpables.push(`${nombre}: ${encaje[0].slice(0, 70)}`);
     }
   }

@@ -1664,7 +1664,7 @@ function alEntrarEnUnaSeccion() {
      cerrar los bloques debajo del dedo sería peor que el problema. */
   if (ui.mas) { ui.mas.rubrosAbiertos = []; ui.mas.recetasAbiertas = []; }
   if (ui.semana) { ui.semana.verPasados = false; ui.semana.verSegundaSemana = false; }
-  if (ui.compra) ui.compra.verHistorial = false;
+  if (ui.compra) { ui.compra.verHistorial = false; ui.compra.abierto = ''; }
 
   if (ui.page !== 'compra') return;
   ui.compra.vista = listaEnCurso(state)?.lineas.length ? 'lista' : 'preparar';

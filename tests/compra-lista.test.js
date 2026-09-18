@@ -506,3 +506,58 @@ test('un renglón sin rubro conocido no desaparece de la lista', () => {
   assert.ok(html.includes(`data-renglon="${linea.id}"`),
     'un renglón con un rubro desconocido se cae de la lista');
 });
+
+test('el renglón enseña el nombre y la cantidad, y lo demás va plegado', () => {
+  /* Enseñaba cuatro controles a la vez —traje con su Anotar, cambiar lo pedido
+     y quitar— y medía unos 170 px de alto. Con cuarenta cosas apuntadas eso no
+     es una lista que se lea: es una que se recorre.
+
+     Lo que NO cambia es el gesto principal: un toque en la fila sigue tachando,
+     sin abrir nada. Eso es lo que se hace de pie y con una mano. */
+  const { state, arroz } = casa();
+  const ctx = contexto(state);
+  COMPRA_ACTIONS['compra-nueva'](null, ctx);
+  const lista = listaEnCurso(state);
+  const linea = agregarALista(state, lista.id, { productId: arroz, cantidad: 5, unidad: 'lb' });
+
+  ctx.ui.compra.vista = 'lista';
+  const plegado = renderCompra(ctx);
+  revisar(plegado, 'mi lista');
+  // Lo que se ve: el nombre, la cantidad y el botón de tachar.
+  assert.ok(plegado.includes('>Arroz<'), 'el renglón dejó de decir qué es');
+  assert.ok(/5 lb/.test(plegado), 'el renglón dejó de decir cuánto');
+  assert.ok(plegado.includes('data-action="compra-tachar"'), 'un toque ya no tacha');
+  // Y lo que no: los controles, detrás de la flecha.
+  assert.ok(plegado.includes('data-action="compra-renglon-mas"'), 'no hay forma de desplegar el renglón');
+  const caja = new RegExp(`<div class="inline compra-renglon-acciones" id="acciones-${linea.id}"([^>]*)>`).exec(plegado);
+  assert.ok(caja, 'no encuentro los controles del renglón');
+  assert.ok(/ hidden/.test(caja[1]), 'los controles del renglón vuelven a estar todos a la vista');
+
+  // Desplegado, están.
+  ctx.ui.compra.abierto = linea.id;
+  const abierto = renderCompra(ctx);
+  const caja2 = new RegExp(`<div class="inline compra-renglon-acciones" id="acciones-${linea.id}"([^>]*)>`).exec(abierto);
+  assert.ok(!/ hidden/.test(caja2[1]), 'desplegar un renglón no enseña nada');
+  assert.ok(abierto.includes('data-action="compra-quitar"'));
+  assert.ok(abierto.includes('name="comprada"'));
+  assert.ok(abierto.includes('aria-expanded="true"'), 'la flecha no dice que está abierto');
+});
+
+test('abrir un renglón cierra el que estuviera abierto', () => {
+  // Uno cada vez, como la casilla de «¿cuánto?» del otro lado de esta misma
+  // pantalla. Si no, la lista se va llenando de renglones que nadie cerró.
+  const { state, arroz, maiz } = casa();
+  const ctx = contexto(state);
+  COMPRA_ACTIONS['compra-nueva'](null, ctx);
+  const lista = listaEnCurso(state);
+  const uno = agregarALista(state, lista.id, { productId: arroz });
+  const dos = agregarALista(state, lista.id, { productId: maiz });
+
+  COMPRA_ACTIONS['compra-renglon-mas']({ dataset: { id: uno.id } }, ctx);
+  assert.equal(ctx.ui.compra.abierto, uno.id);
+  COMPRA_ACTIONS['compra-renglon-mas']({ dataset: { id: dos.id } }, ctx);
+  assert.equal(ctx.ui.compra.abierto, dos.id, 'abrir el segundo no cerró el primero');
+  // Y volver a tocarlo lo cierra.
+  COMPRA_ACTIONS['compra-renglon-mas']({ dataset: { id: dos.id } }, ctx);
+  assert.equal(ctx.ui.compra.abierto, '', 'no se puede volver a cerrar');
+});
