@@ -2257,7 +2257,41 @@ falloAnterior()
   })
   .catch(error => anotar('arranque:fallo-nativo', error));
 
+/* ── La pantalla de arranque ───────────────────────────────────────────────
+
+   Dos capas, y hacen cosas distintas.
+
+   La de abajo la pinta Android antes de que exista el WebView: es el tema
+   `Theme.SplashScreen` de android/app/src/main/res/values/styles.xml, sobre la
+   crema de la marca. Sin ella, entre tocar el icono y la primera pintada hay un
+   blanco que no es de nadie.
+
+   La de arriba es `#arranque`, en index.html, y es la que se mueve. Se va en
+   cuanto hay algo debajo que enseñar — pero no antes de un tiempo mínimo, y eso
+   tiene un motivo: la app abre en unos 200 ms, así que sin el mínimo la
+   animación arrancaría y se cortaría a la mitad, que se lee como un tirón y no
+   como una entrada. Un segundo largo es lo que tarda en completarse el gesto.
+
+   Lo que NO se hace es esperar por esperar. El mínimo cuenta desde que este
+   módulo empieza, así que en un teléfono lento donde pintar cueste más de lo
+   normal la capa no añade ni un milisegundo: se va en cuanto pueda. */
+const ARRANQUE_MINIMO_MS = 1100;
+const ABRIO_EN = Date.now();
+
+function quitarElArranque() {
+  const capa = document.querySelector('#arranque');
+  if (!capa) return;
+  const falta = Math.max(0, ARRANQUE_MINIMO_MS - (Date.now() - ABRIO_EN));
+  setTimeout(() => {
+    capa.classList.add('se-va');
+    // Se quita del documento del todo cuando termina de desvanecerse: dejarla
+    // transparente encima de la app la seguiría haciendo dueña de los toques.
+    setTimeout(() => capa.remove(), 450);
+  }, falta);
+}
+
 render();
+quitarElArranque();
 
 /* ── La sesión, al arrancar ────────────────────────────────────────────────
 

@@ -99,6 +99,9 @@
   --z-cajon: 51;      /* el menú lateral del teléfono */
   --z-modal: 60;      /* una ventana tapa todo lo anterior: es la tarea de ahora */
   --z-aviso: 70;      /* el aviso de abajo se lee siempre, incluso sobre un modal */
+  /* El 90 es la pantalla de arranque, y no está declarado aquí: vive escrito a
+     mano en index.html porque tiene que pintarse aunque esta hoja no llegue.
+     Se apunta en la escala para que nadie lo reutilice creyéndolo libre. */
 }
 
 /* ── Los iconos ───────────────────────────────────────────────────────────
