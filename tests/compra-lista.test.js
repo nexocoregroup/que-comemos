@@ -37,6 +37,12 @@ function contexto(state = createEmptyState()) {
     avisos: [],
     commit: mensaje => { if (mensaje) ctx.avisos.push(mensaje); },
     toast: mensaje => ctx.avisos.push(mensaje),
+    // `anunciar` escribe en la región viva invisible. Aquí se apunta aparte de
+    // `avisos` porque no es lo mismo: el aviso flotante se ve y esto solo se
+    // oye, y hay acciones —tachar— que a propósito hacen lo segundo y no lo
+    // primero.
+    anuncios: [],
+    anunciar: texto => { if (texto) ctx.anuncios.push(texto); },
     render: () => {}, guardar: () => {}, closeModal: () => { ctx.ui.modal = null; },
     openModal: (type, datos = {}) => { ctx.ui.modal = { type, ...datos }; }
   };
@@ -157,7 +163,14 @@ test('un toque tacha, otro destacha, y lo tachado sigue a la vista', () => {
   ctx.ui.compra.vista = 'lista';
   const html = renderCompra(ctx);
   revisar(html, 'mi lista');
-  assert.ok(html.includes('Ya en el carrito'), 'lo tachado desaparece de la vista');
+  // Esta aserción miraba el título «Ya en el carrito», que era la segunda
+  // tarjeta adonde saltaba lo tachado. Esa tarjeta se quitó: mover el renglón
+  // debajo del dedo era justo lo que hacía perder el sitio en el colmado. Lo
+  // que la prueba quería decir sigue igual —y ahora se comprueba de verdad—:
+  // el renglón tachado sigue pintado, en su sitio y con su botón.
+  assert.ok(html.includes(`data-renglon="${linea.id}"`), 'lo tachado desaparece de la vista');
+  assert.ok(html.includes('aria-pressed="true"'), 'lo tachado no se ve tachado');
+  assert.ok(!html.includes('compra-tachados'), 'lo tachado volvió a mudarse a otra tarjeta');
   assert.ok(html.includes('data-action="compra-tachar"'), 'no se puede destachar');
 
   marcarComprado(state, lista.id, linea.id, false);
@@ -420,4 +433,76 @@ test('ningún texto de la app promete calcular la compra ni llevar inventario', 
   const legal = readFileSync(resolve(import.meta.dirname, '..', 'src', 'legal.js'), 'utf8');
   assert.ok(/no calcula dietas, no lleva inventario y no promete una compra exacta/.test(legal),
     'el aviso de privacidad ya no dice lo que la app NO hace');
+});
+
+/* ── El colmado: no perder el sitio ────────────────────────────────────────
+
+   Ninguna prueba de este proyecto abre un navegador, así que lo que se puede
+   vigilar desde aquí no es que la lista no salte: es que el código siga
+   escrito de la forma que hace que no salte. Son guardias de estructura, y se
+   escriben aquí porque el fallo que arreglan volvió por descuido, no por
+   decisión — a `compra-tachar` le bastó con llamar a `commit` para mandar la
+   lista al principio en cada toque durante meses. */
+
+test('tachar y anotar lo traído no repintan la pantalla entera', () => {
+  const codigo = readFileSync(resolve(import.meta.dirname, '..', 'src', 'page-compra.js'), 'utf8');
+  for (const nombre of ['compra-tachar', 'compra-parcial']) {
+    const trozo = new RegExp(`'${nombre}': \\(.*?\\n  \\}`, 's').exec(codigo)?.[0];
+    assert.ok(trozo, `no encuentro ${nombre}`);
+    assert.ok(!/ctx\.commit\(/.test(trozo), `${nombre} vuelve a repintar la pantalla entera: en el colmado eso devuelve la lista al principio en cada toque`);
+    assert.ok(/ctx\.guardar\(\)/.test(trozo), `${nombre} ya no guarda`);
+    assert.ok(/repintarRenglon\(/.test(trozo), `${nombre} ya no reescribe su renglón`);
+    assert.ok(/ctx\.anunciar\(/.test(trozo), `${nombre} no dice nada: con TalkBack no hay forma de saber si el toque entró`);
+  }
+});
+
+test('la región viva es permanente y vive fuera de #app', () => {
+  // Una región viva que nace junto a su contenido no se dispara nunca: el
+  // lector de pantalla necesita que ya estuviera ahí para notar que cambió. Y
+  // todo lo que hay dentro de #app se reescribe entero en cada repintado.
+  const html = readFileSync(resolve(import.meta.dirname, '..', 'index.html'), 'utf8');
+  const region = /<p id="anuncio"[^>]*>/.exec(html)?.[0];
+  assert.ok(region, 'no hay región viva permanente');
+  assert.ok(/aria-live="polite"/.test(region), 'la región viva no anuncia');
+  assert.ok(html.indexOf('id="anuncio"') > html.indexOf('id="app"'), 'la región viva se metió dentro de #app');
+});
+
+test('mi lista agrupa por rubro y deja apuntar algo sin cruzar a la otra pestaña', () => {
+  const { state, arroz, maiz } = casa();
+  const ctx = contexto(state);
+  COMPRA_ACTIONS['compra-nueva'](null, ctx);
+  const lista = listaEnCurso(state);
+  agregarALista(state, lista.id, { productId: arroz, cantidad: 25, unidad: 'lb' });
+  agregarALista(state, lista.id, { productId: maiz, cantidad: 2, unidad: 'lata' });
+
+  ctx.ui.compra.vista = 'lista';
+  const html = renderCompra(ctx);
+  revisar(html, 'mi lista');
+  // El rubro de cada renglón se guarda desde que se apunta y esta pantalla lo
+  // tiraba: con cuarenta renglones eran 154 botones sin una sola cabecera.
+  const lineas = listaDeCompra(state, lista.id).lineas;
+  assert.ok(lineas.every(linea => linea.rubro), 'un renglón se apuntó sin rubro');
+  const rubros = new Set(lineas.map(linea => linea.rubro));
+  if (rubros.size > 1) {
+    assert.ok(html.includes('compra-lista-rubro'), 'mi lista no agrupa por rubro');
+  }
+  // Y se puede apuntar el papel de aluminio sin salir de la lista.
+  assert.ok(html.includes('data-action="compra-ocasional"'),
+    'para apuntar algo estando en el colmado hay que volver a cruzar a la otra pestaña');
+});
+
+test('un renglón sin rubro conocido no desaparece de la lista', () => {
+  const { state, arroz } = casa();
+  const ctx = contexto(state);
+  COMPRA_ACTIONS['compra-nueva'](null, ctx);
+  const lista = listaEnCurso(state);
+  const linea = agregarALista(state, lista.id, { productId: arroz, cantidad: 1, unidad: 'lb' });
+  // Un rubro que ya no existe, o una lista escrita por una versión anterior.
+  listaDeCompra(state, lista.id).lineas[0].rubro = 'rubro-que-no-existe';
+
+  ctx.ui.compra.vista = 'lista';
+  const html = renderCompra(ctx);
+  revisar(html, 'mi lista');
+  assert.ok(html.includes(`data-renglon="${linea.id}"`),
+    'un renglón con un rubro desconocido se cae de la lista');
 });

@@ -60,6 +60,19 @@
   <div id="app"></div>
   <div id="modal-root"></div>
   <div id="toast" role="status" aria-live="polite"></div>
+  <!-- La segunda región viva, y la única permanente que no se ve.
+
+       El aviso flotante de arriba sirve para confirmar algo que se acaba de
+       guardar: es visible, dura 4,2 segundos y tapa la parte de abajo de la
+       pantalla. Marcar cuarenta renglones en un pasillo no puede sacar
+       cuarenta avisos flotantes encima del sitio donde está el dedo, pero sí
+       tiene que oírse.
+
+       Está aquí y no dentro de #app a propósito: una región viva que nace
+       junto a su contenido no se dispara nunca, porque el lector de pantalla
+       necesita que la región ya estuviera ahí para notar que cambió. Y todo
+       lo que hay dentro de #app se reescribe entero en cada repintado. -->
+  <p id="anuncio" class="sr-only" role="status" aria-live="polite"></p>
   <script type="module" src="src/app.js"></script>
 </body>
 </html>

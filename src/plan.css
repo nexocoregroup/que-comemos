@@ -574,7 +574,28 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 .compra-renglon-acciones { gap: var(--aire-2); }
 .compra-parcial { display: flex; align-items: center; gap: var(--aire-1); }
 .compra-parcial input { width: 84px; min-height: var(--toque-chico); }
-.compra-tachados { opacity: .82; }
+/* El contador de arriba. Sustituye a la tarjeta «Ya en el carrito», que era
+   adonde saltaba un renglón al tacharlo: dice lo mismo sin mover nada de
+   sitio. `tabular-nums` para que el número no cambie de ancho al pasar de 9 a
+   10 y la línea entera no se recoloque en cada toque. */
+.compra-conteo {
+  margin: 0 0 var(--aire-4);
+  font-size: .9rem; color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.compra-conteo strong { color: var(--ink); }
+
+/* La cabecera de rubro dentro de «Mi lista»: el mismo dibujo que en
+   «Preparar» pero más callado, porque aquí no abre una sección, solo separa
+   un pasillo del siguiente. Solo sale cuando hay más de un rubro; con uno,
+   una cabecera es un renglón que no dice nada. */
+.compra-lista-rubro { margin-top: var(--aire-5); color: var(--ink-muted); font-size: .88rem; }
+.compra-lista-rubro:first-of-type { margin-top: 0; }
+
+/* `.compra-tachados` se fue con la tarjeta que atenuaba entera. Lo tachado se
+   distingue por su propio renglón —la caja verde y la raya— y ya no hace
+   falta apagar nada: si se apagara el renglón entero, «Editar» y «Quitar»
+   quedarían medio invisibles justo en el que más se toca por error. */
 .compra-acciones { justify-content: stretch; }
 .compra-acciones .btn { flex: 1; }
 .compra-historial { margin-top: var(--aire-7); }

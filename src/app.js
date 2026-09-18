@@ -434,7 +434,7 @@ function commit(message) {
 // respaldo o al borrar los datos, y una referencia guardada apuntaría al viejo.
 function ctx() {
   return {
-    state, ui, commit, guardar, toast, render, closeModal, openModal,
+    state, ui, commit, guardar, toast, anunciar, render, closeModal, openModal,
     startTour: () => goTour(0)
   };
 }
@@ -504,13 +504,173 @@ const esPaginaDeAjustes = pagina => pagina === 'cuenta' || (PAGINAS_MAS.includes
  * Ahora una pantalla rota se queda en pantalla rota, dicho con esas palabras y
  * con una salida. El resto de la aplicación sigue en pie. */
 
+/* ── No perder el sitio al repintar ────────────────────────────────────────
+
+   Reescribir `#app` entero tiene dos efectos que este archivo ya tenía escritos
+   en el comentario de `guardar()`: el navegador devuelve el desplazamiento a
+   cero y el foco se va al cuerpo del documento. De pie en el colmado, con
+   cuarenta renglones, cada toque costaba volver a buscar por dónde ibas.
+
+   Se arregla en un solo sitio en vez de en cada pantalla: antes de pintar se
+   apunta dónde estaba la página y quién tenía el foco, y después se devuelven
+   los dos —pero solo si lo que se acaba de pintar es la MISMA pantalla—.
+   Cambiar de sección sigue empezando arriba, que es lo que se espera.
+
+   «La misma pantalla» no es solo `ui.page`: dentro de Compra, saltar de
+   «Preparar» a «Mi lista» son dos pantallas distintas aunque la sección sea la
+   misma, y conservar el desplazamiento de una en la otra deja a cualquiera
+   mirando la mitad de una lista que no ha visto empezar. Las que tengan vistas
+   por dentro lo dicen aquí; las que no, se identifican por su sección. */
+const SENA_DE_PANTALLA = {
+  compra: () => ui.compra?.vista || '',
+  cuenta: () => ui.cuenta?.vista || ''
+};
+
+function senaDePantalla() {
+  if (tocaPedirCuenta()) return 'portada-cuenta';
+  if (ui.welcome) return 'bienvenida';
+  return `${ui.page}|${SENA_DE_PANTALLA[ui.page]?.() || ''}`;
+}
+let senaAnterior = null;
+let ventanaAnterior = '';
+
+/* Cómo volver a encontrar lo que tenía el foco.
+
+   No sirve guardar el nodo: `innerHTML` lo destruye y el que ocupa su sitio es
+   otro objeto. Lo que se guarda es cómo volver a nombrarlo, y aquí eso sale
+   gratis porque cada botón que hace algo ya lleva su `data-action` y, cuando
+   hace falta, su `data-id`. Un campo de texto se nombra por su formulario y su
+   `name`, y se le devuelve también dónde tenía el cursor. */
+function senaDelFoco() {
+  const el = document.activeElement;
+  if (!el || el === document.body || el === document.documentElement) return null;
+
+  const formulario = el.closest?.('[data-form]');
+  if (el.name && formulario) {
+    let inicio = null, fin = null;
+    // `selectionStart` no existe en los campos numéricos ni en los de fecha.
+    try { inicio = el.selectionStart; fin = el.selectionEnd; } catch { /* Sin cursor que devolver. */ }
+    return { form: formulario.dataset.form, formId: formulario.dataset.id || '', campo: el.name, inicio, fin };
+  }
+  if (el.id) return { id: el.id };
+  if (!el.dataset?.action) return null;
+  return {
+    accion: el.dataset.action,
+    id: el.dataset.id || '', pagina: el.dataset.page || '', vista: el.dataset.vista || ''
+  };
+}
+
+/* Devolver el foco NO puede mover la página.
+
+   `focus()` a secas desplaza la ventana para enseñar lo que acaba de enfocar, y
+   eso aquí sería pelearse consigo mismo: se acaba de restaurar el sitio exacto
+   donde estaba la persona y el foco vuelve a un elemento que ya estaba a la
+   vista. Sin `preventScroll`, un elemento que quede medio tapado por la barra de
+   abajo arrastra la pantalla unos píxeles en cada toque.
+
+   El `autofocus` del HTML recién pintado es el caso contrario y va sin esto: ahí
+   sí hay que enseñar el campo que se acaba de abrir. */
+const SIN_SALTO = { preventScroll: true };
+
+// Devuelve `true` si encontró a quién dárselo. Quien llama lo necesita para
+// saber si le toca al `autofocus` del HTML recién pintado.
+function devolverElFoco(sena) {
+  if (!sena) return false;
+  if (sena.form) {
+    const formulario = [...document.querySelectorAll(`[data-form]`)]
+      .find(f => f.dataset.form === sena.form && (f.dataset.id || '') === sena.formId);
+    const campo = formulario?.querySelector(`[name="${sena.campo.replace(/["\\]/g, '\\$&')}"]`);
+    if (!campo) return false;
+    campo.focus(SIN_SALTO);
+    if (sena.inicio !== null) { try { campo.setSelectionRange(sena.inicio, sena.fin); } catch { /* Da igual. */ } }
+    return true;
+  }
+  if (sena.id) {
+    const el = document.getElementById(sena.id);
+    if (!el) return false;
+    el.focus(SIN_SALTO);
+    return true;
+  }
+  for (const el of document.querySelectorAll('[data-action]')) {
+    if (el.dataset.action !== sena.accion) continue;
+    if ((el.dataset.id || '') !== sena.id) continue;
+    if ((el.dataset.page || '') !== sena.pagina) continue;
+    if ((el.dataset.vista || '') !== sena.vista) continue;
+    el.focus(SIN_SALTO);
+    return true;
+  }
+  return false;
+}
+
+/* ── Decirlo en voz alta ───────────────────────────────────────────────────
+
+   `#toast` es visible y dura 4,2 segundos: sirve para confirmar algo que se
+   acaba de guardar, no para ir narrando cada casilla que se marca en un
+   pasillo. Un aviso flotante por cada uno de los cuarenta renglones sería ruido
+   en la pantalla y tapa el sitio donde está el dedo.
+
+   Así que hay una segunda región viva, invisible y permanente, para lo que solo
+   tiene que oírse. Vive en index.html y no dentro de `#app` a propósito: una
+   región viva que nace junto a su contenido nunca se dispara, porque el lector
+   de pantalla necesita que la región ya estuviera ahí para notar que cambió. */
+function anunciar(texto) {
+  const region = document.querySelector('#anuncio');
+  if (!region || !texto) return;
+  // Un texto idéntico al que ya hay no se vuelve a leer. Marcar dos renglones
+  // seguidos con el mismo nombre —o marcar y desmarcar uno— diría lo mismo dos
+  // veces y la segunda se perdería: se vacía primero, en otro cuadro, para que
+  // el cambio sea un cambio de verdad.
+  region.textContent = '';
+  const escribir = () => { region.textContent = texto; };
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(escribir); else escribir();
+}
+
+/* Quién abrió la ventana que está abierta.
+
+   Una ventana se cierra y el foco se quedaba en la nada, porque el botón que la
+   abrió lo destruyó el repintado. Se apunta antes de abrirla y se le devuelve
+   al cerrarla, que es donde la persona estaba mirando. */
+let quienAbrioLaVentana = null;
+
 function render() {
+  const sitio = window.scrollY;
+  const foco = senaDelFoco();
+  const pantallaAntes = senaAnterior;
+  const ventanaAntes = ventanaAnterior;
   try {
     pintar();
   } catch (error) {
     const fila = anotar('pintar', error, { pagina: ui.page });
     try { pintarLoRoto(fila); } catch { /* Si ni eso se puede, no hay nada más que hacer desde aquí. */ }
+    senaAnterior = null; ventanaAnterior = '';
+    return;
   }
+  senaAnterior = senaDePantalla();
+  ventanaAnterior = ui.modal?.type || '';
+
+  // El desplazamiento solo depende de la pantalla de atrás: abrir o cerrar una
+  // ventana no puede mover lo que hay debajo, porque al cerrarla hay que
+  // aparecer donde se estaba. Cambiar de pantalla sí empieza arriba —antes eso
+  // pasaba de rebote, porque vaciar `#app` hacía que el navegador recortara el
+  // desplazamiento, y por eso funcionaba unas veces sí y otras no—.
+  window.scrollTo(0, senaAnterior === pantallaAntes ? sitio : 0);
+
+  // El foco, en cambio, sí depende de la ventana: si acaba de abrirse una, el
+  // botón de detrás sigue existiendo y devolvérselo dejaría el cursor fuera del
+  // diálogo. Ahí manda el `autofocus` de la ventana recién pintada.
+  if (senaAnterior === pantallaAntes && ventanaAnterior === ventanaAntes && devolverElFoco(foco)) return;
+  if (ventanaAnterior && ventanaAnterior !== ventanaAntes) {
+    // El primer control de verdad, no la equis: la equis suele ser el primer
+    // botón del HTML y empezar ahí es ofrecer «cerrar» a quien acaba de abrir.
+    const controles = [...document.querySelectorAll('#modal-root .modal input:not([type="hidden"]):not([disabled]), #modal-root .modal textarea, #modal-root .modal select, #modal-root .modal button')];
+    const dentro = document.querySelector('#modal-root [autofocus]')
+      || controles.find(el => el.dataset.action !== 'close-modal' && el.dataset.action !== 'cerrar-modal')
+      || controles[0];
+    dentro?.focus();
+    return;
+  }
+  if (!ventanaAnterior && ventanaAntes && devolverElFoco(quienAbrioLaVentana)) { quienAbrioLaVentana = null; return; }
+  document.querySelector('#app [autofocus]')?.focus();
 }
 
 // El último recurso: HTML mínimo, sin llamar a ningún módulo de pantalla —que
@@ -1227,7 +1387,12 @@ function cerrarVentanaPorGesto() {
   return true;
 }
 
-function openModal(type, extras = {}) { ui.modal = { type, ...extras }; render(); }
+function openModal(type, extras = {}) {
+  // Antes de pintar: después, el botón que la abrió ya no existe.
+  if (!ui.modal) quienAbrioLaVentana = senaDelFoco();
+  ui.modal = { type, ...extras };
+  render();
+}
 function sidebarOnMobile() { return window.matchMedia('(max-width: 700px)').matches; }
 function closeSidebar() {
   if (sidebarOnMobile()) ui.drawerOpen = false;
@@ -1254,6 +1419,20 @@ function proximaComidaLibre() {
   const preferida = hora < 10 ? 'desayuno' : hora < 16 ? 'almuerzo' : 'cena';
   const orden = [preferida, ...SLOTS.filter(slot => slot !== preferida)];
   return orden.find(slot => !planFor(state, today(), slot)) || preferida;
+}
+
+/* ── Entrar en una sección ─────────────────────────────────────────────────
+
+   Compra tiene dos vistas y siempre abría por la primera, «Preparar la compra»,
+   que es el catálogo de habituales. Con una lista ya escrita eso es entrar por
+   la puerta de atrás: se va al colmado a mirar lo apuntado, no a apuntar más.
+
+   La decisión se toma al ENTRAR y no en cada pintada, que es la diferencia que
+   importa: si se mirara el estado en cada repintado, apuntar el primer producto
+   estando en «Preparar» cambiaría la vista debajo del dedo. */
+function alEntrarEnUnaSeccion() {
+  if (ui.page !== 'compra') return;
+  ui.compra.vista = listaEnCurso(state)?.lineas.length ? 'lista' : 'preparar';
 }
 
 /* ── Reparto de clics ──────────────────────────────────────────────────── */
@@ -1290,11 +1469,12 @@ document.addEventListener('click', event => {
 
     // Un atajo puede pedir que la app se sitúe antes en la pantalla donde se
     // verá el resultado de lo que se está por escribir.
-    if (el.dataset.goto) ui.page = el.dataset.goto;
+    if (el.dataset.goto) { ui.page = el.dataset.goto; alEntrarEnUnaSeccion(); }
 
     if (action === 'navigate') {
       ui.page = el.dataset.page;
       ui.modal = null; ui.drawerOpen = false;
+      alEntrarEnUnaSeccion();
       commit('');
     }
     // Sin repintar: ver `bloqueDeQuienCome`. Lo escrito en la ventana se queda.

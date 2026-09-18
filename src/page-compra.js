@@ -201,11 +201,16 @@ const MEDIDAS = [
 
 /* ── Algo que no se compra siempre ─────────────────────────────────────── */
 
-function bloqueOcasional(ctx) {
+// Va en las dos vistas. Estando en el colmado con la lista abierta —que es
+// cuando uno se acuerda del papel de aluminio o ve el aceite en oferta— había
+// que cruzar a «Preparar la compra», bajar por los ocho rubros hasta el final,
+// escribir, y volver a cruzar: cinco toques y dos viajes largos para apuntar
+// algo que se tiene en la mano.
+function bloqueOcasional(ctx, { enLista = false } = {}) {
   const { ui } = ctx;
   if (!ui.compra.anadiendo) {
     return `<div class="compra-ocasional-abrir">
-      ${button('+ Algo que no está en la lista', 'compra-ocasional', 'btn-secondary')}
+      ${button(enLista ? '+ Apuntar algo más' : '+ Algo que no está en la lista', 'compra-ocasional', 'btn-secondary')}
     </div>`;
   }
   return `<form data-form="compra-ocasional" class="compra-ocasional">
@@ -239,31 +244,117 @@ function bloqueOcasional(ctx) {
 
 /* ── Vista 2: mi lista ─────────────────────────────────────────────────── */
 
+/* Aquí había dos tarjetas: lo que faltaba arriba y «Ya en el carrito» abajo.
+   Sobre el papel suena ordenado; en el pasillo era lo contrario. Tachabas el
+   arroz y el renglón se iba de debajo del dedo a otra tarjeta más abajo, así
+   que cada marca costaba volver a encontrar por dónde ibas. Con veinticinco
+   cosas son veinticinco búsquedas, y es la razón por la que se acaba marcando
+   todo de golpe al llegar a casa, que es cuando ya no sirve de nada.
+
+   Ahora el renglón se queda donde está, tachado, y lo que separa la lista son
+   los rubros: el mismo dato que el modelo guarda en cada línea desde siempre y
+   que esta pantalla tiraba. Un rubro es un pasillo, así que la lista se lee una
+   vez por pasillo en vez de entera por cada uno. Lo que decía «Ya en el
+   carrito» lo dice ahora un contador, que no mueve nada de sitio. */
+
 function vistaLista(ctx, lista) {
   const { state, ui } = ctx;
   const editando = ui.compra.editando || '';
-  const pendientes = lista.lineas.filter(linea => !linea.comprado);
-  const tachados = lista.lineas.filter(linea => linea.comprado);
+  const resumen = resumenDeLista(lista);
 
   if (!lista.lineas.length) {
-    return empty('canasta', 'La lista está vacía',
+    return `${empty('canasta', 'La lista está vacía',
       'Ve a «Preparar la compra» y toca lo que vayas a llevar. Nada entra solo.',
-      button('Preparar la compra', 'compra-vista', 'btn-primary', 'data-vista="preparar"'));
+      button('Preparar la compra', 'compra-vista', 'btn-primary', 'data-vista="preparar"'))}
+      ${bloqueOcasional(ctx, { enLista: true })}`;
   }
+
+  const grupos = porRubro(lista);
+  const conRubros = grupos.length > 1;
 
   return `<p class="pantalla-intro">Un toque tacha lo que ya echaste al carrito. Si trajiste menos de lo que decía, anota cuánto y el resto se queda pendiente.</p>
 
-    ${pendientes.length
-      ? `<div class="card compra-lista">${pendientes.map(linea => renglon(state, lista, linea, editando)).join('')}</div>`
-      : `<div class="card plan-ok"><span class="plan-ok-icono">✓</span><div><strong>No queda nada por buscar.</strong><span>Cuando salgas del supermercado, dale a «Terminar la compra».</span></div></div>`}
+    ${bloqueOcasional(ctx, { enLista: true })}
 
-    ${tachados.length ? `<div class="section-head"><h3 class="plan-sub">Ya en el carrito · ${tachados.length}</h3></div>
-      <div class="card compra-lista compra-tachados">${tachados.map(linea => renglon(state, lista, linea, editando)).join('')}</div>` : ''}
+    <p class="compra-conteo" data-conteo><strong data-pendientes>${resumen.pendientes}</strong> por buscar · <span data-comprados>${resumen.comprados}</span> ya en el carrito</p>
+
+    ${grupos.map(grupo => `${conRubros ? cabeceraDeRubro(grupo.rubro) : ''}
+      <div class="card compra-lista">${grupo.lineas.map(linea => renglon(state, lista, linea, editando)).join('')}</div>`).join('')}
+
+    <div class="card plan-ok" data-todo-hecho ${resumen.pendientes ? 'hidden' : ''}><span class="plan-ok-icono">✓</span><div><strong>No queda nada por buscar.</strong><span>Cuando salgas del supermercado, dale a «Terminar la compra».</span></div></div>
 
     <div class="modal-actions compra-acciones">
       ${button('Terminar la compra', 'compra-terminar', 'btn-primary btn-grande')}
     </div>
     <p class="tiny muted">Terminar la guarda con la fecha y lo que se pidió y se trajo de cada cosa, y abre una lista nueva para la próxima salida. Si queda algo sin conseguir, te pregunta si pasa a esa lista. Tus productos habituales no se tocan.</p>`;
+}
+
+// El rubro de cada renglón viene guardado desde que se apuntó —lo pone
+// `agregarALista`— y hasta ahora se tiraba. Un renglón viejo, o de un rubro que
+// ya no exista, cae en «Otros» en vez de desaparecer de la lista: que un
+// renglón no se vea es lo único inaceptable en esta pantalla.
+function porRubro(lista) {
+  const grupos = new Map(RUBROS.map(rubro => [rubro.id, []]));
+  for (const linea of lista.lineas) {
+    grupos.get(grupos.has(linea.rubro) ? linea.rubro : 'otros').push(linea);
+  }
+  return [...grupos]
+    .filter(([, lineas]) => lineas.length)
+    .map(([rubro, lineas]) => ({ rubro, lineas }));
+}
+
+function cabeceraDeRubro(id) {
+  const rubro = RUBROS.find(item => item.id === id);
+  return `<h3 class="compra-rubro-titulo compra-lista-rubro">
+    <span class="compra-rubro-icono">${iconoDeCategoria(id, { tamano: 18 })}</span>
+    ${esc(rubro?.titulo || id)}
+  </h3>`;
+}
+
+/* ── Marcar sin repintar la pantalla ───────────────────────────────────────
+
+   Tachar es el gesto que más se repite en toda la app y el único que se hace de
+   pie, con una mano y el carrito en la otra. Pasaba por `commit()`, que repinta
+   `#app` entero: la lista volvía al principio y el foco se iba al cuerpo del
+   documento. `guardar()` —guardar sin repintar— existe en app.js desde hace
+   tiempo para exactamente esto, y no lo usaba nadie más que el asistente
+   inicial.
+
+   El renglón se vuelve a escribir con la MISMA función que lo pintó la primera
+   vez, así que no hay dos sitios que puedan acabar diciendo cosas distintas. Lo
+   único que se toca aparte es el contador de arriba y el cartel de «no queda
+   nada», que son los dos trozos de la pantalla que dependen del conjunto.
+
+   Si el renglón no estuviera en el DOM —otra vista, una pantalla a medio
+   pintar— se repinta entero y ya: peor sería guardar y no enseñarlo. */
+function repintarRenglon(ctx, lista, linea, foco = 'tachar') {
+  const fila = [...document.querySelectorAll('.compra-renglon')]
+    .find(nodo => nodo.dataset.renglon === linea.id);
+  if (!fila) { ctx.render(); return; }
+  const molde = document.createElement('div');
+  molde.innerHTML = renglon(ctx.state, lista, linea, '');
+  const nueva = molde.firstElementChild;
+  if (!nueva) { ctx.render(); return; }
+  fila.replaceWith(nueva);
+  const destino = (foco === 'parcial' ? nueva.querySelector('[name="comprada"]') : null)
+    || nueva.querySelector('[data-action="compra-tachar"]');
+  // Sin salto: el renglón está donde estaba y `focus()` a secas desplazaría la
+  // pantalla para «enseñarlo», que es justo lo que se vino a quitar.
+  destino?.focus({ preventScroll: true });
+  actualizarConteo(lista);
+}
+
+function actualizarConteo(lista) {
+  const resumen = resumenDeLista(lista);
+  const caja = document.querySelector('[data-conteo]');
+  if (caja) {
+    const pendientes = caja.querySelector('[data-pendientes]');
+    const comprados = caja.querySelector('[data-comprados]');
+    if (pendientes) pendientes.textContent = String(resumen.pendientes);
+    if (comprados) comprados.textContent = String(resumen.comprados);
+  }
+  const hecho = document.querySelector('[data-todo-hecho]');
+  if (hecho) hecho.hidden = resumen.pendientes > 0;
 }
 
 function renglon(state, lista, linea, editando) {
@@ -295,7 +386,9 @@ function renglon(state, lista, linea, editando) {
     </form>`;
   }
 
-  return `<div class="compra-renglon ${linea.comprado ? 'tachado' : ''} ${aMedias ? 'a-medias' : ''}">
+  // `data-renglon` es cómo vuelve a encontrarse esta fila para reescribirla sola
+  // cuando se tacha, sin repintar la pantalla. Ver `repintarRenglon`.
+  return `<div class="compra-renglon ${linea.comprado ? 'tachado' : ''} ${aMedias ? 'a-medias' : ''}" data-renglon="${esc(linea.id)}">
     <button type="button" class="compra-tachar" data-action="compra-tachar" data-id="${esc(linea.id)}"
       aria-pressed="${linea.comprado}" aria-label="${linea.comprado ? 'Quitar la marca de' : 'Marcar como comprado'} ${esc(nombre)}">
       <span class="compra-tachar-caja" aria-hidden="true">${linea.comprado ? icono('visto', { tamano: 15 }) : ''}</span>
@@ -366,8 +459,11 @@ const ACCIONES = {
   },
   'compra-cancelar-poner': (el, ctx) => { ctx.ui.compra.poniendo = ''; ctx.render(); },
 
+  // Se cierra la casilla de «¿cuánto?» que hubiera abierta: los dos formularios
+  // traen `autofocus`, y con los dos a la vez el cursor cae en el que esté
+  // primero en la pantalla, que no es el que se acaba de pedir.
   'compra-ocasional': (el, ctx) => {
-    Object.assign(ctx.ui.compra, { anadiendo: true, nombreNuevo: '', errorNuevo: '' });
+    Object.assign(ctx.ui.compra, { anadiendo: true, nombreNuevo: '', errorNuevo: '', poniendo: '', editando: '' });
     ctx.render();
   },
   'compra-cancelar-ocasional': (el, ctx) => {
@@ -375,13 +471,19 @@ const ACCIONES = {
     ctx.render();
   },
 
-  // Un toque. Es lo único que se hace con el carrito en la otra mano.
+  // Un toque. Es lo único que se hace con el carrito en la otra mano, así que
+  // no repinta: guarda, reescribe su propio renglón y lo dice en voz alta por
+  // la región viva. Sin el anuncio, quien usa TalkBack no tenía forma de saber
+  // si el toque entró —`commit('')` va sin mensaje, así que ni el aviso
+  // flotante salía—.
   'compra-tachar': (el, ctx) => {
     const lista = listaEnCurso(ctx.state);
     const linea = lista?.lineas.find(row => row.id === el.dataset.id);
     if (!linea) return;
     marcarComprado(ctx.state, lista.id, linea.id, !linea.comprado);
-    ctx.commit('');
+    ctx.guardar();
+    repintarRenglon(ctx, lista, linea);
+    ctx.anunciar(`${nombreDeLinea(ctx.state, linea)}, ${linea.comprado ? 'en el carrito' : 'sin marcar'}.`);
   },
   // Quitar era la única acción destructiva de la app que no preguntaba, no
   // avisaba y no se podía deshacer: se tocaba la equis y el renglón desaparecía
@@ -567,14 +669,22 @@ const FORMULARIOS = {
 
   // Lo que de verdad se trajo. Dos latas pedidas y una traída son una anotada y
   // una pendiente, no un renglón hecho ni un renglón en blanco.
+  //
+  // Igual que tachar: esto también se hace de pie y también repintaba la
+  // pantalla entera, así que mandaba la lista al principio justo después de
+  // escribir un número. Se reescribe solo su renglón.
   'compra-parcial': (form, data, ctx) => {
     const lista = listaEnCurso(ctx.state);
     if (!lista) return;
     const linea = anotarComprado(ctx.state, lista.id, form.dataset.id, data.get('comprada'));
     const falta = pendienteDe(linea);
-    ctx.commit(linea.comprado
-      ? ''
-      : `Anotado. ${falta ? `Faltan ${cuanto(falta, linea.unidad)}` : 'Queda pendiente'}.`);
+    const dicho = linea.comprado
+      ? `${nombreDeLinea(ctx.state, linea)}, completo.`
+      : `Anotado. ${falta ? `Faltan ${cuanto(falta, linea.unidad)}` : 'Queda pendiente'}.`;
+    ctx.guardar();
+    repintarRenglon(ctx, lista, linea, 'parcial');
+    ctx.anunciar(dicho);
+    if (!linea.comprado) ctx.toast(dicho);
   }
 };
 
