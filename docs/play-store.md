@@ -431,7 +431,7 @@ Después, copia `android/keystore.properties.example` a `android/keystore.proper
 
 > **Google no deja cambiar esa clave una vez publicada la primera versión.** Si pierdes el `.jks` o su contraseña, no puedes actualizar tu propia app nunca más: hay que publicarla de cero con otro identificador, y quien ya la tuviera no recibe la actualización. Guarda una copia en un sitio que sobreviva a que se te dañe la computadora. El `.jks` y el `keystore.properties` están en `.gitignore` a propósito.
 
-**3. `versionCode`.** Ahora mismo está en `5` en `android/app/build.gradle`, con `versionName "3.0"`. **Tiene que crecer con cada publicación**: Play rechaza un número repetido, y el error aparece al subir, no al compilar. La cuenta hasta aquí: 1 → 1.0, 2 → 2.0, 3 → 2.1, 4 → 2.2, 5 → 3.0.
+**3. `versionCode`.** Ahora mismo está en `9` en `android/app/build.gradle`, con `versionName "3.4"`. **Tiene que crecer con cada publicación**: Play rechaza un número repetido, y el error aparece al subir, no al compilar. La cuenta hasta aquí: 1 → 1.0, 2 → 2.0, 3 → 2.1, 4 → 2.2, 5 → 3.0, 6 → 3.1, 7 → 3.2, 8 → 3.3, 9 → 3.4.
 
 **4. El AAB.** Play no acepta APK desde 2021.
 
@@ -464,7 +464,13 @@ Instala ese APK en un teléfono y recorre la app entera, sobre todo el inicio de
 - **`targetSdk 36`, `minSdk 24`** — al día con lo que Play exige.
 - **Respaldo automático desactivado** — `allowBackup="false"`, `fullBackupContent="false"` y `dataExtractionRules`. Es lo que impide que Android suba la despensa a la cuenta de Google del dueño del teléfono sin que nadie lo pida.
 - **Tráfico sin cifrar bloqueado** — `networkSecurityConfig` con `cleartextTrafficPermitted="false"` y solo las autoridades del sistema.
-- **Permisos al mínimo** — uno, `INTERNET`, con una prueba que falla si entra un segundo.
+- **Permisos al mínimo** — uno, `INTERNET`. La prueba que lo vigila
+  (`tests/seguridad.test.js`) es una lista de prohibidos —cámara, micrófono,
+  ubicación, contactos, almacenamiento—, no una lista blanca de uno: un permiso
+  nuevo que no esté en esa lista entra sin que salte nada. Lo que sí se rompería
+  al añadir uno son los textos legales, que prometen «un permiso en total» en
+  cuatro sitios (`src/legal.js`, `legal/privacidad.html`, `legal/index.html` y
+  este documento) y que `tests/legal.test.js` compara con el código.
 - **Ícono de 512×512** — `src/icon-512.png`.
 
 ---

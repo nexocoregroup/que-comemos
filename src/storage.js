@@ -120,6 +120,10 @@ export function clearAll(storage = globalThis.localStorage) {
     // volvería a abrir la casa de una cuenta que alguien acaba de pedir que
     // desaparezca de este teléfono.
     'que-comemos-cajon-caducado',
+    // Cuándo se aceptaron el aviso de privacidad y las condiciones, y qué
+    // versión estaba delante. Quien pide borrar todo lo suyo también está
+    // pidiendo que se olvide eso: la app vuelve a enseñarle los documentos.
+    'que-comemos-acepto-v1',
     // Y los cajones de cada cuenta que haya entrado en este teléfono.
     ...cajonesDeCuentas(storage)
   ];

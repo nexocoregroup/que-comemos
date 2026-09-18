@@ -15,6 +15,7 @@ import {
 } from './model.js';
 import { clearAll, hasSavedState, loadStateDetailed, saveState } from './storage.js';
 import { createDemoState } from './demo.js';
+import { LEGAL } from './legal.js';
 import { BRAND_MARK } from './brand.js';
 import { icono } from './icons.js';
 import { avisoDeAlergias } from './avisos.js';
@@ -619,6 +620,71 @@ function ctxHogar() {
 const TITULOS = { hoy: 'Hoy en casa', semana: 'Plan semanal', compra: 'La compra', setup: 'Organizar mi casa', hogar: 'Mi hogar', legal: 'Privacidad y condiciones', cuenta: 'Mi cuenta', ...TITULOS_MAS };
 function pageTitle() { return TITULOS[ui.page] || '¿Qué comemos?'; }
 
+/* ── Antes de empezar ──────────────────────────────────────────────────────
+
+   Google NO exige esta pantalla, y conviene que quede escrito para que nadie la
+   defienda con un argumento que no es. El «prominent disclosure» que sí es
+   obligatorio se limita a tres cosas —servicios de accesibilidad, ubicación en
+   segundo plano y ver qué aplicaciones hay instaladas—, y esta app no usa
+   ninguna. Lo que Play sí exige es la política de privacidad enlazada desde la
+   ficha y la sección de seguridad de los datos, y las dos ya están.
+
+   Está aquí porque se decidió tenerla, y porque lo que dice es justamente lo
+   único que esta app promete: que lo que escribas se queda en tu teléfono. Es
+   mejor decirlo en la primera pantalla que esconderlo en un documento.
+
+   Se enseña una vez. Lo que se guarda es cuándo se aceptó y qué versión de los
+   documentos estaba delante ese día, que es para lo que sirve una aceptación.
+
+   Y los documentos se leen aquí mismo, sin salir y sin conexión: mandar a
+   alguien al navegador para poder entrar en una app que presume de funcionar
+   sin internet sería contradecirse en la primera pantalla. */
+
+const CLAVE_ACEPTO = 'que-comemos-acepto-v1';
+let acepto = (() => {
+  try { return JSON.parse(localStorage.getItem(CLAVE_ACEPTO) || 'null'); }
+  catch { return null; }
+})();
+// Qué documento se está leyendo dentro de la pantalla de aceptar. Vacío es la
+// pantalla de aceptar a secas.
+let leyendoLegal = '';
+
+const tocaAceptar = () => !acepto;
+
+const DOCUMENTOS_DE_ENTRADA = [['privacidad', 'Aviso de privacidad'], ['terminos', 'Condiciones de uso']];
+
+function renderAceptar() {
+  const doc = LEGAL[leyendoLegal];
+  if (doc) {
+    return `<div class="shell"><main class="main"><div class="entrada">
+      ${button('‹ Volver', 'legal-cerrar', 'btn-quiet btn-small')}
+      <article class="card documento">
+        <h2>${esc(doc.titulo)}</h2>
+        <p class="small muted">Última actualización: ${esc(niceDate(LEGAL.actualizado, { day: 'numeric', month: 'long', year: 'numeric' }))}</p>
+        ${doc.secciones.map(seccion => `<h3>${esc(seccion.titulo)}</h3>${seccion.parrafos.map(parrafo => `<p>${esc(parrafo)}</p>`).join('')}`).join('')}
+      </article>
+      <div class="modal-actions entrada-acciones">${button('Aceptar y entrar', 'legal-aceptar', 'btn-primary btn-grande')}</div>
+    </div></main></div>`;
+  }
+
+  return `<div class="shell"><main class="main"><div class="entrada">
+    <div class="entrada-marca">${BRAND_MARK}</div>
+    <h2>Antes de empezar</h2>
+    <p class="entrada-promesa">Esta app la hace NexoCore y funciona con una idea sencilla: <strong>lo que escribas se queda en tu teléfono</strong>.</p>
+    <ul class="entrada-puntos">
+      <li>Quiénes comen en tu casa, lo que compras de costumbre y lo que se cocina cada día se guardan aquí dentro, y no salen solos a ninguna parte.</li>
+      <li>No hay anuncios, no hay rastreadores y nadie mide lo que haces aquí dentro.</li>
+      <li>Si algún día quieres tu casa en dos teléfonos, hay cuenta. Es opcional, y subir tus datos es una segunda decisión con su propio interruptor.</li>
+    </ul>
+    <div class="entrada-documentos">${DOCUMENTOS_DE_ENTRADA.map(([id, etiqueta]) =>
+      `<button type="button" class="entrada-documento" data-action="legal-leer" data-doc="${id}">
+        <span>${esc(etiqueta)}</span>${icono('derecha', { tamano: 16 })}
+      </button>`).join('')}</div>
+    <div class="modal-actions entrada-acciones">${button('Aceptar y entrar', 'legal-aceptar', 'btn-primary btn-grande')}</div>
+    <p class="tiny muted">Al entrar aceptas el aviso de privacidad y las condiciones de uso. Puedes volver a leerlos cuando quieras desde Ajustes.</p>
+  </div></main></div>`;
+}
+
 /* ── Bienvenida y recorrido ────────────────────────────────────────────── */
 
 function renderWelcome() {
@@ -929,6 +995,13 @@ function pintar() {
   // pantalla con una app que se pueda usar, porque usarla los pisa.
   if (loadError) {
     document.querySelector('#app').innerHTML = pantallaDeDatosIlegibles();
+    document.querySelector('#modal-root').innerHTML = '';
+    return;
+  }
+  // Y antes que cualquier pantalla de la app, la de aceptar: primero se dice
+  // qué hace esta app con lo que escribas, y después se pregunta nada.
+  if (tocaAceptar()) {
+    document.querySelector('#app').innerHTML = renderAceptar();
     document.querySelector('#modal-root').innerHTML = '';
     return;
   }
@@ -1767,6 +1840,18 @@ document.addEventListener('click', event => {
     // Empezar de cero lleva directo a organizar la casa: es lo único que hay
     // que hacer para que la app sirva, y de ahí sale todo lo demás.
     else if (action === 'welcome-empty') { state = createEmptyState(); ui.welcome = false; ui.tour = null; ui.modal = null; ui.setup = emptySetup(); ui.page = 'setup'; commit(''); }
+    // Los tres de la pantalla de entrada. Se guarda cuándo se aceptó y qué
+    // versión de los documentos estaba delante ese día: una aceptación sin eso
+    // no dice nada, porque los textos se corrigen.
+    else if (action === 'legal-leer') { leyendoLegal = el.dataset.doc || ''; render(); }
+    else if (action === 'legal-cerrar') { leyendoLegal = ''; render(); }
+    else if (action === 'legal-aceptar') {
+      acepto = { cuando: new Date().toISOString(), version: LEGAL.actualizado };
+      try { localStorage.setItem(CLAVE_ACEPTO, JSON.stringify(acepto)); }
+      catch { /* Sin almacenamiento se vuelve a preguntar al abrir. No es grave. */ }
+      leyendoLegal = '';
+      render();
+    }
     else if (action === 'open-tour') { ui.modal = null; goTour(0); }
     else if (action === 'tour-prev') goTour(Math.max(0, ui.tour - 1));
     else if (action === 'tour-next') { if (ui.tour + 1 < TOUR_STEPS.length) goTour(ui.tour + 1); else { ui.tour = null; render(); toast('Listo. Puedes volver a verlo desde Ajustes.'); } }
