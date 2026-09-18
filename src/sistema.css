@@ -492,3 +492,21 @@ body, .shell { min-height: 100vh; min-height: 100dvh; }
    sumaría 16 px a los 18 del hueco y solo en dos de las tres tarjetas—. */
 .main > .card + .card,
 .main > .hero + * { margin-top: var(--aire-4); }
+
+/* ── 13. Los dos lados de «¿quién come de esto?» ──────────────────────────
+   Son dos `<fieldset>` porque hace falta `disabled` de golpe sobre el lado que
+   no está a la vista: los dos usan el mismo `name`, y un campo escondido con
+   `display: none` se envía igual que uno visible. Deshabilitado no.
+
+   El navegador le pone al fieldset borde, margen y un ancho mínimo propio que
+   rompe la cuadrícula; aquí se le quitan los tres y se le devuelve la separación
+   que `.field` daba antes de que hubiera dos lados. */
+.quien-come { gap: 0; }
+.quien-come > fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  display: grid;
+  gap: var(--aire-2);
+}

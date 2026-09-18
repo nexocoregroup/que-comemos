@@ -775,20 +775,36 @@ function bloqueDeQuienComeAbierto(ui) {
   return Boolean(ui.modal?.soloAlgunos);
 }
 
+/* Los dos lados se pintan siempre, y se alterna cuál está vivo.
+   ────────────────────────────────────────────────────────────────────────────
+   Antes se pintaba solo uno y cambiar de lado pasaba por `render()`, que
+   reconstruye la ventana entera desde el estado. Quien había escrito el nombre
+   de la preparación y la nota, y entonces se preguntaba si era para todos, las
+   perdía las dos: la ventana volvía en blanco y encima en otra pestaña. Es el
+   único sitio de la app donde repintar podía tirar algo escrito —`add-item` y
+   `remove-item`, que son sus vecinos, ya tocaban el DOM a mano—.
+
+   `<fieldset disabled>` y no solo `hidden`: los dos lados usan el mismo `name`,
+   y un campo escondido con `display:none` se envía igual. Deshabilitado no. Es
+   la misma red que `checkPeople` ya usa para quien está marcado fuera.
+
+   `ui.modal.soloAlgunos` se sigue actualizando para que un repintado posterior
+   —añadir un alimento, por ejemplo— devuelva la ventana por el lado correcto. */
 function bloqueDeQuienCome(name, marcados, date, slot, { abierto } = {}) {
   if (!state.people.length) return '';
   const fuera = personasActivas(state).filter(person => isAbsent(state, date, slot, person.id));
-  if (!abierto) {
-    return `<div class="field quien-come">
+  const apagado = vivo => (vivo ? '' : 'hidden disabled');
+  return `<div class="field quien-come" data-quien-come>
+    <fieldset data-quien="todos" ${apagado(!abierto)}>
       <p class="small muted">Esta comida es para toda la casa.${fuera.length ? ` Hoy está marcado fuera: ${fuera.map(person => esc(person.name)).join(', ')}.` : ''}</p>
       ${marcados.map(id => `<input type="hidden" name="${esc(name)}" value="${esc(id)}">`).join('')}
       <button type="button" class="enlace" data-action="solo-algunos">¿Esta preparación es solamente para algunas personas?</button>
-    </div>`;
-  }
-  return `<div class="field quien-come">
-    <span>¿Quiénes comen de esta preparación?</span>
-    ${checkPeople(name, marcados, date, slot)}
-    <button type="button" class="enlace" data-action="solo-algunos">Volver a dejarla para toda la casa</button>
+    </fieldset>
+    <fieldset data-quien="algunos" ${apagado(abierto)}>
+      <span>¿Quiénes comen de esta preparación?</span>
+      ${checkPeople(name, marcados, date, slot)}
+      <button type="button" class="enlace" data-action="solo-algunos">Volver a dejarla para toda la casa</button>
+    </fieldset>
   </div>`;
 }
 
@@ -1240,7 +1256,20 @@ document.addEventListener('click', event => {
       ui.modal = null; ui.drawerOpen = false;
       commit('');
     }
-    else if (action === 'solo-algunos') { if (ui.modal) ui.modal.soloAlgunos = !ui.modal.soloAlgunos; render(); }
+    // Sin repintar: ver `bloqueDeQuienCome`. Lo escrito en la ventana se queda.
+    else if (action === 'solo-algunos') {
+      const caja = el.closest('[data-quien-come]');
+      if (!caja) return;
+      const abrir = el.closest('[data-quien]')?.dataset.quien === 'todos';
+      for (const lado of caja.querySelectorAll('[data-quien]')) {
+        const vivo = (lado.dataset.quien === 'algunos') === abrir;
+        lado.hidden = !vivo;
+        lado.disabled = !vivo;
+      }
+      if (ui.modal) ui.modal.soloAlgunos = abrir;
+      const dentro = caja.querySelector('[data-quien]:not([hidden])');
+      (dentro?.querySelector('input:not([type="hidden"]):not([disabled])') || dentro?.querySelector('button'))?.focus();
+    }
     else if (action === 'open-quick') openModal('quick');
     else if (action === 'comida-modo') {
       const form = el.closest('form');
