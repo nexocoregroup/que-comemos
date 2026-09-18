@@ -597,11 +597,24 @@ function detalleDelCierre(state, cierre) {
 
 /* ── Respaldo ──────────────────────────────────────────────────────────── */
 
+/* Esta pantalla decía, en su primera línea, «Tus datos viven solo en este
+   teléfono. No hay cuenta, no hay servidor». Con la sincronización encendida es
+   falso, y falso en la dirección peligrosa: aquí es donde alguien decide si
+   necesita bajarse un archivo, y a quien tiene la cuenta al día se le metía un
+   susto que no toca. También contradecía de frente lo que el aviso de
+   privacidad se toma el trabajo de explicar —que sí, que hay una base de datos
+   y que el acceso técnico existe—.
+
+   Encendida, la copia sigue haciendo falta y por otro motivo, que es el que hay
+   que decir: la cuenta te salva si cambias de teléfono; la copia te salva si
+   algo sale mal en los dos sitios. */
 function renderRespaldo(ctx) {
-  const { state } = ctx;
+  const { state, sincronizando } = ctx;
   return `${volver('Respaldo')}
-    <p class="pantalla-intro">Tus datos viven solo en este teléfono. No hay cuenta, no hay servidor, y ni siquiera la copia automática de Android se los lleva: eso está apagado a propósito. La otra cara es que <strong>si pierdes el teléfono sin una copia, se pierde todo</strong>.</p>
-    ${avisoDeCopia(state)}
+    <p class="pantalla-intro">${sincronizando
+      ? 'Tus datos están en este teléfono y en tu cuenta. Aun así conviene guardar una copia de vez en cuando: <strong>la cuenta te salva si cambias de teléfono, la copia te salva si algo sale mal en los dos sitios</strong>.'
+      : 'Tus datos viven solo en este teléfono. No hay cuenta encendida, no hay servidor, y ni siquiera la copia automática de Android se los lleva: eso está apagado a propósito. La otra cara es que <strong>si pierdes el teléfono sin una copia, se pierde todo</strong>.'}</p>
+    ${avisoDeCopia(state, sincronizando)}
     <div class="card">
       <h3>Guardar una copia</h3>
       <p class="muted small">Descarga un archivo con todo: alimentos, canasta, preparaciones, compras y revisiones. Guárdalo donde guardes tus cosas importantes —el correo, un pendrive, otra nube—, no en este mismo teléfono.</p>
@@ -634,14 +647,21 @@ export function estadoDeLaCopia(state) {
   return { hayDatos: true, ultima, dias, urgente: dias >= 30 };
 }
 
-function avisoDeCopia(state) {
+// El tono depende de si hay red de seguridad. Con la cuenta encendida, «no
+// están en ningún otro lado» es falso: están en la cuenta. Sigue mereciendo la
+// pena guardar una copia, pero no con icono de alarma.
+function avisoDeCopia(state, sincronizando = false) {
   const copia = estadoDeLaCopia(state);
   if (!copia.hayDatos) return '';
   if (!copia.ultima) {
-    return `<div class="notice warn">${icono('aviso')}<div><strong>Todavía no has guardado ninguna copia.</strong>Ahora mismo, todo lo que has escrito existe en un solo sitio: este teléfono.</div></div>`;
+    return sincronizando
+      ? `<div class="notice"><span>✓</span><div><strong>Todavía no has guardado ninguna copia.</strong>Tu casa está en este teléfono y en tu cuenta. Una copia en un archivo es la tercera pata, por si algo sale mal en las otras dos.</div></div>`
+      : `<div class="notice warn">${icono('aviso')}<div><strong>Todavía no has guardado ninguna copia.</strong>Ahora mismo, todo lo que has escrito existe en un solo sitio: este teléfono.</div></div>`;
   }
   if (copia.urgente) {
-    return `<div class="notice warn">${icono('aviso')}<div><strong>La última copia es de hace ${copia.dias} días.</strong>Desde entonces has anotado compras y revisiones que no están en ningún otro lado.</div></div>`;
+    return sincronizando
+      ? `<div class="notice"><span>✓</span><div><strong>La última copia es de hace ${copia.dias} días.</strong>Lo de entonces para acá está en este teléfono y en tu cuenta, pero no en ningún archivo tuyo.</div></div>`
+      : `<div class="notice warn">${icono('aviso')}<div><strong>La última copia es de hace ${copia.dias} días.</strong>Desde entonces has anotado compras y revisiones que no están en ningún otro lado.</div></div>`;
   }
   return `<div class="notice"><span>✓</span><div><strong>Última copia: ${esc(niceDate(copia.ultima, { day: 'numeric', month: 'long', year: 'numeric' }))}.</strong>${copia.dias === 0 ? 'Hoy mismo.' : `Hace ${copia.dias} ${copia.dias === 1 ? 'día' : 'días'}.`}</div></div>`;
 }
@@ -674,7 +694,7 @@ function avisoDeCopia(state) {
    El aviso de la copia se queda arriba y se queda como aviso: no es una fila
    del índice, es algo que hay que hacer hoy. */
 function renderAjustes(ctx) {
-  const { state } = ctx;
+  const { state, sincronizando } = ctx;
   const copia = estadoDeLaCopia(state);
   const enCasa = personasActivas(state).length;
   const deBaja = state.people.length - enCasa;
@@ -693,7 +713,9 @@ function renderAjustes(ctx) {
           : 'Todavía no has guardado ninguna copia'
         : 'Todavía no hay nada que guardar'],
     ['navigate', 'data-page="cuenta"', 'persona', 'Mi cuenta',
-      'Entrar, sincronizar con otro teléfono o cerrar la sesión'],
+      sincronizando
+        ? 'Tu casa se está guardando también en tu cuenta'
+        : 'Entrar, sincronizar con otro teléfono o cerrar la sesión'],
     ['navigate', 'data-page="organizacion"', 'calendario', 'Organización de compra',
       quincenal ? 'Compra quincenal — dos veces al mes' : 'Compra mensual — una vez al mes'],
     ['navigate', 'data-page="avanzado"', 'chip', 'Funciones avanzadas',
@@ -708,7 +730,7 @@ function renderAjustes(ctx) {
       'Lo que ha fallado en este aparato desde que abriste la app']
   ];
 
-  return `    ${copia.urgente ? `<div class="notice warn">${icono('aviso')}<div><strong>${copia.ultima ? `Hace ${copia.dias} días que no guardas una copia.` : 'Todavía no has guardado ninguna copia.'}</strong>Todo lo que has escrito existe solo en este teléfono. <button type="button" class="enlace" data-action="navigate" data-page="respaldo">Guardar una ahora</button></div></div>` : ''}
+  return `    ${copia.urgente && !sincronizando ? `<div class="notice warn">${icono('aviso')}<div><strong>${copia.ultima ? `Hace ${copia.dias} días que no guardas una copia.` : 'Todavía no has guardado ninguna copia.'}</strong>Todo lo que has escrito existe solo en este teléfono. <button type="button" class="enlace" data-action="navigate" data-page="respaldo">Guardar una ahora</button></div></div>` : ''}
     <div class="card ajustes-indice">${filas.map(([accion, extra, dibujo, titulo, detalle]) => `
       <button type="button" class="ajustes-fila" data-action="${accion}" ${extra}>
         <span class="ajustes-icono">${icono(dibujo, { tamano: 20 })}</span>

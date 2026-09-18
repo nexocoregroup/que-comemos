@@ -101,3 +101,21 @@
 .cuenta-peligro h3 { color: #8c1d18; }
 .cuenta-borrar-btn { color: #8c1d18; border: 1px solid #e6c9c6; }
 .cuenta-borrar-btn:hover { background: #fdf3f2; }
+
+/* ── Las dos versiones, una al lado de la otra ─────────────────────────────
+
+   Antes aquí había dos botones seguidos y una línea con la fecha del
+   servidor: de la versión de este teléfono no se decía absolutamente nada. No
+   se puede elegir entre dos cosas que se van a reemplazar entera una por la
+   otra sabiendo solo de una de ellas, y encima solo su fecha.
+
+   Cada lado es una tarjeta con lo que tiene dentro y su propio botón, así que
+   el botón está pegado a lo que describe y no hay forma de tocar el de la
+   otra. En el teléfono se apilan, y el orden es el que importa: primero lo de
+   este teléfono, que es lo que la persona estaba usando. */
+.conflicto-lados { display: grid; gap: 14px; margin-top: 14px; }
+@media (min-width: 701px) { .conflicto-lados { grid-template-columns: 1fr 1fr; } }
+.conflicto-lado { display: grid; gap: 10px; align-content: start; }
+.conflicto-lado h3 { margin: 0; }
+.conflicto-lado p { margin: 0; }
+.conflicto-lado .btn { justify-self: start; }

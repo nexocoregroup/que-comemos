@@ -47,8 +47,34 @@ export function loadState(storage = globalThis.localStorage, clave = STORAGE_KEY
   return loadStateDetailed(storage, clave).state;
 }
 
+/* Guardar puede no ocurrir, y hasta ahora no ocurría en silencio.
+
+   Esta línea era `storage?.setItem(clave, JSON.stringify(state));` y tenía dos
+   formas de no escribir nada, ninguna de las cuales se notaba:
+
+     · El almacenamiento lleno. `setItem` lanza, la excepción sube hasta el
+       reparto de acciones y sale un aviso flotante de 4,2 segundos que dice «lo
+       dejé como estaba» — y es mentira: el cambio ya estaba en pantalla; lo
+       único que no pasó fue guardarlo.
+     · `localStorage` inaccesible o apagado. El interrogante se traga la llamada
+       entera: ni excepción, ni aviso, ni una línea en el cuaderno de fallos,
+       mientras la pantalla enseña cada casilla marcada.
+
+   Es el escenario del colmado, con una mano ocupada: se sigue marcando media
+   hora encima de la nada y al volver a abrir la app no hay nada.
+
+   Así que devuelve en qué quedó, y distingue los dos motivos, porque «no cabe»
+   y «no hay dónde escribir» se arreglan de maneras distintas aunque los dos
+   acaben en lo mismo. No lanza: quedarse sin pantalla porque el disco está
+   lleno sería cambiar un fallo callado por uno peor. */
 export function saveState(state, storage = globalThis.localStorage, clave = STORAGE_KEY) {
-  storage?.setItem(clave, JSON.stringify(state));
+  if (!storage) return { ok: false, motivo: 'sin-almacen', detalle: '' };
+  try {
+    storage.setItem(clave, JSON.stringify(state));
+    return { ok: true, motivo: '', detalle: '' };
+  } catch (error) {
+    return { ok: false, motivo: 'no-cabe', detalle: String(error?.message || '') };
+  }
 }
 
 // Borrar de verdad, que no es lo mismo que empezar de cero.
@@ -90,6 +116,10 @@ export function clearAll(storage = globalThis.localStorage) {
     // Que alguien eligió seguir sin cuenta. Es una preferencia de este teléfono,
     // y borrar los datos incluye olvidar lo que se eligió.
     'que-comemos-sin-cuenta',
+    // Qué cajón estaba abierto cuando caducó la sesión. Sin esta clave, la app
+    // volvería a abrir la casa de una cuenta que alguien acaba de pedir que
+    // desaparezca de este teléfono.
+    'que-comemos-cajon-caducado',
     // Y los cajones de cada cuenta que haya entrado en este teléfono.
     ...cajonesDeCuentas(storage)
   ];

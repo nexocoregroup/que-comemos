@@ -14,6 +14,7 @@ import {
   detalleDeOrigen, etiquetaDeOrigen, origenDe, setStatusPlan, sliceStyle, todayISO, updatePlan, updateProduct, upsertRecipe
 } from './model.js';
 import { clearAll, hasSavedState, loadStateDetailed, saveState } from './storage.js';
+import { createDemoState } from './demo.js';
 import { BRAND_MARK } from './brand.js';
 import { icono } from './icons.js';
 import { avisoDeAlergias } from './avisos.js';
@@ -30,7 +31,7 @@ import { CUENTA_ACTIONS, CUENTA_FORMS, emptyCuenta, renderCuenta, volvimosDeGoog
 import { CAJON_DE_ESTE_TELEFONO, arrancarSesion, cajonDe, fundirSesion, guardarSesion, olvidarSesion } from './sesion.js';
 import { guardarCopiaAntesDeBajar, mereceLaPenaVincular, sincronizar } from './sincronizar.js';
 import { hayNube } from './config-nube.js';
-import { button, cap, empty, esc, measure, modal, monthName, niceDate, notice, options, unitText } from './ui-kit.js';
+import { button, cap, conteo, empty, esc, measure, modal, monthName, niceDate, notice, options, unitText } from './ui-kit.js';
 
 /* ── De qué cajón salen los datos ──────────────────────────────────────────
 
@@ -125,15 +126,40 @@ const ui = {
 
 const CLAVE_SIN_CUENTA = 'que-comemos-sin-cuenta';
 const CLAVE_PKCE = 'que-comemos-google-pkce';
+/* Qué cajón estaba abierto cuando caducó la sesión.
+
+   Es la diferencia entre caducar y cerrar sesión, y por eso son dos cosas
+   distintas y no una. Quien cierra sesión está diciendo «este teléfono deja de
+   ser mío por ahora»: se vuelve al cajón del teléfono y esta clave se borra.
+   Quien ve caducar su sesión no ha dicho nada —lo dijo el servidor— y su casa
+   tiene que seguir donde estaba.
+
+   Que el cajón se pueda abrir sin sesión no abre ninguna puerta nueva: esos
+   datos ya están en este teléfono, sin cifrar, y la app los abre cada vez que
+   la sesión es válida. Lo que separa una cuenta de otra del lado del servidor
+   son las políticas por fila; del lado del teléfono, que nadie vuelva aquí
+   después de cerrar sesión a propósito. */
+const CLAVE_CAJON_CADUCADO = 'que-comemos-cajon-caducado';
 
 let sesion = null;
 let sinCuenta = (() => { try { return localStorage.getItem(CLAVE_SIN_CUENTA) === '1'; } catch { return false; } })();
 let avisoDeSesion = '';
+let sesionCaducada = false;
 
 // ¿Hay que enseñar la portada de la cuenta? Solo si las cuentas están
 // configuradas en esta compilación; si no lo están, la app se comporta
 // exactamente como antes y no menciona nada que no pueda cumplir.
-const tocaPedirCuenta = () => hayNube() && !sesion && !sinCuenta;
+//
+// Y nunca por una sesión caducada: ahí la casa está abierta detrás, y cambiarla
+// por un formulario de registro es el peor momento que puede vivir alguien con
+// esta app. Se pide desde Ajustes → Mi cuenta, cuando la persona quiera.
+const tocaPedirCuenta = () => hayNube() && !sesion && !sinCuenta && !sesionCaducada;
+
+const recordarCajonCaducado = valor => {
+  try { valor ? localStorage.setItem(CLAVE_CAJON_CADUCADO, valor) : localStorage.removeItem(CLAVE_CAJON_CADUCADO); }
+  catch { /* Sin almacenamiento, la sesión caducada dura lo que dure la app abierta. */ }
+};
+const cajonCaducado = () => { try { return localStorage.getItem(CLAVE_CAJON_CADUCADO) || ''; } catch { return ''; } };
 
 function ponerSesion(nueva) {
   sesion = nueva;
@@ -174,15 +200,26 @@ async function sincronizarAhora(opciones = {}) {
     // Sin red no es un error que enseñar en rojo: es el estado normal de un
     // teléfono que se movió. Se deja la marca puesta y ya se subirá.
     cuenta.sincronia = { resultado: salida.sinRed ? 'sin-red' : 'error', detalle: salida.sinRed ? '' : (salida.error || '') };
-    if (salida.caducada) { avisoDeSesion = 'Tu sesión caducó. Vuelve a entrar cuando puedas; tus datos siguen aquí.'; alSalirDeLaCuenta({ silencioso: true }); }
+    if (!salida.sinRed) apuntarComoVaLaSincronia(false);
+    if (salida.caducada) alCaducarLaSesion();
     return salida;
   }
 
+  /* Un conflicto ya no secuestra la pantalla.
+
+     Esto hacía `ui.page = 'cuenta'` y repintaba, y eso ocurre dentro del
+     temporizador de subida o al volver a la app: cuatro segundos después de
+     guardar algo, estando en el pasillo del colmado, la pantalla se cambiaba
+     sola por «Hay dos versiones de tu casa» y se perdía el sitio. No había un
+     «ahora no»: los dos botones reemplazaban una versión entera por la otra.
+
+     La decisión sigue haciendo falta, pero no ahora mismo y no a la fuerza. Se
+     queda una franja en el armazón, que se pinta desde `ui.cuenta.conflicto` y
+     se va sola cuando se resuelve. */
   if (salida.resultado === 'conflicto') {
     cuenta.conflicto = { estadoServidor: salida.estadoServidor, revisionServidor: salida.revisionServidor, cuando: salida.cuando };
     cuenta.vista = 'conflicto';
     cuenta.sincronia = { resultado: 'error', detalle: 'Hay dos versiones.' };
-    ui.page = 'cuenta';
     render();
     return salida;
   }
@@ -192,7 +229,39 @@ async function sincronizarAhora(opciones = {}) {
   }
   if (salida.resultado === 'subido' || salida.resultado === 'al-dia') hayCambiosSinSubir = false;
   cuenta.sincronia = { resultado: salida.resultado, detalle: '' };
+  apuntarComoVaLaSincronia(true);
   return salida;
+}
+
+/* ── Que una sincronización rota no se quede callada ───────────────────────
+
+   El resultado vivía en `ui.cuenta`, o sea en memoria, y se pintaba en un solo
+   sitio: una línea gris y diminuta dentro de Ajustes → Mi cuenta. Cerrar y
+   volver a abrir la app lo borraba. Así que una casa podía llevar ocho días sin
+   subir nada y no decirlo en ninguna parte, mientras la cuenta se ofrecía con
+   la promesa de que tus datos te encuentran en otro aparato.
+
+   Ahora la fecha del primer fallo se guarda con los datos —`state.settings` ya
+   lleva ahí `lastBackupAt`, y no hace falta subir `SCHEMA_VERSION` para añadir
+   una clave—, así que sobrevive al reinicio, y a los dos días sale del rincón.
+
+   «Sin red» no cuenta como fallo: es el estado normal de un teléfono que se
+   movió, y el resto del código ya lo trata así. */
+const DIAS_PARA_AVISAR_DE_LA_SINCRONIA = 2;
+
+function apuntarComoVaLaSincronia(fueBien) {
+  const antes = state.settings?.sincronia || null;
+  const ahora = fueBien ? null : { desde: antes?.desde || today(), ultimo: today() };
+  if (JSON.stringify(antes) === JSON.stringify(ahora)) return;
+  state.settings = { ...(state.settings || {}), sincronia: ahora };
+  guardarSiSePuede();
+}
+
+function diasSinSubir() {
+  const desde = state.settings?.sincronia?.desde;
+  if (!desde) return 0;
+  const dia = 86400000;
+  return Math.max(0, Math.round((new Date(`${today()}T12:00:00`) - new Date(`${desde}T12:00:00`)) / dia));
 }
 
 // Traerse la versión del servidor encima de la de este teléfono, guardando antes
@@ -232,6 +301,8 @@ async function alEntrar(sesionNueva, { nueva = false } = {}) {
   const guardada = guardarSesion(sesionNueva);
   ponerSesion(guardada);
   avisoDeSesion = '';
+  sesionCaducada = false;
+  recordarCajonCaducado('');
   // Cada cuenta, su cajón. Aquí es donde se garantiza que quien entra no ve la
   // despensa de quien entró antes en este mismo teléfono.
   abrirCajon(cajonDe(guardada.usuario.id));
@@ -253,11 +324,46 @@ async function alEntrar(sesionNueva, { nueva = false } = {}) {
   sincronizarAhora({ hayCambiosLocales: false }).catch(error => anotar('sincronizar-al-entrar', error));
 }
 
+/* ── Una sesión que caduca no echa a nadie de su casa ──────────────────────
+
+   Lo que pasaba: el servidor rechaza renovar el token —al volver después de
+   semanas, o porque la misma cuenta se usó en dos teléfonos y uno invalidó el
+   refresco del otro— y la app llamaba a `alSalirDeLaCuenta`, que vuelve al
+   cajón DE ESTE TELÉFONO. Ese cajón está vacío para quien siempre usó la
+   cuenta, así que la pantalla se convertía de golpe en «Crear mi cuenta» y seis
+   meses de despensa, preparaciones y plan desaparecían de la vista. La frase
+   que explicaba que no se había perdido nada estaba escrita en el código y no
+   se pintaba jamás: vive en el armazón, y la portada de la cuenta no pinta
+   armazón.
+
+   Y sin internet —que es justo cuando más caduca esto— no había forma de volver
+   a entrar: la casa quedaba inaccesible en un teléfono que la tiene entera.
+
+   Ahora el cajón abierto se queda abierto y se sigue donde se estaba. Lo único
+   que se apaga es la sincronización, que es lo único que de verdad dejó de
+   funcionar. Volver a entrar lo pide la persona, desde Ajustes → Mi cuenta,
+   cuando tenga red. */
+function alCaducarLaSesion() {
+  olvidarSesion();
+  ponerSesion(null);
+  clearTimeout(relojDeSubida);
+  hayCambiosSinSubir = false;
+  sesionCaducada = true;
+  recordarCajonCaducado(cajon);
+  avisoDeSesion = 'Tu sesión caducó y la sincronización quedó apagada. Tus datos siguen enteros en este teléfono: vuelve a entrar cuando tengas internet y se pondrán al día solos.';
+  ui.cuenta = emptyCuenta();
+  render();
+}
+
 function alSalirDeLaCuenta({ silencioso = false } = {}) {
   olvidarSesion();
   ponerSesion(null);
   clearTimeout(relojDeSubida);
   hayCambiosSinSubir = false;
+  // Cerrar sesión sí es una decisión, y borra la marca de caducada: quien lo
+  // pide está diciendo que este teléfono deja de ser suyo por ahora.
+  sesionCaducada = false;
+  recordarCajonCaducado('');
   // Se vuelve al cajón de este teléfono. Los datos de la cuenta se quedan en el
   // suyo, intactos, esperando a que vuelva a entrar.
   abrirCajon(CAJON_DE_ESTE_TELEFONO);
@@ -276,6 +382,8 @@ function alBorrarLaCuenta() {
   // El cajón de esa cuenta se va con ella. El de este teléfono no se toca: es de
   // otra persona, o del mismo antes de registrarse, y nadie pidió borrarlo.
   if (id) { try { localStorage.removeItem(cajonDe(id)); } catch { /* ya no estaba */ } }
+  sesionCaducada = false;
+  recordarCajonCaducado('');
   sinCuenta = false;
   try { localStorage.removeItem(CLAVE_SIN_CUENTA); } catch { /* da igual */ }
   abrirCajon(CAJON_DE_ESTE_TELEFONO);
@@ -435,13 +543,39 @@ function toast(message, error = false) {
 // redibujo reemplaza los nodos, el navegador devuelve el desplazamiento a cero y
 // el foco se va al cuerpo del documento. Lo que se guarda es lo mismo que
 // guardaría `commit`; lo único que no pasa es el repintado.
+/* ── Cuando guardar no ocurre ──────────────────────────────────────────────
+
+   `saveState` ya no lanza ni se calla: dice en qué quedó. Lo que falta es que
+   alguien lo mire, y sobre todo que se vea. Un aviso flotante de 4,2 segundos
+   no sirve para esto: quien está marcando la compra en un pasillo no está
+   mirando la pantalla cuando aparece, y el fallo no es de un toque —es de
+   todos los que vengan detrás—. Así que es una franja, y no se va hasta que un
+   guardado funcione.
+
+   Y con `loadError` puesto no se guarda nada en absoluto: ver más abajo, en
+   `pantallaDeDatosIlegibles`. */
+let noSePudoGuardar = '';
+
+function guardarSiSePuede() {
+  if (loadError) return;
+  const salida = saveState(state, undefined, cajon);
+  const antes = noSePudoGuardar;
+  noSePudoGuardar = salida.ok ? '' : salida.motivo === 'sin-almacen'
+    ? 'Este teléfono no deja escribir nada: el almacenamiento de la aplicación está apagado o bloqueado.'
+    : 'No cabe más en el almacenamiento de este teléfono.';
+  // Un fallo nuevo tiene que pintarse ahora mismo. `guardar()` existe justo
+  // para no repintar, así que aquí es la única forma de que la franja aparezca
+  // sin esperar a que alguien cambie de pantalla.
+  if (noSePudoGuardar !== antes) render();
+}
+
 function guardar() {
-  saveState(state, undefined, cajon);
+  guardarSiSePuede();
   apuntarParaSubir();
 }
 
 function commit(message) {
-  saveState(state, undefined, cajon);
+  guardarSiSePuede();
   // Cada guardado marca que hay algo que subir. No se sube en el acto: quien
   // está anotando la compra toca diez veces seguidas, y diez viajes a la red
   // mientras alguien escribe es la forma más rápida de gastarle la batería y de
@@ -457,6 +591,12 @@ function commit(message) {
 function ctx() {
   return {
     state, ui, commit, guardar, toast, anunciar, render, closeModal, openModal,
+    // Si la casa se está guardando también en la cuenta. Lo necesitan las
+    // pantallas que hablan de dónde viven los datos: varias juraban «no hay
+    // cuenta, no hay servidor» con la sincronización encendida, que es la única
+    // afirmación categórica y falsa que había en toda la app, y estaba en la
+    // pantalla donde alguien decide si necesita bajarse un archivo.
+    sincronizando: Boolean(sesion?.sincronizando),
     startTour: () => goTour(0)
   };
 }
@@ -713,10 +853,55 @@ function pintarLoRoto(fila) {
   </div></main></div>`;
 }
 
+/* ── Los datos que están y no se pueden leer ───────────────────────────────
+
+   Este estado no quiere decir «tus datos se dañaron». Casi siempre quiere decir
+   «este teléfono tiene una versión vieja de la app y la casa viene de una
+   nueva»: es el rechazo deliberado que describe AGENTS.md, y la sincronización
+   lo fabrica sola —un teléfono de la casa se actualiza y sube la versión nueva,
+   el otro todavía no y se la baja—. Los datos siguen enteros en el cajón, byte
+   por byte, y se recuperan solos en cuanto se actualice la app.
+
+   Lo que había aquí era lo contrario de eso. Con `loadError` puesto, `state` es
+   un estado vacío creado para poder pintar algo, así que debajo de la franja
+   roja se pintaba el arranque de casa nueva con su botón grande, «Organizar mi
+   casa». Entrar ahí y salir llamaba a `commit()`, que guardaba el estado vacío
+   encima. El proyecto había construido la puerta por la que se entra y había
+   dejado sin construir la salida: las tres cosas que la pantalla ofrecía
+   —traer una copia, borrar los datos, y el botón grande de detrás— destruían
+   los bytes, cada una a su manera.
+
+   Ahora esta pantalla es lo único que se pinta, y mientras esté puesta no se
+   escribe nada en ese cajón (ver `guardarSiSePuede`). De las tres salidas, la
+   primera no toca nada, la segunda se los lleva a un archivo antes de que
+   alguien decida, y la tercera dice lo que hace. */
+function pantallaDeDatosIlegibles() {
+  return `<div class="shell"><main class="main"><div class="card ilegible">
+    <h2>Tus datos están aquí, pero esta versión de la app no sabe leerlos</h2>
+    <p><strong>No se ha perdido nada.</strong> Lo que escribiste sigue guardado en este teléfono, entero. Lo que pasa es que se guardó con una versión más nueva de la aplicación que esta.</p>
+    <p>Lo normal es que esto se arregle solo <strong>actualizando la aplicación</strong>. Si tienes dos teléfonos en la misma casa, es el que ya se actualizó el que escribió esto.</p>
+    <div class="inline">
+      ${button('Descargar lo que hay guardado', 'descargar-crudo', 'btn-primary')}
+    </div>
+    <p class="small muted">Esa descarga es una copia literal de lo guardado. Guárdala antes de tocar nada más: con ella, la app nueva puede traerlo todo de vuelta.</p>
+    <p class="small muted">Detalle técnico: ${esc(loadError)}</p>
+    <div class="modal-actions">
+      ${button('Empezar de cero y perder lo guardado', 'clear-demo', 'btn-danger btn-small')}
+    </div>
+  </div></main></div>`;
+}
+
 function pintar() {
   document.body.classList.toggle('menu-open', ui.drawerOpen);
   document.body.classList.toggle('tour-open', ui.tour !== null);
   document.body.classList.toggle('tour-fab', ui.tour !== null && TOUR_STEPS[ui.tour].highlight === 'fab');
+  // Antes que nada: unos datos que no se pueden leer no pueden compartir
+  // pantalla con una app que se pueda usar, porque usarla los pisa.
+  if (loadError) {
+    document.querySelector('#app').innerHTML = pantallaDeDatosIlegibles();
+    document.querySelector('#modal-root').innerHTML = '';
+    return;
+  }
   // La portada de la cuenta va antes que la bienvenida: es lo primero que ve
   // quien abre la app sin sesión, y desde ella se decide si se entra o se sigue
   // sin cuenta. Va fuera del armazón porque no es una página más de la app.
@@ -748,10 +933,13 @@ function pintar() {
     <main class="main">
       <div class="mobile-brand"><button type="button" class="menu-toggle" data-action="toggle-sidebar" aria-label="${ui.drawerOpen ? 'Ocultar menú' : 'Abrir menú'}" aria-controls="app-sidebar" aria-expanded="${ui.drawerOpen}">${icono('menu', { tamano: 22 })}</button><span class="brand-mark">${BRAND_MARK}</span><span>¿Qué comemos?</span>${engranaje('icon-btn engranaje-movil', '')}</div>
       <header class="topline"><div class="topline-heading"><button type="button" class="menu-toggle desktop-menu-toggle" data-action="toggle-sidebar" aria-label="${ui.sidebarCollapsed ? 'Abrir menú' : 'Ocultar menú'}" aria-controls="app-sidebar" aria-expanded="${!ui.sidebarCollapsed}">${icono('menu', { tamano: 22 })}</button><div><p class="eyebrow">${esc(eyebrow())}</p><h1>${esc(pageTitle())}</h1></div></div>${engranaje('icon-btn engranaje-plegado', '')}</header>
+      ${noSePudoGuardar ? notice('No pude guardar lo último en este teléfono', `${esc(noSePudoGuardar)} Lo que ves en pantalla <strong>todavía no está a salvo</strong>: si cierras la app, se pierde. ${button('Descargar una copia ahora', 'export', 'btn-primary btn-small')}`, 'error') : ''}
       ${avisoDeSesion ? notice('Sobre tu cuenta', `${esc(avisoDeSesion)} <button type="button" class="enlace" data-action="navigate" data-page="cuenta">Ir a mi cuenta</button>`, 'warn') : ''}
+      ${ui.cuenta?.conflicto ? notice('Hay dos versiones de tu casa', 'Se guardaron cambios en este teléfono y en tu cuenta desde la última vez. Decide cuál se queda cuando puedas; mientras tanto no se toca ninguna. <button type="button" class="enlace" data-action="navigate" data-page="cuenta">Ver las dos</button>', 'warn') : ''}
+      ${diasSinSubir() >= DIAS_PARA_AVISAR_DE_LA_SINCRONIA ? notice('Tu casa lleva días sin subir a tu cuenta', `Llevamos ${esc(conteo(diasSinSubir(), 'día', 'días'))} sin poder guardar en tu cuenta. Lo de este teléfono está entero; lo que hay en la cuenta es de antes. <button type="button" class="enlace" data-action="navigate" data-page="cuenta">Ir a mi cuenta</button>`, 'warn') : ''}
       ${migratedFrom ? notice('Tus datos se actualizaron al formato nuevo.', 'La canasta que tenías es ahora <strong>tus productos habituales</strong>, y lo que cambiaba en algún mes quedó guardado como cambio de ese mes. Nada se perdió, y lo anterior quedó a salvo por si acaso.') : ''}
       ${loadError ? notice('No se pudieron leer los datos guardados.', `${esc(loadError)} Trae una copia desde Ajustes → Respaldo, o borra los datos para empezar de nuevo.`, 'error') : ''}
-      ${state.demo ? `<div class="demo-banner">${icono('chispa')}<div><strong>Estás viendo un ejemplo</strong>Los datos son inventados para que veas cómo funciona; no son recomendaciones de alimentación.</div>${button('Borrar el ejemplo', 'clear-demo', 'btn-secondary btn-small')}</div>` : ''}
+      ${state.demo ? `<div class="demo-banner">${icono('chispa')}<div><strong>Estás viendo un ejemplo</strong>Los datos son inventados para que veas cómo funciona; no son recomendaciones de alimentación. Si ya escribiste cosas tuyas encima, dilo aquí y la franja se va sin borrar nada.<div class="inline demo-salidas">${button('Esto ya es mío', 'demo-adoptar', 'btn-secondary btn-small')}${button('Borrar todo y empezar de cero', 'clear-demo', 'btn-danger btn-small')}</div></div></div>` : ''}
       ${cuerpo}
     </main>
     ${ui.modal || ui.page === 'setup' || ui.page === 'hogar' ? '' : `<button type="button" class="fab" data-action="open-quick" aria-label="Anotar algo">${icono('mas', { tamano: 26 })}</button>`}
@@ -1526,7 +1714,23 @@ document.addEventListener('click', event => {
     }
     else if (action === 'rapida-comida') openModal('meal', { date: today(), slot: proximaComidaLibre() });
     else if (action === 'open-bulk') { ui.bulk = emptyBulk(el.dataset.destino || 'habitual'); openModal('bulk'); }
-    else if (action === 'welcome-demo') { ui.welcome = false; ui.page = TOUR_STEPS[0].page; ui.tour = 0; commit('Este es un ejemplo. Puedes borrarlo cuando quieras.'); }
+    // «Ver un ejemplo» ahora carga un ejemplo.
+    //
+    // Esta acción nunca construyó nada: encendía el recorrido y soltaba un aviso
+    // afirmando que había un ejemplo delante. El ejemplo nacía en un solo sitio
+    // —`loadStateDetailed`, cuando no hay absolutamente nada guardado—, así que
+    // funcionaba en el primerísimo arranque de la app y en ningún otro caso. Los
+    // tres caminos que llegan aquí con el estado ya vacío son reales: una cuenta
+    // recién creada, volver de «Borrar todos mis datos», y salir del asistente
+    // sin escribir nada. En los tres se prometía un ejemplo y salían cinco
+    // pantallas en blanco, y el recorrido hablaba de «lo que se come cada día»
+    // delante de un «Vamos a organizar tu casa».
+    else if (action === 'welcome-demo') {
+      if (!state.demo) state = createDemoState();
+      ui.welcome = false; ui.page = TOUR_STEPS[0].page; ui.tour = 0;
+      ui.semana = emptySemana(); ui.compra = emptyCompra(); ui.mas = emptyMas();
+      commit('Este es un ejemplo. Puedes borrarlo cuando quieras.');
+    }
     // Empezar de cero lleva directo a organizar la casa: es lo único que hay
     // que hacer para que la app sirva, y de ahí sale todo lo demás.
     else if (action === 'welcome-empty') { state = createEmptyState(); ui.welcome = false; ui.tour = null; ui.modal = null; ui.setup = emptySetup(); ui.page = 'setup'; commit(''); }
@@ -1610,6 +1814,38 @@ document.addEventListener('click', event => {
       ui.semana = emptySemana(); ui.compra = emptyCompra(); ui.mas = emptyMas();
       ui.page = 'hoy';
       commit('Datos borrados. Ya puedes empezar con los tuyos.');
+    }
+    // Lo guardado tal cual, sin pasar por `exportState`.
+    //
+    // Es la única salida de la pantalla de datos ilegibles que no toca nada.
+    // `exportState` escribiría el estado que hay en memoria, que en ese momento
+    // es uno vacío creado para poder pintar algo: descargarlo sería entregar un
+    // archivo en blanco con nombre de respaldo. Lo que hace falta son los bytes
+    // del cajón, los mismos que esta versión no sabe leer y la siguiente sí.
+    else if (action === 'descargar-crudo') {
+      let crudo = '';
+      try { crudo = localStorage.getItem(cajon) || ''; } catch { /* Se dirá abajo. */ }
+      if (!crudo) { toast('No pude leer lo guardado en este teléfono.', true); return; }
+      const blob = new Blob([crudo], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `que-comemos-guardado-${today()}.json`; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      toast('Descargado tal cual estaba. Guárdalo fuera de este teléfono.');
+    }
+    // «Esto ya es mío». Apaga la marca de ejemplo sin borrar nada.
+    //
+    // Antes la franja del ejemplo tenía un solo botón, «Borrar el ejemplo», y
+    // era la misma acción que «Borrar todos mis datos»: vaciaba la aplicación
+    // entera, incluido lo que la persona hubiera escrito encima. Quien llevaba
+    // meses viendo esa franja la leía como «quitar la etiqueta molesta».
+    //
+    // Y mientras `demo` siguiera encendido pasaba algo peor y callado:
+    // `mereceLaPenaVincular` devuelve false con un estado de ejemplo, así que al
+    // registrarse no se ofrecía subir la casa —que ya era real— y encima se
+    // aterrizaba en «Mi hogar» a escribir otra vez quién vive aquí.
+    else if (action === 'demo-adoptar') {
+      state.demo = false;
+      commit('Listo. Esto ya es tu casa, no un ejemplo.');
     }
     else if (action === 'export') {
       const blob = new Blob([exportState(state)], { type: 'application/json' });
@@ -1960,9 +2196,20 @@ arrancarSesion()
       if (arranque.estado === 'dentro') {
         await sincronizarAhora({ hayCambiosLocales: false }).catch(error => anotar('sincronizar-al-arrancar', error));
       }
-    } else if (arranque.aviso) {
-      avisoDeSesion = arranque.aviso;
-      render();
+    } else {
+      // Sin sesión. Si la anterior caducó —no se cerró— la casa de esa cuenta
+      // sigue en este teléfono y es donde estaba la persona: se vuelve a abrir
+      // ahí en vez de enseñarle un formulario de registro encima de un cajón
+      // vacío. Ver `alCaducarLaSesion`.
+      const guardado = cajonCaducado();
+      if (guardado && hasSavedState(undefined, guardado)) {
+        sesionCaducada = true;
+        abrirCajon(guardado);
+        avisoDeSesion = arranque.aviso || 'Tu sesión caducó y la sincronización está apagada. Tus datos siguen enteros en este teléfono: vuelve a entrar cuando tengas internet.';
+      } else if (arranque.aviso) {
+        avisoDeSesion = arranque.aviso;
+      }
+      if (sesionCaducada || arranque.aviso) render();
     }
     await mirarSiVolvimosDeGoogle();
   })

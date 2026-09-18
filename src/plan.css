@@ -690,3 +690,17 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
   .semana-dias { grid-template-columns: 1fr; }
   .semana-momento { grid-template-columns: 7.5ch minmax(0, 1fr) 18px; gap: 8px; }
 }
+
+/* ── Los datos que están y no se pueden leer ───────────────────────────────
+
+   Una tarjeta sola en la pantalla, sin barra ni menú, porque mientras esto se
+   ve no hay app que usar: usarla pisaría lo guardado. Ancho de lectura, no de
+   pantalla — son cuatro párrafos que hay que leer enteros antes de tocar el
+   botón rojo de abajo. */
+.ilegible { max-width: 560px; margin: var(--aire-6) auto; }
+.ilegible h2 { margin-top: 0; }
+.ilegible .modal-actions { justify-content: flex-start; }
+
+/* Las dos salidas de la franja del ejemplo. Eran una sola, y se llamaba
+   «Borrar el ejemplo» aunque lo que hacía era vaciar la aplicación entera. */
+.demo-salidas { margin-top: var(--aire-3); }
