@@ -27,6 +27,7 @@ import { hogarDe, resumenDeRestricciones } from './hogar.js';
 import { button, conteo, empty, esc, fmt, measure, monthName, niceDate, notice, options, shiftMonth, unitText } from './ui-kit.js';
 import { icono, iconoDeCategoria } from './icons.js';
 import { normalizeName } from './nombres.js';
+import { avisosDe, cenasSinDecidir, guardarAvisos, hayAvisosEnEsteAparato, horaEnPalabras, pedirPermisoDeAvisos, programarRecordatorio } from './recordatorio.js';
 import { LEGAL } from './legal.js';
 
 // Una función y no una constante: calculada al cargar el módulo, un teléfono
@@ -47,6 +48,7 @@ export const ENTRADAS_MAS = [
   ['canasta', 'canasta', 'Mis productos habituales', 'Lo que se compra de costumbre'],
   ['preparaciones', 'libro', 'Preparaciones', 'Las comidas que se repiten en casa'],
   ['ajustes', 'ajustes', 'Ajustes', 'Tu casa, tus datos y cómo funciona la app'],
+  ['avisos', 'campana', 'Avisos', 'El único recordatorio que manda esta app'],
   ['familia', 'personas', 'Familia y restricciones', 'Quién come y qué evita cada quien'],
   ['historial', 'reloj', 'Historial', 'Tus compras: qué llevabas y qué trajiste'],
   ['respaldo', 'descargar', 'Respaldo', 'Guardar una copia o traerla de vuelta'],
@@ -122,6 +124,7 @@ export function renderMas(ctx) {
     revision: renderRevision,
     historial: renderHistorial,
     respaldo: renderRespaldo,
+    avisos: renderAvisos,
     ajustes: renderAjustes,
     organizacion: renderOrganizacion,
     avanzado: renderAvanzado,
@@ -719,6 +722,59 @@ function avisoDeCopia(state, sincronizando = false) {
 
    El aviso de la copia se queda arriba y se queda como aviso: no es una fila
    del índice, es algo que hay que hacer hoy. */
+/* ── Avisos ────────────────────────────────────────────────────────────────
+
+   Un solo recordatorio, y apagado de fábrica. Esta app no tiene nada más que
+   avisar: no hay mensajes, no hay novedades, no hay nada que se le ocurra a la
+   app que tú no hayas escrito. Un interruptor que enciende una cosa concreta es
+   honesto; una pantalla de «preferencias de notificaciones» con seis categorías
+   sería inventarse cinco.
+
+   El permiso del teléfono se pide al encender, nunca antes. Y si el teléfono
+   dice que no, el interruptor se queda apagado y se dice por qué en vez de
+   dejarlo encendido mintiendo. */
+
+function renderAvisos(ctx) {
+  const { state } = ctx;
+  const avisos = avisosDe(state);
+  const enElAparato = hayAvisosEnEsteAparato();
+  const pendientes = cenasSinDecidir(state);
+
+  return `<p class="pantalla-intro">El único aviso que manda esta app. Si a la hora que digas todavía no has decidido la cena de ese día, te lo recuerda. <strong>Nada más</strong>: ni mensajes, ni novedades, ni nada que no hayas escrito tú.</p>
+
+    ${enElAparato ? '' : notice('Esto solo funciona en la app instalada',
+      'Estás viendo «¿Qué comemos?» en un navegador, y un navegador no puede mandar avisos al teléfono. El interruptor se guarda igual y empezará a funcionar cuando abras la app instalada.', 'warn')}
+
+    <div class="card avisos-caja">
+      <div class="between avisos-linea">
+        <div>
+          <h3>Avisarme de la cena</h3>
+          <p class="small muted">${avisos.encendido
+            ? `Todos los días a las ${esc(horaEnPalabras(avisos))}, si esa cena sigue sin decidir.`
+            : 'Apagado. No se manda ningún aviso.'}</p>
+        </div>
+        ${button(avisos.encendido ? 'Apagar' : 'Encender', avisos.encendido ? 'avisos-apagar' : 'avisos-encender',
+          avisos.encendido ? 'btn-quiet' : 'btn-primary')}
+      </div>
+
+      ${avisos.encendido ? `<form data-form="avisos-hora" class="avisos-hora">
+        <label class="field"><span>¿A qué hora?</span>
+          <input name="hora" type="time" value="${esc(horaEnPalabras(avisos))}" required>
+        </label>
+        <button type="submit" class="btn btn-secondary btn-small">Cambiar la hora</button>
+      </form>` : ''}
+    </div>
+
+    ${avisos.encendido ? `<p class="tiny muted">Ahora mismo hay ${esc(conteo(pendientes, 'cena sin decidir', 'cenas sin decidir'))} en los próximos siete días. Se avisa de esas y de ninguna más: en cuanto decides una, su aviso se cae.</p>` : ''}
+
+    <div class="card soft">
+      <h3>Lo que hay que saber</h3>
+      <p class="muted small">El aviso lo prepara tu propio teléfono y no sale de él: nadie manda nada desde ningún servidor, ni con cuenta ni sin ella.</p>
+      <p class="muted small">No llega al segundo exacto, y es a propósito. Pedir precisión de reloj costaría un permiso de alarma que esta app no necesita para decirte que pienses la cena.</p>
+      <p class="muted small">Si apagas los avisos de «¿Qué comemos?» desde los ajustes del teléfono, este interruptor no puede encenderlos: manda el teléfono.</p>
+    </div>`;
+}
+
 function renderAjustes(ctx) {
   const { state, sincronizando } = ctx;
   const copia = estadoDeLaCopia(state);
@@ -726,6 +782,7 @@ function renderAjustes(ctx) {
   const deBaja = state.people.length - enCasa;
   const compras = listasCerradas(state).length + state.purchases.length;
   const quincenal = frecuenciaDe(state, hoy().slice(0, 7)) === 'quincenal';
+  const avisos = avisosDe(state);
 
   const filas = [
     ['navigate', 'data-page="familia"', 'personas', 'Familia y restricciones',
@@ -738,6 +795,8 @@ function renderAjustes(ctx) {
           ? `Última copia: ${niceDate(copia.ultima, { day: 'numeric', month: 'long', year: 'numeric' })}`
           : 'Todavía no has guardado ninguna copia'
         : 'Todavía no hay nada que guardar'],
+    ['navigate', 'data-page="avisos"', 'campana', 'Avisos',
+      avisos.encendido ? `Te aviso a las ${horaEnPalabras(avisos)} si no has decidido la cena` : 'Apagados'],
     ['navigate', 'data-page="cuenta"', 'persona', 'Mi cuenta',
       sincronizando
         ? 'Tu casa se está guardando también en tu cuenta'
@@ -984,6 +1043,27 @@ export const MAS_ACTIONS = {
     const rubro = el.dataset.rubro;
     if (el.closest('details')?.open) abiertos.delete(rubro); else abiertos.add(rubro);
     ctx.ui.mas.rubrosAbiertos = [...abiertos];
+  },
+  /* Encender pide el permiso, y solo entonces. Si el teléfono dice que no, el
+     interruptor se queda apagado: encenderlo igual sería una pantalla afirmando
+     que avisa cuando no puede.
+
+     Es `async` y por eso va envuelta en `protegida` como todas las demás: una
+     promesa rechazada no cae dentro del `try` de quien la llamó. */
+  'avisos-encender': async (el, ctx) => {
+    const permiso = await pedirPermisoDeAvisos();
+    if (permiso === 'no') {
+      ctx.toast('El teléfono no deja mandar avisos a esta app. Se enciende desde los ajustes del teléfono.', true);
+      return;
+    }
+    guardarAvisos(ctx.state, { encendido: true });
+    ctx.commit('Listo. Te aviso si llega la hora y la cena sigue sin decidir.');
+    await programarRecordatorio(ctx.state);
+  },
+  'avisos-apagar': async (el, ctx) => {
+    guardarAvisos(ctx.state, { encendido: false });
+    ctx.commit('Avisos apagados.');
+    await programarRecordatorio(ctx.state);
   },
   'receta-limpiar': (el, ctx) => { ctx.ui.mas.recetaFiltro = ''; ctx.render(); },
   'habitual-limpiar': (el, ctx) => { ctx.ui.mas.habitualFiltro = ''; ctx.render(); },

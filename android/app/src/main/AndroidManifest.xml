@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- El respaldo automático de Android está apagado, y es una decisión, no un
          olvido.
@@ -84,14 +85,50 @@
         </provider>
     </application>
 
-    <!-- Permisos. Es este y ninguno más: la app guarda todo en el propio
-         teléfono, así que no tiene nada que pedir sobre el micrófono, ni sobre
-         fotos, ni sobre archivos del usuario. Internet hace falta para
-         identificarse con Google y para la copia en la nube, y para nada más.
+    <!-- Permisos.
+
+         `INTERNET` hace falta para identificarse con Google y para la copia en
+         la nube, y para nada más. La app guarda todo en el propio teléfono, así
+         que no tiene nada que pedir sobre el micrófono, ni sobre fotos, ni sobre
+         archivos del usuario.
 
          Los campos de texto siguen admitiendo el teclado del teléfono, que trae
          su propio micrófono: ese dictado es del teclado y el permiso lo tiene
-         él, no esta aplicación. -->
+         él, no esta aplicación.
+
+         Los otros tres los declara el complemento de notificaciones y se
+         fusionan aquí solos. Se escriben igualmente, porque un permiso que
+         aparece en el paquete sin estar escrito en ninguna parte es un permiso
+         que nadie revisó:
+
+           · `POST_NOTIFICATIONS` — hace falta desde Android 13 para poder
+             avisar. Se pide en el momento en que alguien enciende el recordatorio
+             de la cena en Ajustes, nunca al abrir la app.
+           · `RECEIVE_BOOT_COMPLETED` — para volver a programar el recordatorio
+             después de reiniciar el teléfono. Sin él, se pierde al primer
+             apagón. Es un permiso normal: no se le pregunta a nadie.
+           · `WAKE_LOCK` — para que el aviso llegue con la pantalla apagada.
+             También normal. -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Y este se QUITA, aunque el complemento lo declare.
+
+         `SCHEDULE_EXACT_ALARM` sirve para que un aviso salte al segundo exacto.
+         Un recordatorio de «¿ya sabes qué se cena?» no lo necesita: que llegue
+         unos minutos después es exactamente igual de útil. Y la política de Play
+         mira con lupa los permisos de alarma —el hermano de este,
+         `USE_EXACT_ALARM`, solo se admite a despertadores, temporizadores y
+         calendarios, y a los demás «will be disallowed from publishing»—, así
+         que pedir precisión que no se usa es buscarse una revisión por nada.
+
+         Quitarlo es seguro, y se comprobó leyendo el código del complemento y no
+         suponiéndolo: `setExactIfPossible` calcula
+         `isExactNotification && canScheduleExactAlarms()`, y cuando eso da falso
+         usa `alarmManager.set()`, que es la alarma inexacta de toda la vida. Ni
+         lanza ni se queda sin programar. Aun así, todos los avisos de esta app se
+         programan con `isExactNotification: false` para no depender de ese
+         rescate. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" tools:node="remove" />
 </manifest>

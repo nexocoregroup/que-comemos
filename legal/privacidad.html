@@ -84,7 +84,7 @@
 
 <p class="marca">¿Qué comemos? · NexoCore</p>
 <h1>Aviso de privacidad</h1>
-<p class="fecha">Última actualización: 17 de septiembre de 2026</p>
+<p class="fecha">Última actualización: 18 de septiembre de 2026</p>
 
 <div class="resumen">
   <p><strong>En corto:</strong> todo lo que escribes en esta app se queda guardado en tu teléfono.</p>
@@ -139,8 +139,13 @@
 </ul>
 <p>No es una promesa suelta: la app tiene <strong>una sola puerta de salida a la red</strong>, y solo sabe hablar con el proyecto de Supabase que guarda tu cuenta. Hay una prueba automática que se pone en rojo el día que alguien abra una segunda o le ponga otra dirección.</p>
 
-<h2>El permiso de internet, y cuándo se usa de verdad</h2>
-<p>La app pide el permiso <code>INTERNET</code> y lo usa <strong>para una sola cosa: las cuentas</strong>. Ni una más.</p>
+<h2>Los permisos, y cuándo se usan de verdad</h2>
+<p>La app pide cuatro permisos: uno para hablar con la red y tres para poder avisarte. Conviene decir los cuatro.</p>
+<p><code>INTERNET</code> lo usa <strong>para una sola cosa: las cuentas</strong>. Ni una más.</p>
+<p><code>POST_NOTIFICATIONS</code> es el que tu teléfono te pregunta, y sirve para <strong>un único recordatorio</strong>: si a la hora que tú digas todavía no has decidido la cena de ese día, te lo recuerda. <strong>Viene apagado.</strong> Se enciende en Ajustes → Avisos, y es entonces cuando se te pregunta, no al abrir la app.</p>
+<p><code>RECEIVE_BOOT_COMPLETED</code> y <code>WAKE_LOCK</code> no te los pregunta nadie porque no hace falta: el primero vuelve a poner ese recordatorio después de que apagues y enciendas el teléfono, y el segundo deja que el aviso llegue con la pantalla apagada. Los dos son del recordatorio y de nada más.</p>
+<p><strong>El aviso lo prepara tu propio teléfono.</strong> No sale de él, no lo manda ningún servidor, y no hace falta cuenta ni internet para recibirlo.</p>
+<p>Lo que la app <strong>no</strong> pide es <code>SCHEDULE_EXACT_ALARM</code>, el permiso que haría falta para que un aviso salte al segundo exacto. Un recordatorio de la cena puede llegar unos minutos después y sirve igual.</p>
 <p><strong>Sin cuenta, la app no llama a ninguna parte.</strong> Ni al abrirse, ni al guardar, ni de fondo. Tus productos habituales, el plan de la semana y la lista de la compra salen todos de tu propio teléfono, y puedes usarla el mes completo en modo avión.</p>
 <p>Esto no es una promesa de buena fe, es cómo está escrito: al arrancar, la app mira si hay una sesión guardada en este teléfono, y <strong>si no la hay se detiene ahí mismo, sin tocar la red</strong>.</p>
 <p>Si creas una cuenta, la app habla con un sitio y solo con uno: el proyecto de Supabase donde viven las cuentas. Ahí van tu correo y tu contraseña al registrarte y al entrar, y ahí va tu casa <strong>solo si además enciendes la sincronización</strong>.</p>
@@ -162,7 +167,8 @@
   <li>No pide <strong>teléfono ni llamadas</strong>.</li>
   <li>No pide acceso a los <strong>archivos</strong> de tu teléfono.</li>
 </ul>
-<p>Es un permiso en total —internet— y ninguno más. Hay una prueba automática que falla si alguno de los otros se cuela.</p>
+<p>Tampoco pide <strong>permiso de alarma exacta</strong>, que es el que haría falta para que un aviso salte al segundo. El recordatorio de la cena puede llegar unos minutos después y sirve igual, así que ese permiso se quita del paquete aunque el componente que manda los avisos lo traiga puesto.</p>
+<p>Hay una prueba automática que falla si alguno de los que no están se cuela.</p>
 
 <h2>Cómo borrar tus datos</h2>
 <p>Todos los caminos los recorres tú, desde tu teléfono, sin pedirle permiso a nadie:</p>

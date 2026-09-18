@@ -736,3 +736,19 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 /* Las dos salidas de la franja del ejemplo. Eran una sola, y se llamaba
    «Borrar el ejemplo» aunque lo que hacía era vaciar la aplicación entera. */
 .demo-salidas { margin-top: var(--aire-3); }
+
+/* ── Avisos ────────────────────────────────────────────────────────────────
+
+   Un interruptor y una hora. No hay más, y la pantalla no finge que lo haya:
+   una lista de categorías de notificación con una sola categoría es una lista
+   que sobra. */
+.avisos-caja { display: grid; gap: var(--aire-4); }
+.avisos-linea { align-items: start; gap: var(--aire-4); }
+.avisos-linea h3 { margin: 0 0 var(--aire-1); }
+.avisos-linea p { margin: 0; }
+.avisos-linea .btn { flex: none; }
+.avisos-hora {
+  display: flex; align-items: flex-end; gap: var(--aire-3); flex-wrap: wrap;
+  border-top: 1px solid var(--line); padding-top: var(--aire-4);
+}
+.avisos-hora .field { margin: 0; flex: 0 1 150px; }

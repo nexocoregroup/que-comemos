@@ -16,6 +16,7 @@ import {
 import { clearAll, hasSavedState, loadStateDetailed, saveState } from './storage.js';
 import { createDemoState } from './demo.js';
 import { LEGAL } from './legal.js';
+import { avisosDe, guardarAvisos, horaEnPalabras, programarRecordatorio } from './recordatorio.js';
 import { BRAND_MARK } from './brand.js';
 import { icono } from './icons.js';
 import { avisoDeAlergias } from './avisos.js';
@@ -2191,6 +2192,19 @@ document.addEventListener('submit', async event => {
       ui.modal = null;
       commit(existente ? 'Guardado.' : `«${nombre}» entra en tus productos habituales.`);
     }
+    /* La hora del recordatorio de la cena.
+
+       El campo es un `<input type="time">`, así que lo que llega es «18:30» y no
+       dos números. Una hora que no se entienda no se guarda a medias: se deja la
+       que había, porque un recordatorio a las 00:00 por un campo mal leído es
+       peor que no cambiar nada. */
+    else if (kind === 'avisos-hora') {
+      const [hora, minuto] = String(data.get('hora') || '').split(':').map(Number);
+      if (!Number.isInteger(hora) || !Number.isInteger(minuto)) throw new Error('Esa hora no se entiende.');
+      guardarAvisos(state, { hora, minuto });
+      commit(`Listo. Te aviso a las ${horaEnPalabras(avisosDe(state))}.`);
+      programarRecordatorio(state).catch(error => anotar('avisos:hora', error));
+    }
     // La frecuencia de compra no se guarda como un valor suelto: se añade un
     // tramo con su fecha de vigencia, y lo anterior a esa fecha no se toca.
     else if (kind === 'frecuencia') {
@@ -2377,6 +2391,28 @@ function quitarElArranque() {
 
 render();
 quitarElArranque();
+
+/* El recordatorio se vuelve a programar al abrir, y al dejar la app.
+
+   Al abrir, porque puede haber pasado una semana y los avisos programados se
+   habrán agotado. Al dejarla, porque acabas de decidir cenas y los avisos de
+   esos días ya no tienen sentido: se caen ahí mismo, mientras la app todavía
+   está viva para hacerlo.
+
+   Es lo que permite que el aviso AFIRME —«todavía no has decidido la cena»— en
+   vez de preguntar: decidir una cena exige abrir la app, y abrir o cerrar la app
+   rehace la lista. Un aviso pendiente es siempre de un día que estaba sin
+   decidir la última vez que alguien miró.
+
+   Nada de esto pide permisos ni pregunta nada: con el interruptor apagado,
+   `programarRecordatorio` borra lo que hubiera y se va. */
+programarRecordatorio(state).catch(error => anotar('avisos:arrancar', error));
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'hidden') return;
+    programarRecordatorio(state).catch(error => anotar('avisos:al-salir', error));
+  });
+}
 
 /* ── La sesión, al arrancar ────────────────────────────────────────────────
 

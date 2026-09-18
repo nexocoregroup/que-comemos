@@ -39,7 +39,7 @@
 //     grep -rn nexocore.group@gmail.com legal/ src/legal.js docs/
 
 export const LEGAL = {
-  actualizado: '2026-09-17',
+  actualizado: '2026-09-18',
 
   privacidad: {
     titulo: 'Aviso de privacidad',
@@ -91,9 +91,13 @@ export const LEGAL = {
         ]
       },
       {
-        titulo: 'El permiso de internet, y cuándo se usa de verdad',
+        titulo: 'Los permisos, y cuándo se usan de verdad',
         parrafos: [
-          'La app pide el permiso de internet y lo usa para una sola cosa: las cuentas. Ni una más.',
+          'La app pide dos permisos que se notan y dos que no se notan, y conviene decir los cuatro.',
+          'El de internet lo usa para una sola cosa: las cuentas. Ni una más.',
+          'El de avisos, que el teléfono te pregunta, sirve para un único recordatorio: si a la hora que tú digas todavía no has decidido la cena de ese día, te lo recuerda. Viene apagado, se enciende en Ajustes → Avisos, y es entonces cuando se te pregunta, no al abrir la app.',
+          'Los otros dos no te los pregunta nadie porque no hacen falta preguntarlos: uno vuelve a poner ese recordatorio después de que apagues y enciendas el teléfono, y el otro deja que el aviso llegue con la pantalla apagada. Los dos son del recordatorio y de nada más.',
+          'Y esto es lo importante: el aviso lo prepara tu propio teléfono. No sale de él, no lo manda ningún servidor, y no hace falta cuenta ni internet para recibirlo.',
           'Sin cuenta, la app no llama a ninguna parte. Ni al abrirse, ni al guardar, ni de fondo. Los alimentos, tus productos habituales, el plan de la semana y la lista de la compra salen todos de tu propio teléfono, y puedes usarla el mes completo en modo avión.',
           'Esto no es una promesa de buena fe, es cómo está escrito: al arrancar, la app mira si hay una sesión guardada en este teléfono, y si no la hay se detiene ahí mismo, sin tocar la red.',
           'Si creas una cuenta, la app habla con un sitio y solo con uno: el proyecto de Supabase donde viven las cuentas. Ahí van tu correo y tu contraseña al registrarte y al entrar, y ahí va tu casa solo si además enciendes la sincronización.',
@@ -113,7 +117,8 @@ export const LEGAL = {
         titulo: 'Permisos que la app no pide',
         parrafos: [
           'Vale la pena decir también lo que no está: no pide micrófono, no pide cámara, no pide galería ni fotos, no pide ubicación, no pide contactos, no pide teléfono ni llamadas, y no pide acceso a los archivos de tu teléfono.',
-          'Es un permiso en total, internet, y ninguno más. Hay una prueba automática que falla si alguno de los otros se cuela.'
+          'Tampoco pide permiso de alarma exacta, que es el que haría falta para que un aviso salte al segundo. El recordatorio de la cena puede llegar unos minutos después y sirve igual, así que ese permiso no se pide.',
+          'Hay una prueba automática que falla si alguno de los que no están se cuela.'
         ]
       },
       {

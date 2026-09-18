@@ -208,6 +208,10 @@ La app pide **un permiso y ninguno más**. Hay una prueba (`tests/seguridad.test
 | Permiso | Para qué | ¿Hay que declararlo aparte? |
 |---|---|---|
 | `INTERNET` | La cuenta, que es opcional. Sin sesión iniciada no se hace ni una llamada. | No. Es un permiso normal, no sensible. |
+| `POST_NOTIFICATIONS` | El recordatorio de la cena, que viene apagado. Se pide al encenderlo en Ajustes → Avisos, nunca al abrir la app. | No hay formulario. Android lo pregunta en el momento. |
+| `RECEIVE_BOOT_COMPLETED` | Volver a programar ese recordatorio tras reiniciar el teléfono. | No. Permiso normal. |
+| `WAKE_LOCK` | Que el aviso llegue con la pantalla apagada. | No. Permiso normal. |
+| ~~`SCHEDULE_EXACT_ALARM`~~ | **No se pide.** Lo declara el complemento de notificaciones y el manifiesto lo quita con `tools:node="remove"`. Los avisos van con `isExactNotification: false`, que usa alarma inexacta. | Si se colara, Play lo miraría con lupa: el hermano `USE_EXACT_ALARM` solo se admite a despertadores, temporizadores y calendarios. |
 
 
 **Sobre `INTERNET`, si alguien pregunta.** Es un permiso normal: Play no lo cuestiona y no hay formulario que llenar. La respuesta, si hace falta darla: **se usa únicamente para la cuenta, que es opcional**. Sin sesión iniciada la app no hace ninguna petición y funciona por completo en modo avión. El destino es uno solo —el proyecto de Supabase que presta el servicio de cuentas— y una prueba automatizada falla si aparece un segundo. La política de privacidad lo explica con esas mismas palabras, en su propia sección, en vez de esconderlo.

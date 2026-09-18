@@ -16,10 +16,19 @@ entero de la casa**, no el campo nuevo.
 
 **La cámara, la lectura de facturas y el micrófono propio se retiraron a
 propósito.** No se restauran, ni se «mejoran», ni se reintroducen por la puerta
-de atrás de un complemento. El manifiesto declara un solo permiso, `INTERNET`.
-No hay prueba automática que lo vigile: se comprueba a mano sobre el APK ya
-construido, y conviene hacerlo, porque un artefacto de compilación viejo llegó a
-reintroducir `RECORD_AUDIO` en el manifiesto fusionado sin que nada avisara.
+de atrás de un complemento. No hay prueba automática que vigile el manifiesto
+fusionado: se comprueba a mano sobre el APK ya construido, y conviene hacerlo,
+porque un artefacto de compilación viejo llegó a reintroducir `RECORD_AUDIO` sin
+que nada avisara.
+
+**El manifiesto declara cuatro permisos y ninguno más.** `INTERNET` para las
+cuentas; `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED` y `WAKE_LOCK` para el
+recordatorio de la cena, que viene apagado y pide el permiso al encenderse.
+`SCHEDULE_EXACT_ALARM` lo declara el complemento de notificaciones y este
+proyecto lo QUITA con `tools:node="remove"`: no se necesita —los avisos se
+programan con `isExactNotification: false`— y la política de Play mira con lupa
+los permisos de alarma. Si algún día aparece en el paquete, es que alguien tocó
+esa línea.
 
 **Ningún fallo secundario cierra la aplicación.** Hay tres puertas por las que un
 error se escapa de cualquier `try` —una acción `async`, un fallo dentro de

@@ -12,7 +12,7 @@
 // El trabajador solo se registra en contexto seguro: https o localhost. Sobre
 // http en una IP de la red local el navegador lo ignora y la app funciona
 // igual, pero sin instalación ni modo sin conexión.
-const CACHE = 'que-comemos-v55';
+const CACHE = 'que-comemos-v56';
 const SHELL = [
   './', './index.html', './manifest.webmanifest',
   './src/app.js', './src/model.js', './src/storage.js', './src/demo.js',
@@ -20,7 +20,7 @@ const SHELL = [
   './src/catalog-seed.js', './src/setup.js', './src/preparacion.js',
   './src/text-parse.js', './src/bulk-entry.js',
   './src/fallos.js', './src/hogar.js', './src/avisos.js',
-  './src/nube.js', './src/config-nube.js', './src/sesion.js', './src/sincronizar.js', './src/page-cuenta.js',
+  './src/nube.js', './src/config-nube.js', './src/recordatorio.js', './src/sesion.js', './src/sincronizar.js', './src/page-cuenta.js',
   './src/page-semana.js', './src/page-compra.js', './src/page-mas.js', './src/legal.js',
   './src/styles.css', './src/sidebar.css', './src/onboarding.css', './src/quick-add.css', './src/theme.css', './src/setup.css', './src/bulk.css', './src/plan.css', './src/cuenta.css', './src/hogar.css', './src/sistema.css',
   './src/isotipo.png', './src/icon-192.png', './src/icon-512.png',

@@ -76,6 +76,10 @@ const DIBUJOS = {
     <path d="M16.6 15.6a5 5 0 0 1 4.6 4.6"/>`,
 
   reloj: `<circle cx="12" cy="12" r="8.6"/><path d="M12 6.9V12l3.5 2.1"/>`,
+  // La campana del recordatorio. El badajo es un arco corto y no un círculo:
+  // a 20 px un círculo ahí abajo se lee como una mancha pegada al borde.
+  campana: `<path d="M6.2 16.4V11a5.8 5.8 0 0 1 11.6 0v5.4l1.4 2.1H4.8Z"/>
+    <path d="M10.1 19.5a2 2 0 0 0 3.8 0"/>`,
 
   /* ── Ajustes y estado ─────────────────────────────────────────────────── */
 
