@@ -749,3 +749,129 @@ arriba: evita que vuelva a proponerse.
 
 - **Las preparaciones se ofrecen en orden de creación en los dos sitios donde se eligen** *(listas-largas)*
   El sitio principal ya está resuelto y el hallazgo lo cita sin leerlo: `opciones = state.recipes.filter(recipe => recipe.uses.includes(m.slot))` (src/app.js:978) ya filtra por el momento, así que el desplegable de una cena tiene las cenas, no las veintiséis; y la misma ventana ofrece la pestaña «Lo que sobró» con `comidasReutilizables`, reciente primero y cortada a 15 (src/app.js:964-971), que es exactamente «lo que esta casa come últimamente». Además, ordenar por uso reciente no es neutral: `opciones[0]?.id` sale preseleccionado y alimenta el aviso de alergias (src/app.js:1000-1002), así que la primera opción es lo que la app propone para esa cena. Eso es sugerir comidas, y se retiró a propósito.
+
+---
+
+## Lo que se quedó sin mirar
+
+Un último paso preguntó qué habían dejado fuera las ocho lentes. La respuesta:
+miraron pantallas, y lo que faltaba era **el tiempo, la red y el segundo teléfono**.
+
+> Las lentes anteriores miraron pantallas; lo que quedaba sin mirar era el tiempo, la red y el segundo teléfono, y ahí la app está peor de lo que parece. Dos fallos son de los que asustan a quien ya confía en ella: «Hoy» se queda clavado en el día en que se cargó el módulo, así que un teléfono que no se cierra —lo normal en Android— pinta y guarda las comidas de ayer; y cuando la sesión caduca, la app se convierte sola en la pantalla de registro, con la casa entera invisible y el aviso que lo explicaría escrito en el código pero nunca pintado. El resto son promesas que la interfaz no cumple: cerrar una compra no se puede deshacer aunque el modelo sepa reabrirla y el Plan semanal ya tenga el patrón, una sincronización que rechaza el documento se cuenta como éxito, y un conflicto te saca de la pantalla para pedirte una decisión a ciegas.
+
+### «Hoy» se queda clavado en el día en que se abrió la app: un teléfono que no se cierra pinta las comidas de ayer
+
+**Gravedad:** alta · **Esfuerzo:** bajo · **Pantalla:** Hoy (y el atajo «+» → «Poner una comida», y el nombre del respaldo)
+
+**Qué pasa.** La app lleva abierta desde anoche —en Android no se cierra, se deja—. A las 6:30 abres para ver qué toca desayunar y el encabezado dice la fecha de ayer, las tres tarjetas enseñan las comidas de ayer, el bloque «mañana» enseña hoy, y si anotas la cena con el botón «+» se guarda en el día de ayer. No hay forma de arreglarlo desde la pantalla: solo matar la app y volver a abrirla.
+
+**Por qué importa.** Quien cocina abre esta pantalla para saber qué hacer ahora, y la app le contesta con lo de ayer sin avisar de nada. Peor: lo que anote desde ahí —la comida que acaba de decidir— queda guardada en el día equivocado, y mañana el plan dirá que ayer se cenó dos veces y que hoy no hay nada. AGENTS.md dice que esto ya pasó y se arregló «en tres pantallas»; en app.js quedó sin arreglar, que es la pantalla que se abre primero.
+
+**Evidencia.** src/app.js:88 — `const today = todayISO();` en el cuerpo del módulo, o sea una sola vez, al cargar. De ahí beben renderToday (src/app.js:588 la fecha del encabezado, :600 el contador de comidas hechas, :605, :611 las tres tarjetas, :612 las meriendas), el bloque de mañana (:699), la ventana de ausencias (:949), el atajo «Poner una comida» (:1250) y el nombre del archivo de respaldo (:1340). El único oyente de vuelta a la app, src/app.js:1676, solo llama a sincronizar: no repinta ni recalcula nada. src/page-semana.js:25 hace justo lo contrario —`const hoy = () => todayISO();`— con el comentario que explica por qué.
+
+**Propuesta.** Cambiar src/app.js:88 por `const hoy = () => todayISO();` y sustituir los diez usos de `today` por `hoy()`. Y en el oyente de `visibilitychange` (src/app.js:1676), guardar el último día pintado y llamar a `render()` cuando `todayISO()` ya no coincida, para que volver a la app después de medianoche repinte. Una prueba guardiana como las que ya existen (leer app.js como texto y exigir que no haya `todayISO()` en el cuerpo del módulo) evita que vuelva una cuarta vez.
+
+### Cuando la sesión caduca, la app se convierte en la pantalla de «Crear mi cuenta» y la casa desaparece, sin una palabra de explicación
+
+**Gravedad:** alta · **Esfuerzo:** medio · **Pantalla:** Todas (portada de la cuenta) — pasa sola, sin tocar nada
+
+**Qué pasa.** Estás en la Compra o en Hoy. El servidor rechaza renovar el token —pasa al volver después de semanas, o cuando la misma cuenta se usa en dos teléfonos y uno invalida el refresco del otro—. De golpe la pantalla se cambia por la portada de bienvenida con «Continuar con Google / Registrarme con correo», como si fueras alguien nuevo. Tu casa no está por ninguna parte. El único botón que no pide internet, «Seguir sin cuenta en este teléfono», te lleva al cajón del teléfono, que está vacío: tus datos viven en el cajón de la cuenta.
+
+**Por qué importa.** Es el peor momento que puede vivir alguien con esta app: seis meses de despensa, preparaciones y plan, y la pantalla dice que no existe nada. La frase que explicaría que no se ha perdido nada está escrita en el código y no llega a los ojos de nadie. Y sin internet —que es cuando más caduca esto— no hay forma de volver a entrar, así que la casa se queda inaccesible en un teléfono que la tiene guardada entera.
+
+**Evidencia.** src/app.js:172 — al caducar se escribe `avisoDeSesion = 'Tu sesión caducó…'` y se llama a `alSalirDeLaCuenta({ silencioso: true })`. Esa función (src/app.js:251-263) hace `abrirCajon(CAJON_DE_ESTE_TELEFONO)`, `ui.cuenta = emptyCuenta()` —que borra `cuenta.aviso`— y repinta. Al repintar, `tocaPedirCuenta()` (src/app.js:536) es cierto y `pintar()` devuelve solo `renderCuenta(...)` y se va: el aviso vive en el armazón, en src/app.js:564, que en esa rama no se pinta nunca. `ctxCuenta()` (src/app.js:286) tampoco le pasa `avisoDeSesion` a la portada.
+
+**Propuesta.** Dos cosas. (1) Pintar `avisoDeSesion` también en la rama de `tocaPedirCuenta()`: pasarlo por `ctxCuenta()` a `vistaPortada` y sacarlo con el `notice(...)` de warn que esa vista ya sabe pintar (src/page-cuenta.js:95-96), con el texto «Tu sesión caducó. Tus datos siguen en este teléfono; vuelven a aparecer en cuanto entres». (2) No echar a nadie de su casa por un token: al caducar, dejar abierto el cajón de la cuenta y seguir en «Hoy» con la franja de aviso y la sincronización apagada; que la vuelta a la portada la pida la persona.
+
+### «Terminar la compra» cierra la salida sin preguntar y sin vuelta atrás, aunque el modelo sabe reabrirla
+
+**Gravedad:** alta · **Esfuerzo:** bajo · **Pantalla:** Compra → Mi lista
+
+**Qué pasa.** Estás en la fila de la caja, has tachado todo y tocas «Terminar la compra» —un botón primario grande justo debajo del último renglón tachado—. La lista se cierra en el acto, se abre otra vacía y pierdes de vista lo que acababas de comprar. Si te acuerdas del pan a los diez segundos, no hay forma de volver a la lista: se fue al historial, que es de solo lectura.
+
+**Por qué importa.** Es la pantalla que se usa de pie, con el carrito en una mano, y el botón que termina para siempre está a un dedo del que tacha. La app tiene su patrón de deshacer y su función de reabrir escritas y probadas; lo único que falta es enchufarlas donde más caro sale el error.
+
+**Evidencia.** src/page-compra.js:243 — el botón, `btn-primary btn-grande`, pegado a la tarjeta de tachados. src/page-compra.js:377-386: solo hay `window.confirm` si la lista está **vacía**, y ventana si quedan pendientes; con todo tachado se llama a `terminar()` directo. `terminar()` (src/page-compra.js:405-415) cierra, crea la siguiente y deja un aviso sin botón de deshacer. En el modelo existe `reabrirLista()` (src/model.js:1798-1805), con prueba en tests/habituales-y-listas.test.js:222, y no la llama ni una pantalla; el propio error del modelo promete lo que no existe: «Esa lista ya se cerró. Ábrela otra vez si quieres cambiarla» (src/model.js:1577). El Plan semanal sí tiene deshacer con `snapshot`/`restore` (src/page-semana.js:409-418).
+
+**Propuesta.** En `terminar()`, guardar `snapshot(state)` en `ui.compra.deshacer` y sacar el aviso con un botón «Deshacer» durante la sesión, igual que src/page-semana.js:186. Y en el historial, un botón «Reabrir esta compra» por cada lista cerrada que llame a `reabrirLista`, con su entrada en `COMPRA_ACTIONS` (si no, no lanza nada: tests/nada-suelto.test.js).
+
+### Cuando el servidor tiene una versión del esquema que este teléfono no conoce, no se trae nada y la app dice «Traído lo que había en tu cuenta»
+
+**Gravedad:** media · **Esfuerzo:** bajo · **Pantalla:** Ajustes → Mi cuenta (y en silencio, en toda la app)
+
+**Qué pasa.** Dos teléfonos de la misma casa, uno con la app actualizada y otro no. El viejo sincroniza, no puede leer lo que bajó y se queda con lo suyo para siempre; en «Mi cuenta» lee «Traído lo que había en tu cuenta». Los dos teléfonos enseñan comidas distintas y los dos dicen que están al día.
+
+**Por qué importa.** El rechazo del estado entero es una decisión correcta y deliberada del proyecto; lo que está mal es que se le cuente a la persona como un éxito. Quien ve «Traído lo que había en tu cuenta» no va a buscar la actualización en Play, y mientras tanto cree que los dos teléfonos hablan del mismo plan.
+
+**Evidencia.** src/app.js:185-189 — `if (salida.resultado === 'bajado' && salida.estado) traerEstadoDeLaNube(...)` y, pase lo que pase, la línea siguiente escribe `cuenta.sincronia = { resultado: salida.resultado }`. `traerEstadoDeLaNube` (src/app.js:195-214) devuelve `false` y solo llama a `anotar('bajar-estado', error)` cuando `importState` lanza, que es exactamente lo que hace `migrate()` ante una versión que no conoce (src/model.js:1955-1956). Nadie mira ese `false`. El texto que se enseña está en src/page-cuenta.js:243.
+
+**Propuesta.** Que `sincronizarAhora` mire lo que devuelve `traerEstadoDeLaNube` y, si es `false`, ponga `cuenta.sincronia = { resultado: 'error', detalle: 'Lo que hay en tu cuenta se guardó con una versión más nueva de la app. Actualízala para poder traerlo.' }` en vez de 'bajado', más la franja de aviso en el armazón (src/app.js:564) para que se vea sin entrar en Ajustes.
+
+### Un conflicto de sincronización te saca de donde estabas y te obliga a tirar una de las dos versiones, sin ver qué hay en cada una
+
+**Gravedad:** media · **Esfuerzo:** medio · **Pantalla:** Todas → salta sola a Ajustes → Mi cuenta
+
+**Qué pasa.** Estás marcando la compra en el colmado. Cuatro segundos después de guardar algo, o al volver a la app, la pantalla cambia sola a «Hay dos versiones de tu casa» y pierdes el sitio. No hay «ahora no»: los dos botones que hay reemplazan una versión entera por la otra, y de la del servidor solo sabes la fecha; de la de este teléfono, nada.
+
+**Por qué importa.** Es una interrupción que nadie pidió, en el peor momento posible, y la decisión que pide no se puede tomar con lo que enseña: las dos opciones son irreversibles desde la pantalla (sí se guarda copia por debajo, pero eso no se dice ahí) y no hay manera de saber cuál de las dos lleva la lista que estás usando ahora mismo. Con dos teléfonos en la misma casa —el escenario para el que se escribió todo esto— pasa justo cuando dos personas compran a la vez.
+
+**Evidencia.** src/app.js:176-182 — al recibir 'conflicto' se hace `ui.page = 'cuenta'` y `render()`, dentro del temporizador de subida (src/app.js:153, `ESPERA_ANTES_DE_SUBIR_MS = 4000`) o del oyente de `visibilitychange` (src/app.js:1676). La vista (src/page-cuenta.js:250-260) ofrece «Quedarme con lo de este teléfono» y «Traer lo que hay en mi cuenta», y una sola línea de contexto: la fecha del servidor.
+
+**Propuesta.** No cambiar de pantalla: dejar el aviso como franja en el armazón («Hay dos versiones de tu casa. Decide cuál cuando puedas») con enlace a Mi cuenta, y que solo se entre ahí a propósito. En la vista de conflicto, describir las dos versiones con lo que ya sabe calcular el modelo —cuántos productos, cuántas preparaciones, cuántas comidas puestas, si hay una lista de compra abierta y con cuántos renglones— para cada lado, y decir en la propia pantalla que de la que se descarte queda copia.
+
+### La compra abierta lleva siempre la fecha del día en que se cerró la anterior, así que el título miente durante semanas
+
+**Gravedad:** baja · **Esfuerzo:** bajo · **Pantalla:** Compra (cabecera, las dos pestañas)
+
+**Qué pasa.** Vas al colmado el sábado 20, abres Compra y arriba dice «Compra del martes, 2 de septiembre». No es un error de nadie: es el día en que se terminó la compra pasada, cuando la app abrió esta lista sola.
+
+**Por qué importa.** Con una compra quincenal, el título lleva dos semanas diciendo un día que no es. En el historial esa misma fecha se corrige sola —ahí se enseña `cerradaEl` (src/page-compra.js:311)—, así que el único sitio donde la fecha está mal es justo el que se mira de pie en la tienda. Es pequeño, pero erosiona la confianza en lo que dice la pantalla.
+
+**Evidencia.** src/page-compra.js:408 — al terminar una compra se crea la siguiente con `crearLista(ctx.state, { fecha: todayISO() })`, o sea la fecha de ese momento. La cabecera la pinta tal cual: src/page-compra.js:74-76, `Compra del ${niceDate(lista.fecha, …)}`. Nada la vuelve a tocar al empezar a usarla, y no hay ninguna acción para renombrarla ni cambiarle la fecha.
+
+**Propuesta.** Que la cabecera de una lista abierta y sin nombre no diga una fecha fija: «Tu lista de la compra» a secas, o la fecha del primer renglón apuntado. Alternativa igual de válida: poner `lista.fecha = todayISO()` la primera vez que se apunta algo en una lista vacía, dentro de `agregarALista`.
+
+### El historial de compras enseña doce y el resto se anuncia con un «Y 14 más» que no lleva a ninguna parte
+
+**Gravedad:** baja · **Esfuerzo:** bajo · **Pantalla:** Compra → Compras anteriores
+
+**Qué pasa.** A los seis meses de compra semanal hay veintiséis listas cerradas. El plegable enseña las doce últimas y debajo escribe «Y 14 más.», en gris, sin botón. Las compras de marzo existen, están guardadas y ocupan sitio, y no hay forma de verlas.
+
+**Por qué importa.** Decirle a alguien que hay catorce cosas suyas que no puede mirar es peor que no decir nada. Y es el único sitio de la app donde se puede contestar «¿cuándo compramos aceite la última vez?», que es la pregunta que de verdad se hace delante del estante.
+
+**Evidencia.** src/page-compra.js:309 `cerradas.slice(0, 12)` y src/page-compra.js:320 `${cerradas.length > 12 ? '<p class="small muted">Y ' + (cerradas.length - 12) + ' más.</p>' : ''}`. No hay acción de «ver más» ni paginación en `COMPRA_ACTIONS`.
+
+**Propuesta.** Cambiar la línea muerta por un botón «Ver las 14 anteriores» que suba un tope guardado en `ui.compra` (de doce en doce), con su entrada en `COMPRA_ACTIONS`. Si se prefiere no alargar la pantalla, un buscador por nombre de alimento sobre las cerradas cumple lo mismo con menos desplazamiento.
+
+### En el navegador, la app espera a la red antes de usar lo que ya tiene guardado: con señal mala tarda lo que tarde la red
+
+**Gravedad:** baja · **Esfuerzo:** bajo · **Pantalla:** Toda la app instalada desde el navegador (no dentro del APK)
+
+**Qué pasa.** En el colmado, con una barra de señal que ni va ni viene, abres la app instalada y se queda en blanco medio minuto o más, aunque todos los archivos estén guardados en el teléfono desde hace semanas. Si la red se cayera del todo sería instantáneo; lo lento es que conteste despacio.
+
+**Por qué importa.** Quien use la app desde el navegador —la forma más fácil de pasársela a alguien sin Play— la sufre justo donde la app promete servir: de pie, en un sitio con mala cobertura. Una comodidad de desarrollo se paga en el pasillo del colmado.
+
+**Evidencia.** sw.js:46 — la estrategia es ir primero a la red y solo caer al caché en el `.catch`, sin ningún plazo. Un `fetch` que no se rechaza nunca no llega al `.catch`, así que la copia guardada no se usa. El propio comentario de cabecera dice que se eligió «así, mientras desarrollas, siempre ves la última versión». Dentro del APK no aplica: src/app.js:1689 no registra el trabajador bajo Capacitor.
+
+**Propuesta.** En sw.js, correr la red contra un plazo corto: `Promise.race` entre el `fetch` y un temporizador de unos 1.500 ms que resuelva con `caches.match(event.request)` cuando haya copia; el `fetch` sigue su curso y actualiza el caché al llegar. Se conserva el «siempre la última versión» con red buena y se sirve al instante con red mala. Y subir `CACHE` de versión al tocarlo, como manda el propio archivo.
+
+---
+
+## Corrección a la entrega de la Fase 3
+
+El primero de esos ocho es un descuido mío, y hay que decirlo con nombre. La Fase 3
+declaró arreglado que «la fecha de hoy se calculaba al cargar la app, en tres
+pantallas». Se arreglaron dos: `src/page-semana.js:25` y `src/page-mas.js:33` pasaron
+a `const hoy = () => todayISO()`. **`src/app.js:88` se quedó con `const today =
+todayISO()`**, que es la pantalla que más se abre.
+
+Son catorce usos, y tres de ellos escriben, no solo pintan:
+
+| Línea | Qué hace con la fecha caducada |
+|---|---|
+| `app.js:1250` | El atajo del «+» abre la ventana de comida con `date: today`. Al guardar, la comida se anota en el día equivocado |
+| `app.js:949` | El campo de fecha de una ausencia nace con el día viejo, y ese valor se envía |
+| `app.js:1345` | `lastBackupAt: today` fecha la copia con el día viejo |
+
+En Android el WebView no se destruye al salir de la app, así que basta con no
+cerrarla del todo —lo normal— para que al día siguiente «Hoy» sea ayer.
