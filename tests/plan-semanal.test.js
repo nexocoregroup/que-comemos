@@ -248,7 +248,9 @@ test('lo que sobró se come otro día sin que nadie pregunte cuánto', () => {
   assert.equal(sobras.title, original.title);
 
   // Y borrar la de origen avisa: si no, quedaría una comida colgando de nada.
-  assert.throws(() => deletePlan(state, original.id), /dependen/);
+  // Con una sola dependiente el mensaje dice «una comida que depende»; con
+  // varias, «N comidas que dependen». Lo que importa es que no deje borrar.
+  assert.throws(() => deletePlan(state, original.id), /depende/);
 });
 
 test('lo que sobró se come después, nunca antes', () => {
@@ -400,7 +402,7 @@ test('lo puesto de varias en varias sigue siendo un cambio manual, no una costum
     assert.equal(origenDe(puesta), 'manual', `la comida del ${date} no dice de dónde vino`);
     assert.equal(puesta.routineId, null, 'quedó colgando de una regla que no existe');
   }
-  assert.ok(ctx.ui.semana.aviso.titulo.includes('2 comida(s)'), `dijo «${ctx.ui.semana.aviso?.titulo}»`);
+  assert.ok(ctx.ui.semana.aviso.titulo.includes('2 comidas puestas'), `dijo «${ctx.ui.semana.aviso?.titulo}»`);
   assert.ok(ctx.ui.semana.aviso.detalle.includes('no se repetirá solo'), 'no promete lo único que hace falta prometer');
   assert.equal(ctx.ui.modal, null, 'la ventana se queda abierta después de poner');
 });

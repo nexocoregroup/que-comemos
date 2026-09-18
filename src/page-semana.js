@@ -15,7 +15,7 @@
 // semanas que vienen se quedan abiertas hasta que alguien las mire.
 
 import { MOMENTOS, ORIGENES, SLOTS, comidasDecididas, SLOTS_PRINCIPALES, WEEKDAY_SHORT, addDays, dateRange, deletePlan, esOpcional, etiquetaDeMomento, etiquetaDeOrigen, makeRecipePlan, origenDe, planFor, restore, setStatusPlan, snapshot, todayISO, validDate, weekStart, weekdayOf } from './model.js';
-import { button, cap, esc, modal, niceDate, notice, options } from './ui-kit.js';
+import { button, cap, conteo, esc, modal, niceDate, notice, options } from './ui-kit.js';
 import { icono } from './icons.js';
 
 // La fecha de hoy no se puede guardar en una constante del módulo: se
@@ -134,7 +134,7 @@ function resumenDeLaVista(ctx, dias, cuenta) {
     return `<div class="card soft semana-resumen"><p class="muted">Estos ${dias.length} días están en blanco. Toca cualquier comida para ponerla; las meriendas son opcionales y no cuentan.</p></div>`;
   }
   return `<div class="card soft semana-resumen">
-    <p><strong>${cuenta.decididas} de ${cuenta.huecos}</strong> comidas decididas${cuenta.pendientes ? `, ${cuenta.pendientes} por decidir` : '. No queda ningún hueco'}${cuenta.meriendas ? ` · ${cuenta.meriendas} merienda(s) anotadas` : ''}.</p>
+    <p><strong>${cuenta.decididas} de ${cuenta.huecos}</strong> comidas decididas${cuenta.pendientes ? `, ${cuenta.pendientes} por decidir` : '. No queda ningún hueco'}${cuenta.meriendas ? ` · ${conteo(cuenta.meriendas, 'merienda anotada', 'meriendas anotadas')}` : ''}.</p>
     <p class="tiny muted">Cuentan el desayuno, el almuerzo y la cena. Las meriendas se ponen cuando las hay: un día sin merienda está completo igual.</p>
   </div>`;
 }
@@ -317,7 +317,7 @@ function ponerEnFechas(ctx, { fechas, slots, kind, recipeId, modo }) {
   const { state, ui } = ctx;
   if (modo === 'reemplazar') {
     const ocupadas = fechas.flatMap(date => slots.filter(slot => planFor(state, date, slot))).length;
-    if (ocupadas && !window.confirm(`Esto va a reemplazar ${ocupadas} comida(s) que ya estaban puestas. ¿Continuar?`)) return;
+    if (ocupadas && !window.confirm(`Esto va a reemplazar ${conteo(ocupadas, 'una comida que ya estaba puesta', 'comidas que ya estaban puestas')}. ¿Continuar?`)) return;
   }
   const antes = snapshot(state);
   let puestas = 0, saltadas = 0;
@@ -333,7 +333,7 @@ function ponerEnFechas(ctx, { fechas, slots, kind, recipeId, modo }) {
   }
   ui.semana.deshacer = puestas ? antes : null;
   ui.semana.aviso = {
-    titulo: `${puestas} comida(s) puestas en ${fechas.length} día(s).`,
+    titulo: `${conteo(puestas, 'comida puesta', 'comidas puestas')} en ${conteo(fechas.length, 'día', 'días')}.`,
     detalle: `${saltadas ? `${saltadas} se dejaron como estaban. ` : ''}Esto no se repetirá solo: son los días que marcaste, y ninguno más.`
   };
   ctx.closeModal();
@@ -431,7 +431,7 @@ export const SEMANA_ACTIONS = {
     ctx.ui.semana.deshacer = puestas ? antes : null;
     ctx.ui.semana.aviso = puestas ? {
       titulo: `${niceDate(date, { weekday: 'long', day: 'numeric', month: 'long' })}: todo el día fuera de casa.`,
-      detalle: `${puestas} comida(s) marcadas. Las meriendas se quedaron como estaban.`
+      detalle: `${conteo(puestas, 'comida marcada', 'comidas marcadas')}. Las meriendas se quedaron como estaban.`
     } : null;
     ctx.closeModal();
     ctx.commit(puestas ? '' : 'Ese día ya estaba fuera de casa.');
@@ -441,7 +441,7 @@ export const SEMANA_ACTIONS = {
     const date = el.dataset.date;
     const planes = SLOTS.map(slot => planFor(ctx.state, date, slot)).filter(Boolean);
     if (!planes.length) return;
-    if (!window.confirm(`Se van a quitar ${planes.length} comida(s) del ${niceDate(date, { weekday: 'long', day: 'numeric', month: 'long' })}. ¿Continuar?`)) return;
+    if (!window.confirm(`Se van a quitar ${conteo(planes.length, 'una comida', 'comidas')} del ${niceDate(date, { weekday: 'long', day: 'numeric', month: 'long' })}. ¿Continuar?`)) return;
     const antes = snapshot(ctx.state);
     for (const plan of planes) { try { deletePlan(ctx.state, plan.id, true); } catch { /* la vinculada la sostiene otra comida */ } }
     ctx.ui.semana.deshacer = antes;

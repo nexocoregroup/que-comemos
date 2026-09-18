@@ -508,7 +508,13 @@ const RAPIDAS = [
   ['rapida-comida', 'plato', 'Poner una comida', 'En el primer hueco que quede hoy'],
   ['open-recipe', 'libro', 'Crear una preparación', 'Un plato que se repite en casa'],
   ['navigate', 'canasta', 'Preparar la compra', 'Lo que hay que llevar del colmado', 'data-page="compra"'],
-  ['open-product', 'hoja', 'Añadir un alimento', 'Uno que no esté todavía']
+  // «Añadir un producto» y no «un alimento»: abre exactamente el mismo
+  // formulario que «+ Añadir producto» en la sección, que se llama «Productos»
+  // en la barra. Tres nombres para lo mismo siembran la duda de si son tres
+  // sitios distintos, y esa duda se paga volviendo atrás a comprobarlo, de pie
+  // y con una mano. «Alimento» se queda donde de verdad significa comida: lo
+  // que evita cada persona y lo que lleva una preparación.
+  ['open-product', 'hoja', 'Añadir un producto', 'Uno que no esté todavía']
 ];
 
 /* El «+» sigue siendo el mismo botón en las cinco secciones, y esa es su virtud:
@@ -653,6 +659,21 @@ const PAGINAS = {
 // de `page-mas.js` —son pantallas suyas— pero ya no están dentro de nada: son
 // dos de las cinco secciones, y por eso se descuentan aquí.
 const esPaginaDeAjustes = pagina => pagina === 'cuenta' || (PAGINAS_MAS.includes(pagina) && !SECCIONES.includes(pagina));
+
+/* ¿Toca enseñar el botón de volver a Ajustes en la cabecera?
+
+   Las siete subpantallas de Ajustes escribían su título dos veces: el `<h1>` de
+   aquí arriba y, justo debajo, un `<h2>` con el mismo texto al lado de un botón
+   «‹ Ajustes». El título se quedó donde estaba y el botón subió aquí, que es
+   donde lo pondría cualquier aplicación de teléfono: uno solo, siempre en el
+   mismo sitio, para todas.
+
+   `cuenta` se queda fuera y no por descuido: sus pantallas tienen su propia
+   navegación por dentro —portada, registro, entrar, recuperar— con su «Atrás»,
+   y meterle un segundo botón que sale de todas ellas de golpe sería añadir una
+   cuarta forma de volver en vez de quitar una. Unificar «‹ Ajustes», «Atrás» y
+   «Cancelar» es una decisión que va con el botón físico del teléfono, no aquí. */
+const enSubpantallaDeAjustes = () => esPaginaDeAjustes(ui.page) && ui.page !== 'ajustes' && ui.page !== 'cuenta';
 
 /* Pintar tampoco puede tumbar la aplicación.
  *
@@ -892,6 +913,14 @@ function pantallaDeDatosIlegibles() {
 }
 
 function pintar() {
+  /* El título del documento.
+
+     Dentro del APK no lo lee nadie: un WebView no tiene pestaña ni barra de
+     título. Pero esta app corre igual en un navegador, y ahí es lo que se lee en
+     la pestaña, en el historial y en un marcador. Es una línea y no cuesta
+     nada; lo que no se hace es apoyarse en ella para dar por resuelto que
+     cambiar de sección se anuncia, que es otra cosa y se arregla aparte. */
+  document.title = ui.page === 'hoy' ? '¿Qué comemos?' : `${pageTitle()} · ¿Qué comemos?`;
   document.body.classList.toggle('menu-open', ui.drawerOpen);
   document.body.classList.toggle('tour-open', ui.tour !== null);
   document.body.classList.toggle('tour-fab', ui.tour !== null && TOUR_STEPS[ui.tour].highlight === 'fab');
@@ -925,14 +954,14 @@ function pintar() {
   document.querySelector('#app').innerHTML = `<div class="shell ${ui.sidebarCollapsed ? 'sidebar-collapsed' : ''} ${ui.drawerOpen ? 'drawer-open' : ''}">
     <aside class="sidebar" id="app-sidebar" aria-label="Menú lateral">
       <div class="sidebar-head"><button type="button" class="icon-btn sidebar-close" data-action="close-sidebar" aria-label="Ocultar menú">‹</button><div class="brand"><span class="brand-mark">${BRAND_MARK}</span>¿Qué comemos?</div></div>
-      <nav class="nav" aria-label="Navegación principal">${NAV.map(([id, icon, label]) => `<button type="button" class="${activa(id)}" data-action="navigate" data-page="${id}"><span class="nav-icon">${icono(icon)}</span>${label}</button>`).join('')}</nav>
+      <nav class="nav" aria-label="Navegación principal">${NAV.map(([id, icon, label]) => `<button type="button" class="${activa(id)}"${ui.page === id ? ' aria-current="page"' : ''} data-action="navigate" data-page="${id}"><span class="nav-icon">${icono(icon)}</span>${label}</button>`).join('')}</nav>
       <div class="secondary">${engranaje('', 'Ajustes')}</div>
       <div class="side-foot">Tus datos están solo en este aparato. Guarda una copia de vez en cuando desde Ajustes → Respaldo.</div>
     </aside>
     <button type="button" class="drawer-scrim" data-action="close-sidebar" aria-label="Cerrar menú lateral"></button>
     <main class="main">
       <div class="mobile-brand"><button type="button" class="menu-toggle" data-action="toggle-sidebar" aria-label="${ui.drawerOpen ? 'Ocultar menú' : 'Abrir menú'}" aria-controls="app-sidebar" aria-expanded="${ui.drawerOpen}">${icono('menu', { tamano: 22 })}</button><span class="brand-mark">${BRAND_MARK}</span><span>¿Qué comemos?</span>${engranaje('icon-btn engranaje-movil', '')}</div>
-      <header class="topline"><div class="topline-heading"><button type="button" class="menu-toggle desktop-menu-toggle" data-action="toggle-sidebar" aria-label="${ui.sidebarCollapsed ? 'Abrir menú' : 'Ocultar menú'}" aria-controls="app-sidebar" aria-expanded="${!ui.sidebarCollapsed}">${icono('menu', { tamano: 22 })}</button><div><p class="eyebrow">${esc(eyebrow())}</p><h1>${esc(pageTitle())}</h1></div></div>${engranaje('icon-btn engranaje-plegado', '')}</header>
+      <header class="topline"><div class="topline-heading"><button type="button" class="menu-toggle desktop-menu-toggle" data-action="toggle-sidebar" aria-label="${ui.sidebarCollapsed ? 'Abrir menú' : 'Ocultar menú'}" aria-controls="app-sidebar" aria-expanded="${!ui.sidebarCollapsed}">${icono('menu', { tamano: 22 })}</button>${enSubpantallaDeAjustes() ? `<button type="button" class="icon-btn volver-a-ajustes" data-action="navigate" data-page="ajustes" aria-label="Volver a Ajustes" title="Volver a Ajustes">${icono('izquierda', { tamano: 20 })}</button>` : ''}<div><p class="eyebrow">${esc(eyebrow())}</p><h1>${esc(pageTitle())}</h1></div></div>${engranaje('icon-btn engranaje-plegado', '')}</header>
       ${noSePudoGuardar ? notice('No pude guardar lo último en este teléfono', `${esc(noSePudoGuardar)} Lo que ves en pantalla <strong>todavía no está a salvo</strong>: si cierras la app, se pierde. ${button('Descargar una copia ahora', 'export', 'btn-primary btn-small')}`, 'error') : ''}
       ${avisoDeSesion ? notice('Sobre tu cuenta', `${esc(avisoDeSesion)} <button type="button" class="enlace" data-action="navigate" data-page="cuenta">Ir a mi cuenta</button>`, 'warn') : ''}
       ${ui.cuenta?.conflicto ? notice('Hay dos versiones de tu casa', 'Se guardaron cambios en este teléfono y en tu cuenta desde la última vez. Decide cuál se queda cuando puedas; mientras tanto no se toca ninguna. <button type="button" class="enlace" data-action="navigate" data-page="cuenta">Ver las dos</button>', 'warn') : ''}
@@ -943,7 +972,7 @@ function pintar() {
       ${cuerpo}
     </main>
     ${ui.modal || ui.page === 'setup' || ui.page === 'hogar' ? '' : `<button type="button" class="fab" data-action="open-quick" aria-label="Anotar algo">${icono('mas', { tamano: 26 })}</button>`}
-    <nav class="mobile-nav" aria-label="Navegación principal">${NAV.map(([id, icon, , corto]) => `<button type="button" class="${activa(id)}" data-action="navigate" data-page="${id}"><span class="nav-icon">${icono(icon, { tamano: 22 })}</span>${corto}</button>`).join('')}</nav>
+    <nav class="mobile-nav" aria-label="Navegación principal">${NAV.map(([id, icon, , corto]) => `<button type="button" class="${activa(id)}"${ui.page === id ? ' aria-current="page"' : ''} data-action="navigate" data-page="${id}"><span class="nav-icon">${icono(icon, { tamano: 22 })}</span>${corto}</button>`).join('')}</nav>
   </div>`;
   document.querySelector('#modal-root').innerHTML = ui.modal ? renderModal() : ui.tour === null ? '' : tourCard();
 }
@@ -979,7 +1008,7 @@ function renderToday() {
       <div>
         <div class="eyebrow">${esc(niceDate(today()))}</div>
         <h2>${hechas === total ? 'Todo listo para hoy' : hechas ? 'Casi listo' : '¿Qué comemos hoy?'}</h2>
-        <p>${hechas} de ${total} comidas decididas${meriendas.length ? ` · ${meriendas.length} merienda(s)` : ''}</p>
+        <p>${hechas} de ${total} comidas decididas${meriendas.length ? ` · ${conteo(meriendas.length, 'merienda', 'meriendas')}` : ''}</p>
       </div>
       ${hechas === total ? '' : button('Ver la semana', 'navigate', 'btn-secondary', 'data-page="semana"')}
     </section>
@@ -1101,7 +1130,33 @@ function lineaDeCompra() {
 /* ── Piezas de formulario compartidas ──────────────────────────────────── */
 
 const unitOptions = selected => options(UNITS.map(unit => [unit, unit]), selected);
-const productOptions = selected => options(state.products.filter(item => !item.archived).map(item => [item.id, item.name]), selected, 'Elegir un alimento');
+/* Setenta alimentos en un desplegable plano, en el orden en que se dieron de
+   alta. En Android eso es una lista a pantalla completa por la que hay que bajar
+   a dedo hasta dar con «Sazón completo», y se repite por cada alimento de la
+   preparación. Quien se cansa guarda la preparación sin alimentos —y entonces la
+   app no puede avisar de ninguna alergia, que es justo para lo que sirven—.
+
+   Agrupados por rubro, los mismos ocho de siempre, y ordenados por nombre dentro
+   de cada uno. Es lo que ya hacen la compra y el registro inicial con esta misma
+   lista; aquí era la única pantalla que la enseñaba sin orden. */
+const productOptions = selected => {
+  const porRubro = new Map(RUBROS.map(rubro => [rubro.id, []]));
+  for (const item of state.products.filter(fila => !fila.archived)) {
+    const rubro = rubroDe(state, item.id);
+    (porRubro.get(rubro) || porRubro.get('otros')).push(item);
+  }
+  const grupos = [...porRubro]
+    .filter(([, items]) => items.length)
+    .map(([rubro, items]) => {
+      const dentro = items
+        .sort((a, b) => String(a.name).localeCompare(String(b.name), 'es'))
+        .map(item => `<option value="${esc(item.id)}"${item.id === selected ? ' selected' : ''}>${esc(item.name)}</option>`)
+        .join('');
+      return `<optgroup label="${esc(RUBROS.find(fila => fila.id === rubro)?.titulo || rubro)}">${dentro}</optgroup>`;
+    })
+    .join('');
+  return `<option value=""${selected ? '' : ' selected'}>Elegir un alimento</option>${grupos}`;
+};
 
 // La fila de un alimento dentro de una comida: el alimento y nada más.
 //
@@ -1374,7 +1429,12 @@ function modalComida(m) {
     // Se abre por donde se puede contestar. Quien todavía no ha escrito
     // ninguna preparación no puede empezar por un desplegable vacío: empieza
     // escribiendo lo que se come, que es lo que de verdad quiere hacer.
-    const modoInicial = opciones.length ? 'preparacion' : 'escrita';
+    //
+    // `m.modo` existe para cuando la ventana se repinta con un error dentro: sin
+    // él, el repintado devolvería la pestaña a su sitio de salida y lo escrito
+    // en «Escribirla» quedaría detrás de una pestaña cerrada, justo cuando se
+    // acaba de decir que hay algo que corregir ahí.
+    const modoInicial = m.modo || (opciones.length ? 'preparacion' : 'escrita');
     const pestana = (id, etiqueta) => `<button type="button" data-action="comida-modo" data-modo="${id}" class="${modoInicial === id ? 'active' : ''}" aria-pressed="${modoInicial === id}">${etiqueta}</button>`;
     const panel = (id, cuerpo) => `<div data-panel="${id}" ${modoInicial === id ? '' : 'hidden'}>${cuerpo}</div>`;
     return modal('¿Qué se come?', contexto, `<form data-form="assign" class="stack">
@@ -1385,7 +1445,8 @@ function modalComida(m) {
       ${panel('preparacion', opciones.length
         ? `<label class="field"><span>¿Cuál?</span><select name="recipeId" id="assign-recipe">${options(opciones.map(recipe => [recipe.id, recipe.name]), opciones[0]?.id)}</select></label>`
         : `<div class="hint">Todavía no tienes preparaciones para ${esc(etiquetaDeMomento(m.slot).toLocaleLowerCase('es'))}. ${button('Crear una', 'open-recipe', 'btn-secondary btn-small')} O escríbela aquí mismo, en la pestaña de al lado.</div>`)}
-      ${panel('escrita', `<label class="field"><span>¿Qué se come?</span><input name="titulo" placeholder="Ej. lo que quedó del sancocho" autocapitalize="sentences" spellcheck="true"></label>
+      ${panel('escrita', `<label class="field"><span>¿Qué se come?</span><input name="titulo" placeholder="Ej. lo que quedó del sancocho" autocapitalize="sentences" spellcheck="true" maxlength="60" enterkeyhint="done"${m.errorTitulo ? ' aria-invalid="true" aria-describedby="mal-titulo"' : ''}></label>
+        ${m.errorTitulo ? `<p class="setup-error" id="mal-titulo" role="alert">${esc(m.errorTitulo)}</p>` : ''}
         <label class="field"><span>Nota para quien cocina (opcional)</span><input name="nota" placeholder="Ej. calentar a fuego lento" autocapitalize="sentences" spellcheck="true"></label>
         <p class="hint">Se anota solo en este día. No entra en tus preparaciones: esas son las que sabes hacer y vas a repetir.</p>`)}
       ${anteriores.length ? panel('sobro', `<label class="field"><span>¿De cuál comida?</span>
@@ -1686,6 +1747,11 @@ document.addEventListener('click', event => {
       ui.modal = null; ui.drawerOpen = false;
       alEntrarEnUnaSeccion();
       commit('');
+      // Cambiar de sección era mudo. Con el foco cayendo al cuerpo del
+      // documento, el siguiente deslizamiento empieza arriba y acaba leyendo el
+      // título —por accidente, no por diseño—, pero la persona que acaba de
+      // tocar una pestaña no recibe nada en el momento de tocarla.
+      anunciar(pageTitle());
     }
     // Sin repintar: ver `bloqueDeQuienCome`. Lo escrito en la ventana se queda.
     else if (action === 'solo-algunos') {
@@ -1710,6 +1776,9 @@ document.addEventListener('click', event => {
         pestana.setAttribute('aria-pressed', String(suya));
       }
       for (const caja of form.querySelectorAll('[data-panel]')) caja.hidden = caja.dataset.panel !== el.dataset.modo;
+      // Cambiar de pestaña no repinta, pero otra cosa puede repintar después
+      // —un error, un guardado— y la ventana se reconstruye desde el estado.
+      if (ui.modal) ui.modal.modo = el.dataset.modo;
       form.querySelector(`[data-panel="${el.dataset.modo}"] input, [data-panel="${el.dataset.modo}"] select`)?.focus();
     }
     else if (action === 'rapida-comida') openModal('meal', { date: today(), slot: proximaComidaLibre() });
@@ -1769,7 +1838,7 @@ document.addEventListener('click', event => {
       const fecha = el.dataset.date;
       const ocupadas = SLOTS.filter(slot => planFor(state, fecha, slot) && planFor(state, fecha, slot).kind !== 'unplanned');
       const reemplazar = ocupadas.length
-        ? window.confirm(`Ese día ya tiene ${ocupadas.length} comida(s) decidida(s) (${ocupadas.map(cap).join(', ')}).\n\nAceptar: se cambian también.\nCancelar: se quedan y solo marco las que faltan.`)
+        ? window.confirm(`Ese día ya tiene ${conteo(ocupadas.length, 'comida decidida', 'comidas decididas')} (${ocupadas.map(cap).join(', ')}).\n\nAceptar: se cambian también.\nCancelar: se quedan y solo marco las que faltan.`)
         : false;
       let puestas = 0;
       for (const slot of SLOTS) {
@@ -1780,11 +1849,11 @@ document.addEventListener('click', event => {
         puestas++;
       }
       ui.modal = null;
-      commit(puestas ? `${puestas} comida(s) de ese día quedaron fuera de casa.` : 'Ese día ya estaba decidido entero.');
+      commit(puestas ? `${conteo(puestas, 'comida', 'comidas')} de ese día ${puestas === 1 ? 'quedó' : 'quedaron'} fuera de casa.` : 'Ese día ya estaba decidido entero.');
     }
     else if (action === 'replace-status') {
       const hijos = dependents(state, el.dataset.id);
-      if (hijos.length && !window.confirm(`De esta comida se aparta una parte para ${hijos.length} comida(s). Cambiarla también las quitará. ¿Continuar?`)) return;
+      if (hijos.length && !window.confirm(`De esta comida se aparta una parte para ${conteo(hijos.length, 'otra comida', 'otras comidas')}. Cambiarla también las quitará. ¿Continuar?`)) return;
       const antigua = state.plans.find(item => item.id === el.dataset.id);
       deletePlanSeguro(antigua.id, true);
       setStatusPlan(state, antigua.date, antigua.slot, el.dataset.kind);
@@ -1792,7 +1861,7 @@ document.addEventListener('click', event => {
     }
     else if (action === 'delete-plan') {
       const hijos = dependents(state, el.dataset.id);
-      if (hijos.length && !window.confirm(`De esta comida se aparta una parte para ${hijos.length} comida(s). Si la quitas, esas también se van. ¿Continuar?`)) return;
+      if (hijos.length && !window.confirm(`De esta comida se aparta una parte para ${conteo(hijos.length, 'otra comida', 'otras comidas')}. Si la quitas, esas también se van. ¿Continuar?`)) return;
       deletePlanSeguro(el.dataset.id, true);
       ui.modal = null; commit('Comida quitada.');
     }
@@ -2069,7 +2138,26 @@ document.addEventListener('submit', async event => {
       // la vista es la única verdad.
       const modo = form.querySelector('[data-panel]:not([hidden])')?.dataset.panel || 'preparacion';
       if (modo === 'escrita') {
-        const puesta = anotarComidaSuelta(state, date, slot, { titulo: data.get('titulo'), nota: data.get('nota'), participants: gente });
+        /* El error, junto al campo que falló y no en un aviso que se va solo.
+
+           Este campo no lleva `required` —y no puede llevarlo: los otros dos
+           paneles solo están `hidden`, no deshabilitados, y un campo obligatorio
+           escondido bloquea el envío entero sin que el navegador pueda enseñar
+           dónde está—. Así que lo comprueba la app, y lo dice donde se escribe.
+
+           Antes esto llegaba hasta el modelo, volvía como excepción y acababa en
+           el aviso flotante de abajo: 4,2 segundos, a la altura de la barra fija
+           del teléfono y detrás del teclado abierto. Y encima este es el camino
+           de quien todavía no tiene ninguna preparación escrita, o sea la
+           persona más nueva de la app. */
+        const titulo = String(data.get('titulo') || '').trim();
+        if (!titulo) {
+          ui.modal = { ...ui.modal, modo: 'escrita', errorTitulo: 'Escribe qué se come. Con el nombre basta: «lo que quedó del sancocho» vale.' };
+          render();
+          document.querySelector('#modal-root [name="titulo"]')?.focus();
+          return;
+        }
+        const puesta = anotarComidaSuelta(state, date, slot, { titulo, nota: data.get('nota'), participants: gente });
         ui.modal = null; commit(`«${puesta.title}» queda anotada solo para ese día.`);
       } else if (modo === 'sobro') {
         const puesta = reutilizarComida(state, data.get('sobroDe'), date, slot, gente);

@@ -24,7 +24,7 @@ import {
   reviewAvailability, sliceStyle, syncReviewProducts, todayISO
 } from './model.js';
 import { claseDe, hogarDe, resumenDeRestricciones } from './hogar.js';
-import { button, empty, esc, fmt, measure, monthName, niceDate, notice, options, shiftMonth, unitText } from './ui-kit.js';
+import { button, conteo, empty, esc, fmt, measure, monthName, niceDate, notice, options, shiftMonth, unitText } from './ui-kit.js';
 import { icono, iconoDeCategoria } from './icons.js';
 import { normalizeName } from './nombres.js';
 import { LEGAL } from './legal.js';
@@ -123,11 +123,19 @@ export function renderMas(ctx) {
   return (vistas[ui.page] || renderAjustes)(ctx);
 }
 
-// Las pantallas de dentro de Ajustes vuelven a Ajustes, que es de donde se
-// entra a todas ellas.
-function volver(titulo) {
-  return `<div class="mas-volver">${button('‹ Ajustes', 'navigate', 'btn-quiet btn-small', 'data-page="ajustes"')}<h2>${esc(titulo)}</h2></div>`;
-}
+/* Aquí vivía `volver(titulo)`, que pintaba «‹ Ajustes» más el título de la
+   pantalla como `<h2>` — justo debajo del `<h1>` que la cabecera de la app ya
+   escribía. En un teléfono de 375 px, «Funciones avanzadas» ocupaba dos
+   renglones seguidos diciendo lo mismo antes de que empezara el contenido, y
+   para un lector de pantalla eran un `h1` y un `h2` idénticos uno detrás de
+   otro, que suena a error. Las pantallas de primer nivel —Productos,
+   Preparaciones, el propio Ajustes— ya no lo repetían: la regla existía y no se
+   había llevado a las de dentro.
+
+   El botón de volver no desapareció: subió a la cabecera de la app, al lado del
+   `<h1>`, que es donde lo pondría cualquier aplicación de teléfono. Uno solo,
+   siempre en el mismo sitio, para todas las subpantallas. Está en `pintar()`,
+   en app.js. */
 
 // «Mis productos habituales», «Preparaciones» y el propio Ajustes son destinos
 // de primer nivel: se entran desde la barra o desde el engranaje, y no llevan
@@ -174,14 +182,14 @@ function renderCanasta(ctx) {
 
     <div class="setup-buscador">
       <label class="field setup-search"><span class="sr-only">Buscar entre mis productos habituales</span>
-        <input type="search" id="habitual-filtro" value="${esc(ui.mas.habitualFiltro || '')}" placeholder="Buscar entre ${total} producto(s)…" autocomplete="off" aria-label="Buscar entre mis productos habituales">
+        <input type="search" id="habitual-filtro" value="${esc(ui.mas.habitualFiltro || '')}" placeholder="Buscar entre ${conteo(total, 'producto', 'productos')}…" autocomplete="off" aria-label="Buscar entre mis productos habituales">
       </label>
       ${ui.mas.habitualFiltro ? button('Ver todo', 'habitual-limpiar', 'btn-quiet') : ''}
     </div>
 
     ${busqueda && !grupos.length ? `<p class="muted">Nada coincide con «${esc(ui.mas.habitualFiltro)}».</p>` : ''}
     ${grupos.map(grupo => bloqueDeRubro(ctx, grupo, { abierto: Boolean(busqueda) || abiertos.has(grupo.rubro) })).join('')}
-    <p class="tiny muted">${total} producto(s) en ${todos.length === 1 ? 'un rubro' : `${todos.length} rubros`}. Quitar uno de aquí no cambia ninguna compra que ya se hizo.</p>`;
+    <p class="tiny muted">${conteo(total, 'producto', 'productos')} en ${todos.length === 1 ? 'un rubro' : `${todos.length} rubros`}. Quitar uno de aquí no cambia ninguna compra que ya se hizo.</p>`;
 }
 
 // Por nombre y por alias, igual que busca la compra sobre esta misma lista: quien
@@ -210,7 +218,18 @@ function coincideElProducto(state, linea, busqueda) {
 function bloqueDeRubro(ctx, grupo, { abierto = false } = {}) {
   const { state } = ctx;
   const rubro = RUBROS.find(item => item.id === grupo.rubro);
-  return `<details class="plegable canasta-rubro" ${abierto ? 'open' : ''}>
+  /* El `<h2>` invisible es lo que permite saltar de rubro a rubro.
+
+     Quien navega por encabezados —el atajo normal para moverse por una pantalla
+     larga sin verla— saltaba del título de la pantalla al contenido, sin nivel
+     intermedio: los rubros no eran encabezados de ningún tipo.
+
+     Va fuera del `<summary>` y no dentro. Meter un encabezado dentro de un
+     control accionable es válido, pero algunos lectores lo anuncian entonces
+     como «encabezado nivel 2, botón contraído», en un orden que confunde. Así el
+     encabezado es un encabezado y el control es un control. */
+  return `<h2 class="sr-only">${esc(rubro?.titulo || grupo.rubro)}</h2>
+  <details class="plegable canasta-rubro" ${abierto ? 'open' : ''}>
     <summary class="canasta-grupo" data-action="rubro-plegar" data-rubro="${esc(grupo.rubro)}">
       <span class="canasta-grupo-icono">${iconoDeCategoria(grupo.rubro, { tamano: 20 })}</span>
       <span class="canasta-grupo-titulo">${esc(rubro?.titulo || grupo.rubro)}</span>
@@ -261,7 +280,7 @@ function renderPreparaciones(ctx) {
 
     <div class="setup-buscador">
       <label class="field setup-search"><span class="sr-only">Buscar una preparación</span>
-        <input type="search" id="receta-filtro" value="${esc(ui.mas.recetaFiltro || '')}" placeholder="Buscar entre ${state.recipes.length} preparación(es)…" autocomplete="off" aria-label="Buscar una preparación">
+        <input type="search" id="receta-filtro" value="${esc(ui.mas.recetaFiltro || '')}" placeholder="Buscar entre ${conteo(state.recipes.length, 'preparación', 'preparaciones')}…" autocomplete="off" aria-label="Buscar una preparación">
       </label>
       ${ui.mas.recetaFiltro ? button('Ver todo', 'receta-limpiar', 'btn-quiet') : ''}
     </div>
@@ -278,7 +297,12 @@ function renderPreparaciones(ctx) {
       // esconde su contenido él solo y así el navegador puede buscarlo con su
       // propio «buscar en la página».
       const abierto = Boolean(filtro) || !plegados.has(momento.id);
-      return `<details class="plegable recetas-bloque" ${abierto ? 'open' : ''}>
+      // El `<h2>` invisible, por lo mismo que en los rubros: los cinco bloques
+      // no aparecían en la lista de encabezados, así que no había forma de
+      // saltar de un momento del día a otro. Y las preparaciones de dentro sí
+      // son `<h3>`, o sea que faltaba justo el nivel de en medio.
+      return `<h2 class="sr-only">${esc(momento.plural)}</h2>
+      <details class="plegable recetas-bloque" ${abierto ? 'open' : ''}>
         <summary class="recetas-cabecera" data-action="receta-plegar" data-momento="${momento.id}">
           <span class="recetas-titulo">${esc(momento.plural)}</span>
           <span class="badge-count">${delMomento.length}</span>
@@ -289,7 +313,7 @@ function renderPreparaciones(ctx) {
       </details>`;
     }).join('')}
 
-    ${sinMomento.length ? notice('Hay preparaciones sin momento', `${sinMomento.length} preparación(es) no tienen ningún momento marcado, así que no salen en ningún bloque: ${sinMomento.map(receta => esc(receta.name)).join(', ')}. Ábrelas y marca cuándo se comen.`, 'warn') : ''}`;
+    ${sinMomento.length ? notice('Hay preparaciones sin momento', `${conteo(sinMomento.length, 'preparación', 'preparaciones')} no ${sinMomento.length === 1 ? 'tiene' : 'tienen'} ningún momento marcado, así que no salen en ningún bloque: ${sinMomento.map(receta => esc(receta.name)).join(', ')}. Ábrelas y marca cuándo se comen.`, 'warn') : ''}`;
 }
 
 /* ── La ficha y sus reglas, en la misma tarjeta ────────────────────────────
@@ -362,14 +386,13 @@ function renderFamilia(ctx) {
     </div>
   </article>`;
 
-  return `${volver('Familia y restricciones')}
-    <p class="pantalla-intro">Quién come en casa y qué evita cada quien. La app avisa si una comida lleva algo que alguien no puede comer.</p>
+  return `<p class="pantalla-intro">Quién come en casa y qué evita cada quien. La app avisa si una comida lleva algo que alguien no puede comer.</p>
     <div class="pantalla-acciones">
       ${button(hogar.estado === 'listo' || enCasa.length ? 'Configurar mi hogar otra vez' : 'Configurar mi hogar', 'hogar-open', enCasa.length ? 'btn-secondary' : 'btn-primary')}
       ${button('+ Añadir persona', 'hogar-editar', enCasa.length ? 'btn-primary' : 'btn-secondary')}
       ${button('Marcar una ausencia', 'open-absence', 'btn-secondary')}
     </div>
-    ${sinMotivo ? notice('Hay alimentos anotados sin decir por qué', `${sinMotivo} alimento(s) están marcados como «sin decir»: se anotaron antes de que la app preguntara si era alergia, intolerancia o preferencia. La app avisa de ellos igual que siempre. Si entras a editar a la persona puedes decir cuál es cada uno.`, 'warn') : ''}
+    ${sinMotivo ? notice('Hay alimentos anotados sin decir por qué', `${conteo(sinMotivo, 'alimento está marcado', 'alimentos están marcados')} como «sin decir»: se anotaron antes de que la app preguntara si era alergia, intolerancia o preferencia. La app avisa de ellos igual que siempre. Si entras a editar a la persona puedes decir cuál es cada uno.`, 'warn') : ''}
     ${enCasa.length
       ? `<div class="grid grid-2">${enCasa.map(persona => tarjeta(persona, true)).join('')}</div>`
       : empty('personas', 'Todavía no hay nadie', 'Anotar quién come en casa sirve para dos cosas: avisar de alergias y saber para cuántos se cocina. Son dos preguntas por persona.', button('Configurar mi hogar', 'hogar-open', 'btn-primary'))}
@@ -392,12 +415,11 @@ function renderRevision(ctx) {
   if (abierta) syncReviewProducts(state, abierta);
   const ultima = lastStockReview(state);
   if (!abierta) {
-    return `${volver('Lo que revisaste antes')}
-      ${empty('visto', ultima ? `Última revisión: ${niceDate(ultima, { day: 'numeric', month: 'long' })}` : 'No hay revisiones guardadas',
+    return `${empty('visto', ultima ? `Última revisión: ${niceDate(ultima, { day: 'numeric', month: 'long' })}` : 'No hay revisiones guardadas',
         'Esta pantalla ya no empieza revisiones nuevas: la app dejó de llevar la cuenta de lo que queda en casa. Se conserva para poder leer lo que anotaste en su día.')}
       ${state.reviews.filter(item => item.status === 'confirmed').length ? `<div class="section-head"><h3 class="plan-sub">Revisiones anteriores</h3></div><div class="card">${[...state.reviews].filter(item => item.status === 'confirmed').reverse().slice(0, 8).map(item => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${esc(niceDate(item.date, { day: 'numeric', month: 'long', year: 'numeric' }))}</div><div class="list-row-sub">${item.productIds.filter(id => item.consumed[id] !== undefined).length} de ${item.productIds.length} alimentos</div></div>${button('Ver', 'select-review', 'btn-quiet btn-small', `data-id="${item.id}"`)}</div>`).join('')}</div>` : ''}`;
   }
-  return `${volver('Lo que revisaste antes')}${tablaDeRevision(ctx, abierta)}`;
+  return `${tablaDeRevision(ctx, abierta)}`;
 }
 
 function tablaDeRevision(ctx, revision) {
@@ -467,19 +489,17 @@ function renderHistorial(ctx) {
   ].sort((a, b) => b.fecha.localeCompare(a.fecha) || b.seq - a.seq);
 
   if (!cerradas.length && !eventos.length) {
-    return `${volver('Historial')}
-      ${empty('reloj', 'Todavía no hay nada', 'Aquí aparecerán tus compras: qué llevabas apuntado y qué trajiste de cada cosa.', '')}`;
+    return `${empty('reloj', 'Todavía no hay nada', 'Aquí aparecerán tus compras: qué llevabas apuntado y qué trajiste de cada cosa.', '')}`;
   }
 
-  return `${volver('Historial')}
-    <p class="pantalla-intro">Tus compras, de la más reciente a la más antigua.</p>
+  return `<p class="pantalla-intro">Tus compras, de la más reciente a la más antigua.</p>
 
     ${cerradas.length ? `<div class="card">${cerradas.slice(0, 40).map(lista => {
       const resumen = resumenDeLista(lista);
       return `<div class="list-row">
         <div class="list-row-main">
           <div class="list-row-title">${esc(niceDate(lista.cerradaEl || lista.fecha, { weekday: 'long', day: 'numeric', month: 'long' }))}</div>
-          <div class="list-row-sub">${resumen.comprados} de ${resumen.total} cosa(s) traídas${resumen.pendientes ? ` · ${resumen.pendientes} sin conseguir` : ''}</div>
+          <div class="list-row-sub">${resumen.comprados} de ${conteo(resumen.total, 'cosa traída', 'cosas traídas')}${resumen.pendientes ? ` · ${resumen.pendientes} sin conseguir` : ''}</div>
           <div class="list-row-sub small muted">${lista.lineas.slice(0, 6).map(linea => {
             const nombre = linea.productId ? product(state, linea.productId)?.name || 'Alimento eliminado' : linea.texto;
             return `${esc(nombre)}${linea.comprada ? ` (${esc(measure(linea.comprada, linea.unidad || 'unidad'))})` : ''}`;
@@ -504,7 +524,7 @@ function renderHistorial(ctx) {
 function detalleDeEvento(state, evento) {
   if (evento.tipo === 'compra') {
     const nombres = evento.item.lines.slice(0, 5).map(linea => product(state, linea.productId)?.name || '—');
-    return `${evento.item.lines.length} alimento(s): ${nombres.join(', ')}${evento.item.lines.length > 5 ? '…' : ''}`;
+    return `${conteo(evento.item.lines.length, 'alimento', 'alimentos')}: ${nombres.join(', ')}${evento.item.lines.length > 5 ? '…' : ''}`;
   }
   if (evento.tipo === 'revision') {
     const revisados = evento.item.productIds.filter(id => evento.item.consumed[id] !== undefined).length;
@@ -539,7 +559,7 @@ function periodosCerrados(ctx) {
         <div class="list-row-main">
           <div class="list-row-title">${esc(etiquetaDeCierre(cierre))}</div>
           <div class="list-row-sub">Cerrado el ${esc(niceDate(cierre.closedAt, { day: 'numeric', month: 'long', year: 'numeric' }))} · compra ${esc(cierre.frecuencia === 'quincenal' ? 'quincenal' : 'mensual')} · calculado desde ${esc(cierre.basis === 'menu' ? 'el menú' : 'la canasta')}</div>
-          <div class="list-row-sub">${cierre.lista.length} en la lista · ${compradas} comprado(s) · ${cierre.canasta.length} de canasta · ${cierre.excepciones.length} excepción(es)</div>
+          <div class="list-row-sub">${cierre.lista.length} en la lista · ${conteo(compradas, 'comprado', 'comprados')} · ${cierre.canasta.length} de canasta · ${conteo(cierre.excepciones.length, 'excepción', 'excepciones')}</div>
         </div>
         ${button(esteAbierto ? 'Cerrar' : 'Ver todo', 'cierre-ver', 'btn-quiet btn-small', `data-id="${esc(cierre.id)}"`)}
       </div>
@@ -574,7 +594,7 @@ function detalleDelCierre(state, cierre) {
     ${cierre.excepciones.length ? seccion(`Las excepciones de ese mes · ${cierre.excepciones.length}`,
       filas(cierre.excepciones.map(cambio => `<li>${nombre(cambio.productId)}: ${cambio.removed ? 'ese mes no se compró' : cantidad(cambio.quantity, cambio.unit)}</li>`))) : ''}
 
-    ${seccion(`Lo que se compró · ${cierre.compras.length} compra(s)`, cierre.compras.length
+    ${seccion(`Lo que se compró · ${conteo(cierre.compras.length, 'compra', 'compras')}`, cierre.compras.length
       ? cierre.compras.map(compra => `<p class="small"><strong>${esc(niceDate(compra.date, { day: 'numeric', month: 'long' }))}</strong></p>${filas(compra.lines.map(linea => `<li>${nombre(linea.productId)}: ${cantidad(linea.quantity, linea.unit)}</li>`))}`).join('')
       : '<p class="muted small">No se anotó ninguna compra en este período.</p>')}
 
@@ -585,7 +605,7 @@ function detalleDelCierre(state, cierre) {
          ${filas(declarados.map(([id, valor]) => `<li>${nombre(id)}: ${cantidad(valor, product(state, id)?.controlUnit || '')}</li>`))}`
       : '<p class="muted small">No quedaba nada anotado.</p>')}
 
-    ${cierre.menu ? seccion(`El menú que lo produjo · ${cierre.menu.length} comida(s)`,
+    ${cierre.menu ? seccion(`El menú que lo produjo · ${conteo(cierre.menu.length, 'comida', 'comidas')}`,
       filas(cierre.menu.slice(0, 20).map(plan => `<li>${esc(niceDate(plan.date, { day: 'numeric', month: 'short' }))} · ${esc(etiquetaDeMomento(plan.slot))}: ${esc(plan.title || 'Sin nombre')}</li>`))
       + (cierre.menu.length > 20 ? `<p class="small muted">Y ${cierre.menu.length - 20} más.</p>` : '')) : ''}
 
@@ -610,8 +630,7 @@ function detalleDelCierre(state, cierre) {
    algo sale mal en los dos sitios. */
 function renderRespaldo(ctx) {
   const { state, sincronizando } = ctx;
-  return `${volver('Respaldo')}
-    <p class="pantalla-intro">${sincronizando
+  return `<p class="pantalla-intro">${sincronizando
       ? 'Tus datos están en este teléfono y en tu cuenta. Aun así conviene guardar una copia de vez en cuando: <strong>la cuenta te salva si cambias de teléfono, la copia te salva si algo sale mal en los dos sitios</strong>.'
       : 'Tus datos viven solo en este teléfono. No hay cuenta encendida, no hay servidor, y ni siquiera la copia automática de Android se los lleva: eso está apagado a propósito. La otra cara es que <strong>si pierdes el teléfono sin una copia, se pierde todo</strong>.'}</p>
     ${avisoDeCopia(state, sincronizando)}
@@ -703,9 +722,9 @@ function renderAjustes(ctx) {
 
   const filas = [
     ['navigate', 'data-page="familia"', 'personas', 'Familia y restricciones',
-      enCasa ? `${enCasa} persona(s) en casa${deBaja ? ` · ${deBaja} dada(s) de baja` : ''}` : 'Todavía no hay nadie registrado'],
+      enCasa ? `${conteo(enCasa, 'persona', 'personas')} en casa${deBaja ? ` · ${conteo(deBaja, 'dada de baja', 'dadas de baja')}` : ''}` : 'Todavía no hay nadie registrado'],
     ['navigate', 'data-page="historial"', 'reloj', 'Historial',
-      compras ? `${compras} compra(s) guardada(s)` : 'Todavía no hay ninguna compra guardada'],
+      compras ? `${conteo(compras, 'compra guardada', 'compras guardadas')}` : 'Todavía no hay ninguna compra guardada'],
     ['navigate', 'data-page="respaldo"', 'descargar', 'Respaldo',
       copia.hayDatos
         ? copia.ultima
@@ -756,8 +775,7 @@ function renderOrganizacion(ctx) {
   const periodos = periodosDelMes(state, mesActual);
   const quincenal = actual === 'quincenal';
 
-  return `${volver('Organización de compra')}
-    <p class="pantalla-intro">Cada cuánto se hace la compra principal de la casa. Es un dato tuyo: la app no divide cantidades, no calcula listas y no te impide abrir una compra cualquier día.</p>
+  return `<p class="pantalla-intro">Cada cuánto se hace la compra principal de la casa. Es un dato tuyo: la app no divide cantidades, no calcula listas y no te impide abrir una compra cualquier día.</p>
 
     <div class="card">
       <h3>Frecuencia de compra</h3>
@@ -828,8 +846,7 @@ function renderLegal(ctx) {
   const { ui } = ctx;
   const cual = DOCUMENTOS.some(([id]) => id === ui.mas.documento) ? ui.mas.documento : 'privacidad';
   const doc = LEGAL[cual];
-  return `${volver('Privacidad y condiciones')}
-    <div class="segmented segmented-ancho">${DOCUMENTOS.map(([id, etiqueta]) =>
+  return `<div class="segmented segmented-ancho">${DOCUMENTOS.map(([id, etiqueta]) =>
       `<button type="button" data-action="legal-ver" data-doc="${id}" class="${cual === id ? 'active' : ''}">${esc(etiqueta)}</button>`).join('')}</div>
     <article class="card documento">
       <h2>${esc(doc.titulo)}</h2>
@@ -863,8 +880,7 @@ function renderAvanzado(ctx) {
   const vivos = state.products.filter(item => !item.archived)
     .sort((a, b) => Number(enLaCanasta.has(a.id)) - Number(enLaCanasta.has(b.id)) || a.name.localeCompare(b.name, 'es'));
   const archivados = state.products.filter(item => item.archived).sort((a, b) => a.name.localeCompare(b.name, 'es'));
-  return `${volver('Funciones avanzadas')}
-    <p class="pantalla-intro">Nada de esto hace falta para usar la app. Está aquí por si algo no cuadra y quieres arreglarlo a mano.</p>
+  return `<p class="pantalla-intro">Nada de esto hace falta para usar la app. Está aquí por si algo no cuadra y quieres arreglarlo a mano.</p>
 
     <div class="card">
       <h3>Medidas de compra</h3>

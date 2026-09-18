@@ -28,7 +28,7 @@ import {
 } from './model.js';
 import { RUBROS } from './catalog-seed.js';
 import {
-  button, empty, esc, measure, modal, niceDate, notice, options
+  button, conteo, empty, esc, measure, modal, niceDate, notice, options
 } from './ui-kit.js';
 import { icono, iconoDeCategoria } from './icons.js';
 import { normalizeName } from './nombres.js';
@@ -56,9 +56,16 @@ export function emptyCompra() {
     // este rato, no para mañana.
     deshacer: null,
     avisoDeshacer: '',
-    verHistorial: false
+    verHistorial: false,
+    // Cuántas compras cerradas se enseñan. Eran doce fijas, y debajo ponía «Y 14
+    // más.» en gris y sin botón: catorce compras suyas, guardadas y ocupando
+    // sitio, que no había forma de mirar. Y es el único sitio de la app donde se
+    // puede contestar «¿cuándo compramos aceite la última vez?».
+    cuantasCerradas: DE_DOCE_EN_DOCE
   };
 }
+
+const DE_DOCE_EN_DOCE = 12;
 
 // La lista que se está escribiendo. Si no hay ninguna abierta, no se crea al
 // mirar: preguntar por la compra no puede empezar una.
@@ -81,7 +88,7 @@ export function renderCompra(ctx) {
       <div class="section-head"><div>
         <h2>${esc(lista.nombre || `Compra del ${niceDate(lista.fecha, { weekday: 'long', day: 'numeric', month: 'long' })}`)}</h2>
         <p class="small muted">${resumen.total
-          ? `${resumen.total} cosa(s) apuntadas · ${resumen.pendientes} por buscar`
+          ? `${conteo(resumen.total, 'cosa apuntada', 'cosas apuntadas')} · ${resumen.pendientes} por buscar`
           : 'Todavía no has apuntado nada.'}</p>
       </div></div>
       <div class="segmented segmented-ancho compra-vistas">
@@ -151,7 +158,7 @@ function vistaPreparar(ctx, lista) {
         : notice('Todavía no tienes productos habituales.',
             'Son los que tu casa compra de costumbre, y sirven para no acordarte de todo de cero cada vez. Se marcan en Mis productos habituales, o puedes apuntar aquí mismo lo de esta compra.')}
 
-    ${total ? `<p class="tiny muted">${total} producto(s) habituales a la vista. No hace falta marcarlos todos: solo lo de esta compra.</p>` : ''}`;
+    ${total ? `<p class="tiny muted">${conteo(total, 'producto habitual', 'productos habituales')} a la vista. No hace falta marcarlos todos: solo lo de esta compra.</p>` : ''}`;
 }
 
 function bloqueDeRubro(ctx, grupo, yaEnLaLista) {
@@ -418,21 +425,23 @@ function historial(ctx) {
   const cerradas = listasCerradas(state);
   if (!cerradas.length) return '';
   const abiertas = ui.compra.verHistorial;
+  const tope = ui.compra.cuantasCerradas || DE_DOCE_EN_DOCE;
+  const faltan = Math.max(0, cerradas.length - tope);
   return `<details class="plegable compra-historial" ${abiertas ? 'open' : ''}>
     <summary data-action="compra-ver-historial">Compras anteriores · ${cerradas.length}</summary>
     <p class="small muted">Lo que se apuntó y lo que se trajo de cada una. Es un recuerdo de lo que pasó, no una cuenta de lo que hay en casa.</p>
-    ${cerradas.slice(0, 12).map(lista => {
+    ${cerradas.slice(0, tope).map(lista => {
       const resumen = resumenDeLista(lista);
       return `<div class="list-row">
         <div class="list-row-main">
           <div class="list-row-title">${esc(niceDate(lista.cerradaEl || lista.fecha, { weekday: 'long', day: 'numeric', month: 'long' }))}</div>
-          <div class="list-row-sub">${resumen.comprados} de ${resumen.total} cosa(s) traídas${resumen.pendientes ? ` · ${resumen.pendientes} se quedaron sin conseguir` : ''}</div>
+          <div class="list-row-sub">${resumen.comprados} de ${conteo(resumen.total, 'cosa traída', 'cosas traídas')}${resumen.pendientes ? ` · ${resumen.pendientes} se quedaron sin conseguir` : ''}</div>
           <div class="list-row-sub small muted">${lista.lineas.slice(0, 6).map(linea =>
             `${esc(nombreDeLinea(state, linea))}${linea.comprada ? ` (${esc(cuanto(linea.comprada, linea.unidad))})` : ''}`).join(' · ')}${lista.lineas.length > 6 ? ` y ${lista.lineas.length - 6} más` : ''}</div>
         </div>
       </div>`;
     }).join('')}
-    ${cerradas.length > 12 ? `<p class="small muted">Y ${cerradas.length - 12} más.</p>` : ''}
+    ${faltan ? `<div class="inline compra-historial-mas">${button(`Ver ${conteo(Math.min(DE_DOCE_EN_DOCE, faltan), 'compra anterior', 'compras anteriores')}`, 'compra-mas-historial', 'btn-quiet btn-small')}</div>` : ''}
   </details>`;
 }
 
@@ -538,7 +547,12 @@ const ACCIONES = {
   'compra-editar': (el, ctx) => { ctx.ui.compra.editando = el.dataset.id; ctx.render(); },
   'compra-cancelar-editar': (el, ctx) => { ctx.ui.compra.editando = ''; ctx.render(); },
 
-  'compra-ver-historial': (el, ctx) => { ctx.ui.compra.verHistorial = !el.closest('details').open; }
+  'compra-ver-historial': (el, ctx) => { ctx.ui.compra.verHistorial = !el.closest('details').open; },
+  'compra-mas-historial': (el, ctx) => {
+    ctx.ui.compra.cuantasCerradas = (ctx.ui.compra.cuantasCerradas || DE_DOCE_EN_DOCE) + DE_DOCE_EN_DOCE;
+    ctx.ui.compra.verHistorial = true;
+    ctx.render();
+  }
 };
 
 /* ── El deshacer caduca solo ───────────────────────────────────────────────
@@ -590,8 +604,8 @@ function terminar(ctx, lista, trasladar) {
   ctx.ui.compra.deshacer = antes;
   ctx.ui.compra.avisoDeshacer = 'Compra terminada.';
   ctx.closeModal?.();
-  ctx.commit(`Compra guardada: ${resumen.comprados} de ${resumen.total} cosa(s).${
-    movidas ? ` ${movidas} cosa(s) sin conseguir pasan a la próxima.` : resumen.pendientes ? ` ${resumen.pendientes} se quedan solo en el historial de esta compra.` : ''
+  ctx.commit(`Compra guardada: ${resumen.comprados} de ${conteo(resumen.total, 'cosa', 'cosas')}.${
+    movidas ? ` ${conteo(movidas, 'cosa', 'cosas')} sin conseguir ${movidas === 1 ? 'pasa' : 'pasan'} a la próxima.` : resumen.pendientes ? ` ${resumen.pendientes} se quedan solo en el historial de esta compra.` : ''
   }`);
 }
 

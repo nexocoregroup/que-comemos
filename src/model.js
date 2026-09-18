@@ -1313,7 +1313,7 @@ export function updatePlan(state, planId, fields) {
 }
 export function deletePlan(state, id, cascade = false) {
   const children = dependents(state, id);
-  if (children.length && !cascade) throw new Error(`Esta preparación tiene ${children.length} comida(s) que dependen de ella.`);
+  if (children.length && !cascade) throw new Error(`Esta preparación tiene ${children.length === 1 ? 'una comida que depende' : `${children.length} comidas que dependen`} de ella.`);
   const ids = new Set([id, ...children.map(item => item.id)]);
   state.plans = state.plans.filter(item => !ids.has(item.id));
   return children.length;

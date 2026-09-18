@@ -48,7 +48,7 @@ import {
 // preguntar si un alimento es alergia o manía.
 import { claseDe, resumenDeRestricciones } from './hogar.js';
 import { normalizeName } from './text-parse.js';
-import { button, esc, niceDate, notice } from './ui-kit.js';
+import { button, conteo, esc, niceDate, notice } from './ui-kit.js';
 import { icono, iconoDeCategoria } from './icons.js';
 
 // Los pasos se llaman por su nombre y no por su número. Los números cambian
@@ -246,7 +246,7 @@ function pantallaInicio(setup) {
     <p class="setup-camino">${EN_LETRA[cuantos] || cuantos} pasos cortos: quiénes comen aquí, lo que compras normalmente, cada cuánto compras, lo que sabes preparar, y el plan de tus primeros días.</p>
     <h2 class="setup-promesa">Vamos a registrar lo que tu casa come y compra de costumbre. <strong>No hace falta indicar cantidades de nada.</strong></h2>
     <div class="pantalla-acciones">${button(llevaEmpezado ? 'Seguir donde lo dejé' : 'Empezar', 'setup-empezar', 'btn-primary btn-grande')}</div>
-    ${llevaEmpezado ? `<p class="small muted">Llevas ${setup.elegidos.length} producto(s) marcados.</p>` : ''}
+    ${llevaEmpezado ? `<p class="small muted">Llevas ${conteo(setup.elegidos.length, 'producto marcado', 'productos marcados')}.</p>` : ''}
     <details class="plegable setup-ejemplo">
       <summary>¿Qué son los productos habituales?</summary>
       <p class="muted">Lo que esta casa siempre compra: arroz, huevos, salami, plátanos, detergente. Se marca una vez y sirve de recordatorio cada vez que hay que escribir la lista del supermercado, para no tener que acordarse de todo desde cero.</p>
@@ -1035,7 +1035,7 @@ export const SETUP_ACTIONS = {
     const guardados = guardarLoMarcado(ctx);
     guardarAvance(ctx);
     ctx.commit(guardados
-      ? `${guardados} producto(s) habituales guardados. Las cantidades no hacen falta: se deciden en cada lista.`
+      ? `${conteo(guardados, 'producto habitual guardado', 'productos habituales guardados')}. Las cantidades no hacen falta: se deciden en cada lista.`
       : 'Sin productos marcados por ahora. Puedes volver cuando quieras.');
   },
   'setup-limpiar-busqueda': (el, ctx) => {
@@ -1098,7 +1098,7 @@ export const SETUP_ACTIONS = {
     if (!receta) return;
     const puestas = ctx.state.plans.filter(plan => plan.recipeId === receta.id).length;
     const aviso = puestas
-      ? `«${receta.name}» está puesta en ${puestas} comida(s) del calendario. Quitarla de aquí no las borra, pero no podrás volver a elegirla. ¿Quitarla?`
+      ? `«${receta.name}» está puesta en ${conteo(puestas, 'una comida', 'comidas')} del calendario. Quitarla de aquí no las borra, pero no podrás volver a elegirla. ¿Quitarla?`
       : `¿Quitar «${receta.name}»?`;
     if (!window.confirm(aviso)) return;
     deleteRecipe(ctx.state, receta.id);

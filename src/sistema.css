@@ -531,3 +531,45 @@ body, .shell { min-height: 100vh; min-height: 100dvh; }
   .hero { padding: var(--aire-5) var(--aire-5); }
   .hero h2 { font-size: 1.5rem; margin: var(--aire-1) 0; }
 }
+
+/* ── 15. Un anillo de foco que se vea ──────────────────────────────────────
+
+   styles.css pone `outline: none` a todos los campos y theme.css lo sustituye
+   por un cambio de borde de 1 px más un halo terracota al 16 %. Sobre la crema
+   del fondo ese halo queda en torno a 1,1:1 de contraste, o sea prácticamente
+   invisible: lo único que marca el foco es el borde, que pasa de beige a
+   terracota. Es perceptible, pero es un píxel.
+
+   Dos decisiones dentro de este arreglo:
+
+     · `:focus-visible` y no `:focus`. Con `:focus`, un anillo de 3 px saltaría
+       en cada toque de dedo sobre cada casilla de la tabla de entrada de
+       corrido, que es ruido puro. `:focus-visible` solo aparece cuando el
+       navegador cree que hace falta: teclado, no dedo.
+     · el `box-shadow` de theme.css se queda. En la tabla de bulk-entry es lo
+       que distingue la celda activa sin ensanchar la fila, y quitarlo por
+       poner el anillo cambiaría una pantalla que nadie se quejó de que
+       estuviera mal.
+
+   El `outline-offset` separa el anillo del borde para que se lean como dos
+   cosas y no como un borde gordo. */
+.field input:focus-visible,
+.field select:focus-visible,
+.field textarea:focus-visible,
+input.text:focus-visible,
+select.text:focus-visible,
+textarea.text:focus-visible {
+  outline: 2px solid var(--clay);
+  outline-offset: 2px;
+}
+
+/* Y lo mismo para lo que se toca sin ser un campo. La app tiene botones de
+   varias clases y ninguno declaraba anillo propio: heredaban el del navegador,
+   que sobre terracota macizo desaparece. */
+button:focus-visible,
+[data-action]:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--clay);
+  outline-offset: 2px;
+}
+.btn-primary:focus-visible { outline-color: var(--ink); }

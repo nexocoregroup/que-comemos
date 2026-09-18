@@ -145,8 +145,8 @@ test('Ajustes es un índice de filas, no ocho párrafos', () => {
   const filas = [...html.matchAll(/class="ajustes-fila"/g)].length;
   assert.ok(filas >= 8, `Ajustes volvió a ser otra cosa: ${filas} fila(s)`);
   // Cada fila dice cuánto hay al otro lado. Eso es lo que ahorra entrar.
-  assert.ok(/persona\(s\) en casa|Todavía no hay nadie/.test(html), 'la fila de Familia no dice cuánta gente hay');
-  assert.ok(/compra\(s\) guardada\(s\)|Todavía no hay ninguna compra/.test(html), 'la fila de Historial no dice cuántas compras hay');
+  assert.ok(/\d+ personas? en casa|Todavía no hay nadie/.test(html), 'la fila de Familia no dice cuánta gente hay');
+  assert.ok(/\d+ compras? guardadas?|Todavía no hay ninguna compra/.test(html), 'la fila de Historial no dice cuántas compras hay');
 });
 
 /* ── Plan semanal ──────────────────────────────────────────────────────── */

@@ -23,7 +23,7 @@
 // un dato de salud que solo puede filtrarse.
 
 import { CLASES_DE_PERSONA, MOTIVOS_DE_RESTRICCION, activeProducts, esActiva, personasActivas, product, restriccionesDe, setPersonActive, upsertPerson } from './model.js';
-import { button, esc, notice, productDatalist } from './ui-kit.js';
+import { button, conteo, esc, notice, productDatalist } from './ui-kit.js';
 import { icono } from './icons.js';
 
 /* ── Vocabulario ───────────────────────────────────────────────────────── */
@@ -400,6 +400,10 @@ export const HOGAR_ACTIONS = {
     const motivo = el.dataset.motivo;
     if (!MOTIVOS_DE_RESTRICCION.includes(motivo)) return;
     cambiarFicha(ctx, { ...ficha, motivo, error: '' });
+    // Elegir el motivo no decía nada, y la pantalla se repinta entera: quien no
+    // la ve no tenía forma de saber si el toque entró. El desplazamiento y el
+    // foco ya los conserva `render()`; lo que faltaba era decirlo.
+    ctx.anunciar?.(`${el.textContent.trim()}, elegido.`);
   },
   'hogar-anadir': (el, ctx) => { anadirRestriccion(ctx); },
   'hogar-quitar': (el, ctx) => {
@@ -537,7 +541,7 @@ export const HOGAR_FORMS = {
     ctx.closeModal();
     const sinMotivo = restriccionesDe(persona).filter(fila => !fila.motivo).length;
     ctx.commit(sinMotivo
-      ? `Guardado. Quedan ${sinMotivo} alimento(s) sin decir por qué se evitan.`
+      ? `Guardado. Queda${sinMotivo === 1 ? '' : 'n'} ${conteo(sinMotivo, 'alimento', 'alimentos')} sin decir por qué se evita${sinMotivo === 1 ? '' : 'n'}.`
       : 'Guardado.');
   }
 };

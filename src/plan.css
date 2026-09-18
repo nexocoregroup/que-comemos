@@ -260,14 +260,15 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 
 .compra-acciones { margin-top: 16px; }
 
-.mas-volver {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0 0 18px;
-  flex-wrap: wrap;
-}
-.mas-volver h2 { margin: 0; font-size: 1.35rem; }
+/* Aquí vivía `.mas-volver`, la fila de «‹ Ajustes» más el título repetido que
+   abría las siete subpantallas de Ajustes. El título ya lo escribe el `<h1>` de
+   la cabecera; el botón subió a esa misma cabecera, que es donde lo pondría
+   cualquier aplicación de teléfono. */
+
+/* El botón de volver, al lado del título de la pantalla. Del mismo tamaño que
+   el del menú y el del engranaje, porque los tres son lo mismo: cómo se sale de
+   donde estás. */
+.volver-a-ajustes { flex: none; }
 
 /* ── Los ocho rubros, que son los mismos en las tres pantallas ─────────────
 

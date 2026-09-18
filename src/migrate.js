@@ -94,7 +94,7 @@ function v1toV2(data) {
     createdAt: item.createdAt || fecha,
     updatedAt: item.updatedAt || fecha
   }));
-  if (products.length) notes.push(`${products.length} alimento(s) pasaron a la ficha de catálogo.`);
+  if (products.length) notes.push(`${products.length === 1 ? 'Un alimento pasó' : `${products.length} alimentos pasaron`} a la ficha de catálogo.`);
 
   // La canasta vieja no tenía prioridad. «Frecuente» es el término medio
   // honesto: decir que todo es obligatorio sería inventar una exigencia que el
@@ -229,10 +229,10 @@ function v2toV3(data) {
   };
 
   notes.push('Tu canasta de siempre ahora se llama «productos habituales» y es la misma de antes.');
-  if (totalCambios) notes.push(`De los meses que tenías escritos se guardaron ${totalCambios} cambio(s): solo aquello en lo que cada mes se apartaba de tu canasta. Lo que era igual no hacía falta repetirlo.`);
+  if (totalCambios) notes.push(`De los meses que tenías escritos se guardó ${totalCambios === 1 ? 'un cambio' : `${totalCambios} cambios`}: solo aquello en lo que cada mes se apartaba de tu canasta. Lo que era igual no hacía falta repetirlo.`);
   else if (Object.keys(monthlyBaskets).length) notes.push('Los meses que tenías escritos eran iguales a tu canasta, así que no hizo falta guardar ningún cambio.');
-  if (Object.keys(monthPlans).length) notes.push(`${Object.keys(monthPlans).length} mes(es) quedaron marcados como abiertos.`);
-  if ((data.invoices || []).length) notes.push(`Las ${data.invoices.length} factura(s) guardadas salen de la app, pero siguen enteras en el respaldo anterior a la migración.`);
+  if (Object.keys(monthPlans).length) notes.push(`${Object.keys(monthPlans).length === 1 ? 'Un mes quedó marcado como abierto' : `${Object.keys(monthPlans).length} meses quedaron marcados como abiertos`}.`);
+  if ((data.invoices || []).length) notes.push(`${data.invoices.length === 1 ? 'La factura guardada sale' : `Las ${data.invoices.length} facturas guardadas salen`} de la app, pero ${data.invoices.length === 1 ? 'sigue entera' : 'siguen enteras'} en el respaldo anterior a la migración.`);
 
   return { state, notes };
 }
@@ -264,7 +264,7 @@ function v3toV4(data) {
   });
   state.version = 4;
   if (conMotivoPendiente) {
-    notes.push(`${conMotivoPendiente} persona(s) tenían alimentos anotados sin decir por qué. Se conservan y se sigue avisando igual; puedes marcar si es alergia, intolerancia o preferencia desde Ajustes → Familia.`);
+    notes.push(`${conMotivoPendiente === 1 ? 'Una persona tenía' : `${conMotivoPendiente} personas tenían`} alimentos anotados sin decir por qué. Se conservan y se sigue avisando igual; puedes marcar si es alergia, intolerancia o preferencia desde Ajustes → Familia.`);
   }
   return { state, notes };
 }
@@ -337,7 +337,7 @@ function v4toV5(data) {
   });
   state.version = 5;
   if (conPersonas) {
-    notes.push(`${conPersonas} preparación(es) tenían anotado quién las comía. Esa pregunta ya no existe: una preparación es para toda la casa, y quien no coma se marca el día que toque. Las comidas que ya estaban en el calendario no cambian.`);
+    notes.push(`${conPersonas === 1 ? 'Una preparación tenía' : `${conPersonas} preparaciones tenían`} anotado quién las comía. Esa pregunta ya no existe: una preparación es para toda la casa, y quien no coma se marca el día que toque. Las comidas que ya estaban en el calendario no cambian.`);
   }
   return { state, notes };
 }
@@ -370,7 +370,7 @@ function v5toV6(data) {
   });
   state.version = 6;
   if (deducidas) {
-    notes.push(`${deducidas} comida(s) del calendario no decían de dónde venían. Las que puso una rutina y las que estaban marcadas fuera de casa o pedidas se reconocen solas; el resto quedan como cambio manual. Ninguna comida cambia de día, de plato ni de cantidad.`);
+    notes.push(`${deducidas === 1 ? 'Una comida del calendario no decía' : `${deducidas} comidas del calendario no decían`} de dónde ${deducidas === 1 ? 'venía' : 'venían'}. Las que puso una rutina y las que estaban marcadas fuera de casa o pedidas se reconocen solas; el resto quedan como cambio manual. Ninguna comida cambia de día, de plato ni de cantidad.`);
   }
   return { state, notes };
 }
@@ -459,7 +459,7 @@ function v8toV9(data) {
   state.version = 9;
   const notes = [];
   if (partidas) {
-    notes.push(`${partidas} regla(s) valían para varios momentos del día a la vez. Ahora cada regla es de un momento, así que se partieron en una por momento —los días, las semanas y las comidas que ya habían puesto son exactamente los mismos— y así puedes cambiar el desayuno de los lunes sin tocar la cena.`);
+    notes.push(`${partidas === 1 ? 'Una regla valía' : `${partidas} reglas valían`} para varios momentos del día a la vez. Ahora cada regla es de un momento, así que se partieron en una por momento —los días, las semanas y las comidas que ya habían puesto son exactamente los mismos— y así puedes cambiar el desayuno de los lunes sin tocar la cena.`);
   }
   return { state, notes };
 }
