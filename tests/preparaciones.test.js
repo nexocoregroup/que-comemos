@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 // Las preparaciones.
 //
@@ -313,23 +315,40 @@ const abierto = (html, momento) => {
 const plegar = (ctx, momento, estabaAbierto) =>
   MAS_ACTIONS['receta-plegar']({ dataset: { momento }, closest: () => ({ open: estabaAbierto }) }, ctx);
 
-test('los bloques se pliegan y se despliegan, y se acuerdan', () => {
+test('los bloques empiezan plegados, se despliegan y se acuerdan', () => {
+  /* Empezaban todos abiertos, con el argumento de que una casa con seis
+     preparaciones no quiere abrir cinco cajones. Con quince y sus tarjetas
+     enteras, lo que se abre es una pared: cinco cabeceras con su cuenta dicen
+     lo mismo en cinco renglones y dejan elegir por dónde entrar. Es la misma
+     regla que en los rubros de Mis productos habituales, y ahora las dos
+     pantallas se leen igual. */
   const ctx = contexto(conPreparaciones());
   const primero = renderMas(ctx);
-  assert.ok(primero.includes('Mangú con salami'), 'empiezan abiertos');
-  assert.ok(abierto(primero, 'desayuno'), 'empiezan abiertos');
-
-  plegar(ctx, 'desayuno', true);
-  plegar(ctx, 'cena', true);
-  const plegado = renderMas(ctx);
-  assert.ok(!abierto(plegado, 'desayuno'), 'plegado su bloque, sigue desplegado');
-  assert.ok(!abierto(plegado, 'cena'), 'plegado su bloque, sigue desplegado');
-  assert.ok(plegado.includes('Desayunos'), 'pero la cabecera sigue ahí');
-  assert.ok(abierto(plegado, 'almuerzo'), 'los demás bloques no se tocan');
-  assert.ok(plegado.includes('Sancocho'), 'los demás bloques no se tocan');
+  assert.ok(!abierto(primero, 'desayuno'), 'vuelven a abrirse todos de golpe');
+  assert.ok(primero.includes('Desayunos'), 'la cabecera y su cuenta tienen que verse aunque esté plegado');
 
   plegar(ctx, 'desayuno', false);
-  assert.ok(abierto(renderMas(ctx), 'desayuno'), 'no se vuelve a abrir');
+  plegar(ctx, 'cena', false);
+  const abiertoDos = renderMas(ctx);
+  assert.ok(abierto(abiertoDos, 'desayuno'), 'abrir un bloque no se recuerda');
+  assert.ok(abierto(abiertoDos, 'cena'), 'abrir un bloque no se recuerda');
+  assert.ok(!abierto(abiertoDos, 'almuerzo'), 'los demás bloques no se tocan');
+  assert.ok(abiertoDos.includes('Sancocho'), 'lo plegado sigue en el HTML: lo esconde el navegador');
+
+  plegar(ctx, 'desayuno', true);
+  assert.ok(!abierto(renderMas(ctx), 'desayuno'), 'no se vuelve a cerrar');
+});
+
+test('al entrar en la sección, los bloques vuelven a estar plegados', () => {
+  // Un bloque abierto es una decisión de hace un momento, no una preferencia de
+  // la casa. Volver media hora después no puede enseñar la pantalla tal como la
+  // dejó el último vistazo.
+  const codigo = readFileSync(resolve(import.meta.dirname, '..', 'src', 'app.js'), 'utf8');
+  const fn = /function alEntrarEnUnaSeccion\(\) \{[\s\S]*?\n\}/.exec(codigo)?.[0] || '';
+  assert.ok(fn, 'no encuentro dónde se reinician los pliegues');
+  assert.ok(/recetasAbiertas = \[\]/.test(fn), 'los bloques de Preparaciones se quedan como se dejaron');
+  assert.ok(/rubrosAbiertos = \[\]/.test(fn), 'los rubros de Productos se quedan como se dejaron');
+  assert.ok(/verPasados = false/.test(fn), 'los días ya pasados se quedan abiertos');
 });
 
 test('buscando, ningún bloque se queda plegado sobre lo que coincide', () => {

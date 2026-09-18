@@ -27,10 +27,21 @@ import {
 import { parseProductText } from './text-parse.js';
 import { button, esc, measure, notice, options, productDatalist, productField } from './ui-kit.js';
 
-// La compra de una quincena cualquiera en una casa dominicana. Se usa de
-// marcador de posición y detrás del botón «Usar el ejemplo»: quien nunca ha
-// visto la pantalla necesita ver el tono, no una instrucción abstracta.
+/* El ejemplo se usa de marcador de posición y detrás del botón «Usar el
+   ejemplo»: quien nunca ha visto la pantalla necesita ver el tono, no una
+   instrucción abstracta.
+
+   Son dos, y no uno, porque esta pantalla sirve a dos cosas distintas.
+
+   Escribiendo la lista de la compra sí hacen falta cantidades: es el único
+   sitio de la app donde se dice cuánto. Escribiendo los productos habituales o
+   el catálogo, no: esa lista es de nombres —lo que en esta casa nunca falta— y
+   un ejemplo con «30 plátanos, 10 libras de arroz» enseña a escribir números
+   que después se tiran, y de paso hace creer que la app lleva la cuenta de lo
+   que hay en casa, que es justo lo que se retiró. */
 export const EJEMPLO = 'Compramos 30 plátanos maduros, 10 libras de arroz, 4 paquetes de salami, 30 huevos, 6 latas de atún y detergente.';
+export const EJEMPLO_SIN_CANTIDADES = 'Plátano maduro, arroz, salami, huevos, atún en lata, cebolla, ajo y detergente.';
+export const ejemploDe = destino => (destino === 'compra' ? EJEMPLO : EJEMPLO_SIN_CANTIDADES);
 
 // Por encima de esto, dos nombres son casi con seguridad el mismo alimento y la
 // fila arranca marcada para unir. Por debajo, el parecido se ofrece en la lista
@@ -301,13 +312,16 @@ export function renderBulk(ctx) {
 }
 
 function pasoEscribir(bulk) {
+  const pide = pideCantidad(bulk.destino);
   return `<form data-form="bulk-texto" class="stack bulk">
     <div class="card stack">
       <h2>Escríbelo como lo dirías</h2>
-      <p class="muted">Un párrafo con todo lo de la vuelta del mes. Se convierte en una tabla que revisas antes de que se guarde nada.</p>
+      <p class="muted">${pide
+        ? 'Un párrafo con todo lo de la vuelta del mes. Se convierte en una tabla que revisas antes de que se guarde nada.'
+        : 'Un párrafo con los nombres, separados por comas. Se convierte en una tabla que revisas antes de que se guarde nada. <strong>No hace falta decir cuánto</strong>: eso se dice en la compra, que es cuando se sabe.'}</p>
       <label class="field">
-        <span>Lo que compraste o lo que la casa consume</span>
-        <textarea name="texto" class="bulk-texto" rows="6" autocapitalize="sentences" spellcheck="true" enterkeyhint="done" placeholder="${esc(EJEMPLO)}" required>${esc(bulk.texto)}</textarea>
+        <span>${pide ? 'Lo que compraste' : 'Lo que en tu casa nunca falta'}</span>
+        <textarea name="texto" class="bulk-texto" rows="6" autocapitalize="sentences" spellcheck="true" enterkeyhint="done" placeholder="${esc(ejemploDe(bulk.destino))}" required>${esc(bulk.texto)}</textarea>
       </label>
       <div class="bulk-destino">
         <label class="field">
@@ -318,8 +332,9 @@ function pasoEscribir(bulk) {
       <div class="hint">
         <strong>Qué entiende:</strong>
         <ul class="bulk-entiende tiny">
-          <li>Cantidades en número o en palabras: «30 plátanos», «media docena de huevos», «dos y medio».</li>
-          <li>Medidas de aquí: libras, paquetes, fundas, latas, ruedas, tazas, rebanadas. Los kilos y los gramos se pasan a libras y la fila lo avisa.</li>
+          ${pide ? `<li>Cantidades en número o en palabras: «30 plátanos», «media docena de huevos», «dos y medio».</li>
+          <li>Medidas de aquí: libras, paquetes, fundas, latas, ruedas, tazas, rebanadas. Los kilos y los gramos se pasan a libras y la fila lo avisa.</li>`
+        : '<li>Si escribes una cantidad no pasa nada: aquí se ignora, porque esta lista es de nombres.</li>'}
           <li>Separadores: la coma, el punto y coma, el punto y la «y». «Arroz y habichuelas» no se parte en dos; «atún y detergente» sí.</li>
           <li>Lo que pidas quitar —«sin atún», «este mes no compramos salami»— se aparta y se explica, no se guarda.</li>
           <li><strong>Lo que no sepa lo deja a medias</strong>, con el nombre puesto, en vez de perderlo.</li>
@@ -510,10 +525,20 @@ function guardarLoEscrito(el, ctx) {
 }
 
 export const BULK_ACTIONS = {
+  // Cambiar el destino cambia el ejemplo que se enseña, y el ejemplo vive en el
+  // marcador de posición, que no se puede cambiar sin volver a dibujar. Lo
+  // escrito se guarda antes: perder el párrafo aquí sería imperdonable.
+  //
+  // No lo dispara ningún `data-action`: lo llama el oyente de `change` de
+  // app.js, porque lo que cambia es un `<select>` y no un botón.
+  'bulk-destino': (el, ctx) => intentar(ctx, () => {
+    guardarLoEscrito(el, ctx);
+    ctx.render();
+  }),
   // Rellena el cuadro con el ejemplo, conservando el destino ya elegido.
   'bulk-ejemplo': (el, ctx) => intentar(ctx, () => {
     guardarLoEscrito(el, ctx);
-    ctx.bulk.texto = EJEMPLO;
+    ctx.bulk.texto = ejemploDe(ctx.bulk.destino);
     ctx.render();
   }),
   // Vuelve al paso 1 con el texto intacto: corregir el párrafo entero es a

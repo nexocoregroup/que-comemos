@@ -394,8 +394,23 @@ function renglon(state, lista, linea, editando) {
     </form>`;
   }
 
-  // `data-renglon` es cómo vuelve a encontrarse esta fila para reescribirla sola
-  // cuando se tacha, sin repintar la pantalla. Ver `repintarRenglon`.
+  /* La casilla de «traje» nace con lo que se pidió.
+
+     Estaba vacía y con un «¿cuánto?» de marcador de posición, y al lado había un
+     botón llamado «Editar cantidad» que preguntaba otra cosa —cuánto hace
+     falta—. Dos controles sin etiqueta visible, en el único formulario de la app
+     que se rellena de pie en un pasillo, y equivocarse no era inocuo:
+     confundirlos borraba lo que la lista pedía.
+
+     Ahora la casilla trae escrito lo que se apuntó al preparar la compra, que
+     es lo que casi siempre se trae, así que lo normal es no escribir nada; y
+     lleva su etiqueta a la vista, «Traje», delante. El botón vecino dice lo que
+     hace. El `aria-label` del campo se fue a propósito: ganaba sobre el `<label
+     for>` y dejaba ochenta renglones anunciando los ochenta «Cuánto trajiste»,
+     sin decir de qué.
+
+     `data-renglon` es cómo vuelve a encontrarse esta fila para reescribirla sola
+     cuando se tacha, sin repintar la pantalla. Ver `repintarRenglon`. */
   return `<div class="compra-renglon ${linea.comprado ? 'tachado' : ''} ${aMedias ? 'a-medias' : ''}" data-renglon="${esc(linea.id)}">
     <button type="button" class="compra-tachar" data-action="compra-tachar" data-id="${esc(linea.id)}"
       aria-pressed="${linea.comprado}" aria-label="${linea.comprado ? 'Quitar la marca de' : 'Marcar como comprado'} ${esc(nombre)}">
@@ -407,12 +422,12 @@ function renglon(state, lista, linea, editando) {
     </button>
     <div class="inline compra-renglon-acciones">
       ${linea.comprado ? '' : `<form data-form="compra-parcial" data-lista="${esc(lista.id)}" data-id="${esc(linea.id)}" class="compra-parcial">
-        <label class="sr-only" for="parcial-${esc(linea.id)}">¿Cuánto trajiste de ${esc(nombre)}?</label>
+        <label class="compra-parcial-etiqueta" for="parcial-${esc(linea.id)}">Traje<span class="sr-only"> de ${esc(nombre)}</span></label>
         <input id="parcial-${esc(linea.id)}" name="comprada" type="number" min="0" step="any" inputmode="decimal"
-          value="${linea.comprada ?? ''}" placeholder="¿cuánto?" aria-label="Cuánto trajiste">
+          value="${linea.comprada ?? linea.cantidad ?? ''}">
         <button type="submit" class="btn btn-quiet btn-small">Anotar</button>
       </form>`}
-      ${button('Editar cantidad', 'compra-editar', 'btn-quiet btn-small', `data-id="${esc(linea.id)}" aria-label="Editar la cantidad de ${esc(nombre)}"`)}
+      ${button('Cambiar lo pedido', 'compra-editar', 'btn-quiet btn-small', `data-id="${esc(linea.id)}" aria-label="Cambiar cuánto hace falta de ${esc(nombre)}"`)}
       ${button('Quitar', 'compra-quitar', 'btn-quiet btn-small', `data-id="${esc(linea.id)}"`)}
     </div>
   </div>`;

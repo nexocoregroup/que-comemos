@@ -581,7 +581,11 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 .compra-renglon.tachado .compra-renglon-texto strong { text-decoration: line-through; opacity: .62; }
 .compra-renglon.a-medias .compra-tachar-caja { border-color: var(--clay); background: var(--clay-light); }
 .compra-renglon-acciones { gap: var(--aire-2); }
-.compra-parcial { display: flex; align-items: center; gap: var(--aire-1); }
+/* «Traje 3» y no un cuadro mudo con un «¿cuánto?» que desaparece al escribir.
+   La etiqueta cabe delante sin robarle ancho al nombre del producto: el
+   contenedor es flex y el cuadro se queda en sus 84 px. */
+.compra-parcial { display: flex; align-items: center; gap: var(--aire-2); }
+.compra-parcial-etiqueta { font-size: .78rem; font-weight: 800; color: var(--ink-muted); }
 .compra-parcial input { width: 84px; min-height: var(--toque-chico); }
 /* El contador de arriba. Sustituye a la tarjeta «Ya en el carrito», que era
    adonde saltaba un renglón al tacharlo: dice lo mismo sin mover nada de

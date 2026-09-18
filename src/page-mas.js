@@ -77,9 +77,19 @@ export const TITULOS_MAS = {
 export function emptyMas() {
   return {
 
-    // El buscador de preparaciones y qué bloques están abiertos. Empiezan todos
-    // abiertos: una casa con seis preparaciones no quiere abrir cinco cajones.
-    recetaFiltro: '', recetasPlegadas: [],
+    /* El buscador de preparaciones y qué bloques están abiertos.
+
+       Empiezan todos CERRADOS, igual que los rubros de la otra pantalla.
+       Estuvieron abiertos, con el argumento de que una casa con seis
+       preparaciones no quiere abrir cinco cajones; con quince y sus tarjetas
+       enteras, lo que se abre es una pared. Cinco cabeceras con su cuenta —«12
+       almuerzos»— dicen lo mismo en cinco renglones y dejan elegir por dónde
+       entrar.
+
+       Se apunta lo ABIERTO y no lo plegado para que el valor por omisión sea el
+       mismo objeto vacío en las dos pantallas y no haya que acordarse de
+       invertir nada al leerlo. */
+    recetaFiltro: '', recetasAbiertas: [],
 
     /* Mis productos habituales va al revés: los ocho rubros empiezan CERRADOS.
 
@@ -266,7 +276,7 @@ function renderPreparaciones(ctx) {
     || (receta.note || '').toLocaleLowerCase('es').includes(filtro)
     || receta.items.some(item => (product(state, item.productId)?.name || '').toLocaleLowerCase('es').includes(filtro));
   const visibles = state.recipes.filter(coincide);
-  const plegados = new Set(ui.mas.recetasPlegadas || []);
+  const abiertos = new Set(ui.mas.recetasAbiertas || []);
   const sinMomento = state.recipes.filter(receta => !receta.uses?.length);
 
   if (!state.recipes.length) {
@@ -296,7 +306,7 @@ function renderPreparaciones(ctx) {
       // pliegue. Lo pintado va siempre dentro, abierto o no, porque `<details>`
       // esconde su contenido él solo y así el navegador puede buscarlo con su
       // propio «buscar en la página».
-      const abierto = Boolean(filtro) || !plegados.has(momento.id);
+      const abierto = Boolean(filtro) || abiertos.has(momento.id);
       // El `<h2>` invisible, por lo mismo que en los rubros: los cinco bloques
       // no aparecían en la lista de encabezados, así que no había forma de
       // saltar de un momento del día a otro. Y las preparaciones de dentro sí
@@ -967,10 +977,10 @@ export const MAS_ACTIONS = {
      abierto» significa «se está cerrando». Mismo patrón que el historial de la
      compra, que es de donde se copió. */
   'receta-plegar': (el, ctx) => {
-    const plegadas = new Set(ctx.ui.mas.recetasPlegadas || []);
+    const abiertas = new Set(ctx.ui.mas.recetasAbiertas || []);
     const momento = el.dataset.momento;
-    if (el.closest('details')?.open) plegadas.add(momento); else plegadas.delete(momento);
-    ctx.ui.mas.recetasPlegadas = [...plegadas];
+    if (el.closest('details')?.open) abiertas.delete(momento); else abiertas.add(momento);
+    ctx.ui.mas.recetasAbiertas = [...abiertas];
   },
   'rubro-plegar': (el, ctx) => {
     const abiertos = new Set(ctx.ui.mas.rubrosAbiertos || []);

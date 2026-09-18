@@ -1702,6 +1702,21 @@ function proximaComidaLibre() {
    importa: si se mirara el estado en cada repintado, apuntar el primer producto
    estando en «Preparar» cambiaría la vista debajo del dedo. */
 function alEntrarEnUnaSeccion() {
+  /* Los pliegues se reinician al entrar.
+
+     Un bloque abierto es una decisión de hace un momento, no una preferencia de
+     la casa: se abre para mirar algo y se termina de mirar. Si el estado se
+     queda, volver a Preparaciones media hora después enseña la pantalla tal
+     como la dejó el último vistazo —tres bloques abiertos y dos cerrados, sin
+     que eso signifique nada— y hay que volver a ordenarla a mano.
+
+     Se reinicia al ENTRAR y no al salir, ni en cada pintada: dentro de la
+     sección el estado tiene que aguantar, porque añadir o quitar algo repinta y
+     cerrar los bloques debajo del dedo sería peor que el problema. */
+  if (ui.mas) { ui.mas.rubrosAbiertos = []; ui.mas.recetasAbiertas = []; }
+  if (ui.semana) { ui.semana.verPasados = false; ui.semana.verSegundaSemana = false; }
+  if (ui.compra) ui.compra.verHistorial = false;
+
   if (ui.page !== 'compra') return;
   ui.compra.vista = listaEnCurso(state)?.lineas.length ? 'lista' : 'preparar';
 }
@@ -1978,6 +1993,14 @@ document.addEventListener('change', event => {
 
   // Elegir «una preparación» o «fuera de casa» enseña u oculta el selector.
   if (el.name === 'kind' && el.closest('[data-form="poner-en-dias"]')) { const campo = el.form.querySelector('[data-poner-receta]'); if (campo) campo.hidden = el.value !== 'recipe'; }
+
+  // Adónde van las filas de «escribir de corrido» decide el ejemplo que se
+  // enseña: con cantidades para una compra, sin ellas para una lista de
+  // nombres. Se repinta —guardando antes lo escrito, que es lo que hace
+  // `bulk-destino`— porque el marcador de posición no se puede cambiar solo.
+  if (el.name === 'destino' && el.closest('[data-form="bulk-texto"]') && BULK_ACTIONS['bulk-destino']) {
+    llamarAccion('bulk-destino', BULK_ACTIONS['bulk-destino'], el, { ...ctx(), bulk: ui.bulk });
+  }
 });
 
 let filtroTimer;
