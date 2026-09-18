@@ -37,18 +37,19 @@
 
 import { RUBROS, SEED_PRODUCTS, categoriaDelRubro, rubroDeCategoria, rubroPorIndice, seedByRubro } from './catalog-seed.js';
 import {
-  ESTADOS_SIN_COMIDA, FRECUENCIAS, MOMENTOS, SLOTS_PRINCIPALES, UNITS, addDays, addProduct, dateRange,
-  deletePlan, deleteRecipe, etiquetaDeMomento, frecuenciaDe, habitualLines, historialDeFrecuencia,
-  makeRecipePlan, personasActivas, planFor, ponerFrecuencia, product, productByName, setHabitualBasket,
+  ESTADOS_SIN_COMIDA, MOMENTOS, SLOTS_PRINCIPALES, UNITS, addDays, addProduct, dateRange,
+  deletePlan, deleteRecipe, etiquetaDeMomento, habitualLines,
+  makeRecipePlan, personasActivas, planFor, product, productByName, setHabitualBasket,
   setStatusPlan, todayISO, upsertRecipe
 } from './model.js';
 // La ficha de una persona se dibuja en un solo sitio, y ese sitio es `hogar.js`.
 // Aquí solo se enseña el resumen de lo que ya está guardado y se abre esa misma
 // ventana: dos formularios de persona serían dos sitios donde olvidarse de
 // preguntar si un alimento es alergia o manía.
-import { claseDe, resumenDeRestricciones } from './hogar.js';
+import { resumenDeRestricciones } from './hogar.js';
 import { normalizeName } from './text-parse.js';
 import { button, conteo, esc, niceDate, notice } from './ui-kit.js';
+import { camposDePreparacion, leerPreparacion } from './preparacion.js';
 import { icono, iconoDeCategoria } from './icons.js';
 
 // Los pasos se llaman por su nombre y no por su número. Los números cambian
@@ -56,16 +57,33 @@ import { icono, iconoDeCategoria } from './icons.js';
 // archivo es la forma más rápida de que al insertar un paso se rompa otro sin
 // que salte ninguna prueba.
 export const PASO = {
-  personas: 1, alimentos: 2, compra: 3, preparaciones: 4, plan: 5
+  personas: 1, alimentos: 2, preparaciones: 4, plan: 5
 };
 
 export const PASOS = [
   { id: PASO.personas, titulo: 'Mi hogar', corto: 'Hogar' },
   { id: PASO.alimentos, titulo: 'Mis productos habituales', corto: 'Productos' },
-  { id: PASO.compra, titulo: 'Cómo compramos', corto: 'Compra' },
   { id: PASO.preparaciones, titulo: 'Mis preparaciones', corto: 'Preparaciones' },
   { id: PASO.plan, titulo: 'Crear mi primer plan', corto: 'Mi plan' }
 ];
+
+/* El 3 era «Cómo compramos»: mensual o quincenal.
+
+   Se retiró porque ya no decide nada. Existía cuando la app repartía la canasta
+   del mes entre las dos quincenas para calcular cuánto comprar, y ese cálculo se
+   fue hace tiempo: hoy cada lista de la compra se escribe a mano, delante del
+   estante, y el plan se hace a siete o a catorce días, que es otra pregunta y se
+   hace en el paso siguiente. Preguntar algo cuya respuesta no cambia una sola
+   pantalla es peor que no preguntarlo: hace creer que sí cambia algo.
+
+   La frecuencia sigue existiendo en Ajustes → Organización de compra, y tiene
+   que seguir: los períodos cerrados del historial se calcularon con la que
+   estuviera vigente entonces, y esa pantalla es la que lo explica. Lo que se
+   retira es preguntárselo a alguien que acaba de instalar la app.
+
+   El hueco del 3 no se reaprovecha a propósito: los ids 4 y 5 se quedan como
+   estaban, así que quien tenga el avance guardado en uno de ellos aterriza donde
+   estaba. Solo el 3 necesita traducción, y la tiene abajo. */
 
 /* ── Dos pasos que se fueron ───────────────────────────────────────────────
 
@@ -94,15 +112,18 @@ export const pasosDe = () => PASOS;
 // Solo tienen tabla las numeraciones que ya no son la nuestra. Lo guardado con
 // el sello de ahora —y lo que venga de una versión más nueva, en un respaldo
 // traído a mano— se respeta tal cual.
-const ESQUEMA_DE_PASOS = 3;
+const ESQUEMA_DE_PASOS = 4;
 const PASO_DE_ANTES = {
   // Siete pasos, dos de ellos pidiendo cantidades. El 7 era el repaso final.
-  1: { 0: 0, 1: PASO.personas, 2: PASO.alimentos, 3: PASO.compra, 4: PASO.preparaciones, 5: PASO.preparaciones, 6: PASO.preparaciones, 7: PASO.plan },
+  1: { 0: 0, 1: PASO.personas, 2: PASO.alimentos, 3: PASO.preparaciones, 4: PASO.preparaciones, 5: PASO.preparaciones, 6: PASO.preparaciones, 7: PASO.plan },
   // Cinco pasos con «Ver mi casa» al final: un repaso que no pedía nada. Quien
   // lo dejó ahí vuelve a sus preparaciones, que es de donde sale el plan que
   // ahora ocupa ese sitio: plantarle delante un plan sin haber visto con qué
   // cuenta sería pedirle que elija a ciegas.
-  2: { 0: 0, 1: PASO.personas, 2: PASO.alimentos, 3: PASO.compra, 4: PASO.preparaciones, 5: PASO.preparaciones }
+  2: { 0: 0, 1: PASO.personas, 2: PASO.alimentos, 3: PASO.preparaciones, 4: PASO.preparaciones, 5: PASO.preparaciones },
+  // Cinco pasos, el tercero «Cómo compramos». Quien lo dejó justo ahí pasa a
+  // sus preparaciones, que es lo que viene después de ese hueco.
+  3: { 0: 0, 1: PASO.personas, 2: PASO.alimentos, 3: PASO.preparaciones, 4: PASO.preparaciones, 5: PASO.plan }
 };
 const posicionDe = (setup, paso) => pasosDe(setup).findIndex(item => item.id === paso);
 const saltarA = (setup, desde, direccion) => {
@@ -129,7 +150,6 @@ export const emptySetup = () => ({
   anadiendo: false,    // ¿está abierta la ventanita de «añadir un alimento»?
   nombreNuevo: '',
   errorNuevo: '',
-  frecuencia: null,   // 'mensual' | 'quincenal', se pregunta en el paso de la compra
   personas: null,     // cuántas comen en casa; null es «todavía no lo ha dicho»
   // La preparación que se está escribiendo en el paso 4. No se guarda entre
   // sesiones —un nombre a medio teclear no hace falta mañana—; las que se
@@ -142,7 +162,11 @@ export const emptySetup = () => ({
   guardados: 0
 });
 
-const fichaVacia = () => ({ id: '', nombre: '', momentos: [], nota: '', error: '' });
+// Con la misma forma que una preparación guardada —`name`, `uses`, `note`,
+// `items`— porque el formulario es el mismo que el de la sección Preparaciones y
+// lee de ahí. Dos formas para lo mismo eran dos sitios donde olvidarse de un
+// campo, y así fue: este recorrido nunca preguntó qué alimentos lleva.
+const fichaVacia = () => ({ id: '', name: '', uses: [], note: '', items: [], error: '' });
 
 /* ── El avance se guarda solo ──────────────────────────────────────────────
 
@@ -156,7 +180,7 @@ const fichaVacia = () => ({ id: '', nombre: '', momentos: [], nota: '', error: '
    guardan los campos que costó rellenar y ninguno más: lo que está a medio
    buscar o la ventanita abierta no hacen falta mañana. */
 
-const CAMPOS_GUARDADOS = ['paso', 'esquema', 'precargado', 'rubro', 'elegidos', 'propios', 'texto', 'frecuencia', 'personas', 'horizonte', 'guardados'];
+const CAMPOS_GUARDADOS = ['paso', 'esquema', 'precargado', 'rubro', 'elegidos', 'propios', 'texto', 'personas', 'horizonte', 'guardados'];
 
 export function guardarAvance(ctx) {
   const setup = ctx.ui.setup;
@@ -197,7 +221,6 @@ export function avanceGuardado(state) {
   setup.elegidos = (Array.isArray(setup.elegidos) ? setup.elegidos : []).map(String);
   setup.propios = (Array.isArray(setup.propios) ? setup.propios : []).filter(item => item && item.nombre);
   setup.anadiendo = false;
-  setup.frecuencia = FRECUENCIAS.includes(setup.frecuencia) ? setup.frecuencia : null;
   setup.personas = Number(setup.personas) > 0 ? Math.min(20, Math.round(Number(setup.personas))) : null;
   setup.horizonte = DIAS_DE_PLAN.includes(Number(setup.horizonte)) ? Number(setup.horizonte) : null;
   return setup;
@@ -243,7 +266,7 @@ function pantallaInicio(setup) {
   const cuantos = pasosDe(setup).length;
   return `<section class="setup setup-inicio">
     <p class="eyebrow">Organizar mi casa</p>
-    <p class="setup-camino">${EN_LETRA[cuantos] || cuantos} pasos cortos: quiénes comen aquí, lo que compras normalmente, cada cuánto compras, lo que sabes preparar, y el plan de tus primeros días.</p>
+    <p class="setup-camino">${EN_LETRA[cuantos] || cuantos} pasos cortos: quiénes comen aquí, lo que compras normalmente, lo que vas a cocinar estos días, y el plan de esos días.</p>
     <h2 class="setup-promesa">Vamos a registrar lo que tu casa come y compra de costumbre. <strong>No hace falta indicar cantidades de nada.</strong></h2>
     <div class="pantalla-acciones">${button(llevaEmpezado ? 'Seguir donde lo dejé' : 'Empezar', 'setup-empezar', 'btn-primary btn-grande')}</div>
     ${llevaEmpezado ? `<p class="small muted">Llevas ${conteo(setup.elegidos.length, 'producto marcado', 'productos marcados')}.</p>` : ''}
@@ -353,39 +376,6 @@ function ventanitaDeAnadir(setup, rubro) {
 }
 
 
-/* ── Paso 3: cada cuánto se hace la compra ─────────────────────────────────
-
-   Dos opciones y nada más. No se pregunta el día, ni el presupuesto, ni quién
-   va: lo único que la app necesita saber es en cuántas veces se parte la lista,
-   porque de ahí salen uno o dos períodos de compra al mes. */
-
-function pasoFrecuencia(ctx, setup) {
-  // Solo se enseña marcada una opción que alguien haya elegido de verdad. La
-  // app se comporta como mensual mientras nadie diga nada, pero pintar
-  // «Mensual» ya marcada sería contestar por el usuario una pregunta que
-  // acabamos de hacerle, y dejarle pulsar Continuar sin haber decidido.
-  const yaSeDijo = historialDeFrecuencia(ctx.state).length > 0;
-  const elegida = setup.frecuencia || (yaSeDijo ? frecuenciaDe(ctx.state, todayISO().slice(0, 7)) : '');
-  const opcion = (id, titulo, detalle) => `<button type="button" class="setup-opcion ${elegida === id ? 'activa' : ''}"
-      data-action="setup-frecuencia" data-frecuencia="${id}" aria-pressed="${elegida === id}">
-      <strong>${esc(titulo)}</strong><small>${esc(detalle)}</small></button>`;
-  return `<p class="pantalla-intro">Es para acordarnos de cómo se organiza tu casa. <strong>No divide cantidades, no calcula nada y no te impide salir otro día</strong>: cada lista de compra la escribes tú, cuando vayas.</p>
-    <div class="setup-opciones">
-      ${opcion('quincenal', 'Quincenal', 'Dos compras: del 1 al 15 y del 16 al último día del mes.')}
-      ${opcion('mensual', 'Mensual', 'Una sola compra que cubre el mes completo.')}
-    </div>
-    <p class="tiny muted">Las quincenas son del 1 al 15 y del 16 al final del mes, sea de 28, 30 o 31 días. No son períodos de catorce días.</p>
-    <p class="tiny muted">Puedes cambiarlo cuando quieras desde Ajustes → Organización de compra, y elegir desde qué mes entra en vigencia. Lo que ya pasó no se reescribe: cada cambio vale desde el mes que le digas en adelante.</p>
-
-    <div class="modal-actions setup-actions">
-      ${button('Atrás', 'setup-atras', 'btn-quiet')}
-      <span class="tour-spacer"></span>
-      ${button('Continuar', 'setup-siguiente', 'btn-primary', elegida ? '' : 'disabled')}
-    </div>`;
-}
-
-
-
 /* ── Paso 5: crear mi primer plan ──────────────────────────────────────────
 
    Quien acaba de registrar su casa no necesita que se la cuenten otra vez:
@@ -434,17 +424,11 @@ function textoDeLaCuenta(state, setup) {
 
 function resumenDeLaCasa(ctx, setup) {
   const { state } = ctx;
-  const mes = todayISO().slice(0, 7);
   const gente = personasActivas(state);
   const habituales = habitualLines(state);
   const recetas = state.recipes;
   const sinMomentos = recetas.filter(receta => !receta.uses.length).length;
   const faltanPersonas = Math.max(0, Math.min(20, Number(setup.personas) || 0) - gente.length);
-  // La frecuencia se mira donde de verdad está escrita y no solo en el borrador
-  // de este recorrido: quien la contestó hace tres meses y vuelve a pasar por
-  // aquí no puede leer «sin decidir» sobre algo que ya decidió.
-  const frecuencia = setup.frecuencia
-    || (historialDeFrecuencia(state).length ? frecuenciaDe(state, mes) : null);
 
   const cuenta = (n, singular, plural) => `${n} ${n === 1 ? singular : plural}`;
   const linea = (paso, titulo, detalle, completo) => `<div class="list-row setup-repaso ${completo ? 'listo' : 'pendiente'}">
@@ -460,7 +444,6 @@ function resumenDeLaCasa(ctx, setup) {
       ? `${cuenta(gente.length, 'persona registrada', 'personas registradas')} · ${cuenta(faltanPersonas, 'queda', 'quedan')} por llenar`
       : cuenta(gente.length, 'persona', 'personas'), gente.length > 0 && !faltanPersonas)}
     ${linea(PASO.alimentos, 'Productos habituales', cuenta(habituales.length, 'producto', 'productos'), habituales.length > 0)}
-    ${linea(PASO.compra, 'Cómo compramos', frecuencia === 'quincenal' ? 'Dos compras al mes' : frecuencia === 'mensual' ? 'Una compra al mes' : 'Sin decidir', Boolean(frecuencia))}
     ${linea(PASO.preparaciones, 'Mis preparaciones', sinMomentos
       ? `${cuenta(recetas.length, 'preparación', 'preparaciones')} · ${cuenta(sinMomentos, 'sin momentos', 'sin momentos')}`
       : cuenta(recetas.length, 'preparación', 'preparaciones'), recetas.length > 0 && !sinMomentos)}
@@ -500,7 +483,7 @@ function pasoPlan(ctx, setup) {
     <div class="divider"></div>
     <p class="pantalla-intro">Ahora deja decidido lo que se come estos días. <strong>Puedes terminar sin poner ni una comida</strong>: lo que no pongas aquí lo pones cuando quieras desde Plan semanal.</p>
 
-    <p class="setup-plan-pregunta">¿Cuántos días quieres planificar?</p>
+    <p class="setup-plan-pregunta">${elegidos ? 'Estos son los días. Si quieres, cámbialos:' : '¿Cuántos días quieres planificar?'}</p>
     <div class="setup-opciones setup-plan-cuantos">
       ${cuantos(7, '7 días', 'Los siete que vienen, empezando hoy.')}
       ${cuantos(14, '14 días', 'Dos semanas seguidas, empezando hoy.')}
@@ -590,7 +573,7 @@ function pasoPersonas(ctx, setup) {
     }
     return `<div class="list-row setup-persona">
       <div class="list-row-main">
-        <div class="list-row-title">${esc(persona.name)} <span class="pill gray">${esc(claseDe(persona.kind).etiqueta)}</span></div>
+        <div class="list-row-title">${esc(persona.name)}</div>
         ${resumenDeRestricciones(state, persona)}
       </div>
       ${button('Editar', 'hogar-editar', 'btn-quiet btn-small', `data-id="${esc(persona.id)}"`)}
@@ -644,14 +627,14 @@ function pasoPreparaciones(ctx, setup) {
   const { state } = ctx;
   const ficha = setup.preparacion || fichaVacia();
   const editando = Boolean(ficha.id);
-  const marcado = id => ficha.momentos.includes(id);
+  const dias = Number(setup.horizonte) || 0;
 
   const fila = receta => `<div class="list-row">
     <div class="list-row-main">
       <div class="list-row-title">${esc(receta.name)}</div>
       <div class="list-row-sub">${receta.uses.length
         ? esc(receta.uses.map(etiquetaDeMomento).join(' · '))
-        : '<span class="muted">sin momentos: no saldrá en el calendario</span>'}${receta.note ? ' · con nota' : ''}</div>
+        : '<span class="muted">sin momentos: no saldrá en el calendario</span>'}${receta.items.length ? ` · ${esc(conteo(receta.items.length, 'alimento', 'alimentos'))}` : ''}${receta.note ? ' · con nota' : ''}</div>
     </div>
     <div class="inline">
       ${button('Editar', 'setup-preparacion-editar', 'btn-quiet btn-small', `data-id="${esc(receta.id)}"`)}
@@ -659,29 +642,30 @@ function pasoPreparaciones(ctx, setup) {
     </div>
   </div>`;
 
-  return `<p class="pantalla-intro">Escribe las comidas que se cocinan de costumbre en tu casa: son las que vas a poder elegir en el paso siguiente. Con el nombre y en qué momentos se comen basta. Los alimentos que lleva se añaden después si quieres, desde Preparaciones, y sirven para avisarte de las alergias de la casa.</p>
+  /* Primero, cuántos días se van a planificar.
+
+     Estaba al final del recorrido, en la pantalla del plan, y llegaba tarde:
+     para entonces ya habías escrito las preparaciones sin saber cuántas hacían
+     falta. Contestado aquí, la pregunta de abajo deja de ser «escribe todo lo
+     que se cocina en tu casa» —que es lo que hace que nadie termine— y pasa a
+     ser «escribe lo de esta semana». */
+  const cuantos = (numero, titulo, detalle) => `<button type="button" class="setup-opcion ${dias === numero ? 'activa' : ''}"
+      data-action="setup-plan-dias" data-dias="${numero}" aria-pressed="${dias === numero}">
+      <strong>${esc(titulo)}</strong><small>${esc(detalle)}</small></button>`;
+
+  return `<p class="setup-plan-pregunta">¿Cuántos días vas a planificar?</p>
+    <div class="setup-opciones setup-plan-cuantos">
+      ${cuantos(7, '7 días', 'Una semana, empezando hoy.')}
+      ${cuantos(14, '14 días', 'Dos semanas seguidas, empezando hoy.')}
+    </div>
+
+    <p class="pantalla-intro">${dias
+      ? `Ahora escribe las comidas que vas a poner en esos ${dias} días. <strong>No hace falta que escribas todo lo que se cocina en tu casa</strong>: con cinco o seis te sobra, porque la misma preparación se pone en varios días. Cuando llegue el final de la semana, escribes las de la siguiente y así la lista crece sola.`
+      : 'Elige arriba a cuántos días vas a planificar. Después escribes solo las comidas de esos días: <strong>no hace falta escribir todo lo que se cocina en tu casa</strong>.'}</p>
 
     <form data-form="setup-preparacion" class="setup-preparacion card">
-      <label class="field">
-        <span>¿Cómo se llama?</span>
-        <input name="nombre" data-setup-preparacion-nombre autocomplete="off" maxlength="60"
-          value="${esc(ficha.nombre)}" placeholder="Ej. Mangú con salami" enterkeyhint="done">
-      </label>
-
-      <div class="field">
-        <span>¿En qué momentos se come?</span>
-        <div class="chips setup-momentos">${MOMENTOS.map(momento => `
-          <label class="chip-check"><input type="checkbox" name="momentos" value="${momento.id}" ${marcado(momento.id) ? 'checked' : ''}><span>${esc(momento.etiqueta)}</span></label>`).join('')}</div>
-        <small>Una misma comida puede estar en varios: el mangú con salami suele ser desayuno y cena.</small>
-      </div>
-
-      <label class="field">
-        <span>Nota para quien cocina <span class="muted">(opcional)</span></span>
-        <input name="nota" autocomplete="off" maxlength="140" value="${esc(ficha.nota)}" placeholder="Ej. El agua bien caliente">
-      </label>
-
+      ${camposDePreparacion(state, ficha)}
       ${ficha.error ? `<p class="setup-error" role="alert">${esc(ficha.error)}</p>` : ''}
-
       <div class="inline setup-preparacion-acciones">
         <button type="submit" class="btn btn-primary">${editando ? 'Guardar los cambios' : 'Guardar y añadir otra'}</button>
         ${editando ? button('Cancelar', 'setup-preparacion-nueva', 'btn-quiet') : ''}
@@ -717,7 +701,6 @@ export function renderSetup(ctx) {
 
   const cuerpo = setup.paso === PASO.personas ? pasoPersonas(ctx, setup)
     : setup.paso === PASO.alimentos ? pantallaDeRubro(setup)
-    : setup.paso === PASO.compra ? pasoFrecuencia(ctx, setup)
     : setup.paso === PASO.preparaciones ? pasoPreparaciones(ctx, setup)
     : pasoPlan(ctx, setup);
 
@@ -994,18 +977,6 @@ export const SETUP_ACTIONS = {
 
   // Paso 3: cada cuánto se compra.
   //
-  // La primera vez entra en vigencia desde el mes en curso: no hay pasado que
-  // proteger todavía. Cambiarla después se hace desde Ajustes, y ahí sí se
-  // pregunta desde cuándo.
-  'setup-frecuencia': (el, ctx) => {
-    const setup = ctx.ui.setup;
-    if (!FRECUENCIAS.includes(el.dataset.frecuencia)) return;
-    setup.frecuencia = el.dataset.frecuencia;
-    ponerFrecuencia(ctx.state, setup.frecuencia, todayISO().slice(0, 7));
-    guardarAvance(ctx);
-    ctx.commit('');
-  },
-
 
   /* ── Paso 1: los ocho rubros ─────────────────────────────────────────── */
 
@@ -1031,7 +1002,7 @@ export const SETUP_ACTIONS = {
     // Último rubro: aquí es donde lo marcado deja de ser un borrador y pasa a
     // ser la lista de productos habituales de la casa. Antes esto ocurría al
     // enviar la pantalla de las cantidades, que ya no existe.
-    setup.paso = PASO.compra;
+    setup.paso = PASO.preparaciones;
     const guardados = guardarLoMarcado(ctx);
     guardarAvance(ctx);
     ctx.commit(guardados
@@ -1081,9 +1052,15 @@ export const SETUP_ACTIONS = {
   'setup-preparacion-editar': (el, ctx) => {
     const receta = ctx.state.recipes.find(item => item.id === el.dataset.id);
     if (!receta) return;
-    ctx.ui.setup.preparacion = { id: receta.id, nombre: receta.name, momentos: [...receta.uses], nota: receta.note || '', error: '' };
+    // Con la forma de una preparación guardada, porque el formulario que la
+    // pinta es el mismo que el de la sección. Los alimentos vienen con ella: sin
+    // eso, corregir un nombre desde aquí los borraría al guardar.
+    ctx.ui.setup.preparacion = {
+      id: receta.id, name: receta.name, uses: [...receta.uses],
+      note: receta.note || '', items: (receta.items || []).map(item => ({ ...item })), error: ''
+    };
     ctx.render();
-    document.querySelector('[data-setup-preparacion-nombre]')?.focus();
+    document.querySelector('[data-preparacion-nombre]')?.focus();
   },
   'setup-preparacion-nueva': (el, ctx) => {
     ctx.ui.setup.preparacion = fichaVacia();
@@ -1238,18 +1215,19 @@ export const SETUP_FORMS = {
   'setup-preparacion': (form, data, ctx) => {
     const setup = ctx.ui.setup;
     const anteriorId = setup.preparacion?.id || '';
-    const nombre = String(data.get('nombre') ?? document.querySelector('[data-setup-preparacion-nombre]')?.value ?? '').trim();
-    const momentos = typeof data.getAll === 'function' ? data.getAll('momentos').map(String) : [].concat(data.get('momentos') || []).map(String);
-    const nota = String(data.get('nota') || '').trim();
-    setup.preparacion = { id: anteriorId, nombre, momentos, nota, error: '' };
+    // Lo lee la misma función que lee la ventana de la sección, porque es el
+    // mismo formulario. Lo que no entra por `FormData` —los alimentos, que son
+    // filas— lo saca del propio formulario.
+    const leida = leerPreparacion(form, data);
+    setup.preparacion = { id: anteriorId, ...leida, error: '' };
 
-    if (nombre.length < 2) {
+    if (leida.name.length < 2) {
       setup.preparacion.error = 'Escribe cómo se llama la comida.';
       ctx.render();
-      document.querySelector('[data-setup-preparacion-nombre]')?.focus();
+      document.querySelector('[data-preparacion-nombre]')?.focus();
       return;
     }
-    if (!momentos.length) {
+    if (!leida.uses.length) {
       setup.preparacion.error = 'Marca en qué momentos se come: es lo que deja elegirla en el desayuno, en el almuerzo o en la cena.';
       ctx.render();
       return;
@@ -1258,17 +1236,15 @@ export const SETUP_FORMS = {
     const anterior = anteriorId ? ctx.state.recipes.find(item => item.id === anteriorId) : null;
     upsertRecipe(ctx.state, {
       id: anterior?.id,
-      name: nombre,
-      uses: momentos,
-      note: nota,
-      items: anterior?.items || [],
+      ...leida,
+      // Lo que esta pantalla no pregunta, tampoco lo borra.
       servings: anterior?.servings ?? null
     });
     // En blanco y lista para la siguiente: es lo que permite escribir las seis
     // comidas de una casa de una sentada.
     setup.preparacion = fichaVacia();
     guardarAvance(ctx);
-    ctx.commit(anterior ? `«${nombre}» actualizada.` : `«${nombre}» guardada. Escribe la siguiente.`);
+    ctx.commit(anterior ? `«${leida.name}» actualizada.` : `«${leida.name}» guardada. Escribe la siguiente.`);
   },
 
   /* ── Paso 1: quiénes comen en casa ───────────────────────────────────── */

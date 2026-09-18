@@ -209,20 +209,6 @@ test('la frecuencia sobrevive a guardar y volver a leer', () => {
 
 /* ── Las pantallas ─────────────────────────────────────────────────────── */
 
-test('el asistente pregunta la frecuencia, y dice para qué sirve y para qué no', () => {
-  const ctx = contexto();
-  ctx.ui.setup.paso = PASO.compra;
-  const html = renderSetup(ctx);
-  revisar(html, 'paso de frecuencia');
-  assert.ok(html.includes('Cómo compramos'), 'el paso no se llama como se pidió');
-  assert.ok(html.includes('>Quincenal<'));
-  assert.ok(html.includes('>Mensual<'));
-  // Lo que este dato NO hace, dicho en la propia pantalla: es la promesa que
-  // sostiene que no haya que escribir cantidades en ninguna parte.
-  assert.ok(/No divide cantidades, no calcula nada y no te impide salir otro día/.test(html));
-  // Y que se puede cambiar sin reescribir lo que ya pasó.
-  assert.ok(/Lo que ya pasó no se reescribe/.test(html));
-});
 
 test('el recorrido ya no tiene ningún paso de cantidades ni de reparto', () => {
   // Eran dos pasos y se fueron. Quien marcaba ciento cincuenta alimentos se
@@ -230,8 +216,8 @@ test('el recorrido ya no tiene ningún paso de cantidades ni de reparto', () => 
   // terminar, y ese número no hace falta para nada de lo que la app hace ahora.
   assert.equal(PASO.cantidades, undefined);
   assert.equal(PASO.reparto, undefined);
-  assert.equal(PASOS.length, 5);
-  assert.deepEqual(PASOS.map(paso => paso.corto), ['Hogar', 'Productos', 'Compra', 'Preparaciones', 'Mi plan']);
+  assert.equal(PASOS.length, 4);
+  assert.deepEqual(PASOS.map(paso => paso.corto), ['Hogar', 'Productos', 'Preparaciones', 'Mi plan']);
 });
 
 test('ninguna pantalla del recorrido pide una cantidad', () => {
@@ -253,34 +239,43 @@ test('ninguna pantalla del recorrido pide una cantidad', () => {
   }
 });
 
-test('los cinco pasos son los mismos se compre como se compre', () => {
+test('los cuatro pasos son siempre los mismos', () => {
   // Antes el del reparto solo se le enseñaba a quien compraba por quincenas, y
   // por eso la portada prometía un número de pasos y se veía otro. Ya no hay
-  // ningún paso condicional.
-  for (const frecuencia of [null, 'mensual', 'quincenal']) {
-    assert.equal(pasosDe({ ...emptySetup(), frecuencia }).length, 5, `comprando «${frecuencia}» se ven otros`);
-  }
+  // ningún paso condicional, y desde que la frecuencia salió del recorrido ya no
+  // hay tampoco nada que pueda condicionarlo.
+  assert.equal(pasosDe(emptySetup()).length, 4);
 });
 
-test('desde la frecuencia se sigue a las comidas, se compre como se compre', () => {
-  for (const frecuencia of ['mensual', 'quincenal']) {
-    const ctx = contexto(casa().state);
-    ctx.ui.setup.paso = PASO.compra;
-    ctx.ui.setup.frecuencia = frecuencia;
-    SETUP_ACTIONS['setup-siguiente'](null, ctx);
-    assert.equal(ctx.ui.setup.paso, PASO.preparaciones, `comprando «${frecuencia}» se va a otro sitio`);
-  }
-});
 
-test('elegir la frecuencia en el asistente la deja escrita desde este mes', () => {
+
+test('el recorrido inicial ya no pregunta cada cuánto se compra', () => {
+  /* Era el paso 3, y se retiró. Preguntaba mensual o quincenal, y esa respuesta
+     dejó de cambiar una sola pantalla cuando la app dejó de repartir la canasta
+     del mes entre las dos quincenas para calcular cuánto comprar: hoy cada lista
+     se escribe a mano, delante del estante.
+
+     Lo que NO se retiró es la frecuencia. Los períodos cerrados del historial se
+     calcularon con la que estuviera vigente entonces, así que sigue en Ajustes →
+     Organización de compra, que es la pantalla que además lo explica. Esta
+     prueba vigila las dos mitades: que no vuelva al recorrido y que siga
+     pudiéndose cambiar donde toca. */
+  assert.equal(PASO.compra, undefined, 'volvió el paso de la frecuencia al recorrido');
+  assert.equal(SETUP_ACTIONS['setup-frecuencia'], undefined, 'quedó suelta la acción de elegirla');
+
   const ctx = contexto(casa().state);
-  ctx.ui.setup.paso = PASO.compra;
-  SETUP_ACTIONS['setup-frecuencia']({ dataset: { frecuencia: 'quincenal' } }, ctx);
-  assert.equal(ctx.ui.setup.frecuencia, 'quincenal');
-  assert.equal(historialDeFrecuencia(ctx.state).length, 1);
-  assert.equal(frecuenciaDe(ctx.state, historialDeFrecuencia(ctx.state)[0].desde), 'quincenal');
-  // Y sobrevive a cerrar la app.
-  assert.equal(avanceGuardado(ctx.state).frecuencia, 'quincenal');
+  for (const paso of PASOS) {
+    ctx.ui.setup.paso = paso.id;
+    const html = renderSetup(ctx);
+    revisar(html, `paso «${paso.corto}»`);
+    assert.ok(!/data-frecuencia=/.test(html), `el paso «${paso.corto}» vuelve a preguntar la frecuencia`);
+    assert.ok(!/Cómo compramos/.test(html), `el paso «${paso.corto}» vuelve a nombrar el paso retirado`);
+  }
+
+  // Y en Ajustes sigue estando, con su historial y su fecha de vigencia.
+  const { state } = casa();
+  ponerFrecuencia(state, 'quincenal', '2026-01');
+  assert.equal(frecuenciaDe(state, '2026-06'), 'quincenal', 'la frecuencia dejó de poder cambiarse');
 });
 
 test('la página de Organización de compra se dibuja, con y sin historial', () => {
@@ -346,10 +341,9 @@ test('la compra no espera a ningún período: se abre una lista cuando haga falt
   assert.ok(!html.includes('data-tramo='), 'sigue pidiendo elegir un período de cálculo');
 });
 
-test('los siete pasos del asistente se dibujan sin huecos', () => {
+test('los pasos del asistente se dibujan sin huecos', () => {
   const { state } = casa();
   const ctx = contexto(state);
-  ctx.ui.setup.frecuencia = 'quincenal';
   ctx.ui.setup.elegidos = ['Arroz', 'Huevo'];
   for (const paso of PASOS) {
     ctx.ui.setup.paso = paso.id;
@@ -357,48 +351,5 @@ test('los siete pasos del asistente se dibujan sin huecos', () => {
   }
 });
 
-test('la pregunta no viene contestada de antemano', () => {
-  // Pintar «Mensual» ya marcada sería contestar por el usuario la pregunta que
-  // acabamos de hacerle, y dejarle pulsar Continuar sin haber decidido nada.
-  const ctx = contexto(casa().state);
-  ctx.ui.setup.paso = PASO.compra;
-  const virgen = renderSetup(ctx);
-  assert.ok(!virgen.includes('setup-opcion activa'), 'ninguna opción viene marcada');
-  assert.ok(/data-action="setup-siguiente"[^>]*disabled/.test(virgen), 'no se puede continuar sin contestar');
 
-  SETUP_ACTIONS['setup-frecuencia']({ dataset: { frecuencia: 'quincenal' } }, ctx);
-  const contestada = renderSetup(ctx);
-  assert.ok(contestada.includes('setup-opcion activa'), 'ya marcada la que se eligió');
-  assert.ok(!/data-action="setup-siguiente"[^>]*disabled/.test(contestada));
-});
 
-test('quien vuelve a pasar por el asistente encuentra marcada la que ya tenía', () => {
-  const { state } = casa();
-  ponerFrecuencia(state, 'quincenal', '2026-01');
-  const ctx = contexto(state);
-  ctx.ui.setup.paso = PASO.compra;
-  const html = renderSetup(ctx);
-  assert.ok(html.includes('data-frecuencia="quincenal" aria-pressed="true"'));
-  assert.ok(html.includes('data-frecuencia="mensual" aria-pressed="false"'));
-});
-
-test('el repaso no dice «sin decidir» a quien ya lo decidió hace meses', () => {
-  // La frecuencia vive en los ajustes de la casa, no en el borrador de este
-  // recorrido. Quien la contestó en agosto y vuelve a pasar por aquí en octubre
-  // llega con el borrador en blanco, y leer «sin decidir» sobre algo decidido
-  // es la clase de mentira pequeña que hace desconfiar del resto de la pantalla.
-  const { state } = casa();
-  ponerFrecuencia(state, 'quincenal', '2025-01');
-  const ctx = contexto(state);
-  ctx.ui.setup.paso = PASO.casa;
-  ctx.ui.setup.frecuencia = null;
-  const html = renderSetup(ctx);
-  revisar(html, 'repaso con la frecuencia ya escrita');
-  assert.ok(html.includes('Dos compras al mes'));
-  assert.ok(!html.includes('Sin decidir'));
-
-  // Y a quien no la ha contestado sí se lo dice.
-  const nueva = contexto(createEmptyState());
-  nueva.ui.setup.paso = PASO.casa;
-  assert.ok(renderSetup(nueva).includes('Sin decidir'));
-});

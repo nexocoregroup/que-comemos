@@ -12,12 +12,12 @@
 // El trabajador solo se registra en contexto seguro: https o localhost. Sobre
 // http en una IP de la red local el navegador lo ignora y la app funciona
 // igual, pero sin instalación ni modo sin conexión.
-const CACHE = 'que-comemos-v53';
+const CACHE = 'que-comemos-v54';
 const SHELL = [
   './', './index.html', './manifest.webmanifest',
   './src/app.js', './src/model.js', './src/storage.js', './src/demo.js',
   './src/brand.js', './src/icons.js', './src/onboarding.js', './src/nombres.js', './src/migrate.js', './src/ui-kit.js',
-  './src/catalog-seed.js', './src/setup.js',
+  './src/catalog-seed.js', './src/setup.js', './src/preparacion.js',
   './src/text-parse.js', './src/bulk-entry.js',
   './src/fallos.js', './src/hogar.js', './src/avisos.js',
   './src/nube.js', './src/config-nube.js', './src/sesion.js', './src/sincronizar.js', './src/page-cuenta.js',

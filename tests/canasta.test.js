@@ -180,7 +180,7 @@ test('se puede continuar sin marcar nada, los ocho rubros seguidos', () => {
     assert.equal(ctx.ui.setup.rubro, i);
     SETUP_ACTIONS['setup-rubro-seguir'](null, ctx);
   }
-  assert.equal(ctx.ui.setup.paso, PASO.compra, 'el último rubro pasa al paso siguiente');
+  assert.equal(ctx.ui.setup.paso, PASO.preparaciones, 'el último rubro pasa al paso siguiente');
   assert.deepEqual(ctx.ui.setup.elegidos, [], 'no se marcó nada y no pasó nada');
 });
 
@@ -269,7 +269,10 @@ test('un avance escrito con basura no rompe la pantalla', () => {
   const state = createEmptyState();
   state.settings.canasta = { paso: 99, rubro: -4, elegidos: 'no soy una lista', propios: null, cantidades: 7 };
   const setup = avanceGuardado(state);
-  assert.equal(setup.paso, PASOS.length);
+  // Se recorta al último paso que existe. Se mira su identificador y no
+  // `PASOS.length`: coincidían de casualidad cuando eran cinco pasos numerados
+  // del 1 al 5, y dejaron de coincidir al retirar el tercero.
+  assert.equal(setup.paso, PASOS[PASOS.length - 1].id);
   assert.equal(setup.rubro, 0);
   assert.deepEqual(setup.elegidos, []);
   assert.deepEqual(setup.propios, []);
@@ -440,7 +443,7 @@ test('lo marcado en los ocho rubros llega entero a los productos habituales, y s
   // Salir del último rubro: ahí se escribe.
   irAlRubroDirecto(ctx, RUBROS.length - 1);
   SETUP_ACTIONS['setup-rubro-seguir'](null, ctx);
-  assert.equal(ctx.ui.setup.paso, PASO.compra);
+  assert.equal(ctx.ui.setup.paso, PASO.preparaciones);
 
   const lineas = habitualLines(ctx.state);
   for (const nombre of ['Yuca', 'Arroz', 'Fresa']) {

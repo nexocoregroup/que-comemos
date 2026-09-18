@@ -136,7 +136,9 @@ test('familia se dibuja con alergias, con gente de baja y con motivos sin decir'
   assert.ok(html.includes('restriccion-alergia'), 'la alergia se distingue');
   assert.ok(html.includes('Dado de baja'), 'quien se fue sigue a la vista, marcado');
   assert.ok(html.includes('Ya no viven aquí'));
-  assert.ok(html.includes('Adolescente'), 'la clasificación nueva se pinta');
+  // La etiqueta de adulto/adolescente/niño se retiró: no alimentaba nada y
+  // decía «Adulto» en todo el mundo. El dato sigue guardado, solo no se pinta.
+  assert.ok(!html.includes('Adolescente'), 'volvió la etiqueta de la clasificación');
   assert.ok(html.includes('sin decir por qué'), 'se avisa de lo que falta por completar');
   assert.ok(html.indexOf('Maní') < html.indexOf('Berenjena'), 'la alergia va delante de la preferencia');
 });

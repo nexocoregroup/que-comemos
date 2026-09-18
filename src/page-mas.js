@@ -23,7 +23,7 @@ import {
   periodosDelMes, personasActivas, product, restoreProduct, restriccionesDe, listasCerradas, resumenDeLista,
   reviewAvailability, sliceStyle, syncReviewProducts, todayISO
 } from './model.js';
-import { claseDe, hogarDe, resumenDeRestricciones } from './hogar.js';
+import { hogarDe, resumenDeRestricciones } from './hogar.js';
 import { button, conteo, empty, esc, fmt, measure, monthName, niceDate, notice, options, shiftMonth, unitText } from './ui-kit.js';
 import { icono, iconoDeCategoria } from './icons.js';
 import { normalizeName } from './nombres.js';
@@ -382,10 +382,7 @@ function renderFamilia(ctx) {
   const tarjeta = (persona, activa) => `<article class="card familia-persona">
     <div class="between">
       <h3>${esc(persona.name)}</h3>
-      <div class="familia-etiquetas">
-        <span class="pill gray">${esc(claseDe(persona.kind).etiqueta)}</span>
-        ${activa ? '' : '<span class="pill warm">Dado de baja</span>'}
-      </div>
+      ${activa ? '' : '<div class="familia-etiquetas"><span class="pill warm">Dado de baja</span></div>'}
     </div>
     ${resumenDeRestricciones(state, persona)}
     <div class="familia-acciones">

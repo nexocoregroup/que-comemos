@@ -202,6 +202,51 @@ export function findSimilarProducts(state, name, { limit = 3, threshold = 0.72, 
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 }
+/* ── Los alimentos que ya dice el nombre de una preparación ────────────────
+
+   «Mangú de plátano maduro con salami» nombra dos alimentos que esta casa ya
+   tiene registrados. Pedirle a quien lo escribió que los vuelva a elegir uno
+   por uno en un desplegable es pedirle que escriba dos veces lo mismo, y es la
+   razón por la que las preparaciones se guardan sin alimentos — y una
+   preparación sin alimentos no puede avisar de ninguna alergia, que es para lo
+   único que sirven.
+
+   Reglas, y las tres importan:
+
+     · Los nombres largos primero. «Plátano maduro» tiene que ganarle a
+       «Plátano», o un mangú de maduro acabaría diciendo que lleva plátano a
+       secas —que en esta isla es otro alimento—.
+     · Ni una palabra se reparte entre dos alimentos. Si «plátano maduro» ya se
+       llevó esas dos, «plátano» no puede volver a cogerlas.
+     · Se devuelve en el orden en que aparecen en el texto, no en el del
+       catálogo: quien lo escribió los dictó en ese orden.
+
+   Esto propone, no decide. Quien reciba la lista tiene que poder quitar y
+   añadir a mano, porque el nombre de un plato no es una lista de ingredientes
+   y acertar siempre es imposible. */
+export function alimentosEnElTexto(state, texto) {
+  const dichas = normalizeName(texto).split(' ').filter(Boolean);
+  if (!dichas.length) return [];
+
+  const candidatos = activeProducts(state)
+    .map(item => ({ item, clave: normalizeName(item.name).split(' ').filter(Boolean) }))
+    .filter(fila => fila.clave.length)
+    .sort((a, b) => b.clave.length - a.clave.length);
+
+  const tomadas = new Set();
+  const hallados = [];
+  for (const { item, clave } of candidatos) {
+    for (let i = 0; i + clave.length <= dichas.length; i += 1) {
+      if (clave.some((palabra, j) => dichas[i + j] !== palabra)) continue;
+      if (clave.some((palabra, j) => tomadas.has(i + j))) continue;
+      clave.forEach((palabra, j) => tomadas.add(i + j));
+      hallados.push({ item, donde: i });
+      break;
+    }
+  }
+  return hallados.sort((a, b) => a.donde - b.donde).map(fila => fila.item);
+}
+
 export function addProduct(state, fields) {
   const name = String(fields.name || '').trim();
   if (!name) throw new Error('Escribe el nombre del producto.');

@@ -71,24 +71,37 @@ function almacenDeMentira() {
   };
 }
 
-/* ── Siete pasos ───────────────────────────────────────────────────────── */
+// Un formulario con filas de alimentos, como el que pinta la pantalla. Estas
+// pruebas llaman a los envíos sin navegador, así que las filas hay que
+// fingirlas: son lo que `leerPreparacion` lee del DOM, y no del FormData.
+const formularioCon = (...productIds) => ({
+  querySelector: () => null,
+  querySelectorAll: () => productIds.map(id => ({
+    querySelector: selector => ({ value: selector.includes('itemId') ? '' : id })
+  }))
+});
 
-test('el recorrido son cinco pasos, y en este orden', () => {
-  assert.equal(PASOS.length, 5);
+/* ── Cuatro pasos ──────────────────────────────────────────────────────── */
+
+test('el recorrido son cuatro pasos, y en este orden', () => {
+  // Eran cinco. El tercero, «Cómo compramos», se retiró: preguntaba mensual o
+  // quincenal, y desde que la app no reparte la canasta entre quincenas esa
+  // respuesta no cambia una sola pantalla. Sigue en Ajustes, que es donde hace
+  // falta para leer los períodos cerrados del historial.
+  assert.equal(PASOS.length, 4);
+  assert.equal(PASO.compra, undefined, 'volvió el paso de la frecuencia');
   assert.deepEqual(PASOS.map(paso => paso.id),
-    [PASO.personas, PASO.alimentos, PASO.compra, PASO.preparaciones, PASO.plan]);
+    [PASO.personas, PASO.alimentos, PASO.preparaciones, PASO.plan]);
   // Quiénes comen aquí va primero: de eso depende todo lo demás. Y las comidas
   // se escriben antes del repaso, que es lo único que hay después.
   assert.equal(PASOS[0].id, PASO.personas);
   assert.equal(PASOS[PASOS.length - 1].id, PASO.plan);
 });
 
-test('los cinco son los mismos se compre como se compre', () => {
-  // Ya no hay ningún paso condicional. El del reparto entre quincenas, que era
-  // el único, salió del recorrido: sigue en Más → Ajustes para quien lo quiera.
-  for (const frecuencia of [null, 'mensual', 'quincenal']) {
-    assert.equal(pasosDe({ ...emptySetup(), frecuencia }).length, 5);
-  }
+test('los cuatro son siempre los mismos', () => {
+  // Ya no hay ningún paso condicional, ni ninguno que dependa de cómo se
+  // compre: eso se dejó de preguntar aquí.
+  assert.equal(pasosDe(emptySetup()).length, 4);
 });
 
 test('los cinco pasos se dibujan, con la casa vacía y con la casa llena', () => {
@@ -232,7 +245,7 @@ test('se escriben varias seguidas: guardar deja el formulario en blanco', () => 
   assert.deepEqual(ctx.state.recipes[0].uses, ['desayuno', 'cena']);
   assert.deepEqual(ctx.state.recipes[0].items, [], 'sin alimentos, y sin inventarlos');
   assert.equal(ctx.state.recipes[0].servings, null);
-  assert.equal(ctx.ui.setup.preparacion.nombre, '', 'el formulario tiene que quedar en blanco para la siguiente');
+  assert.equal(ctx.ui.setup.preparacion.name, '', 'el formulario tiene que quedar en blanco para la siguiente');
 });
 
 test('sin nombre o sin momentos no se guarda, y se dice por qué', () => {
@@ -244,7 +257,7 @@ test('sin nombre o sin momentos no se guarda, y se dice por qué', () => {
   SETUP_FORMS['setup-preparacion'](null, soloNombre, ctx);
   assert.equal(ctx.state.recipes.length, 0);
   assert.match(ctx.ui.setup.preparacion.error, /momentos/);
-  assert.equal(ctx.ui.setup.preparacion.nombre, 'Mangú', 'lo escrito no se puede perder al avisar');
+  assert.equal(ctx.ui.setup.preparacion.name, 'Mangú', 'lo escrito no se puede perder al avisar');
 
   const soloMomentos = new FormData();
   soloMomentos.append('momentos', 'cena');
@@ -253,10 +266,17 @@ test('sin nombre o sin momentos no se guarda, y se dice por qué', () => {
   assert.match(ctx.ui.setup.preparacion.error, /cómo se llama/);
 });
 
-test('editar desde aquí no borra los alimentos que se escribieron en la ventana completa', () => {
-  // `upsertRecipe` reescribe la ficha entera con lo que se le pase. Sin
-  // devolverle lo que esta pantalla no pregunta, corregir un nombre desde aquí
-  // borraría en silencio los ocho alimentos que alguien anotó en otro sitio.
+test('editar desde aquí conserva los alimentos, porque ahora esta pantalla también los pregunta', () => {
+  /* `upsertRecipe` reescribe la ficha entera con lo que se le pase, así que esto
+     era un peligro real: corregir un nombre desde el recorrido borraba en
+     silencio los ocho alimentos que alguien había anotado en la ventana
+     completa. Se protegía devolviéndole `anterior.items` a ciegas.
+
+     Ya no hace falta ese truco, y además sería un error: el recorrido y la
+     sección usan ahora EL MISMO formulario, que pinta los alimentos y los lee.
+     Devolverle los de antes a ciegas ignoraría una fila que alguien acabara de
+     quitar. Lo que esta prueba vigila es lo que de verdad los protege: que las
+     filas se pinten al editar y que lo leído sea lo que se guarda. */
   const ctx = contexto();
   const arroz = addProduct(ctx.state, { name: 'Arroz', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
   const receta = upsertRecipe(ctx.state, {
@@ -266,14 +286,20 @@ test('editar desde aquí no borra los alimentos que se escribieron en la ventana
   ctx.ui.setup.paso = PASO.preparaciones;
 
   SETUP_ACTIONS['setup-preparacion-editar']({ dataset: { id: receta.id } }, ctx);
-  assert.equal(ctx.ui.setup.preparacion.nombre, 'Locrio');
-  assert.deepEqual(ctx.ui.setup.preparacion.momentos, ['almuerzo']);
+  assert.equal(ctx.ui.setup.preparacion.name, 'Locrio');
+  assert.deepEqual(ctx.ui.setup.preparacion.uses, ['almuerzo']);
+  assert.equal(ctx.ui.setup.preparacion.items.length, 1, 'al editar no se traen los alimentos que ya tenía');
+
+  // Y la pantalla los pinta: sin esa fila, guardar los borraría.
+  const pintado = renderSetup(ctx);
+  assert.ok(pintado.includes('data-item-list="receta"'), 'el formulario del recorrido volvió a no preguntar los alimentos');
+  assert.ok(new RegExp(`value="${arroz}" selected`).test(pintado), 'el alimento que ya tenía no viene elegido');
 
   const datos = new FormData();
   datos.set('nombre', 'Locrio de pollo');
   datos.append('momentos', 'almuerzo');
   datos.append('momentos', 'cena');
-  SETUP_FORMS['setup-preparacion'](null, datos, ctx);
+  SETUP_FORMS['setup-preparacion'](formularioCon(arroz), datos, ctx);
 
   assert.equal(ctx.state.recipes.length, 1, 'editar no puede crear una segunda');
   const despues = ctx.state.recipes[0];
@@ -354,16 +380,16 @@ test('el último paso enseña lo registrado, uno por uno, y deja volver a cada c
   upsertRecipe(ctx.state, { name: 'Mangú', uses: ['desayuno'], items: [], note: '' });
   ctx.ui.setup.paso = PASO.plan;
   ctx.ui.setup.personas = 1;
-  ctx.ui.setup.frecuencia = 'quincenal';
 
   const html = renderSetup(ctx);
   revisar(html, 'paso de ver mi casa');
   assert.ok(html.includes('Mi hogar') && /1 persona</.test(html));
   assert.ok(html.includes('Productos habituales') && /1 producto</.test(html));
-  assert.ok(html.includes('Dos compras al mes'));
+  // «Cómo compramos» ya no está: se retiró del recorrido entero.
+  assert.ok(!html.includes('Cómo compramos'), 'volvió la línea del paso retirado');
   assert.ok(html.includes('Mis preparaciones') && /1 preparación</.test(html));
   // Cada línea vuelve a su paso.
-  for (const paso of [PASO.personas, PASO.alimentos, PASO.compra, PASO.preparaciones]) {
+  for (const paso of [PASO.personas, PASO.alimentos, PASO.preparaciones]) {
     assert.ok(html.includes(`data-action="setup-ir" data-paso="${paso}"`), `no se puede volver al paso ${paso}`);
   }
   // Y el último paso no ofrece «Salir»: ya no queda nada que abandonar.
@@ -499,12 +525,19 @@ test('la ficha ya no pide porciones ni cantidades de los alimentos', () => {
   assert.ok(ventana.length > 200, 'no se encontró la ventana de la preparación');
   assert.ok(!/name="servings"/.test(ventana), 'vuelve a pedir cuántas porciones rinde');
   assert.ok(!/name="participants"/.test(ventana), 'vuelve a preguntar quiénes comen normalmente');
-  assert.ok(/itemRow\(item\)/.test(ventana), 'ya no se pueden anotar los alimentos');
+  // El cuerpo del formulario se fue a `preparacion.js`, para que el recorrido
+  // inicial use exactamente el mismo y deje de escribir preparaciones a medias
+  // —sin alimentos, y por tanto sin poder avisar de ninguna alergia—.
+  assert.ok(/camposDePreparacion\(state/.test(ventana), 'la ventana dejó de usar el formulario compartido');
+  const campos = readFileSync(resolve(import.meta.dirname, '..', 'src', 'preparacion.js'), 'utf8');
+  assert.ok(!/name="servings"/.test(campos), 'vuelve a pedir cuántas porciones rinde');
+  assert.ok(!/name="participants"/.test(campos), 'vuelve a preguntar quiénes comen normalmente');
+  assert.ok(/data-item-list="receta"/.test(campos), 'ya no se pueden anotar los alimentos');
   // Y la fila de un alimento no lleva cantidad ni unidad. Hay una sola fila
   // desde que se retiró el reparto por raciones, así que comprobarla aquí la
   // comprueba también para la ventana de una comida.
-  const desde = codigo.indexOf('function itemRow');
-  const fila = codigo.slice(desde, desde + 900);
+  const desde = campos.indexOf('export function filaDeAlimento');
+  const fila = campos.slice(desde, desde + 900);
   assert.ok(!/name="quantity"/.test(fila), 'la fila de un alimento vuelve a pedir cuánto');
   assert.ok(!/name="unit"/.test(fila));
   // Lo que la ventana no pregunta, tampoco lo borra.

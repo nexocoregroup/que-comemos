@@ -28,6 +28,7 @@ import { COMPRA_ACTIONS, COMPRA_FORMS, emptyCompra, listaEnCurso, modalPendiente
 import { MAS_ACTIONS, PAGINAS_MAS, TITULOS_MAS, emptyMas, renderMas } from './page-mas.js';
 import { anotar, falloAnterior, fallosRecientes, instalarRed, olvidarFalloAnterior, protegida } from './fallos.js';
 import { CUENTA_ACTIONS, CUENTA_FORMS, emptyCuenta, renderCuenta, volvimosDeGoogle } from './page-cuenta.js';
+import { camposDePreparacion, filaDeAlimento, leerPreparacion, llenarAlimentosDelNombre } from './preparacion.js';
 import { CAJON_DE_ESTE_TELEFONO, arrancarSesion, cajonDe, fundirSesion, guardarSesion, olvidarSesion } from './sesion.js';
 import { guardarCopiaAntesDeBajar, mereceLaPenaVincular, sincronizar } from './sincronizar.js';
 import { hayNube } from './config-nube.js';
@@ -1130,47 +1131,12 @@ function lineaDeCompra() {
 /* ── Piezas de formulario compartidas ──────────────────────────────────── */
 
 const unitOptions = selected => options(UNITS.map(unit => [unit, unit]), selected);
-/* Setenta alimentos en un desplegable plano, en el orden en que se dieron de
-   alta. En Android eso es una lista a pantalla completa por la que hay que bajar
-   a dedo hasta dar con «Sazón completo», y se repite por cada alimento de la
-   preparación. Quien se cansa guarda la preparación sin alimentos —y entonces la
-   app no puede avisar de ninguna alergia, que es justo para lo que sirven—.
-
-   Agrupados por rubro, los mismos ocho de siempre, y ordenados por nombre dentro
-   de cada uno. Es lo que ya hacen la compra y el registro inicial con esta misma
-   lista; aquí era la única pantalla que la enseñaba sin orden. */
-const productOptions = selected => {
-  const porRubro = new Map(RUBROS.map(rubro => [rubro.id, []]));
-  for (const item of state.products.filter(fila => !fila.archived)) {
-    const rubro = rubroDe(state, item.id);
-    (porRubro.get(rubro) || porRubro.get('otros')).push(item);
-  }
-  const grupos = [...porRubro]
-    .filter(([, items]) => items.length)
-    .map(([rubro, items]) => {
-      const dentro = items
-        .sort((a, b) => String(a.name).localeCompare(String(b.name), 'es'))
-        .map(item => `<option value="${esc(item.id)}"${item.id === selected ? ' selected' : ''}>${esc(item.name)}</option>`)
-        .join('');
-      return `<optgroup label="${esc(RUBROS.find(fila => fila.id === rubro)?.titulo || rubro)}">${dentro}</optgroup>`;
-    })
-    .join('');
-  return `<option value=""${selected ? '' : ' selected'}>Elegir un alimento</option>${grupos}`;
-};
-
-// La fila de un alimento dentro de una comida: el alimento y nada más.
-//
-// Una casa apunta «locrio: arroz, pollo, aceitunas» mucho antes de saber
-// cuántas tazas, y muchas veces no lo sabe nunca. Lo que lleva sirve para
-// avisar de las alergias, y para eso el nombre basta.
-//
-// Cuánto se compra es otra cosa y se escribe en otro sitio: en la compra,
-// delante del estante, donde sí se sabe.
-function itemRow(item = {}) {
-  return `<div class="item-row item-row-simple" data-item-row><input type="hidden" name="itemId" value="${esc(item.id || '')}">
-    <label class="field"><span>Alimento</span><select name="productId" required>${productOptions(item.productId || '')}</select></label>
-    <button type="button" class="btn btn-quiet remove-item" data-action="remove-item" aria-label="Quitar alimento">${icono('cerrar', { tamano: 18 })}</button></div>`;
-}
+/* `productOptions` e `itemRow` vivían aquí y ahora están en
+   `preparacion.js`, con el resto del formulario de una preparación. Se
+   movieron porque el recorrido inicial también los necesita: tenía su propio
+   formulario, sin alimentos, y quien registraba su casa por primera vez
+   escribía sus preparaciones a medias sin enterarse. */
+const itemRow = (item = {}) => filaDeAlimento(state, item);
 
 // Quien está dado de baja no aparece aquí, salvo que ya estuviera marcado en
 // esta comida: una comida de marzo la comió quien la comió, y editarla no puede
@@ -1292,24 +1258,7 @@ function renderModal() {
     return modal(recipe ? 'Editar preparación' : 'Nueva preparación',
       'Con el nombre y cuándo se come ya basta. Lo demás se puede añadir después.',
       `<form data-form="recipe" data-id="${recipe?.id || ''}" class="receta-form">
-        <label class="field"><span>¿Cómo se llama?</span><input name="name" required value="${esc(recipe?.name || '')}" placeholder="Ej. Mangú con salami"></label>
-
-        <div class="field">
-          <span>¿En cuáles momentos suelen comer esta preparación? Puedes seleccionar más de uno.</span>
-          <div class="checks receta-momentos">${MOMENTOS.map(momento => `<label class="chip-check"><input type="checkbox" name="uses" value="${momento.id}" ${recipe?.uses?.includes(momento.id) ? 'checked' : ''}>${esc(momento.etiqueta)}</label>`).join('')}</div>
-          <small>El mangú con salami, por ejemplo, suele estar en Desayuno y en Cena.</small>
-        </div>
-
-        <div class="field">
-          <span>¿Qué alimentos lleva? (opcional)</span>
-          <p class="small muted">Sirve para avisarte si alguien de la casa debe evitar alguno. No hace falta decir cuánto, y no hace falta anotar la sal, el agua, el aceite ni los condimentos.</p>
-          <div data-item-list="receta">${(recipe?.items || []).map(item => itemRow(item)).join('')}</div>
-          <div class="inline">${button('+ Añadir alimento', 'add-item', 'btn-secondary btn-small', 'data-type="receta"')}</div>
-        </div>
-
-        <label class="field"><span>Nota para quien cocina (opcional)</span><textarea name="note" placeholder="Ej. guardar lo que sobre para el desayuno del día siguiente" autocapitalize="sentences" spellcheck="true" enterkeyhint="done">${esc(recipe?.note || '')}</textarea></label>
-
-
+        ${camposDePreparacion(state, recipe || {})}
         <div class="modal-actions">
           ${recipe ? '' : '<button class="btn btn-secondary" type="submit" name="seguir" value="1">Guardar y añadir otra</button>'}
           <button class="btn btn-primary" type="submit">Guardar</button>
@@ -2004,11 +1953,36 @@ document.addEventListener('change', event => {
 });
 
 let filtroTimer;
+// Un respiro más largo que el de los buscadores: aquí no se filtra nada
+// mientras se teclea, se añaden filas debajo, y hacerlo a media palabra —«mangú
+// de plá…»— sería ir poniendo y quitando cosas delante de quien escribe.
+const ESPERA_ANTES_DE_LEER_EL_NOMBRE_MS = 700;
+let relojDeAlimentos;
 document.addEventListener('input', event => {
   // Los dos buscadores se comportan igual: filtran mientras se teclea, con un
   // respiro para no repintar por letra, y devuelven el foco y el cursor donde
   // estaban. Antes el del catálogo inicial era un `change`, así que no pasaba
   // nada hasta pulsar Intro o salir del campo.
+  /* Lo que ya dice el nombre de la preparación, puesto abajo sin pedirlo.
+
+     «Mangú de plátano maduro con salami» nombra dos alimentos que esta casa ya
+     tiene registrados; volver a elegirlos uno por uno en un desplegable es
+     escribir dos veces lo mismo, y es la razón por la que las preparaciones se
+     guardan sin alimentos —y una preparación sin alimentos no avisa de ninguna
+     alergia—.
+
+     No repinta: mover el cursor a media palabra sería peor que el ahorro. Y
+     solo añade, nunca quita, aunque el nombre cambie: quitar una fila que
+     alguien puso a mano es el error caro. */
+  if (event.target.matches('[data-preparacion-nombre]')) {
+    const formulario = event.target.closest('form');
+    clearTimeout(relojDeAlimentos);
+    relojDeAlimentos = setTimeout(() => {
+      const puestos = llenarAlimentosDelNombre(state, formulario);
+      if (puestos) anunciar(`${conteo(puestos, 'alimento añadido', 'alimentos añadidos')} por el nombre.`);
+    }, ESPERA_ANTES_DE_LEER_EL_NOMBRE_MS);
+  }
+
   const buscadores = {
     // `alimento-filtro` apuntaba a una clave que `emptyMas()` no creaba y a un
     // `id` que ninguna pantalla pintaba: era el resto de «Alimentos de la casa»,
@@ -2096,8 +2070,7 @@ document.addEventListener('submit', async event => {
     if (kind === 'recipe') {
       const anterior = state.recipes.find(item => item.id === form.dataset.id);
       const receta = upsertRecipe(state, {
-        id: form.dataset.id, name: data.get('name'), uses: selected(form, 'uses'),
-        items: collectItems(form), note: data.get('note'),
+        id: form.dataset.id, ...leerPreparacion(form, data),
         // Esta ventana ya no pregunta cuánto rinde, y lo que no pregunta no lo
         // borra: quien lo escribió cuando se preguntaba lo conserva.
         servings: anterior?.servings ?? null

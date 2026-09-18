@@ -121,9 +121,9 @@ test('los alimentos de una preparación salen agrupados y por orden', () => {
   // lista a pantalla completa, y se repite por cada alimento. Quien se cansa
   // guarda la preparación sin alimentos, y entonces la app no puede avisar de
   // ninguna alergia.
-  const codigo = fuente('app.js');
-  const fn = /const productOptions = selected => \{[\s\S]*?\n\};/.exec(codigo)?.[0] || '';
-  assert.ok(fn, 'productOptions volvió a ser una línea');
+  const codigo = fuente('preparacion.js');
+  const fn = /export function opcionesDeAlimento\([\s\S]*?\n\}/.exec(codigo)?.[0] || '';
+  assert.ok(fn, 'el desplegable de alimentos volvió a ser una línea');
   assert.ok(/<optgroup/.test(fn), 'el desplegable de alimentos vuelve a ser plano');
   assert.ok(/localeCompare/.test(fn), 'el desplegable de alimentos vuelve al orden de alta');
 });

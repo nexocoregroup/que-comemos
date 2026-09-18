@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 // El hogar: quién vive aquí y qué evita cada quien.
 //
@@ -17,7 +19,7 @@ import {
 } from '../src/model.js';
 import { loadState, saveState } from '../src/storage.js';
 import {
-  CLASES, HOGAR_ACTIONS, HOGAR_FORMS, claseDe, emptyHogar, hogarDe, ordenarRestricciones,
+  HOGAR_ACTIONS, HOGAR_FORMS, emptyHogar, hogarDe, ordenarRestricciones,
   renderHogar, resumenDeRestricciones, tocaConfigurarElHogar
 } from '../src/hogar.js';
 
@@ -164,16 +166,30 @@ test('una persona puede tener más de una restricción y cada una con su motivo'
   assert.equal(sofia.activo, true);
 });
 
-test('las tres clasificaciones existen y adolescente es una de ellas', () => {
+test('la clasificación ya no se pregunta, pero el dato se sigue defendiendo', () => {
+  /* Adulto, adolescente o niño se preguntaba una vez por persona y se pintaba en
+     tres pantallas sin alimentar nada: el argumento que la sostenía era el
+     reparto por raciones, que se retiró. Hoy la etiqueta decía «Adulto» en todo
+     el mundo.
+
+     Lo que se retiró es la pregunta. El campo sigue en el modelo, y esta prueba
+     existe para que siga: quien lo contestó cuando se preguntaba no puede
+     perderlo, y un valor inventado no puede entrar por un respaldo traído a
+     mano. */
   const { state } = casa();
   for (const clase of ['adulto', 'adolescente', 'nino']) {
     const persona = upsertPerson(state, { name: `Alguien ${clase}`, kind: clase, restricciones: [], habitual: [] });
-    assert.equal(persona.kind, clase);
+    assert.equal(persona.kind, clase, 'el modelo dejó de guardar la clasificación');
   }
-  assert.deepEqual(CLASES.map(item => item.id), ['adulto', 'adolescente', 'nino']);
-  assert.equal(claseDe('adolescente').etiqueta, 'Adolescente');
-  // Una clasificación inventada no entra: se queda en la neutra.
-  assert.equal(upsertPerson(state, { name: 'Raro', kind: 'marciano', restricciones: [], habitual: [] }).kind, 'adulto');
+  assert.equal(upsertPerson(state, { name: 'Raro', kind: 'marciano', restricciones: [], habitual: [] }).kind, 'adulto',
+    'una clasificación inventada entra en los datos');
+
+  // Y no se pregunta en ninguno de los dos sitios donde se edita una persona.
+  const codigo = readFileSync(resolve(import.meta.dirname, '..', 'src', 'hogar.js'), 'utf8');
+  const ficha = /export function cuerpoDeFicha\([\s\S]*?\n\}/.exec(codigo)?.[0] || '';
+  assert.ok(ficha, 'no encuentro la ficha de una persona');
+  assert.ok(!/¿Qué es de la casa\?/.test(ficha), 'volvió la pregunta de adulto, adolescente o niño');
+  assert.ok(!/hogar-clase/.test(codigo), 'quedó suelta la acción de elegir la clasificación');
 });
 
 test('el mismo alimento anotado dos veces es una sola restricción, y gana el motivo dicho', () => {
@@ -369,7 +385,6 @@ test('el avance se guarda solo: cerrar la app a mitad devuelve la ficha a medias
     HOGAR_ACTIONS['hogar-motivo']({ dataset: { motivo: 'alergia' } }, ctx);
     HOGAR_ACTIONS['hogar-anadir'](null, ctx);
     fingirPantalla({ nombre: 'Luis', alimento: '' });
-    HOGAR_ACTIONS['hogar-clase']({ dataset: { clase: 'adolescente' } }, ctx);
   } finally { quitarPantalla(); }
 
   // Se guarda como guarda la app de verdad y se vuelve a leer de cero.
@@ -381,7 +396,9 @@ test('el avance se guarda solo: cerrar la app a mitad devuelve la ficha a medias
   assert.equal(hogar.indice, 1, 'se vuelve por la segunda persona');
   assert.equal(hogar.total, 3);
   assert.equal(hogar.borrador.nombre, 'Luis', 'el nombre a medio escribir sobrevivió');
-  assert.equal(hogar.borrador.kind, 'adolescente');
+  // La clasificación ya no se pregunta; el borrador la arrastra con su valor
+  // neutro, que es lo que hace que editar a alguien no se la borre.
+  assert.equal(hogar.borrador.kind, 'adulto');
   assert.deepEqual(hogar.borrador.restricciones, [{ productId: null, texto: 'Maní', motivo: 'alergia' }]);
   assert.equal(vuelto.people.length, 1, 'la que estaba a medias todavía no es una persona');
   assert.equal(vuelto.people[0].name, 'Ana');
