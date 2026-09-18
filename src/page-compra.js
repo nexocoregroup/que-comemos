@@ -24,7 +24,7 @@
 import {
   actualizarLineaDeLista, agregarALista, agregarOcasional, anotarComprado, cerrarLista, crearLista,
   habitualesPorRubro, listasAbiertas, listasCerradas, marcarComprado, pendienteDe, product, quitarDeLista,
-  resumenDeLista, todayISO, trasladarPendientes
+  reabrirLista, restore, resumenDeLista, snapshot, todayISO, trasladarPendientes
 } from './model.js';
 import { RUBROS } from './catalog-seed.js';
 import {
@@ -49,6 +49,13 @@ export function emptyCompra() {
     anadiendo: false,
     nombreNuevo: '',
     errorNuevo: '',
+    // La foto del estado justo antes de lo último que se deshizo o se cerró.
+    // Quitar un renglón y terminar una compra son las dos cosas de esta pantalla
+    // que cuesta recuperar a mano, y las dos se hacen andando y con una mano.
+    // Vive en `ui` y no en el estado guardado a propósito: deshacer vale para
+    // este rato, no para mañana.
+    deshacer: null,
+    avisoDeshacer: '',
     verHistorial: false
   };
 }
@@ -82,8 +89,22 @@ export function renderCompra(ctx) {
         <button type="button" data-action="compra-vista" data-vista="lista" class="${enPreparar ? '' : 'active'}">Mi lista${resumen.total ? ` · ${resumen.total}` : ''}</button>
       </div>
     </div>
+    ${avisoDeDeshacer(ctx)}
     ${enPreparar ? vistaPreparar(ctx, lista) : vistaLista(ctx, lista)}
     ${historial(ctx)}`;
+}
+
+// Lo último que se deshizo, dicho en voz alta y con su botón. Mismo patrón que
+// `avisoDeCambio` en page-semana.js: un renglón que desaparece sin que la
+// pantalla diga nada deja a cualquiera mirando a ver qué pasó, y andando por un
+// pasillo no hay forma de saber si fue un toque tuyo o un fallo de la app.
+function avisoDeDeshacer(ctx) {
+  const { ui } = ctx;
+  if (!ui.compra.avisoDeshacer) return '';
+  const boton = ui.compra.deshacer
+    ? `<div class="inline" style="margin-top:10px">${button(`${icono('deshacer', { tamano: 16 })}Deshacer`, 'compra-deshacer', 'btn-quiet btn-small')}</div>`
+    : '';
+  return notice(ui.compra.avisoDeshacer, boton);
 }
 
 function sinListaAbierta(ctx) {
@@ -323,7 +344,7 @@ function historial(ctx) {
 
 /* ── Acciones ──────────────────────────────────────────────────────────── */
 
-export const COMPRA_ACTIONS = {
+const ACCIONES = {
   'compra-nueva': (el, ctx) => {
     const lista = crearLista(ctx.state, { fecha: todayISO() });
     ctx.ui.compra = { ...emptyCompra(), vista: 'preparar' };
@@ -362,11 +383,29 @@ export const COMPRA_ACTIONS = {
     marcarComprado(ctx.state, lista.id, linea.id, !linea.comprado);
     ctx.commit('');
   },
+  // Quitar era la única acción destructiva de la app que no preguntaba, no
+  // avisaba y no se podía deshacer: se tocaba la equis y el renglón desaparecía
+  // en silencio. Y se toca andando, al lado del botón de tachar. En vez de un
+  // `confirm` —que a media compra estorba diez veces por una que salva— se dice
+  // qué se quitó y se deja el camino de vuelta abierto.
   'compra-quitar': (el, ctx) => {
     const lista = listaEnCurso(ctx.state);
     if (!lista) return;
+    const linea = lista.lineas.find(row => row.id === el.dataset.id);
+    if (!linea) return;
+    const nombre = linea.texto || product(ctx.state, linea.productId)?.name || 'Eso';
+    const antes = snapshot(ctx.state);
     quitarDeLista(ctx.state, lista.id, el.dataset.id);
+    ctx.ui.compra.deshacer = antes;
+    ctx.ui.compra.avisoDeshacer = `«${nombre}» fuera de la lista.`;
     ctx.commit('');
+  },
+  'compra-deshacer': (el, ctx) => {
+    if (!ctx.ui.compra.deshacer) return;
+    restore(ctx.state, ctx.ui.compra.deshacer);
+    ctx.ui.compra.deshacer = null;
+    ctx.ui.compra.avisoDeshacer = '';
+    ctx.commit('Deshecho.');
   },
 
   /* ── Terminar ───────────────────────────────────────────────────────────
@@ -396,6 +435,34 @@ export const COMPRA_ACTIONS = {
   'compra-ver-historial': (el, ctx) => { ctx.ui.compra.verHistorial = !el.closest('details').open; }
 };
 
+/* ── El deshacer caduca solo ───────────────────────────────────────────────
+
+   `restore()` devuelve el estado ENTERO, no el último cambio. Si alguien quita
+   un renglón, después tacha cinco cosas y entonces toca «Deshacer», los cinco
+   tachados se irían con él —y en un pasillo del colmado eso es peor que el fallo
+   que vinimos a arreglar—.
+
+   Así que la foto solo vale mientras no haya pasado nada más. Cualquier otra
+   acción o formulario de esta pantalla la tira, y el aviso se va con ella. Las
+   cuatro de la lista blanca son las que crean el deshacer o lo consumen.
+
+   Va envuelto aquí y no repetido dentro de cada acción para que una acción nueva
+   no pueda olvidarse de hacerlo: el olvido es justo el fallo que se está
+   arreglando. */
+const CONSERVAN_EL_DESHACER = new Set(['compra-quitar', 'compra-terminar', 'compra-cerrar', 'compra-deshacer']);
+
+const caducarDeshacer = (nombre, fn) => (el, ctx) => {
+  if (!CONSERVAN_EL_DESHACER.has(nombre) && ctx.ui?.compra) {
+    ctx.ui.compra.deshacer = null;
+    ctx.ui.compra.avisoDeshacer = '';
+  }
+  return fn(el, ctx);
+};
+
+export const COMPRA_ACTIONS = Object.fromEntries(
+  Object.entries(ACCIONES).map(([nombre, fn]) => [nombre, caducarDeshacer(nombre, fn)])
+);
+
 /* ── Cerrar una compra y abrir la siguiente ────────────────────────────────
 
    La lista cerrada no se toca: es el recuerdo de esa salida, con su fecha, lo
@@ -404,10 +471,18 @@ export const COMPRA_ACTIONS = {
 
 function terminar(ctx, lista, trasladar) {
   const resumen = resumenDeLista(lista);
+  // Terminar es la acción más grande de la pantalla y hasta ahora no tenía
+  // vuelta: cerraba, abría la siguiente y ya. El modelo sabe reabrir desde
+  // siempre —`reabrirLista`, con su prueba— y hasta el mensaje de error de
+  // `agregarALista` lo promete («Ábrela otra vez si quieres cambiarla»), pero no
+  // lo llamaba ninguna pantalla. La foto se toma antes de tocar nada.
+  const antes = snapshot(ctx.state);
   cerrarLista(ctx.state, lista.id);
   const proxima = crearLista(ctx.state, { fecha: todayISO() });
   const movidas = trasladar ? trasladarPendientes(ctx.state, lista.id, proxima.id) : 0;
   ctx.ui.compra = { ...emptyCompra(), vista: movidas ? 'lista' : 'preparar' };
+  ctx.ui.compra.deshacer = antes;
+  ctx.ui.compra.avisoDeshacer = 'Compra terminada.';
   ctx.closeModal?.();
   ctx.commit(`Compra guardada: ${resumen.comprados} de ${resumen.total} cosa(s).${
     movidas ? ` ${movidas} cosa(s) sin conseguir pasan a la próxima.` : resumen.pendientes ? ` ${resumen.pendientes} se quedan solo en el historial de esta compra.` : ''
@@ -435,7 +510,7 @@ export function modalPendientes(ctx, m) {
     </div>`);
 }
 
-export const COMPRA_FORMS = {
+const FORMULARIOS = {
   // Cuánto se lleva de un habitual esta vez. La cantidad puede ir en blanco:
   // hay quien la decide delante del estante.
   'compra-poner': (form, data, ctx) => {
@@ -502,5 +577,14 @@ export const COMPRA_FORMS = {
       : `Anotado. ${falta ? `Faltan ${cuanto(falta, linea.unidad)}` : 'Queda pendiente'}.`);
   }
 };
+
+// Los formularios también caducan el deshacer: escribir una cantidad o apuntar
+// algo nuevo es un cambio como cualquier otro. Ninguno lo conserva.
+export const COMPRA_FORMS = Object.fromEntries(
+  Object.entries(FORMULARIOS).map(([nombre, fn]) => [nombre, (form, data, ctx) => {
+    if (ctx.ui?.compra) { ctx.ui.compra.deshacer = null; ctx.ui.compra.avisoDeshacer = ''; }
+    return fn(form, data, ctx);
+  }])
+);
 
 
