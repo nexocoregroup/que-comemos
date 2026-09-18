@@ -26,6 +26,7 @@ import {
 import { claseDe, hogarDe, resumenDeRestricciones } from './hogar.js';
 import { button, empty, esc, fmt, measure, monthName, niceDate, notice, options, shiftMonth, unitText } from './ui-kit.js';
 import { icono, iconoDeCategoria } from './icons.js';
+import { normalizeName } from './nombres.js';
 import { LEGAL } from './legal.js';
 
 // Una función y no una constante: calculada al cargar el módulo, un teléfono
@@ -79,6 +80,20 @@ export function emptyMas() {
     // El buscador de preparaciones y qué bloques están abiertos. Empiezan todos
     // abiertos: una casa con seis preparaciones no quiere abrir cinco cajones.
     recetaFiltro: '', recetasPlegadas: [],
+
+    /* Mis productos habituales va al revés: los ocho rubros empiezan CERRADOS.
+
+       Con setenta productos, abiertos son 1.929 px hasta el botón de añadir, y
+       lo que se viene a hacer aquí casi siempre es una cosa concreta —corregir
+       un nombre, quitar algo que la casa dejó de comprar—, no leer los setenta.
+       Esta lista se escribe una vez y después solo se mantiene.
+
+       Se apunta lo ABIERTO y no lo plegado, al revés que en preparaciones, para
+       que el valor por omisión de los dos sea el mismo objeto vacío y no haya
+       que acordarse de invertir nada. Y hace falta apuntarlo: `render()`
+       reescribe `#app` entero, así que el atributo `open` de un `<details>` se
+       pierde en cada repintado. */
+    rubrosAbiertos: [], habitualFiltro: '',
     documento: 'privacidad',
     // Qué período cerrado se está mirando por dentro, en el Historial.
     cierreAbierto: '',
@@ -133,35 +148,74 @@ function volver(titulo) {
    cerrados, que se calcularon con ellas. No se enseñan ni se piden. */
 
 function renderCanasta(ctx) {
-  const { state } = ctx;
-  const grupos = habitualesPorRubro(state);
-  if (!grupos.length) {
+  const { state, ui } = ctx;
+  const todos = habitualesPorRubro(state);
+  if (!todos.length) {
     return empty('canasta', 'Todavía no has escrito tu lista',
       'Son los productos que en tu casa nunca faltan: los plátanos, el arroz, los huevos, el salami. Se escriben una vez y valen para siempre; sirven para no tener que acordarte de todo cada vez que vas al colmado.',
       `${button('Marcarlos de una lista', 'setup-open', 'btn-primary')}${button(`${icono('hoja', { tamano: 17 })}Escribirlos de corrido`, 'open-bulk', 'btn-secondary', 'data-destino="habitual"')}`);
   }
-  const total = grupos.reduce((suma, grupo) => suma + grupo.lineas.length, 0);
+
+  const total = todos.reduce((suma, grupo) => suma + grupo.lineas.length, 0);
+  const busqueda = normalizeName(ui.mas.habitualFiltro || '');
+  const grupos = todos
+    .map(grupo => ({ ...grupo, lineas: grupo.lineas.filter(linea => coincideElProducto(state, linea, busqueda)) }))
+    .filter(grupo => grupo.lineas.length);
+  const abiertos = new Set(ui.mas.rubrosAbiertos || []);
+
+  // La acción principal, arriba y con el mismo peso que «+ Nueva preparación»
+  // en la pantalla de al lado. Estaba al fondo del todo: con los setenta
+  // productos a la vista, a 1.929 px de donde se entra.
   return `<p class="pantalla-intro">Lo que en tu casa nunca falta. <strong>Aquí no se apuntan cantidades</strong>: cuánto llevas se decide en la compra, que es cuando se sabe.</p>
-    ${grupos.map(grupo => bloqueDeRubro(ctx, grupo)).join('')}
-    <p class="tiny muted">${total} producto(s) en ${grupos.length === 1 ? 'un rubro' : `${grupos.length} rubros`}. Quitar uno de aquí no cambia ninguna compra que ya se hizo.</p>
     <div class="pantalla-acciones">
-      ${button('+ Añadir producto', 'open-product', 'btn-secondary')}
+      ${button('+ Añadir producto', 'open-product', 'btn-primary')}
       ${button(`${icono('hoja', { tamano: 17 })}Añadir varios de corrido`, 'open-bulk', 'btn-quiet', 'data-destino="habitual"')}
-    </div>`;
+    </div>
+
+    <div class="setup-buscador">
+      <label class="field setup-search"><span class="sr-only">Buscar entre mis productos habituales</span>
+        <input type="search" id="habitual-filtro" value="${esc(ui.mas.habitualFiltro || '')}" placeholder="Buscar entre ${total} producto(s)…" autocomplete="off" aria-label="Buscar entre mis productos habituales">
+      </label>
+      ${ui.mas.habitualFiltro ? button('Ver todo', 'habitual-limpiar', 'btn-quiet') : ''}
+    </div>
+
+    ${busqueda && !grupos.length ? `<p class="muted">Nada coincide con «${esc(ui.mas.habitualFiltro)}».</p>` : ''}
+    ${grupos.map(grupo => bloqueDeRubro(ctx, grupo, { abierto: Boolean(busqueda) || abiertos.has(grupo.rubro) })).join('')}
+    <p class="tiny muted">${total} producto(s) en ${todos.length === 1 ? 'un rubro' : `${todos.length} rubros`}. Quitar uno de aquí no cambia ninguna compra que ya se hizo.</p>`;
 }
 
-// Los mismos ocho rubros, con el mismo icono y el mismo orden que en la compra
-// y en el registro inicial. Son la misma lista vista desde tres sitios, y verla
-// ordenada de tres maneras distintas obligaría a aprenderla tres veces.
-function bloqueDeRubro(ctx, grupo) {
+// Por nombre y por alias, igual que busca la compra sobre esta misma lista: quien
+// escribe «plat mad» está buscando el plátano maduro y lo sabe.
+function coincideElProducto(state, linea, busqueda) {
+  if (!busqueda) return true;
+  const item = product(state, linea.productId);
+  if (!item) return false;
+  return normalizeName(item.name).includes(busqueda)
+    || (item.aliases || []).some(alias => normalizeName(alias).includes(busqueda));
+}
+
+/* Los mismos ocho rubros, con el mismo icono y el mismo orden que en la compra
+   y en el registro inicial. Son la misma lista vista desde tres sitios, y verla
+   ordenada de tres maneras distintas obligaría a aprenderla tres veces.
+
+   Plegados con `<details class="plegable">`, que es el único de los tres motores
+   de plegado que había en la app y que el proyecto documenta como el bueno: el
+   navegador resuelve teclado y lector de pantalla, y abrir un bloque no repinta
+   la aplicación entera. Lo que no regala es el estado —`render()` reescribe
+   `#app` y el atributo `open` se va con él—, así que eso se apunta en `ui.mas`
+   como ya hacía el historial de la compra.
+
+   Buscando, todos se abren: esconder detrás de un pliegue justo lo que se acaba
+   de pedir sería el peor de los dos mundos. */
+function bloqueDeRubro(ctx, grupo, { abierto = false } = {}) {
   const { state } = ctx;
   const rubro = RUBROS.find(item => item.id === grupo.rubro);
-  return `<section class="canasta-rubro">
-    <h3 class="canasta-grupo">
+  return `<details class="plegable canasta-rubro" ${abierto ? 'open' : ''}>
+    <summary class="canasta-grupo" data-action="rubro-plegar" data-rubro="${esc(grupo.rubro)}">
       <span class="canasta-grupo-icono">${iconoDeCategoria(grupo.rubro, { tamano: 20 })}</span>
-      ${esc(rubro?.titulo || grupo.rubro)}
+      <span class="canasta-grupo-titulo">${esc(rubro?.titulo || grupo.rubro)}</span>
       <span class="badge-count">${grupo.lineas.length}</span>
-    </h3>
+    </summary>
     <div class="card canasta-card">${grupo.lineas.map(linea => {
       const item = product(state, linea.productId);
       if (!item) return '';
@@ -171,7 +225,7 @@ function bloqueDeRubro(ctx, grupo) {
         <button type="button" class="btn btn-quiet btn-small" data-action="canasta-quitar" data-id="${esc(item.id)}" aria-label="Quitar ${esc(item.name)} de mis productos habituales">${icono('cerrar', { tamano: 17 })}</button>
       </div>`;
     }).join('')}</div>
-  </section>`;
+  </details>`;
 }
 
 /* ── Preparaciones ─────────────────────────────────────────────────────────
@@ -219,17 +273,20 @@ function renderPreparaciones(ctx) {
       // Un bloque vacío se sigue enseñando cuando no hay búsqueda: saber que
       // no hay ninguna merienda anotada es información, no ruido.
       if (filtro && !delMomento.length) return '';
-      const abierto = !plegados.has(momento.id);
-      return `<section class="recetas-bloque">
-        <button type="button" class="recetas-cabecera" data-action="receta-plegar" data-momento="${momento.id}" aria-expanded="${abierto}">
-          <span class="recetas-flecha">${icono(abierto ? 'desplegar' : 'derecha', { tamano: 18 })}</span>
+      // Buscando se abren todos: lo que coincide no puede quedar detrás de un
+      // pliegue. Lo pintado va siempre dentro, abierto o no, porque `<details>`
+      // esconde su contenido él solo y así el navegador puede buscarlo con su
+      // propio «buscar en la página».
+      const abierto = Boolean(filtro) || !plegados.has(momento.id);
+      return `<details class="plegable recetas-bloque" ${abierto ? 'open' : ''}>
+        <summary class="recetas-cabecera" data-action="receta-plegar" data-momento="${momento.id}">
           <span class="recetas-titulo">${esc(momento.plural)}</span>
           <span class="badge-count">${delMomento.length}</span>
-        </button>
-        ${abierto ? (delMomento.length
+        </summary>
+        ${delMomento.length
           ? `<div class="grid grid-2">${delMomento.map(receta => tarjetaDeReceta(state, receta)).join('')}</div>`
-          : `<p class="small muted recetas-vacio">Todavía no hay ninguna para ${esc(momento.etiqueta.toLocaleLowerCase('es'))}.</p>`) : ''}
-      </section>`;
+          : `<p class="small muted recetas-vacio">Todavía no hay ninguna para ${esc(momento.etiqueta.toLocaleLowerCase('es'))}.</p>`}
+      </details>`;
     }).join('')}
 
     ${sinMomento.length ? notice('Hay preparaciones sin momento', `${sinMomento.length} preparación(es) no tienen ningún momento marcado, así que no salen en ningún bloque: ${sinMomento.map(receta => esc(receta.name)).join(', ')}. Ábrelas y marca cuándo se comen.`, 'warn') : ''}`;
@@ -601,57 +658,63 @@ function avisoDeCopia(state) {
    aquí entero: es lo único que le recuerda a alguien que hace cuarenta días que
    no guarda una copia, y perderlo sería quedarse sin la única red que hay. */
 
+/* Ajustes es un índice, y ahora se parece a uno.
+
+   Eran ocho tarjetas con un párrafo cada una describiendo lo que hay detrás:
+   más de mil quinientos píxeles para leer explicaciones de sitios donde
+   todavía no has entrado —y la explicación vuelve a estar dentro cuando
+   entras—. Nadie lee dos veces lo mismo; lo que se hace es buscar con el pulgar
+   la palabra que se venía a buscar, y para eso un párrafo estorba.
+
+   Un índice dice a dónde lleva cada fila y cuánto hay al otro lado. El dato que
+   acompaña a cada una no es decoración: «3 personas en casa», «12 compras
+   guardadas», «Última copia: 4 de marzo» son justamente lo que se viene a
+   comprobar, y varias veces evitan tener que entrar.
+
+   El aviso de la copia se queda arriba y se queda como aviso: no es una fila
+   del índice, es algo que hay que hacer hoy. */
 function renderAjustes(ctx) {
   const { state } = ctx;
   const copia = estadoDeLaCopia(state);
   const enCasa = personasActivas(state).length;
   const deBaja = state.people.length - enCasa;
-  return `    ${copia.urgente ? `<div class="notice warn">${icono('aviso')}<div><strong>${copia.ultima ? `Hace ${copia.dias} días que no guardas una copia.` : 'Todavía no has guardado ninguna copia.'}</strong>Todo lo que has escrito existe solo en este teléfono. <button type="button" class="enlace" data-action="navigate" data-page="respaldo">Guardar una ahora</button></div></div>` : ''}
-    <div class="card">
-      <h3>Familia y restricciones</h3>
-      <p class="muted small">Quién vive aquí, qué es de la casa cada quien y qué alimentos debe evitar. Desde aquí se añade gente, se corrige y se da de baja a quien ya no vive contigo.</p>
-      <p class="small">${enCasa
-        ? `${enCasa} persona(s) en casa${deBaja ? ` · ${deBaja} dada(s) de baja` : ''}.`
-        : 'Todavía no hay nadie registrado.'}</p>
-      <div class="inline">${button('Editar mi familia', 'navigate', 'btn-secondary btn-small', 'data-page="familia"')}${button('Configuración guiada', 'hogar-open', 'btn-quiet btn-small')}</div>
-    </div>
-    <div class="card">
-      <h3>Historial</h3>
-      <p class="muted small">Tus compras, de la más reciente a la más antigua: qué llevabas apuntado y qué trajiste de cada cosa. Y los períodos que cerraste, tal como se calcularon entonces.</p>
-      <p class="small">${listasCerradas(state).length + state.purchases.length} compra(s) guardada(s).</p>
-      ${button('Ver el historial', 'navigate', 'btn-secondary btn-small', 'data-page="historial"')}
-    </div>
-    <div class="card">
-      <h3>Respaldo</h3>
-      <p class="muted small">Guardar una copia de todo, traer una de vuelta o empezar de cero. Tus datos viven solo en este teléfono, así que la copia es lo único que los salva si lo pierdes.</p>
-      <p class="small">${copia.hayDatos
+  const compras = listasCerradas(state).length + state.purchases.length;
+  const quincenal = frecuenciaDe(state, hoy().slice(0, 7)) === 'quincenal';
+
+  const filas = [
+    ['navigate', 'data-page="familia"', 'personas', 'Familia y restricciones',
+      enCasa ? `${enCasa} persona(s) en casa${deBaja ? ` · ${deBaja} dada(s) de baja` : ''}` : 'Todavía no hay nadie registrado'],
+    ['navigate', 'data-page="historial"', 'reloj', 'Historial',
+      compras ? `${compras} compra(s) guardada(s)` : 'Todavía no hay ninguna compra guardada'],
+    ['navigate', 'data-page="respaldo"', 'descargar', 'Respaldo',
+      copia.hayDatos
         ? copia.ultima
-          ? `Última copia: ${esc(niceDate(copia.ultima, { day: 'numeric', month: 'long', year: 'numeric' }))}.`
-          : 'Todavía no has guardado ninguna.'
-        : 'Todavía no hay nada que guardar.'}</p>
-      ${button('Abrir el respaldo', 'navigate', copia.urgente ? 'btn-primary btn-small' : 'btn-secondary btn-small', 'data-page="respaldo"')}
-    </div>
-    <div class="card">
-      <h3>Mi cuenta</h3>
-      <p class="muted small">Entrar, sincronizar tu casa con otro teléfono o cerrar la sesión. Sin cuenta la app funciona igual: la cuenta solo sirve para que tus datos te encuentren en otro aparato.</p>
-      ${button('Abrir mi cuenta', 'navigate', 'btn-secondary btn-small', 'data-page="cuenta"')}
-    </div>
-    <div class="card">
-      <h3>Preferencias de la aplicación</h3>
-      <p class="muted small">Cada cuánto se hace la compra principal —y cómo se reparte el mes cuando se compra dos veces—, y las herramientas de reparar: medidas de compra, unir dos alimentos que son el mismo, archivar lo que la casa dejó de comprar.</p>
-      <p class="small">Compra <strong>${esc(frecuenciaDe(state, hoy().slice(0, 7)) === 'quincenal' ? 'quincenal — dos veces al mes' : 'mensual — una vez al mes')}</strong>.</p>
-      <div class="inline">${button('Organización de compra', 'navigate', 'btn-secondary btn-small', 'data-page="organizacion"')}${button('Funciones avanzadas', 'navigate', 'btn-secondary btn-small', 'data-page="avanzado"')}</div>
-    </div>
-    <div class="card">
-      <h3>Cómo funciona</h3>
-      <p class="muted small">Un recorrido corto por las cinco secciones y este engranaje, y por la idea de fondo: escribir una vez lo habitual y revisar solo lo diferente. Nada de lo que toques aquí borra tu historial.</p>
-      <div class="inline">${button('Ver el recorrido', 'open-tour', 'btn-secondary btn-small')}${button('Organizar mi casa otra vez', 'setup-open', 'btn-quiet btn-small')}</div>
-    </div>
-    <div class="card soft">
-      <h3>Si algo se rompe</h3>
-      <p class="muted small">Lo que se haya roto desde que abriste la aplicación queda apuntado aquí dentro. No sale de este teléfono; sirve para poder explicar un fallo sin tenerlo delante.</p>
-      <div class="inline">${button('Detalle de este aparato', 'open-diagnostico', 'btn-quiet btn-small')}${button('Privacidad y condiciones', 'navigate', 'btn-quiet btn-small', 'data-page="legal"')}</div>
-    </div>`;
+          ? `Última copia: ${niceDate(copia.ultima, { day: 'numeric', month: 'long', year: 'numeric' })}`
+          : 'Todavía no has guardado ninguna copia'
+        : 'Todavía no hay nada que guardar'],
+    ['navigate', 'data-page="cuenta"', 'persona', 'Mi cuenta',
+      'Entrar, sincronizar con otro teléfono o cerrar la sesión'],
+    ['navigate', 'data-page="organizacion"', 'calendario', 'Organización de compra',
+      quincenal ? 'Compra quincenal — dos veces al mes' : 'Compra mensual — una vez al mes'],
+    ['navigate', 'data-page="avanzado"', 'chip', 'Funciones avanzadas',
+      'Medidas de compra, unir dos alimentos, archivar y restaurar'],
+    ['open-tour', '', 'chispa', 'Ver el recorrido',
+      'Cómo funciona la app, en cinco pasos cortos'],
+    ['setup-open', '', 'canasta', 'Organizar mi casa otra vez',
+      'Volver a marcar lo que compras de costumbre. No borra nada'],
+    ['navigate', 'data-page="legal"', 'hoja', 'Privacidad y condiciones',
+      'Qué guarda la app, dónde, y qué no hace'],
+    ['open-diagnostico', '', 'aviso', 'Si algo se rompe',
+      'Lo que ha fallado en este aparato desde que abriste la app']
+  ];
+
+  return `    ${copia.urgente ? `<div class="notice warn">${icono('aviso')}<div><strong>${copia.ultima ? `Hace ${copia.dias} días que no guardas una copia.` : 'Todavía no has guardado ninguna copia.'}</strong>Todo lo que has escrito existe solo en este teléfono. <button type="button" class="enlace" data-action="navigate" data-page="respaldo">Guardar una ahora</button></div></div>` : ''}
+    <div class="card ajustes-indice">${filas.map(([accion, extra, dibujo, titulo, detalle]) => `
+      <button type="button" class="ajustes-fila" data-action="${accion}" ${extra}>
+        <span class="ajustes-icono">${icono(dibujo, { tamano: 20 })}</span>
+        <span class="ajustes-texto"><strong>${esc(titulo)}</strong><span>${esc(detalle)}</span></span>
+        <span class="ajustes-flecha" aria-hidden="true">${icono('derecha', { tamano: 16 })}</span>
+      </button>`).join('')}</div>`;
 }
 
 /* ── Organización de compra ────────────────────────────────────────────────
@@ -853,14 +916,32 @@ export const MAS_ACTIONS = {
   'legal-ver': (el, ctx) => { ctx.ui.mas.documento = el.dataset.doc; ctx.render(); },
   'open-avanzado-producto': (el, ctx) => ctx.openModal('avanzado-producto', { id: el.dataset.id }),
   'open-diagnostico': (el, ctx) => ctx.openModal('diagnostico'),
+  /* Plegar y desplegar ya no repinta nada.
+
+     Antes esto llamaba a `ctx.render()`, que reescribe `#app` entero: cerrar un
+     bloque acortaba la página y el dedo perdía el sitio. Ahora abre y cierra el
+     navegador, y esto solo apunta en qué quedó, porque el siguiente repintado
+     —añadir algo, editar— reconstruye la pantalla desde el estado y se llevaría
+     el atributo `open` por delante.
+
+     Al llegar aquí, el `<details>` todavía tiene el valor VIEJO de `open`: el
+     oyente del clic corre antes de que el navegador lo cambie. Así que «estaba
+     abierto» significa «se está cerrando». Mismo patrón que el historial de la
+     compra, que es de donde se copió. */
   'receta-plegar': (el, ctx) => {
     const plegadas = new Set(ctx.ui.mas.recetasPlegadas || []);
     const momento = el.dataset.momento;
-    if (plegadas.has(momento)) plegadas.delete(momento); else plegadas.add(momento);
+    if (el.closest('details')?.open) plegadas.add(momento); else plegadas.delete(momento);
     ctx.ui.mas.recetasPlegadas = [...plegadas];
-    ctx.render();
+  },
+  'rubro-plegar': (el, ctx) => {
+    const abiertos = new Set(ctx.ui.mas.rubrosAbiertos || []);
+    const rubro = el.dataset.rubro;
+    if (el.closest('details')?.open) abiertos.delete(rubro); else abiertos.add(rubro);
+    ctx.ui.mas.rubrosAbiertos = [...abiertos];
   },
   'receta-limpiar': (el, ctx) => { ctx.ui.mas.recetaFiltro = ''; ctx.render(); },
+  'habitual-limpiar': (el, ctx) => { ctx.ui.mas.habitualFiltro = ''; ctx.render(); },
   'frecuencia-abrir': (el, ctx) => {
     Object.assign(ctx.ui.mas, { cambiandoFrecuencia: true, frecuenciaNueva: '', frecuenciaDesde: '' });
     ctx.render();

@@ -143,13 +143,14 @@ function vistaPreparar(ctx, lista) {
       ${ui.compra.busqueda ? button('Ver todo', 'compra-limpiar-busqueda', 'btn-quiet') : ''}
     </div>` : ''}
 
+    ${bloqueOcasional(ctx)}
+
     ${grupos.length ? grupos.map(grupo => bloqueDeRubro(ctx, grupo, yaEnLaLista)).join('')
       : habitualesPorRubro(state).length
         ? `<p class="muted">Nada coincide con «${esc(ui.compra.busqueda)}». Puedes añadirlo aquí abajo.</p>`
         : notice('Todavía no tienes productos habituales.',
             'Son los que tu casa compra de costumbre, y sirven para no acordarte de todo de cero cada vez. Se marcan en Mis productos habituales, o puedes apuntar aquí mismo lo de esta compra.')}
 
-    ${bloqueOcasional(ctx)}
     ${total ? `<p class="tiny muted">${total} producto(s) habituales a la vista. No hace falta marcarlos todos: solo lo de esta compra.</p>` : ''}`;
 }
 
@@ -464,6 +465,9 @@ const ACCIONES = {
   // primero en la pantalla, que no es el que se acaba de pedir.
   'compra-ocasional': (el, ctx) => {
     Object.assign(ctx.ui.compra, { anadiendo: true, nombreNuevo: '', errorNuevo: '', poniendo: '', editando: '' });
+    // También se llega aquí desde el «+» flotante, y entonces hay una ventana
+    // abierta encima del formulario que se acaba de desplegar.
+    ctx.ui.modal = null;
     ctx.render();
   },
   'compra-cancelar-ocasional': (el, ctx) => {

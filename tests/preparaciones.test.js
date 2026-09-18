@@ -292,19 +292,52 @@ test('el buscador filtra por nombre, por nota y por alimento', () => {
   assert.ok(html.includes('Nada coincide'));
 });
 
+/* Plegar ya no lo hace la app: lo hace el navegador.
+
+   Los bloques son `<details class="plegable">` y la acción solo apunta en qué
+   quedaron, porque el siguiente repintado reconstruye la pantalla desde el
+   estado y se llevaría el atributo `open` por delante. Dos consecuencias que
+   esta prueba tiene que imitar para decir algo cierto:
+
+     · al entrar en la acción, `open` todavía vale lo de ANTES del clic —el
+       oyente corre antes de que el navegador lo cambie—;
+     · lo plegado sigue estando en el HTML. Lo esconde el navegador, no la
+       plantilla, y eso es una mejora: el «buscar en la página» lo encuentra.
+
+   Así que lo que se comprueba es el atributo, no la ausencia del texto. */
+const abierto = (html, momento) => {
+  const encaje = new RegExp(`<details[^>]*class="[^"]*recetas-bloque[^"]*"[^>]*>\\s*<summary[^>]*data-momento="${momento}"`, 's').exec(html);
+  assert.ok(encaje, `no encuentro el bloque de ${momento}`);
+  return / open[ >]/.test(encaje[0]);
+};
+const plegar = (ctx, momento, estabaAbierto) =>
+  MAS_ACTIONS['receta-plegar']({ dataset: { momento }, closest: () => ({ open: estabaAbierto }) }, ctx);
+
 test('los bloques se pliegan y se despliegan, y se acuerdan', () => {
   const ctx = contexto(conPreparaciones());
-  assert.ok(renderMas(ctx).includes('Mangú con salami'), 'empiezan abiertos');
+  const primero = renderMas(ctx);
+  assert.ok(primero.includes('Mangú con salami'), 'empiezan abiertos');
+  assert.ok(abierto(primero, 'desayuno'), 'empiezan abiertos');
 
-  MAS_ACTIONS['receta-plegar']({ dataset: { momento: 'desayuno' } }, ctx);
-  MAS_ACTIONS['receta-plegar']({ dataset: { momento: 'cena' } }, ctx);
+  plegar(ctx, 'desayuno', true);
+  plegar(ctx, 'cena', true);
   const plegado = renderMas(ctx);
-  assert.ok(!plegado.includes('Mangú con salami'), 'plegados sus dos bloques, desaparece de la vista');
+  assert.ok(!abierto(plegado, 'desayuno'), 'plegado su bloque, sigue desplegado');
+  assert.ok(!abierto(plegado, 'cena'), 'plegado su bloque, sigue desplegado');
   assert.ok(plegado.includes('Desayunos'), 'pero la cabecera sigue ahí');
+  assert.ok(abierto(plegado, 'almuerzo'), 'los demás bloques no se tocan');
   assert.ok(plegado.includes('Sancocho'), 'los demás bloques no se tocan');
 
-  MAS_ACTIONS['receta-plegar']({ dataset: { momento: 'desayuno' } }, ctx);
-  assert.ok(renderMas(ctx).includes('Mangú con salami'));
+  plegar(ctx, 'desayuno', false);
+  assert.ok(abierto(renderMas(ctx), 'desayuno'), 'no se vuelve a abrir');
+});
+
+test('buscando, ningún bloque se queda plegado sobre lo que coincide', () => {
+  const ctx = contexto(conPreparaciones());
+  plegar(ctx, 'desayuno', true);
+  ctx.ui.mas.recetaFiltro = 'mangú';
+  assert.ok(abierto(renderMas(ctx), 'desayuno'),
+    'lo que coincide con la búsqueda se quedó escondido detrás de un pliegue');
 });
 
 test('la pantalla vacía y la pantalla llena se dibujan las dos', () => {

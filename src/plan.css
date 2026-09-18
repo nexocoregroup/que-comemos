@@ -269,14 +269,28 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 }
 .mas-volver h2 { margin: 0; font-size: 1.35rem; }
 
-/* ── Mis productos habituales: una lista de nombres ─────────────────────── */
+/* ── Los ocho rubros, que son los mismos en las tres pantallas ─────────────
 
-.canasta-rubro { margin-top: var(--aire-6); }
-.canasta-grupo {
-  display: flex; align-items: center; gap: var(--aire-2);
-  margin: 0 0 var(--aire-3); font-size: .95rem; letter-spacing: -.02em;
-}
-.canasta-grupo-icono { color: var(--clay); display: flex; }
+   Mis productos habituales, Preparar la compra y Mi lista agrupan por los ocho
+   mismos rubros, con el mismo icono y el mismo orden: es una sola lista vista
+   desde tres sitios. El icono y la separación entre bloques estaban escritos
+   dos veces con dos nombres y las copias ya habían empezado a separarse; aquí
+   se escriben una vez.
+
+   Lo que NO se comparte es la cabecera, y no por descuido: el gesto no es el
+   mismo. En Productos la cabecera se pliega y es un <summary>; en Compra solo
+   titula, porque ahí los rubros van siempre abiertos —recorrerlos con los ojos
+   ES la tarea de esa pantalla—. */
+
+.canasta-rubro, .compra-rubro { margin-top: var(--aire-6); }
+.canasta-grupo-icono, .compra-rubro-icono { color: var(--clay); display: flex; }
+
+/* La cabecera plegable de Productos. El peso y el alto vienen del <summary> de
+   .plegable; aquí solo se manda el nombre a ocupar el hueco y el contador al
+   extremo, que es donde se lee de un vistazo sin competir con el nombre. */
+.canasta-grupo { font-size: .95rem; font-weight: 800; letter-spacing: -.02em; }
+.canasta-grupo-titulo { flex: 1; min-width: 0; }
+.canasta-grupo .badge-count { margin-left: 0; }
 .canasta-card { padding: 6px 12px; }
 /* Tres columnas: el nombre, editar y la equis. Eran cuatro cuando dos de ellas
    eran la cantidad del mes y su medida. Sin esas dos caben en un renglón hasta
@@ -355,24 +369,19 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 
 /* ── Preparaciones: cinco bloques, uno por momento del día ─────────────────
 
-   La cabecera es un botón de ancho completo, no una flechita: en un teléfono
-   lo que se toca es la fila entera, y el número de al lado dice cuántas hay
-   sin tener que abrirla. */
+   Lo que se toca es la fila entera, y el número de al lado dice cuántas hay sin
+   tener que abrirla.
 
-.recetas-bloque { margin-bottom: 18px; }
-.recetas-cabecera {
-  display: flex; align-items: center; gap: 10px; width: 100%;
-  border: 1px solid var(--line); border-radius: 14px; padding: 13px 15px;
-  background: var(--surface); color: var(--ink); text-align: left;
-  font: inherit; font-weight: 800; letter-spacing: -.02em; min-height: 52px;
-  margin-bottom: 12px;
-}
-.recetas-cabecera:hover { border-color: var(--clay-line); background: var(--clay-light); }
-.recetas-cabecera[aria-expanded="false"] { margin-bottom: 0; }
-.recetas-flecha { color: var(--clay); font-size: 1.05rem; line-height: 1; width: 14px; text-align: center; }
+   Era un <button aria-expanded> propio que al plegarse llamaba a render() y
+   repintaba la aplicación completa: la página se acortaba y el dedo perdía el
+   sitio. Ahora es el <summary> de un .plegable, que es el único motor de
+   plegado que queda en la app —el navegador resuelve teclado y lector de
+   pantalla, y abrir un bloque no toca el resto de la pantalla—. De aquel botón
+   se conserva lo que valía: el peso de la fila y su alto. */
+
+.recetas-bloque > summary { font-weight: 800; letter-spacing: -.02em; min-height: 52px; }
 .recetas-titulo { flex: 1; min-width: 0; }
-.recetas-cabecera .badge-count { margin-left: 0; font-size: .78rem; }
-.recetas-vacio { margin: 0 0 4px 39px; }
+.recetas-bloque > summary .badge-count { margin-left: 0; font-size: .78rem; }
 
 .receta-tarjeta .between { margin-bottom: 8px; }
 .receta-tarjeta h3 { margin: 0; font-size: 1.06rem; }
@@ -511,12 +520,11 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 .compra-vistas { width: 100%; margin-top: var(--aire-3); }
 .compra-vistas button { flex: 1; }
 
-.compra-rubro { margin-top: var(--aire-6); }
+/* La separación y el icono los pone el bloque compartido de más arriba. */
 .compra-rubro-titulo {
   display: flex; align-items: center; gap: var(--aire-2);
   margin: 0 0 var(--aire-3); font-size: .95rem; letter-spacing: -.02em;
 }
-.compra-rubro-icono { color: var(--clay); display: flex; }
 
 .compra-productos { display: flex; flex-wrap: wrap; gap: var(--aire-2); }
 .compra-producto {
@@ -599,6 +607,34 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 .compra-acciones { justify-content: stretch; }
 .compra-acciones .btn { flex: 1; }
 .compra-historial { margin-top: var(--aire-7); }
+
+/* ── Ajustes: un índice de filas ───────────────────────────────────────────
+
+   Eran ocho tarjetas con un párrafo cada una. Una fila dice a dónde lleva y
+   cuánto hay al otro lado, y se lee con el pulgar sin desplazar. El dato de
+   debajo del nombre no es decoración: es lo que se venía a comprobar, y varias
+   veces ahorra entrar. */
+
+.ajustes-indice { padding: 4px 8px; }
+.ajustes-fila {
+  display: flex; align-items: center; gap: var(--aire-3);
+  width: 100%; min-height: 62px; padding: var(--aire-3) var(--aire-2);
+  border: 0; background: none; color: var(--ink); text-align: left; font: inherit;
+}
+.ajustes-fila + .ajustes-fila { border-top: 1px solid var(--line); }
+.ajustes-fila:hover { background: var(--clay-light); }
+.ajustes-icono { flex: none; display: grid; place-items: center; color: var(--clay); }
+.ajustes-texto { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.ajustes-texto strong { font-size: .97rem; letter-spacing: -.02em; }
+.ajustes-texto span { font-size: .82rem; color: var(--ink-muted); line-height: 1.35; }
+.ajustes-flecha { flex: none; display: grid; place-items: center; color: var(--ink-muted); }
+
+/* ── Los días que ya pasaron ───────────────────────────────────────────────
+
+   Plegados, y solo cuando hoy está dentro de lo que se enseña. El contenido
+   pierde el margen lateral de .plegable porque son tarjetas de día enteras, no
+   un párrafo dentro de una caja. */
+.semana-pasados > .semana-dias { margin: 0 12px 12px; }
 
 /* ── Plan semanal ──────────────────────────────────────────────────────────
 

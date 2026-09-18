@@ -228,8 +228,12 @@ test('Ajustes ofrece sus seis destinos, y una ruta que ya no existe aterriza en 
     ['Historial', 'data-page="historial"'],
     ['Respaldo', 'data-page="respaldo"'],
     ['Mi cuenta', 'data-page="cuenta"'],
-    ['Preferencias de la aplicación', 'data-page="avanzado"'],
-    ['Cómo funciona', 'data-action="open-tour"']
+    // «Preferencias de la aplicación» era una tarjeta con dos botones dentro.
+    // Al pasar Ajustes a índice de filas, esos dos destinos son dos filas con
+    // su propio nombre; el sitio al que llevan no cambió.
+    ['Organización de compra', 'data-page="organizacion"'],
+    ['Funciones avanzadas', 'data-page="avanzado"'],
+    ['Ver el recorrido', 'data-action="open-tour"']
   ]) {
     assert.ok(html.includes(rotulo), `Ajustes dejó de ofrecer «${rotulo}»`);
     assert.ok(html.includes(destino), `«${rotulo}» no lleva a ninguna parte`);

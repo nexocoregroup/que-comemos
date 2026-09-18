@@ -69,8 +69,14 @@ test('la pantalla de los habituales no tiene ni un campo de cantidad', () => {
   assert.ok(!/name="cantidad-/.test(html), 'volvió la cantidad por producto');
   assert.ok(!/name="unidad-/.test(html), 'volvió la medida por producto');
   assert.ok(!/<select/.test(html), 'volvió un desplegable a una pantalla que es una lista de nombres');
-  // De hecho no queda ningún campo: la pantalla dejó de ser un formulario.
-  assert.ok(!/<input/.test(html), 'volvió un campo a una pantalla que es una lista de nombres');
+  // De hecho no queda ningún campo que PIDA nada de un producto: la pantalla
+  // dejó de ser un formulario. El buscador es la excepción y es de otra
+  // naturaleza —no escribe nada, filtra lo que ya está—, así que se nombra
+  // aquí en vez de debilitar la aserción hasta que pase cualquier cosa.
+  const campos = [...html.matchAll(/<input[^>]*>/g)]
+    .map(encaje => encaje[0])
+    .filter(campo => !/type="search"/.test(campo));
+  assert.deepEqual(campos, [], 'volvió un campo a una pantalla que es una lista de nombres');
   assert.ok(!/type="submit"/.test(html), 'volvió un botón de guardar a una lista que se guarda sola');
   // Y se dice, porque quien venía de la versión anterior lo va a buscar.
   assert.ok(/no se apuntan cantidades/i.test(html), 'la pantalla no explica que ya no se apuntan cantidades');

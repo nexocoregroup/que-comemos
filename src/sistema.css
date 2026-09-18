@@ -284,13 +284,12 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
    parece descolgado. */
 .notice .ico, .demo-banner .ico { margin-top: 2px; }
 
-/* Las flechas de «entrar aquí» y de «desplegar». Se apagan a propósito: dicen
-   hacia dónde, no piden que las toques. */
-.recetas-flecha {
-  display: grid;
-  place-items: center;
-  color: var(--ink-muted);
-}
+/* Aquí vivía `.recetas-flecha`, la flecha de los bloques de Preparaciones.
+   Se fue con el botón que la llevaba: esos bloques son ahora `<details
+   class="plegable">` y la flecha la pone la hoja, la misma «›» que gira en los
+   otros tres sitios que se pliegan. Había dos dibujos distintos para el mismo
+   gesto, y uno de ellos —`icono('derecha')`— es el que en Plan semanal
+   significa «semana siguiente»: el mismo dibujo prometía dos cosas. */
 
 /* Un icono dentro de una línea de texto corrida. `vertical-align` y no flex:
    la línea tiene que seguir fluyendo como texto. */
@@ -509,4 +508,26 @@ body, .shell { min-height: 100vh; min-height: 100dvh; }
   min-width: 0;
   display: grid;
   gap: var(--aire-2);
+}
+
+/* ── 14. El alto mínimo de las tarjetas de comida, en el teléfono ──────────
+
+   `.meal-card` pide 220 px de alto como mínimo. Ese número existe para igualar
+   tres tarjetas puestas en fila —Desayuno, Almuerzo y Cena, una al lado de la
+   otra en pantalla ancha—, y ahí hace su trabajo. Apiladas en una columna no
+   iguala nada: solo estira con aire vacío una tarjeta que a veces cabe en
+   cuatro líneas.
+
+   Lo que costaba: entrando a las seis de la tarde a resolver la cena, la
+   pantalla se llenaba con el desayuno, que ya se comió, y la cena empezaba por
+   debajo del borde de un teléfono de 812 px.
+
+   El hero va en el mismo arreglo porque es el otro sumando del mismo problema:
+   26 px de aire arriba y abajo más un título que escala hasta 2,55 rem se
+   comen medio primer pantallazo para decir la fecha y una frase. Baja, no
+   desaparece. */
+@media (max-width: 700px) {
+  .meal-card { min-height: 0; }
+  .hero { padding: var(--aire-5) var(--aire-5); }
+  .hero h2 { font-size: 1.5rem; margin: var(--aire-1) 0; }
 }

@@ -15,7 +15,7 @@
 // semanas que vienen se quedan abiertas hasta que alguien las mire.
 
 import { MOMENTOS, ORIGENES, SLOTS, comidasDecididas, SLOTS_PRINCIPALES, WEEKDAY_SHORT, addDays, dateRange, deletePlan, esOpcional, etiquetaDeMomento, etiquetaDeOrigen, makeRecipePlan, origenDe, planFor, restore, setStatusPlan, snapshot, todayISO, validDate, weekStart, weekdayOf } from './model.js';
-import { button, esc, modal, niceDate, notice, options } from './ui-kit.js';
+import { button, cap, esc, modal, niceDate, notice, options } from './ui-kit.js';
 import { icono } from './icons.js';
 
 // La fecha de hoy no se puede guardar en una constante del módulo: se
@@ -35,7 +35,11 @@ export function emptySemana(inicio = weekStart(hoy())) {
     inicio: weekStart(inicio),
     vista: 'una',
     deshacer: null,
-    aviso: null
+    aviso: null,
+    // Los días que ya pasaron, plegados. Cerrados por omisión, pero se pueden
+    // abrir: mirar atrás para copiar lo que se comió el martes es un uso real
+    // de esta pantalla, y esconderlo del todo sería quitar una función.
+    verPasados: false
   };
 }
 
@@ -48,10 +52,32 @@ export function renderSemana(ctx) {
   if (!ui.semana) ui.semana = emptySemana();
   const dias = diasDe(ui);
 
+  /* Los días ya vividos, plegados.
+
+     Un viernes por la tarde se entra a decidir la cena y lo primero que hay que
+     pasar son lunes, martes, miércoles y jueves: unos 1.400 px de tarjetas con
+     cinco filas tocables cada una que ya no se pueden cambiar. Un domingo por la
+     noche, seis días. Y viendo dos semanas, más.
+
+     El lunes de arranque no se toca —la razón está escrita arriba, en
+     `emptySemana`, y es buena—: lo que se pliega es lo que ya pasó, y solo
+     cuando hoy está dentro de lo que se enseña. Mirando otra semana no hay «ya
+     pasó» que valga, y una semana entera del pasado plegada sería una pantalla
+     con una sola línea. */
+  const ahora = hoy();
+  const pasados = dias.filter(date => date < ahora);
+  const porDelante = dias.filter(date => date >= ahora);
+  const plegarPasados = Boolean(pasados.length && porDelante.length);
+  const cuentaPasada = plegarPasados ? comidasDecididas(state, pasados) : null;
+
   return `${barra(ctx, dias)}
     ${avisoDeCambio(ctx)}
     ${resumenDeLaVista(ctx, dias, comidasDecididas(state, dias))}
-    <div class="semana-dias">${dias.map(date => tarjetaDeDia(ctx, date)).join('')}</div>
+    ${plegarPasados ? `<details class="plegable semana-pasados" ${ui.semana.verPasados ? 'open' : ''}>
+      <summary data-action="semana-ver-pasados">${esc(diasEnPalabras(pasados))} · ya ${pasados.length === 1 ? 'pasó' : 'pasaron'} · ${cuentaPasada.decididas} de ${cuentaPasada.huecos} decididas</summary>
+      <div class="semana-dias">${pasados.map(date => tarjetaDeDia(ctx, date)).join('')}</div>
+    </details>` : ''}
+    <div class="semana-dias">${(plegarPasados ? porDelante : dias).map(date => tarjetaDeDia(ctx, date)).join('')}</div>
     ${leyendaDeOrigenes(state, dias)}
     <p class="tiny muted semana-pie">Lo que no pongas se queda vacío, y un día vacío no es un error. Las próximas semanas están abiertas hasta que las planifiques.</p>`;
 }
@@ -93,6 +119,14 @@ function rangoEnPalabras(dias) {
   if (mismoMes) return `Del ${Number(primero.slice(8))} al ${niceDate(ultimo, fin)}`;
   const inicio = { day: 'numeric', month: 'short', ...(cruzaDeAno ? { year: 'numeric' } : {}) };
   return `Del ${niceDate(primero, inicio)} al ${niceDate(ultimo, fin)}`;
+}
+
+// «Lunes a jueves», o «Lunes» cuando es uno solo. Los días de la semana y no las
+// fechas: quien mira esta línea el viernes piensa en días, no en números.
+function diasEnPalabras(dias) {
+  const nombre = date => niceDate(date, { weekday: 'long' });
+  if (dias.length === 1) return cap(nombre(dias[0]));
+  return `${cap(nombre(dias[0]))} a ${nombre(dias[dias.length - 1])}`;
 }
 
 function resumenDeLaVista(ctx, dias, cuenta) {
@@ -336,6 +370,10 @@ export const SEMANA_ACTIONS = {
     ctx.ui.semana.aviso = null;
     ctx.render();
   },
+  // El navegador abre y cierra el `<details>`; esto solo apunta en qué quedó,
+  // porque el siguiente repintado reconstruye la pantalla desde el estado y se
+  // llevaría el atributo `open`. Al llegar aquí todavía vale el valor viejo.
+  'semana-ver-pasados': (el, ctx) => { ctx.ui.semana.verPasados = !el.closest('details')?.open; },
   'semana-hoy': (el, ctx) => {
     ctx.ui.semana.inicio = weekStart(hoy());
     ctx.ui.semana.aviso = null;

@@ -403,6 +403,28 @@ const RAPIDAS = [
   ['open-product', 'hoja', 'Añadir un alimento', 'Uno que no esté todavía']
 ];
 
+/* El «+» sigue siendo el mismo botón en las cinco secciones, y esa es su virtud:
+   no hay que aprender qué significa en cada sitio. Lo que cambia son dos cosas
+   que allí no tenían arreglo.
+
+   Una: no se ofrece ir a donde ya estás. En Compra, «Preparar la compra» cerraba
+   la hoja y no pasaba nada más, que es la forma más rápida de enseñarle a
+   alguien que este botón no responde —y con él se pierden los otros tres—.
+
+   Dos: en Compra, y solo con una lista abierta, «Añadir un alimento» se cambia
+   por apuntarlo EN esa lista. El atajo de antes guardaba el alimento en los
+   productos habituales sin meterlo en la lista, así que de pie en el colmado se
+   salía del súper creyendo que estaba apuntado. La condición de la lista abierta
+   no es cosmética: sin lista, `renderCompra` sale por «no tienes ninguna compra
+   abierta» y el atajo sería otro botón que no hace nada. */
+function rapidasDeAqui() {
+  return RAPIDAS
+    .filter(([accion, , , , extra = '']) => !(accion === 'navigate' && extra.includes(`data-page="${ui.page}"`)))
+    .map(fila => (ui.page === 'compra' && fila[0] === 'open-product' && listaEnCurso(state)
+      ? ['compra-ocasional', 'canasta', 'Apuntar algo en esta lista', 'Se te ocurrió delante del estante']
+      : fila));
+}
+
 let toastTimer;
 function toast(message, error = false) {
   const el = document.querySelector('#toast');
@@ -993,7 +1015,7 @@ function renderModal() {
   const m = ui.modal;
 
   if (m.type === 'quick') {
-    return modal('Anotar algo', '', `<div class="quick-grid">${RAPIDAS.map(([action, dibujo, titulo, detalle, extra = '']) =>
+    return modal('Anotar algo', '', `<div class="quick-grid">${rapidasDeAqui().map(([action, dibujo, titulo, detalle, extra = '']) =>
       `<button type="button" class="quick-item" data-action="${action}" ${extra}><span class="quick-icon">${icono(dibujo, { tamano: 24 })}</span><span class="quick-text"><strong>${esc(titulo)}</strong><span>${esc(detalle)}</span></span></button>`).join('')}</div>`);
   }
 
@@ -1660,7 +1682,11 @@ document.addEventListener('input', event => {
   // estaban. Antes el del catálogo inicial era un `change`, así que no pasaba
   // nada hasta pulsar Intro o salir del campo.
   const buscadores = {
-    'alimento-filtro': valor => { ui.mas.filtroAlimento = valor; },
+    // `alimento-filtro` apuntaba a una clave que `emptyMas()` no creaba y a un
+    // `id` que ninguna pantalla pintaba: era el resto de «Alimentos de la casa»,
+    // retirada hace tiempo. En su sitio va el buscador de Mis productos
+    // habituales, que es la lista que de verdad hay que poder recorrer.
+    'habitual-filtro': valor => { ui.mas.habitualFiltro = valor; },
     'receta-filtro': valor => { ui.mas.recetaFiltro = valor; },
     'compra-buscar': valor => { ui.compra.busqueda = valor; },
     'setup-buscar': valor => { ui.setup.busqueda = valor; }
