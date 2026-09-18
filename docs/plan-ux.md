@@ -186,3 +186,57 @@ que hacer, es lo que ya se hizo con la fecha de hoy: cuando un arreglo se pueda
 vigilar leyendo el código fuente, dejar una prueba guardiana que lo vigile —y
 comprobar que muerde devolviéndole el fallo a propósito, porque una guardia
 escrita a la medida de lo que se acaba de arreglar puede no proteger de nada.
+
+---
+
+## Lo que se hizo, y en qué se apartó del plan
+
+Las cinco fases están ejecutadas. Lo que sigue es lo que NO salió como decía
+este documento, porque un plan que se lee después de hacerlo solo vale si dice
+dónde se equivocó.
+
+**2.2 no se hizo como estaba escrito, se hizo más.** El plan decía «marcar sin
+repintar la pantalla entera». Se hizo eso, y además se quitó la tarjeta «Ya en
+el carrito»: era adonde saltaba el renglón al tacharlo, así que cada marca
+movía la lista debajo del dedo. El escéptico había avisado de que eso es un
+cambio de comportamiento visible y que había que decidirlo aparte y no colarlo
+dentro del arreglo del foco. Se decidió: los renglones se quedan donde están y
+lo que decía la tarjeta lo dice un contador.
+
+**3.5 se hizo contra una refutación, y con la corrección que esa refutación
+pedía.** El crítico tumbó «Ajustes como índice» diciendo que dejar filas
+desnudas con título y flecha convierte «Funciones avanzadas» en una puerta
+opaca para quien entra ahí una vez cada varios meses. Tiene razón, y por eso
+cada fila lleva debajo una línea que dice qué hay detrás y cuánto hay: «4
+personas en casa», «Compra mensual — una vez al mes», «Medidas de compra, unir
+dos alimentos, archivar y restaurar». No son filas desnudas.
+
+**3.9 se hizo a la mitad, y la mitad que se hizo es la que valía.** El
+escéptico tumbó unificar las dos funciones que pintan los rubros: el gesto no
+es el mismo —en Productos se pliega, en Compra se toca para añadir— y
+unificarlas habría sido igualar la forma sin mirar la función. Lo que sí era
+una copia de verdad, el icono y la separación escritos dos veces con dos
+nombres, se escribe una vez.
+
+**El apartado 2 de la fase 5 ya estaba hecho.** «Anotar una alergia deja de
+hacerse a ciegas» era, según el propio crítico, el mismo defecto raíz que el
+repintado completo, y eso lo arregló la fase 2 para toda la app. Lo único que
+quedaba era el anuncio, que son dos líneas.
+
+**Lo que no está probado.** Sigue sin estarlo lo mismo que antes, y conviene
+que se lea junto a lo de arriba:
+
+- El botón de atrás de Android (1.3) solo existe dentro del APK. En el
+  navegador `Capacitor` es `undefined` y el oyente no se registra.
+- La sesión caducada (4.2), el conflicto de dos versiones (4.8) y la
+  sincronización fallando días (4.7) se comprobaron manipulando el
+  almacenamiento a mano y leyendo el código. Con un servidor de verdad, y con
+  dos teléfonos de verdad, no.
+- La sincronización entre dos teléfonos nunca se ha probado con dos teléfonos.
+
+Y sigue en pie la advertencia del final: `npm test` en verde no dice casi nada
+de este plan. Lo que se pudo vigilar leyendo el código quedó en guardias —las
+de `tests/llegar.test.js`, `tests/no-mentir.test.js` y `tests/acabado.test.js`
+son de aquí—, y una de ellas encontró cuatro paréntesis de plural que el
+barrido a mano no vio. El resto se comprobó en el navegador, pantalla por
+pantalla, y está dicho en cada commit.
