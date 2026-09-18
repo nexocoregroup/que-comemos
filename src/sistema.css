@@ -576,3 +576,37 @@ summary:focus-visible {
   outline-offset: 2px;
 }
 .btn-primary:focus-visible { outline-color: var(--ink); }
+
+/* ── 16. Que se vea por dónde se empieza ───────────────────────────────────
+
+   La pantalla de una casa vacía tiene un solo botón que importa, «Organizar mi
+   casa», y debajo un enlace callado para ver el ejemplo. Aun así el botón se
+   queda quieto en medio de un bloque grande de terracota, y en una pantalla
+   donde todavía no se ha hecho nada, quieto es fácil de no ver.
+
+   Una onda que sale del borde y se desvanece. No parpadea, no cambia de color
+   y no se mueve de sitio: lo único que hace es respirar cada dos segundos y
+   medio, que es lo que separa «esto es lo que hay que tocar» de un cartel.
+
+   Es la sombra la que crece, y no una escala. Escalar un botón ancho lo separa
+   dos píxeles por los lados largos y quince por los cortos, así que el anillo
+   sale deforme y casi no se ve; una sombra con `spread` crece lo mismo por los
+   cuatro lados y sigue el redondeo del botón sola. Se probó primero con escala
+   y no se veía: por eso está escrito aquí.
+
+   Se repite sin fin, y aquí eso no es ruido: esta pantalla solo existe mientras
+   la casa está vacía. En cuanto alguien apunta lo primero deja de pintarse, así
+   que la animación se acaba sola porque se acaba la pantalla. Una animación
+   infinita en una pantalla de todos los días sería otra conversación. */
+.start-hero .btn { animation: empezar-aqui 2.6s cubic-bezier(.22, .72, .36, 1) infinite; }
+@keyframes empezar-aqui {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 255, 255, .55); }
+  70%  { box-shadow: 0 0 0 16px rgba(255, 255, 255, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+}
+
+/* Quien pidió menos movimiento no ve ninguno. El botón sigue siendo lo único
+   blanco sobre la terracota de esa tarjeta, que ya es señal de sobra. */
+@media (prefers-reduced-motion: reduce) {
+  .start-hero .btn { animation: none; }
+}
