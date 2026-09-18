@@ -610,3 +610,35 @@ summary:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .start-hero .btn { animation: none; }
 }
+
+/* ── 17. Las dos notas del paso de productos ───────────────────────────────
+
+   La pantalla de una categoría gana dos párrafos: para qué sirve marcar, y
+   —solo en la última— que ahí dentro también va lo que no se come. Son notas,
+   no instrucciones: si se pintaran con el mismo peso que la frase de arriba,
+   serían siete líneas de texto seguidas antes del primer producto, y lo que
+   pasa con siete líneas seguidas en un teléfono es que no se lee ninguna.
+
+   Por eso van más pequeñas y más juntas que la intro, y la de limpieza lleva
+   una raya de salvia a la izquierda: es lo que la separa de «más de lo mismo»
+   y la convierte en un apunte al margen. */
+.setup-para-que, .setup-no-se-come {
+  font-size: .86rem;
+  margin-bottom: var(--aire-3);
+}
+.setup-no-se-come {
+  border-left: 3px solid var(--sage);
+  padding-left: var(--aire-3);
+}
+
+/* El ejemplo del nombre de una preparación tiene que nombrar dos alimentos
+   para que se vea que los de abajo se llenan solos, y dos nombres de alimento
+   no caben a 16 px en el campo del recorrido inicial, que es más estrecho que
+   el de la sección: medido a 375 px, 243 px de texto en 237 de hueco. Se
+   cortaba por el final, que es justo donde está la palabra que enseña algo.
+
+   Una pista puede ser más pequeña que lo que se escribe encima; el nombre de
+   verdad se sigue viendo a tamaño completo. Lo contrario —acortar el ejemplo
+   hasta que quepa— deja «Ej. Mangú con salami», que no dice de qué es el
+   mangú y por tanto no enseña lo único que había que enseñar. */
+input[data-preparacion-nombre]::placeholder { font-size: .88rem; }

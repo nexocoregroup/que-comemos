@@ -136,6 +136,61 @@ test('cada uno de los ocho rubros se dibuja y dice por dónde va', () => {
   assert.equal(renderSetup(ctx).includes('Categoría 8 de 8 — <strong>Otros productos habituales</strong>'), true);
 });
 
+/* Dos cosas que la pantalla callaba, y que costaban productos sin registrar.
+
+   La primera: para qué sirve marcar. Quien no lo sabe marca cuatro cosas y
+   sigue, porque le parece un censo. Sabiendo que de ahí sale la lista con
+   cantidades que después se va tachando en el súper, marca lo que compra.
+
+   La segunda: el catálogo tiene detergente, cloro, papel higiénico y pañales
+   desde el primer día, pero viven al final del último rubro, detrás de los
+   condimentos y las bebidas. Quien lee «Selecciona lo que normalmente compras»
+   sobre una lista que empieza en «Aceite» da por hecho que esto es de comida y
+   no baja. Se dice con nombres concretos porque un nombre concreto se busca. */
+
+test('todas las categorías dicen para qué sirve marcar', () => {
+  const ctx = contexto();
+  empezar(ctx);
+  for (let i = 0; i < RUBROS.length; i++) {
+    const html = renderSetup(ctx);
+    assert.match(html, /sale después la lista de la compra/,
+      `el rubro ${i + 1} no dice que de aquí sale la lista`);
+    assert.match(html, /tachándola en el súper/,
+      `el rubro ${i + 1} no dice para qué sirve la lista`);
+    if (i < RUBROS.length - 1) SETUP_ACTIONS['setup-rubro-seguir'](null, ctx);
+  }
+});
+
+test('la última categoría avisa de que ahí también va lo que no se come', () => {
+  const ctx = contexto();
+  irAlRubro(ctx, RUBROS.findIndex(item => item.id === 'otros'));
+  const html = renderSetup(ctx);
+  revisar(html, 'rubro otros');
+  assert.match(html, /no es solo de comer/, 'la última categoría sigue pareciendo de comida');
+  // Con nombres, no con la palabra «limpieza»: nadie busca una categoría, se
+  // busca el cloro. Y son los que de verdad están en el catálogo.
+  for (const nombre of ['detergente', 'cloro', 'papel higiénico', 'pañales']) {
+    assert.ok(html.toLowerCase().includes(nombre), `no se nombra «${nombre}»`);
+    assert.ok(SEED_PRODUCTS.some(item => item.name.toLowerCase() === nombre),
+      `se nombra «${nombre}» y no está en el catálogo`);
+  }
+});
+
+test('ninguna categoría llama «alimento» a lo que se añade', () => {
+  // El paso se llama «Mis productos habituales» y aquí entran el cloro y los
+  // pañales. Pedir «el nombre del alimento» los deja fuera sin decirlo.
+  const ctx = contexto();
+  empezar(ctx);
+  for (let i = 0; i < RUBROS.length; i++) {
+    const html = renderSetup(ctx);
+    assert.ok(!/¿No encuentras un alimento\?/.test(html), `el rubro ${i + 1} pide un «alimento»`);
+    if (i < RUBROS.length - 1) SETUP_ACTIONS['setup-rubro-seguir'](null, ctx);
+  }
+  const fuente = readFileSync(resolve(import.meta.dirname, '..', 'src', 'setup.js'), 'utf8');
+  assert.ok(!fuente.includes('Nombre del alimento'), 'la ventanita sigue pidiendo el nombre de un alimento');
+  assert.ok(!fuente.includes('Escribe el nombre del alimento.'), 'el error sigue hablando de alimentos');
+});
+
 test('«Categoría 2 de 8 — Arroz, granos y pastas» es literalmente lo que sale', () => {
   const ctx = contexto();
   irAlRubro(ctx, 1);

@@ -147,7 +147,7 @@ export const emptySetup = () => ({
   elegidos: [],        // todos los nombres marcados, del catálogo o escritos
   propios: [],         // [{ nombre, unidad, categoria, origen }] los que no estaban
   busqueda: '',
-  anadiendo: false,    // ¿está abierta la ventanita de «añadir un alimento»?
+  anadiendo: false,    // ¿está abierta la ventanita de «añadir un producto»?
   nombreNuevo: '',
   errorNuevo: '',
   personas: null,     // cuántas comen en casa; null es «todavía no lo ha dicho»
@@ -268,12 +268,13 @@ function pantallaInicio(setup) {
     <p class="eyebrow">Organizar mi casa</p>
     <p class="setup-camino">${EN_LETRA[cuantos] || cuantos} pasos cortos: quiénes comen aquí, lo que compras normalmente, lo que vas a cocinar estos días, y el plan de esos días.</p>
     <h2 class="setup-promesa">Vamos a registrar lo que tu casa come y compra de costumbre. <strong>No hace falta indicar cantidades de nada.</strong></h2>
+    <p class="pantalla-intro setup-para-que">Con eso, hacer la lista del súper es marcar lo que toca y poner cuánto, y después ir tachándola mientras llenas el carrito.</p>
     <div class="pantalla-acciones">${button(llevaEmpezado ? 'Seguir donde lo dejé' : 'Empezar', 'setup-empezar', 'btn-primary btn-grande')}</div>
     ${llevaEmpezado ? `<p class="small muted">Llevas ${conteo(setup.elegidos.length, 'producto marcado', 'productos marcados')}.</p>` : ''}
     <details class="plegable setup-ejemplo">
       <summary>¿Qué son los productos habituales?</summary>
-      <p class="muted">Lo que esta casa siempre compra: arroz, huevos, salami, plátanos, detergente. Se marca una vez y sirve de recordatorio cada vez que hay que escribir la lista del supermercado, para no tener que acordarse de todo desde cero.</p>
-      <p class="muted">No lleva la cuenta de lo que hay en la casa: <strong>cuánto llevar lo decides en la lista de cada compra</strong>, que es cuando de verdad se sabe.</p>
+      <p class="muted">Lo que esta casa siempre compra, se coma o no: arroz, huevos, salami, plátanos, y también detergente, cloro, papel higiénico o pañales. Se marca una vez y sirve de recordatorio cada vez que hay que escribir la lista del supermercado, para no tener que acordarse de todo desde cero.</p>
+      <p class="muted">No lleva la cuenta de lo que hay en la casa: <strong>cuánto llevar lo decides en la lista de cada compra</strong>, que es cuando de verdad se sabe. Esa lista se arma aquí dentro, con sus cantidades, y se va tachando en el pasillo del supermercado.</p>
     </details>
     <p class="tiny muted setup-nota">Se puede salir en cualquier momento. Lo que marques se guarda solo.</p>
   </section>`;
@@ -314,7 +315,8 @@ function pantallaDeRubro(setup) {
     </p>
     <div class="progress setup-rubro-progreso"><span style="width:${Math.round((setup.rubro + 1) / RUBROS.length * 100)}%"></span></div>
 
-    <p class="pantalla-intro">Selecciona lo que normalmente compras para tu casa. <strong>No tienes que indicar cantidades.</strong> Marca los que quieras: si esta categoría no la compras, pasa de largo.</p>
+    <p class="pantalla-intro">Selecciona lo que normalmente compras para tu casa. <strong>No tienes que indicar cantidades.</strong> Marca los que quieras: si esta categoría no la compras, pasa de largo. De aquí sale después la lista de la compra, ya con cantidades, para ir tachándola en el súper.</p>
+    ${rubro.id === 'otros' ? `<p class="pantalla-intro setup-no-se-come">Aquí no es solo de comer: también van el detergente, el cloro, el papel higiénico y los pañales. Están más abajo, o búscalos por el nombre.</p>` : ''}
 
     ${delRubro.length > 12 ? `<div class="setup-buscador">
       <label class="field setup-search"><span class="sr-only">Buscar dentro de ${esc(rubro.titulo)}</span>
@@ -332,7 +334,7 @@ function pantallaDeRubro(setup) {
     <div class="setup-falta">
       ${setup.anadiendo
         ? ventanitaDeAnadir(setup, rubro)
-        : `<button type="button" class="enlace" data-action="setup-falta">¿No encuentras un alimento? Añadirlo</button>
+        : `<button type="button" class="enlace" data-action="setup-falta">¿No encuentras un producto? Añadirlo</button>
            <button type="button" class="enlace" data-action="open-bulk" data-destino="habitual">${icono('hoja', { tamano: 16 })}Escribirlos de corrido</button>`}
     </div>
 
@@ -361,10 +363,13 @@ function fichaAlimento(nombre, unidad, marcado) {
 // razón práctica: aquí no se puede perder el sitio. Quien la cierra sigue
 // exactamente donde estaba, con lo marcado intacto.
 function ventanitaDeAnadir(setup, rubro) {
-  return `<form data-form="setup-nuevo" class="setup-ventanita" aria-label="Añadir un alimento a ${esc(rubro.titulo)}">
+  // El ejemplo cambia con la categoría porque «Ej. Fresa» dentro de «Otros
+  // productos habituales» vuelve a sugerir que aquí solo entra comida.
+  const ejemplo = rubro.id === 'otros' ? 'Ej. Cloro' : 'Ej. Fresa';
+  return `<form data-form="setup-nuevo" class="setup-ventanita" aria-label="Añadir un producto a ${esc(rubro.titulo)}">
     <p class="setup-ventanita-titulo">Añadir a ${esc(rubro.titulo)}</p>
-    <label class="field"><span class="sr-only">Nombre del alimento</span>
-      <input name="nombre" data-setup-nuevo value="${esc(setup.nombreNuevo || '')}" placeholder="Ej. Fresa" autocomplete="off" maxlength="40" enterkeyhint="done">
+    <label class="field"><span class="sr-only">Nombre del producto</span>
+      <input name="nombre" data-setup-nuevo value="${esc(setup.nombreNuevo || '')}" placeholder="${ejemplo}" autocomplete="off" maxlength="40" enterkeyhint="done">
     </label>
     ${setup.errorNuevo ? `<p class="setup-error" role="alert">${esc(setup.errorNuevo)}</p>` : ''}
     <div class="inline setup-ventanita-acciones">
@@ -1164,7 +1169,7 @@ export const SETUP_FORMS = {
     setup.nombreNuevo = escrito;
 
     if (escrito.length < 2) {
-      setup.errorNuevo = 'Escribe el nombre del alimento.';
+      setup.errorNuevo = 'Escribe el nombre del producto.';
       ctx.render();
       document.querySelector('[data-setup-nuevo]')?.focus();
       return;

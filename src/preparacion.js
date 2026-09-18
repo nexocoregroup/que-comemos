@@ -64,13 +64,27 @@ export function filaDeAlimento(state, item = {}) {
    `receta` puede ser una de verdad —se está editando— o el borrador que el
    recorrido guarda entre pintada y pintada, que tiene la misma forma pero
    todavía no existe en el estado. */
+/* El ejemplo del nombre es corto a propósito. Decía «Ej. Mangú de plátano
+   maduro con salami» y en un teléfono de 375 px el campo lo cortaba justo en
+   «con sal» —medido: 329 px de texto en 279 de hueco—, así que se leía como
+   otra receta y con un ingrediente que nadie registra como producto.
+
+   Lo que el marcador tiene que hacer es nombrar alimentos que de verdad estén
+   en el catálogo, para que el autorrelleno se vea funcionar a la primera. La
+   lección no se pierde por acortarlo: la da la ayuda de debajo, que se ve
+   entera porque no vive dentro de una caja de ancho fijo.
+
+   Esa ayuda tampoco dice ya «di de qué es». Pedía una construcción —«mangú DE
+   plátano maduro»— y quien la lee de pie en la cocina no sabe qué se le está
+   pidiendo. Ahora pide el alimento principal y sus acompañantes, que es lo
+   mismo dicho con las palabras de lo que se come. */
 export function camposDePreparacion(state, receta = {}) {
   const momentos = receta.uses || [];
   const items = receta.items || [];
   return `<label class="field"><span>¿Cómo se llama?</span>
       <input name="nombre" data-preparacion-nombre required autocomplete="off" maxlength="60"
-        value="${esc(receta.name || '')}" placeholder="Ej. Mangú de plátano maduro con salami" enterkeyhint="done">
-      <small>Di de qué es: «mangú <strong>de plátano maduro</strong>», «puré <strong>de papa</strong>». Con eso, los alimentos de abajo se llenan solos.</small>
+        value="${esc(receta.name || '')}" placeholder="Ej. Plátano maduro con salami" enterkeyhint="done">
+      <small>Pon el <strong>alimento principal</strong> y sus <strong>acompañantes</strong>: «plátano maduro con salami», «arroz con pollo». Con eso, los alimentos de abajo se llenan solos.</small>
     </label>
 
     <div class="field">

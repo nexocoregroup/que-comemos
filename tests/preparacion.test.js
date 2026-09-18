@@ -117,12 +117,35 @@ test('el formulario pregunta las cuatro cosas, y ninguna más', () => {
   assert.ok(html.includes('Agua bien caliente'), 'la nota que ya tenía no viene escrita');
 });
 
-test('el ejemplo del nombre enseña a escribirlo de forma que se entienda', () => {
-  // «Mangú con salami» no dice de qué es el mangú. «Mangú de plátano maduro con
-  // salami» sí, y es lo que permite que los alimentos se llenen solos.
-  const html = camposDePreparacion(createEmptyState(), {});
+test('el ejemplo del nombre cabe en el campo y nombra alimentos de verdad', () => {
+  /* Esta prueba pedía antes que el marcador dijera «de plátano maduro», y por
+     eso el marcador era «Ej. Mangú de plátano maduro con salami». En un
+     teléfono de 375 px eso son 329 px de texto en un hueco de 279: el campo lo
+     cortaba en «con sal» y se leía como otra receta, con un ingrediente que
+     además nadie registra como producto.
+
+     El motivo de la prueba no era la frase, era que el ejemplo enseñe a
+     escribir un nombre del que se puedan sacar los alimentos solos. Eso se
+     comprueba mejor de dos maneras: que del marcador salgan alimentos del
+     catálogo, y que la lección de «di de qué es» siga estando donde sí se lee
+     entera, que es la ayuda de debajo del campo. */
+  const { state } = casa();
+  const html = camposDePreparacion(state, {});
   const marcador = /placeholder="([^"]*)"/.exec(html)?.[1] || '';
-  assert.ok(/de plátano maduro/i.test(marcador), `el ejemplo dejó de decir de qué es: «${marcador}»`);
+
+  assert.ok(marcador.length <= 30,
+    `el ejemplo no cabe en el campo de un teléfono estrecho: «${marcador}» son ${marcador.length} caracteres`);
+  assert.deepEqual(alimentosEnElTexto(state, marcador.replace(/^Ej\.\s*/, '')).map(item => item.name),
+    ['Plátano maduro', 'Salami'], `del ejemplo ya no salen dos alimentos del catálogo: «${marcador}»`);
+  assert.ok(!/\bsal\b/i.test(marcador), 'el ejemplo vuelve a terminar en algo que no es un producto');
+
+  /* Y la ayuda de debajo sigue diciendo qué hay que escribir. Decía «di de qué
+     es», que es una regla de gramática; ahora nombra las dos partes de un plato
+     —el principal y lo que lo acompaña—, que es como se piensa una comida. Lo
+     que no puede pasar es que deje de pedir las dos: con una sola, el
+     autorrelleno encuentra un alimento y parece roto. */
+  assert.match(html, /alimento principal/i, 'la ayuda dejó de pedir el alimento principal');
+  assert.match(html, /acompañantes/i, 'la ayuda dejó de pedir los acompañantes');
 });
 
 test('los alimentos salen agrupados por rubro y ordenados por nombre', () => {
