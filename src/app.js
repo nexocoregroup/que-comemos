@@ -85,7 +85,12 @@ function abrirCajon(cual) {
   ui.setup = avanceGuardado(state); ui.bulk = null;
   ui.hogar = emptyHogar();
 }
-const today = todayISO();
+// Una función y no una constante, igual que en page-semana.js y page-mas.js:
+// calculada al cargar el módulo, un teléfono que deja la app abierta pasada la
+// medianoche seguiría pintando el día de ayer. Y aquí no era solo pintar: el
+// atajo de anotar una comida y el campo de fecha de una ausencia nacían con esa
+// fecha y la escribían, así que la comida se guardaba en el día equivocado.
+const today = () => todayISO();
 const SIDEBAR_KEY = 'que-comemos-sidebar-collapsed';
 const sidebarInitiallyCollapsed = (() => { try { return localStorage.getItem(SIDEBAR_KEY) === '1'; } catch { return false; } })();
 
@@ -585,7 +590,7 @@ function renderToday() {
   if (sinNada) {
     return `<section class="hero start-hero">
       <div>
-        <div class="eyebrow">${esc(niceDate(today))}</div>
+        <div class="eyebrow">${esc(niceDate(today()))}</div>
         <h2>Vamos a organizar tu casa</h2>
         <p>Una sola vez: quiénes comen aquí, lo que compras de costumbre y lo que sabes preparar. Desde ahí, decidir la semana es elegir, no escribir.</p>
       </div>
@@ -597,19 +602,19 @@ function renderToday() {
   // que no merienda no tiene un día incompleto a las diez de la mañana, y
   // decirle que le faltan dos comidas sería reprocharle una costumbre que no
   // tiene. Las que estén puestas se enseñan igual, detrás.
-  const hechas = SLOTS_PRINCIPALES.filter(slot => { const plan = planFor(state, today, slot); return plan && plan.kind !== 'unplanned'; }).length;
+  const hechas = SLOTS_PRINCIPALES.filter(slot => { const plan = planFor(state, today(), slot); return plan && plan.kind !== 'unplanned'; }).length;
   const total = SLOTS_PRINCIPALES.length;
-  const meriendas = SLOTS.filter(slot => esOpcional(slot) && planFor(state, today, slot));
+  const meriendas = SLOTS.filter(slot => esOpcional(slot) && planFor(state, today(), slot));
   return `<section class="hero">
       <div>
-        <div class="eyebrow">${esc(niceDate(today))}</div>
+        <div class="eyebrow">${esc(niceDate(today()))}</div>
         <h2>${hechas === total ? 'Todo listo para hoy' : hechas ? 'Casi listo' : '¿Qué comemos hoy?'}</h2>
         <p>${hechas} de ${total} comidas decididas${meriendas.length ? ` · ${meriendas.length} merienda(s)` : ''}</p>
       </div>
       ${hechas === total ? '' : button('Ver la semana', 'navigate', 'btn-secondary', 'data-page="semana"')}
     </section>
-    <div class="grid grid-3">${SLOTS_PRINCIPALES.map(slot => tarjetaDeComida(slot, today)).join('')}</div>
-    ${bloqueDeMeriendas(today)}
+    <div class="grid grid-3">${SLOTS_PRINCIPALES.map(slot => tarjetaDeComida(slot, today())).join('')}</div>
+    ${bloqueDeMeriendas(today())}
     ${pieDeHoy()}`;
 }
 
@@ -696,7 +701,7 @@ function queLleva(plan) {
 }
 
 function pieDeHoy() {
-  const manana = addDays(today, 1);
+  const manana = addDays(today(), 1);
   const hayManana = SLOTS.some(slot => planFor(state, manana, slot));
   // El aviso de «hoy toca revisar lo que queda» se fue con el inventario. La
   // app ya no lleva la cuenta de lo que hay en la casa, así que pedir un repaso
@@ -946,9 +951,9 @@ function renderModal() {
 
   if (m.type === 'absence') return modal('Alguien no come en casa', '',
     `<form data-form="absence" class="stack"><div class="form-grid">
-      <label class="field"><span>¿Qué día?</span><input name="date" type="date" value="${m.date || today}" required></label>
+      <label class="field"><span>¿Qué día?</span><input name="date" type="date" value="${m.date || today()}" required></label>
       <label class="field"><span>¿Qué comida?</span><select name="slot">${options(SLOTS.map(slot => [slot, etiquetaDeMomento(slot)]), m.slot || 'almuerzo')}</select></label></div>
-      <div class="field"><span>¿Quién?</span>${checkPeople('absent', state.absences.filter(item => item.date === (m.date || today) && item.slot === (m.slot || 'almuerzo')).map(item => item.personId))}</div>
+      <div class="field"><span>¿Quién?</span>${checkPeople('absent', state.absences.filter(item => item.date === (m.date || today()) && item.slot === (m.slot || 'almuerzo')).map(item => item.personId))}</div>
       <div class="modal-actions"><button type="submit" class="btn btn-primary">Guardar</button></div></form>`);
 
   if (m.type === 'import') return modal('Traer una copia', 'Reemplaza todo lo que hay ahora.',
@@ -1191,7 +1196,7 @@ function proximaComidaLibre() {
   const hora = new Date().getHours();
   const preferida = hora < 10 ? 'desayuno' : hora < 16 ? 'almuerzo' : 'cena';
   const orden = [preferida, ...SLOTS.filter(slot => slot !== preferida)];
-  return orden.find(slot => !planFor(state, today, slot)) || preferida;
+  return orden.find(slot => !planFor(state, today(), slot)) || preferida;
 }
 
 /* ── Reparto de clics ──────────────────────────────────────────────────── */
@@ -1247,7 +1252,7 @@ document.addEventListener('click', event => {
       for (const caja of form.querySelectorAll('[data-panel]')) caja.hidden = caja.dataset.panel !== el.dataset.modo;
       form.querySelector(`[data-panel="${el.dataset.modo}"] input, [data-panel="${el.dataset.modo}"] select`)?.focus();
     }
-    else if (action === 'rapida-comida') openModal('meal', { date: today, slot: proximaComidaLibre() });
+    else if (action === 'rapida-comida') openModal('meal', { date: today(), slot: proximaComidaLibre() });
     else if (action === 'open-bulk') { ui.bulk = emptyBulk(el.dataset.destino || 'habitual'); openModal('bulk'); }
     else if (action === 'welcome-demo') { ui.welcome = false; ui.page = TOUR_STEPS[0].page; ui.tour = 0; commit('Este es un ejemplo. Puedes borrarlo cuando quieras.'); }
     // Empezar de cero lleva directo a organizar la casa: es lo único que hay
@@ -1337,12 +1342,12 @@ document.addEventListener('click', event => {
     else if (action === 'export') {
       const blob = new Blob([exportState(state)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = `que-comemos-respaldo-${today}.json`; a.click();
+      const a = document.createElement('a'); a.href = url; a.download = `que-comemos-respaldo-${today()}.json`; a.click();
       setTimeout(() => URL.revokeObjectURL(url), 5000);
       // Se anota la fecha porque el respaldo automático de Android está
       // apagado a propósito: esta copia es la única red que hay, y la app tiene
       // que poder decir cuándo fue la última en vez de esperar a que se note.
-      state.settings = { ...(state.settings || {}), lastBackupAt: today };
+      state.settings = { ...(state.settings || {}), lastBackupAt: today() };
       commit('Copia descargada. Guárdala donde no dependa de este teléfono.');
     }
     else if (action === 'remove-absence') { setAbsence(state, el.dataset.date, el.dataset.slot, el.dataset.id, false); commit('Ausencia quitada.'); }

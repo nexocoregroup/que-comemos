@@ -14,7 +14,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 
 import { addDays, dateRange, monthBounds, validDate, weekStart, weekdayOf } from '../src/model.js';
 
@@ -151,8 +151,23 @@ test('en la semana de hoy el atajo no llena los días que ya pasaron', () => {
 test('la fecha de hoy se pregunta cada vez, no se guarda al cargar', () => {
   // Una constante calculada al importar el módulo deja la app pintando el día
   // de ayer cuando el teléfono se queda encendido pasada la medianoche.
-  for (const archivo of ['src/page-semana.js', 'src/page-mas.js', 'src/page-compra.js']) {
+  //
+  // Esta prueba nació mirando tres archivos y buscando el nombre `hoy`, que era
+  // como se llamaba la constante en los dos que se arreglaron ese día. Por eso no
+  // vio `const today = todayISO()` en app.js, que se quedó congelada meses: la
+  // pantalla que más se abre, y encima escribiendo —el atajo de anotar una comida
+  // guardaba en el día equivocado—. Ahora recorre `src/` entero y no le importa
+  // cómo se llame la constante.
+  const archivos = readdirSync('src').filter(nombre => nombre.endsWith('.js')).map(nombre => `src/${nombre}`);
+  const congeladas = [];
+  for (const archivo of archivos) {
     const fuente = readFileSync(archivo, 'utf8');
-    assert.ok(!/^const hoy = todayISO\(\);/m.test(fuente), `${archivo} vuelve a congelar la fecha al cargar`);
+    for (const linea of fuente.split(/\r?\n/)) {
+      // Solo el ámbito del módulo: una constante dentro de una función se
+      // recalcula en cada llamada y no tiene este problema.
+      const encaja = /^(?:const|let|var)\s+(\w+)\s*=\s*todayISO\(\)\s*;?\s*$/.exec(linea);
+      if (encaja) congeladas.push(`${archivo}: ${encaja[1]}`);
+    }
   }
+  assert.deepEqual(congeladas, [], 'la fecha de hoy se calcula al cargar el módulo, no en cada pintada');
 });
