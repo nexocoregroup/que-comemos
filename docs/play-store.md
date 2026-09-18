@@ -98,6 +98,48 @@ Como la app **sí** permite crear una cuenta, esto pasó de opcional a **obligat
 
 ---
 
+## 2 bis. Declaración de apps de salud
+
+**Es un formulario aparte del de seguridad de los datos, y se olvida porque no
+se parece en nada a lo que uno espera.** Está en Play Console → Contenido de la
+app → «Declaración de apps de salud».
+
+Lo que sorprende, y por eso está escrito aquí: **es obligatorio para todas las
+apps publicadas**, tengan o no funciones de salud. Una app que no tenga
+ninguna también lo rellena, para certificar que no las tiene.
+
+> «All developers that have an app published on Google Play must complete the
+> Health apps declaration», y explícitamente cubre las apps «that do not offer
+> any health features», que «must complete this form and certify that no
+> health features are offered».
+>
+> — <https://support.google.com/googleplay/android-developer/answer/14738291>
+
+**Esta app no es de salud, pero toca datos de salud.** Las alergias que se
+anotan en Familia son datos de salud —por eso ya se declaran como tales en la
+sección de seguridad de los datos, apartado 2— y se usan para una función que
+no es de salud: avisar de que una comida lleva algo que alguien evita. Ese caso
+lo cubre el formulario expresamente:
+
+> «If your app provides health features or accesses health data to support
+> non-health features, you must declare one or more of the following
+> features.»
+
+Así que hay que entrar y marcar lo que corresponda, aunque la ficha de la
+tienda esté en la categoría que esté. Si Play lo detecta sin declarar, puede
+bloquear una actualización.
+
+**Lo que sí está resuelto y no hay que tocar:** el descargo médico. Para una
+app no médica, Google pide «a clear disclaimer in their app description
+indicating that the app is 'not a medical device and does not diagnose, treat,
+cure, or prevent any medical condition'»
+(<https://support.google.com/googleplay/android-developer/answer/16679511>), y
+eso ya está en el aviso de privacidad y en la descripción de la ficha, con
+estas palabras: «No son recomendaciones nutricionales ni consejo médico: para
+eso, un profesional de la salud».
+
+---
+
 ## 3. Clasificación de contenido (IARC)
 
 Es un cuestionario. Se elige categoría y luego se contesta que no a casi todo.
