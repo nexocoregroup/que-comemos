@@ -1186,6 +1186,47 @@ function closeModal() {
   render();
 }
 
+/* ── Salir de una ventana sin tirar lo escrito ─────────────────────────────
+
+   Una ventana tiene tres salidas que no son «Guardar»: la equis, un roce fuera
+   de la hoja y la tecla Escape. Las tres llamaban directo a `closeModal()`, así
+   que media preparación escrita se iba con un roce. En un teléfono, «fuera de la
+   hoja» es la franja oscura de arriba, que está justo donde cae el pulgar al
+   subir la mano.
+
+   Saber si hay algo escrito no necesita llevar cuentas: el propio DOM guarda con
+   qué valor nació cada campo. `defaultValue` y `defaultChecked` son lo que decía
+   el HTML al pintarse, y `value` lo que dice ahora. Si difieren, alguien escribió.
+
+   Se pregunta solo cuando hay algo que perder. Cerrar una ventana que no se ha
+   tocado no pregunta nada, que es lo más común y no debe estorbar.
+
+   `closeModal()` se queda sin guardia a propósito: lo llaman también los
+   guardados que ya terminaron —`terminar()` en page-compra.js, por ejemplo—, y
+   ahí preguntar sería absurdo. La guardia va en el gesto, no en el cierre. */
+function ventanaConCambios() {
+  const raiz = document.querySelector('#modal-root .modal');
+  if (!raiz) return false;
+  for (const campo of raiz.querySelectorAll('input, textarea, select')) {
+    if (campo.type === 'hidden') continue;
+    if (campo.type === 'checkbox' || campo.type === 'radio') {
+      if (campo.checked !== campo.defaultChecked) return true;
+    } else if (campo.tagName === 'SELECT') {
+      const porDefecto = [...campo.options].find(opcion => opcion.defaultSelected) || campo.options[0];
+      if (porDefecto && campo.value !== porDefecto.value) return true;
+    } else if (campo.value !== campo.defaultValue) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function cerrarVentanaPorGesto() {
+  if (ventanaConCambios() && !window.confirm('Se va a cerrar sin guardar lo que escribiste. ¿Cerrar igual?')) return false;
+  closeModal();
+  return true;
+}
+
 function openModal(type, extras = {}) { ui.modal = { type, ...extras }; render(); }
 function sidebarOnMobile() { return window.matchMedia('(max-width: 700px)').matches; }
 function closeSidebar() {
@@ -1230,7 +1271,7 @@ const mensajeDeFallo = fila =>
   `Algo se rompió al hacer eso y lo dejé como estaba. Puedes seguir usando la app.${fila?.clase ? ` (${fila.clase})` : ''}`;
 
 document.addEventListener('click', event => {
-  if (event.target.matches('[data-overlay]')) { closeModal(); return; }
+  if (event.target.matches('[data-overlay]')) { cerrarVentanaPorGesto(); return; }
   const el = event.target.closest('[data-action]'); if (!el) return;
   const action = el.dataset.action;
   try {
@@ -1293,7 +1334,7 @@ document.addEventListener('click', event => {
     else if (action === 'tour-skip') { ui.tour = null; render(); }
     else if (action === 'toggle-sidebar') toggleSidebar();
     else if (action === 'close-sidebar') closeSidebar();
-    else if (action === 'close-modal') closeModal();
+    else if (action === 'close-modal') cerrarVentanaPorGesto();
     else if (action === 'open-meal') openModal('meal', { date: el.dataset.date, slot: el.dataset.slot });
     else if (action === 'open-recipe') openModal('recipe', { id: el.dataset.id });
     else if (action === 'open-product') openModal('product', { id: el.dataset.id });
@@ -1473,10 +1514,35 @@ document.addEventListener('input', event => {
 
 document.addEventListener('keydown', event => {
   if (event.key !== 'Escape') return;
-  if (ui.modal) closeModal();
+  if (ui.modal) cerrarVentanaPorGesto();
   else if (ui.drawerOpen) closeSidebar();
   else if (ui.tour !== null) { ui.tour = null; render(); }
 });
+
+/* ── El botón de atrás del teléfono ────────────────────────────────────────
+
+   Dentro del APK, atrás cerraba la aplicación desde cualquier sitio: con una
+   ventana abierta, con el menú desplegado, en mitad de la compra. Es el gesto
+   más usado de Android y aquí significaba «salir», que no es lo que nadie
+   espera y encima tira lo que estuviera escrito.
+
+   Ahora deshace por capas, de lo más encima a lo más al fondo. Solo sale de la
+   app cuando ya no queda nada que cerrar y se está en Hoy, que es la portada.
+
+   El complemento se pide por el global de Capacitor y no con un `import`: este
+   proyecto no tiene empaquetador, y un especificador de paquete no se resuelve
+   en el navegador. Es el mismo camino que ya usa `fallos.js`. En el navegador
+   `Capacitor` no existe, `?.` corta y no pasa nada —el botón de atrás del
+   navegador es otra historia, con su propio historial, y no entra aquí—. */
+globalThis.Capacitor?.Plugins?.App?.addListener?.('backButton', protegida('atras', () => {
+  if (ui.modal) { cerrarVentanaPorGesto(); return; }
+  if (ui.drawerOpen) { closeSidebar(); return; }  // repinta por dentro
+  if (ui.tour !== null) { ui.tour = null; render(); return; }
+  // Las subpantallas de Ajustes vuelven a Ajustes, no a Hoy: se entró desde ahí.
+  if (esPaginaDeAjustes(ui.page) && ui.page !== 'ajustes') { ui.page = 'ajustes'; render(); return; }
+  if (ui.page !== 'hoy') { ui.page = 'hoy'; render(); return; }
+  globalThis.Capacitor?.Plugins?.App?.exitApp?.();
+}));
 window.addEventListener('resize', () => { if (ui.drawerOpen && !sidebarOnMobile()) { ui.drawerOpen = false; render(); } });
 
 /* ── Formularios ───────────────────────────────────────────────────────── */
