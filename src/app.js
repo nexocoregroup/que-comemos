@@ -25,13 +25,12 @@ import { TOUR_STEPS, WELCOME } from './onboarding.js';
 import { RUBROS, categoriaDelRubro } from './catalog-seed.js';
 import { SETUP_ACTIONS, SETUP_FORMS, avanceGuardado, emptySetup, renderSetup } from './setup.js';
 import { HOGAR_ACTIONS, HOGAR_FORMS, cuerpoDeFicha, emptyHogar, fichaActiva, renderHogar, tocaConfigurarElHogar } from './hogar.js';
-import { BULK_ACTIONS, BULK_FORMS, emptyBulk, renderBulk } from './bulk-entry.js';
 import { SEMANA_ACTIONS, SEMANA_FORMS, emptySemana, modalDia, modalIrAFecha, modalPonerEnDias, renderSemana, tituloDePlan } from './page-semana.js';
 import { COMPRA_ACTIONS, COMPRA_FORMS, emptyCompra, listaEnCurso, modalPendientes, renderCompra } from './page-compra.js';
 import { MAS_ACTIONS, PAGINAS_MAS, TITULOS_MAS, emptyMas, renderMas } from './page-mas.js';
 import { anotar, falloAnterior, fallosRecientes, instalarRed, olvidarFalloAnterior, protegida } from './fallos.js';
 import { CUENTA_ACTIONS, CUENTA_FORMS, emptyCuenta, renderCuenta, volvimosDeGoogle } from './page-cuenta.js';
-import { camposDePreparacion, filaDeAlimento, leerPreparacion, llenarAlimentosDelNombre } from './preparacion.js';
+import { camposDePreparacion, filaDeAlimento, leerPreparacion } from './preparacion.js';
 import { CAJON_DE_ESTE_TELEFONO, arrancarSesion, cajonDe, fundirSesion, guardarSesion, olvidarSesion } from './sesion.js';
 import { guardarCopiaAntesDeBajar, mereceLaPenaVincular, sincronizar } from './sincronizar.js';
 import { hayNube } from './config-nube.js';
@@ -87,7 +86,7 @@ function abrirCajon(cual) {
   // El asistente de la canasta se retoma donde se dejó: lo marcado vive en el
   // estado, así que abrir la app en otro momento —u otro teléfono— devuelve el
   // mismo rubro con las mismas casillas marcadas.
-  ui.setup = avanceGuardado(state); ui.bulk = null;
+  ui.setup = avanceGuardado(state);
   ui.hogar = emptyHogar();
 }
 // Una función y no una constante, igual que en page-semana.js y page-mas.js:
@@ -105,7 +104,7 @@ const ui = {
   // El asistente de la canasta arranca donde se dejó. `abrirCajon` hace lo
   // mismo al cambiar de cuenta, pero en el arranque normal —sin sesión— no
   // pasa por ahí: el estado se lee arriba del todo y esta es su única puerta.
-  setup: avanceGuardado(state), bulk: null,
+  setup: avanceGuardado(state),
   hogar: emptyHogar(),
   semana: emptySemana(),
   compra: emptyCompra(),
@@ -1117,11 +1116,11 @@ function bloqueDeMeriendas(date) {
   return `<div class="grid grid-2 meriendas">${opcionales.map(slot => {
     const plan = planFor(state, date, slot);
     if (!plan) {
-      return `<article class="card soft merienda-card vacia"><div class="slot">${esc(etiquetaDeMomento(slot))}</div>
+      return `<article class="card soft merienda-card vacia" data-momento="${slot}"><div class="slot">${esc(etiquetaDeMomento(slot))}</div>
         <p class="small muted">Sin anotar. Es opcional.</p>
         ${button('Anotar', 'open-meal', 'btn-quiet btn-small', `data-date="${date}" data-slot="${slot}"`)}</article>`;
     }
-    return `<article class="card soft merienda-card"><div class="slot">${esc(etiquetaDeMomento(slot))}</div>
+    return `<article class="card soft merienda-card" data-momento="${slot}"><div class="slot">${esc(etiquetaDeMomento(slot))}</div>
       <div class="meal-title">${esc(tituloDePlan(plan))}</div>
       ${plan.items.length ? queLleva(plan) : ''}
       ${avisoDeAlergias(state, plan.items, plan.participants)}
@@ -1132,7 +1131,7 @@ function bloqueDeMeriendas(date) {
 function tarjetaDeComida(slot, date) {
   const plan = planFor(state, date, slot);
   if (!plan) {
-    return `<article class="card meal-card"><div class="slot">${esc(etiquetaDeMomento(slot))}</div>
+    return `<article class="card meal-card" data-momento="${slot}"><div class="slot">${esc(etiquetaDeMomento(slot))}</div>
       <div class="meal-body"><div class="meal-title">Todavía sin decidir</div><p class="muted small">Elige una comida o marca que hoy no se cocina.</p></div>
       ${button('Decidir', 'open-meal', 'btn-secondary btn-small', `data-date="${date}" data-slot="${slot}"`)}</article>`;
   }
@@ -1143,7 +1142,7 @@ function tarjetaDeComida(slot, date) {
       <div class="meal-body"><div class="meal-title">${esc(tituloDePlan(plan))}</div><p class="muted small">${plan.kind === 'outside' ? 'Hoy esta comida no se prepara en casa.' : plan.kind === 'order' ? 'Se pedirá fuera.' : 'Esta comida todavía está por decidir.'}</p></div>
       ${button('Cambiar', 'open-meal', 'btn-quiet btn-small', `data-date="${date}" data-slot="${slot}"`)}</article>`;
   }
-  return `<article class="card meal-card"><div class="slot">${esc(etiquetaDeMomento(slot))}</div>
+  return `<article class="card meal-card" data-momento="${slot}"><div class="slot">${esc(etiquetaDeMomento(slot))}</div>
     <div class="meal-body">
       <div class="meal-title">${esc(tituloDePlan(plan))}</div>
       <div class="meal-people">${plan.participants.length ? `Para ${plan.participants.map(id => esc(personName(id))).join(', ')}` : 'Para quien coma en casa'}</div>
@@ -1205,7 +1204,7 @@ function bloqueDeCompartir() {
   const recado = recadoDe(state, today());
   return `<section class="card compartir-hoy">
     ${button('Compartir el día de hoy', 'compartir-dia', 'btn-primary')}
-    <p class="tiny muted">Se abre WhatsApp —o lo que elijas— con las comidas, las notas y los avisos de alergia ya escritos. El último toque, el de enviar, es tuyo.</p>
+    <p class="tiny muted">Se prepara el día entero —comidas, notas y avisos de alergia— y eliges por dónde mandarlo. El último toque, el de enviar, es tuyo.</p>
     <label class="field">
       <span>Otros quehaceres de hoy</span>
       <textarea name="recado" data-recado rows="2" maxlength="500" autocapitalize="sentences" spellcheck="true" enterkeyhint="done" placeholder="Ej. Sacar la basura. El plomero viene a las 9.">${esc(recado)}</textarea>
@@ -1450,7 +1449,6 @@ function renderModal() {
         <div class="modal-actions"><button type="submit" class="btn btn-primary">${m.type === 'move' ? 'Mover' : 'Copiar'}</button></div></form>`);
   }
 
-  if (m.type === 'bulk') return modal('Escribir varios', 'De corrido, como se habla. La app lo separa y tú revisas antes de guardar.', renderBulk({ ...ctx(), bulk: ui.bulk }), true);
 
   if (m.type === 'absence') return modal('Alguien no come en casa', '',
     `<form data-form="absence" class="stack"><div class="form-grid">
@@ -1812,7 +1810,6 @@ document.addEventListener('click', event => {
       return;
     }
     if (HOGAR_ACTIONS[action]) { llamarAccion(action, HOGAR_ACTIONS[action], el, ctxHogar()); return; }
-    if (BULK_ACTIONS[action]) { llamarAccion(action, BULK_ACTIONS[action], el, { ...ctx(), bulk: ui.bulk }); return; }
     if (SEMANA_ACTIONS[action]) { llamarAccion(action, SEMANA_ACTIONS[action], el, ctx()); return; }
     if (COMPRA_ACTIONS[action]) { llamarAccion(action, COMPRA_ACTIONS[action], el, ctx()); return; }
     if (MAS_ACTIONS[action]) { llamarAccion(action, MAS_ACTIONS[action], el, ctx()); return; }
@@ -1878,7 +1875,6 @@ document.addEventListener('click', event => {
       form.querySelector(`[data-panel="${el.dataset.modo}"] input, [data-panel="${el.dataset.modo}"] select`)?.focus();
     }
     else if (action === 'rapida-comida') openModal('meal', { date: today(), slot: proximaComidaLibre() });
-    else if (action === 'open-bulk') { ui.bulk = emptyBulk(el.dataset.destino || 'habitual'); openModal('bulk'); }
     // «Ver un ejemplo» ahora carga un ejemplo.
     //
     // Esta acción nunca construyó nada: encendía el recorrido y soltaba un aviso
@@ -2091,13 +2087,6 @@ document.addEventListener('change', event => {
   // Elegir «una preparación» o «fuera de casa» enseña u oculta el selector.
   if (el.name === 'kind' && el.closest('[data-form="poner-en-dias"]')) { const campo = el.form.querySelector('[data-poner-receta]'); if (campo) campo.hidden = el.value !== 'recipe'; }
 
-  // Adónde van las filas de «escribir de corrido» decide el ejemplo que se
-  // enseña: con cantidades para una compra, sin ellas para una lista de
-  // nombres. Se repinta —guardando antes lo escrito, que es lo que hace
-  // `bulk-destino`— porque el marcador de posición no se puede cambiar solo.
-  if (el.name === 'destino' && el.closest('[data-form="bulk-texto"]') && BULK_ACTIONS['bulk-destino']) {
-    llamarAccion('bulk-destino', BULK_ACTIONS['bulk-destino'], el, { ...ctx(), bulk: ui.bulk });
-  }
 });
 
 let filtroTimer;
@@ -2122,15 +2111,6 @@ document.addEventListener('input', event => {
      No repinta: mover el cursor a media palabra sería peor que el ahorro. Y
      solo añade, nunca quita, aunque el nombre cambie: quitar una fila que
      alguien puso a mano es el error caro. */
-  if (event.target.matches('[data-preparacion-nombre]')) {
-    const formulario = event.target.closest('form');
-    clearTimeout(relojDeAlimentos);
-    relojDeAlimentos = setTimeout(() => {
-      const puestos = llenarAlimentosDelNombre(state, formulario);
-      if (puestos) anunciar(`${conteo(puestos, 'alimento añadido', 'alimentos añadidos')} por el nombre.`);
-    }, ESPERA_ANTES_DE_LEER_EL_NOMBRE_MS);
-  }
-
   const buscadores = {
     // `alimento-filtro` apuntaba a una clave que `emptyMas()` no creaba y a un
     // `id` que ninguna pantalla pintaba: era el resto de «Alimentos de la casa»,
@@ -2211,14 +2191,13 @@ document.addEventListener('submit', async event => {
     if (CUENTA_FORMS[kind]) { await CUENTA_FORMS[kind](form, data, ctxCuenta()); return; }
     if (SETUP_FORMS[kind]) { SETUP_FORMS[kind](form, data, ctx()); return; }
     if (HOGAR_FORMS[kind]) { HOGAR_FORMS[kind](form, data, ctxHogar()); return; }
-    if (BULK_FORMS[kind]) { await BULK_FORMS[kind](form, data, { ...ctx(), bulk: ui.bulk }); return; }
     if (SEMANA_FORMS[kind]) { SEMANA_FORMS[kind](form, data, ctx()); return; }
     if (COMPRA_FORMS[kind]) { COMPRA_FORMS[kind](form, data, ctx()); return; }
 
     if (kind === 'recipe') {
       const anterior = state.recipes.find(item => item.id === form.dataset.id);
       const receta = upsertRecipe(state, {
-        id: form.dataset.id, ...leerPreparacion(form, data),
+        id: form.dataset.id, ...leerPreparacion(form, data, state, anterior?.items),
         // Esta ventana ya no pregunta cuánto rinde, y lo que no pregunta no lo
         // borra: quien lo escribió cuando se preguntaba lo conserva.
         servings: anterior?.servings ?? null

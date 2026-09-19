@@ -174,7 +174,7 @@ function renderCanasta(ctx) {
   if (!todos.length) {
     return empty('canasta', 'Todavía no has escrito tu lista',
       'Son los productos que en tu casa nunca faltan: los plátanos, el arroz, los huevos, el salami. Se escriben una vez y valen para siempre; sirven para no tener que acordarte de todo cada vez que vas al colmado.',
-      `${button('Marcarlos de una lista', 'setup-open', 'btn-primary')}${button(`${icono('hoja', { tamano: 17 })}Escribirlos de corrido`, 'open-bulk', 'btn-secondary', 'data-destino="habitual"')}`);
+      button('Marcarlos de una lista', 'setup-open', 'btn-primary'));
   }
 
   const total = todos.reduce((suma, grupo) => suma + grupo.lineas.length, 0);
@@ -190,7 +190,6 @@ function renderCanasta(ctx) {
   return `<p class="pantalla-intro">Lo que en tu casa nunca falta. <strong>Aquí no se apuntan cantidades</strong>: cuánto llevas se decide en la compra, que es cuando se sabe.</p>
     <div class="pantalla-acciones">
       ${button('+ Añadir producto', 'open-product', 'btn-primary')}
-      ${button(`${icono('hoja', { tamano: 17 })}Añadir varios de corrido`, 'open-bulk', 'btn-quiet', 'data-destino="habitual"')}
     </div>
 
     <div class="setup-buscador">

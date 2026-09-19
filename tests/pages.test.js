@@ -275,7 +275,7 @@ test('ninguna pantalla enseña el vocabulario técnico que se retiró', () => {
   // puede contarse por qué algo se llamó «canasta». Los tres nombres que
   // sobrevivieron a la última limpieza estaban justamente en un modal y en unos
   // cuantos avisos, no en una pantalla.
-  for (const archivo of ['app.js', 'bulk-entry.js', 'hogar.js', 'page-mas.js', 'setup.js']) {
+  for (const archivo of ['app.js', 'hogar.js', 'page-mas.js', 'setup.js']) {
     const fuente = readFileSync(new URL(`../src/${archivo}`, import.meta.url), 'utf8')
       .split(/\r?\n/).filter(linea => !/^\s*(\/\/|\*|\/\*)/.test(linea)).join('\n')
       .toLocaleLowerCase('es');
@@ -489,7 +489,7 @@ test('los cuadros de texto libre vienen preparados para escribir de corrido', ()
   // una frase y no como un grito; `spellcheck` es lo que subraya la palabra mal
   // escrita —o mal oída, si se usa el micrófono del teclado—, que es justo lo
   // que hay que repasar antes de guardar.
-  const fuentes = ['src/bulk-entry.js', 'src/setup.js', 'src/app.js'];
+  const fuentes = ['src/setup.js', 'src/app.js'];
   const sinPreparar = [];
   for (const archivo of fuentes) {
     /* Sin los comentarios. Un `<textarea>` nombrado dentro de una explicación

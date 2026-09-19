@@ -80,11 +80,10 @@ export function filaDeAlimento(state, item = {}) {
    mismo dicho con las palabras de lo que se come. */
 export function camposDePreparacion(state, receta = {}) {
   const momentos = receta.uses || [];
-  const items = receta.items || [];
   return `<label class="field"><span>¿Cómo se llama?</span>
       <input name="nombre" data-preparacion-nombre required autocomplete="off" maxlength="60"
         value="${esc(receta.name || '')}" placeholder="Ej. Plátano maduro con salami" enterkeyhint="done">
-      <small>Pon el <strong>alimento principal</strong> y sus <strong>acompañantes</strong>: «plátano maduro con salami», «arroz con pollo». Con eso, los alimentos de abajo se llenan solos.</small>
+      <small>Pon el <strong>alimento principal</strong> y sus <strong>acompañantes</strong>: «plátano maduro con salami», «arroz con pollo». De ahí saca la app con qué avisarte si alguien de la casa debe evitar alguno.</small>
     </label>
 
     <div class="field">
@@ -93,52 +92,9 @@ export function camposDePreparacion(state, receta = {}) {
       <small>El mangú con salami, por ejemplo, suele estar en Desayuno y en Cena.</small>
     </div>
 
-    <div class="field">
-      <span>¿Qué alimentos lleva? <span class="muted">(opcional)</span></span>
-      <p class="small muted">Se llenan solos con lo que diga el nombre, y se pueden cambiar. Sirven para avisarte si alguien de la casa debe evitar alguno. No hace falta decir cuánto, ni anotar la sal, el agua, el aceite ni los condimentos.</p>
-      <div data-item-list="receta">${items.map(item => filaDeAlimento(state, item)).join('')}</div>
-      <div class="inline">${button('+ Añadir alimento', 'add-item', 'btn-secondary btn-small', 'data-type="receta"')}</div>
-    </div>
-
     <label class="field"><span>Nota para quien cocina <span class="muted">(opcional)</span></span>
       <textarea name="nota" maxlength="140" placeholder="Ej. guardar lo que sobre para el desayuno del día siguiente" autocapitalize="sentences" spellcheck="true" enterkeyhint="done">${esc(receta.note || '')}</textarea>
     </label>`;
-}
-
-/* ── Llenar los alimentos con lo que dice el nombre ────────────────────────
-
-   Se llama desde el oyente de teclas, así que toca el DOM a mano y no repinta:
-   repintar mientras alguien escribe el nombre le movería el cursor.
-
-   Solo AÑADE. Nunca quita una fila, aunque el nombre haya cambiado y el
-   alimento ya no se nombre: quitar lo que otra persona puso a mano es el error
-   caro, y dejar una fila de más se arregla con un toque en la equis. Por eso
-   tampoco importa que acierte siempre.
-
-   Devuelve cuántas filas añadió, que es lo que hace falta para decirlo en voz
-   alta sin tener que contar dos veces. */
-export function llenarAlimentosDelNombre(state, formulario) {
-  if (!formulario) return 0;
-  const nombre = formulario.querySelector('[data-preparacion-nombre]')?.value || '';
-  const lista = formulario.querySelector('[data-item-list="receta"]');
-  if (!lista) return 0;
-
-  const puestos = new Set([...lista.querySelectorAll('[name="productId"]')].map(campo => campo.value).filter(Boolean));
-  const vacias = [...lista.querySelectorAll('[data-item-row]')]
-    .filter(fila => !fila.querySelector('[name="productId"]')?.value);
-
-  let anadidos = 0;
-  for (const item of alimentosEnElTexto(state, nombre)) {
-    if (puestos.has(item.id)) continue;
-    puestos.add(item.id);
-    // Una fila en blanco que ya estuviera ahí se aprovecha antes de crear otra:
-    // si no, tocar «+ Añadir alimento» y escribir después dejaría un hueco.
-    const hueca = vacias.shift();
-    if (hueca) hueca.querySelector('[name="productId"]').value = item.id;
-    else lista.insertAdjacentHTML('beforeend', filaDeAlimento(state, { productId: item.id }));
-    anadidos += 1;
-  }
-  return anadidos;
 }
 
 /* ── Leer lo que se escribió ───────────────────────────────────────────────
@@ -146,7 +102,7 @@ export function llenarAlimentosDelNombre(state, formulario) {
    Los dos formularios se leen igual porque los campos se llaman igual. Lo que
    cambia después —guardar y cerrar, o guardar y quedarse— lo decide quien
    llama. */
-export function leerPreparacion(formulario, datos) {
+export function leerPreparacion(formulario, datos, state = null, anteriores = []) {
   /* Dos concesiones, y las dos tienen motivo.
 
      El formulario puede no llegar: el recorrido inicial se prueba llamando a sus
@@ -162,17 +118,49 @@ export function leerPreparacion(formulario, datos) {
     ? datos.getAll('momentos').map(String)
     : [].concat(datos.get('momentos') || []).map(String);
 
+  const nombre = String(datos.get('nombre') ?? raiz?.querySelector('[data-preparacion-nombre]')?.value ?? '').trim();
+
   return {
-    name: String(datos.get('nombre') ?? raiz?.querySelector('[data-preparacion-nombre]')?.value ?? '').trim(),
+    name: nombre,
     uses: momentos,
     note: String(datos.get('nota') || '').trim(),
-    items: [...(raiz?.querySelectorAll('[data-item-row]') || [])]
-      .map(fila => ({
-        id: fila.querySelector('[name="itemId"]')?.value || undefined,
-        productId: fila.querySelector('[name="productId"]')?.value
-      }))
-      .filter(item => item.productId)
+    /* Los alimentos salen del nombre. El formulario tenía un desplegable por
+       alimento que se llenaba solo con lo que dijera el nombre y después se
+       podía corregir; sobraba, porque el nombre de un plato ya dice de qué es y
+       lo que no cabe en el nombre cabe en la nota.
+
+       AÑADE, NUNCA QUITA, que es la misma regla que tenía el llenado
+       automático de antes y ahora vale el doble: `upsertRecipe` reescribe la
+       ficha entera, así que sin esto corregirle una coma al nombre de una
+       preparación que llevaba ocho alimentos anotados a mano se los borraría a
+       todos, en silencio y sin forma de recuperarlos.
+
+       Lo que esto cuesta, dicho claro: «sancocho» no nombra nada, así que una
+       preparación nueva con ese nombre se queda sin alimentos y sin
+       comprobación de alergias. La app no lo calla —dice «sin comprobar»— y la
+       comida de un día sigue teniendo su propio «¿Qué lleva?», que es donde se
+       corrige para el día que se cocina.
+
+       Sin `state` no hay catálogo contra el que mirar, así que se devuelve tal
+       cual lo que ya había: leer un formulario nunca puede ser la operación que
+       le borre los alimentos a una preparación guardada. */
+    items: unirAlimentos(state ? alimentosEnElTexto(state, nombre).map(item => ({ productId: item.id })) : [], anteriores)
   };
+}
+
+// Los que dice el nombre más los que ya estaban, sin repetir ninguno. El
+// orden pone delante los del nombre porque son los que alguien acaba de
+// escribir, y detrás los que ya había.
+function unirAlimentos(delNombre, anteriores) {
+  const vistos = new Set();
+  const salida = [];
+  for (const item of [...delNombre, ...(Array.isArray(anteriores) ? anteriores : [])]) {
+    const id = item?.productId;
+    if (!id || vistos.has(id)) continue;
+    vistos.add(id);
+    salida.push(item);
+  }
+  return salida;
 }
 
 // Para las pantallas que enseñan una preparación ya guardada.

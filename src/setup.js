@@ -334,8 +334,7 @@ function pantallaDeRubro(setup) {
     <div class="setup-falta">
       ${setup.anadiendo
         ? ventanitaDeAnadir(setup, rubro)
-        : `<button type="button" class="enlace" data-action="setup-falta">¿No encuentras un producto? Añadirlo</button>
-           <button type="button" class="enlace" data-action="open-bulk" data-destino="habitual">${icono('hoja', { tamano: 16 })}Escribirlos de corrido</button>`}
+        : `<button type="button" class="enlace" data-action="setup-falta">¿No encuentras un producto? Añadirlo</button>`}
     </div>
 
     <div class="modal-actions setup-actions">
@@ -1236,7 +1235,7 @@ export const SETUP_FORMS = {
     // Lo lee la misma función que lee la ventana de la sección, porque es el
     // mismo formulario. Lo que no entra por `FormData` —los alimentos, que son
     // filas— lo saca del propio formulario.
-    const leida = leerPreparacion(form, data);
+    const leida = leerPreparacion(form, data, ctx.state, setup.preparacion?.items);
     setup.preparacion = { id: anteriorId, ...leida, error: '' };
 
     if (leida.name.length < 2) {

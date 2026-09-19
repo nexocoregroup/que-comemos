@@ -266,17 +266,21 @@ test('sin nombre o sin momentos no se guarda, y se dice por qué', () => {
   assert.match(ctx.ui.setup.preparacion.error, /cómo se llama/);
 });
 
-test('editar desde aquí conserva los alimentos, porque ahora esta pantalla también los pregunta', () => {
-  /* `upsertRecipe` reescribe la ficha entera con lo que se le pase, así que esto
-     era un peligro real: corregir un nombre desde el recorrido borraba en
-     silencio los ocho alimentos que alguien había anotado en la ventana
-     completa. Se protegía devolviéndole `anterior.items` a ciegas.
+test('editar desde el recorrido no le borra los alimentos a una preparación', () => {
+  /* El motivo de esta prueba no ha cambiado en tres versiones del formulario, y
+     es el que importa: `upsertRecipe` reescribe la ficha ENTERA con lo que se
+     le pase, así que corregirle el nombre a una preparación puede borrarle en
+     silencio los alimentos que alguien anotó.
 
-     Ya no hace falta ese truco, y además sería un error: el recorrido y la
-     sección usan ahora EL MISMO formulario, que pinta los alimentos y los lee.
-     Devolverle los de antes a ciegas ignoraría una fila que alguien acabara de
-     quitar. Lo que esta prueba vigila es lo que de verdad los protege: que las
-     filas se pinten al editar y que lo leído sea lo que se guarda. */
+     Lo que sí ha cambiado es de dónde salen. Hubo un desplegable por alimento;
+     lo quitamos porque el nombre del plato ya dice de qué es. Ahora los
+     alimentos se sacan del nombre Y se unen con los que ya había —añadir,
+     nunca quitar—, que es lo único que impide que «Locrio» → «Locrio de pollo»
+     se lleve por delante lo que estaba guardado.
+
+     Por eso esta prueba ya no mira si la pantalla pinta filas: mira lo que
+     tiene que ser cierto pinte lo que pinte, que es que después de editar los
+     alimentos sigan ahí. */
   const ctx = contexto();
   const arroz = addProduct(ctx.state, { name: 'Arroz', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
   const receta = upsertRecipe(ctx.state, {
@@ -290,10 +294,10 @@ test('editar desde aquí conserva los alimentos, porque ahora esta pantalla tamb
   assert.deepEqual(ctx.ui.setup.preparacion.uses, ['almuerzo']);
   assert.equal(ctx.ui.setup.preparacion.items.length, 1, 'al editar no se traen los alimentos que ya tenía');
 
-  // Y la pantalla los pinta: sin esa fila, guardar los borraría.
+  // La pantalla se dibuja sin reventar aunque ya no pinte los alimentos.
   const pintado = renderSetup(ctx);
-  assert.ok(pintado.includes('data-item-list="receta"'), 'el formulario del recorrido volvió a no preguntar los alimentos');
-  assert.ok(new RegExp(`value="${arroz}" selected`).test(pintado), 'el alimento que ya tenía no viene elegido');
+  assert.ok(pintado.includes('data-preparacion-nombre'), 'el formulario del recorrido dejó de preguntar el nombre');
+  assert.ok(!pintado.includes('data-item-list="receta"'), 'volvió el desplegable de alimentos que se retiró');
 
   const datos = new FormData();
   datos.set('nombre', 'Locrio de pollo');
@@ -532,7 +536,11 @@ test('la ficha ya no pide porciones ni cantidades de los alimentos', () => {
   const campos = readFileSync(resolve(import.meta.dirname, '..', 'src', 'preparacion.js'), 'utf8');
   assert.ok(!/name="servings"/.test(campos), 'vuelve a pedir cuántas porciones rinde');
   assert.ok(!/name="participants"/.test(campos), 'vuelve a preguntar quiénes comen normalmente');
-  assert.ok(/data-item-list="receta"/.test(campos), 'ya no se pueden anotar los alimentos');
+  /* La preparación ya no pregunta qué alimentos lleva: salen de su nombre. La
+     fila de alimento sigue existiendo porque la usa la ventana de una COMIDA,
+     que es donde se corrige lo que se va a cocinar ese día, y por eso lo de
+     abajo se sigue comprobando. */
+  assert.ok(!/data-item-list="receta"/.test(campos), 'volvió el desplegable de alimentos de la preparación');
   // Y la fila de un alimento no lleva cantidad ni unidad. Hay una sola fila
   // desde que se retiró el reparto por raciones, así que comprobarla aquí la
   // comprueba también para la ventana de una comida.

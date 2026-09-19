@@ -52,7 +52,8 @@
      Cuatro, no nueve. La regla es que la curva crece con el tamaño de la caja:
      un control pequeño con la curva de una tarjeta parece una pastilla. */
   --curva-1: 10px;   /* controles menudos: etiquetas, fichas */
-  --curva-2: 13px;   /* botones y campos */
+  --curva-2: 13px;   /* botones */
+  --curva-campo: 14px; /* cajas de escribir: ver la corrección 21 */
   --curva-3: 18px;   /* tarjetas en el teléfono */
   --curva-4: 22px;   /* tarjetas en pantalla grande, modales */
   --curva-llena: 999px;
@@ -677,3 +678,85 @@ input[data-preparacion-nombre]::placeholder { font-size: .88rem; }
   .eyebrow-de-siempre { display: none; }
   .topline .eyebrow { font-size: .68rem; margin-bottom: 1px; }
 }
+
+/* ── 19. Un color por momento del día ──────────────────────────────────────
+
+   Cinco momentos que hasta ahora se distinguían solo por su nombre escrito.
+   El color no está para decorar: dice a qué hora se come, y por eso los cinco
+   van en una línea que empieza en el dorado de la mañana, pasa por la
+   terracota de la marca al mediodía y termina en la salvia de la noche. Son
+   los dos colores de la casa con el camino entre ellos, así que no hay ningún
+   tono que no estuviera ya.
+
+   Cada uno es lo bastante oscuro para leerse sobre crema, porque el mismo
+   color pinta el borde de la tarjeta Y el nombre del momento: dos tonos por
+   momento serían diez colores que mantener de acuerdo.
+
+   La semana no necesita marca nueva en el HTML: sus filas ya llevan
+   `data-slot`. Las tarjetas de Hoy sí, y por eso llevan `data-momento`. */
+:root {
+  --momento-desayuno: #9a6a1e;
+  --momento-merienda-manana: #7d6a2c;
+  --momento-almuerzo: #a04b22;
+  --momento-merienda-tarde: #6b6440;
+  --momento-cena: #54603a;
+}
+[data-momento="desayuno"], [data-slot="desayuno"] { --momento: var(--momento-desayuno); }
+[data-momento="merienda-manana"], [data-slot="merienda-manana"] { --momento: var(--momento-merienda-manana); }
+[data-momento="almuerzo"], [data-slot="almuerzo"] { --momento: var(--momento-almuerzo); }
+[data-momento="merienda-tarde"], [data-slot="merienda-tarde"] { --momento: var(--momento-merienda-tarde); }
+[data-momento="cena"], [data-slot="cena"] { --momento: var(--momento-cena); }
+
+/* Sutil quiere decir esto: un filo de cuatro píxeles y el nombre del momento.
+   Teñir la tarjeta entera pondría cinco fondos distintos compitiendo con la
+   comida, que es lo que hay que leer. */
+.meal-card, .merienda-card { border-left: 4px solid var(--momento, var(--line)); }
+.meal-card .slot, .merienda-card .slot { color: var(--momento, var(--clay)); }
+.semana-momento-nombre { color: var(--momento, var(--ink-muted)); }
+
+/* ── 20. Las dos barras, en terracota ──────────────────────────────────────
+
+   La barra lateral y la de abajo eran crema sobre crema: la app entera se leía
+   como una sola superficie pálida. En terracota, la navegación se separa del
+   contenido de un vistazo y el color de la marca aparece donde siempre está a
+   la vista.
+
+   Lo que se mira al elegir los tonos del texto: crema sobre terracota da algo
+   más de seis a uno de contraste, que pasa de sobra para texto pequeño. La
+   sección activa invierte —crema de fondo, terracota oscura encima— porque
+   sobre un fondo de color ya fuerte, marcar con otro color no se ve; el que se
+   ve es el hueco.
+
+   El isotipo es un PNG con el trazo en terracota, así que sobre terracota
+   desaparecía. Va sobre una placa crema, que además es como vive en el icono
+   de la app. Los iconos de las secciones no necesitan nada: están dibujados
+   con `currentColor` y siguen al texto. */
+.sidebar { background: var(--clay); border-right-color: var(--clay-dark); }
+.sidebar .brand { color: var(--canvas); }
+.sidebar .brand-mark { background: var(--canvas); border-radius: var(--curva-2); padding: 5px; }
+.nav button, .secondary button { color: #f7e6da; }
+.nav button:hover, .secondary button:hover { background: #ffffff26; color: #fffaf6; }
+.nav button.active, .secondary button.active { background: var(--canvas); color: var(--clay-dark); }
+.secondary { border-top-color: #ffffff3d; }
+.side-foot { color: #f0d5c3; }
+.sidebar-close { background: #ffffff26; color: var(--canvas); }
+.sidebar-close:hover { background: #ffffff3d; }
+
+@media (max-width: 700px) {
+  .mobile-nav { background: var(--clay); border-top-color: var(--clay-dark); }
+  .mobile-nav button { color: #f7e6da; }
+  .mobile-nav button.active { background: var(--canvas); color: var(--clay-dark); }
+}
+
+/* ── 21. Los campos, con el redondeo de las tarjetas ───────────────────────
+
+   Las cajas de escribir iban a diez píxeles de radio y las tarjetas a
+   dieciocho: dentro de una tarjeta, un campo con las esquinas más duras que
+   la caja que lo contiene se lee como algo pegado encima. Catorce las acerca sin
+   llegar a la pastilla, que a partir de ahí empieza a parecer un botón.
+
+   Van todos, no solo los de cantidad: dejar los de texto con las esquinas
+   viejas dejaría dos redondeos distintos en el mismo formulario, que es peor
+   que el problema de partida. */
+.field input, .field select, .field textarea,
+input.text, select.text, textarea.text { border-radius: var(--curva-campo); }

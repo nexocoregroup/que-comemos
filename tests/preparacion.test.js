@@ -95,7 +95,7 @@ test('el recorrido y la sección escriben la preparación con el mismo formulari
   }
 });
 
-test('el formulario pregunta las cuatro cosas, y ninguna más', () => {
+test('el formulario pregunta tres cosas, y ninguna más', () => {
   const { state, id } = casa();
   const receta = upsertRecipe(state, {
     name: 'Mangú', uses: ['desayuno'], items: [{ productId: id.maduro }], note: 'Agua bien caliente'
@@ -104,15 +104,18 @@ test('el formulario pregunta las cuatro cosas, y ninguna más', () => {
 
   assert.ok(html.includes('name="nombre"'), 'no pregunta cómo se llama');
   assert.ok(html.includes('name="momentos"'), 'no pregunta en qué momentos se come');
-  assert.ok(html.includes('data-item-list="receta"'), 'no pregunta qué alimentos lleva');
   assert.ok(html.includes('name="nota"'), 'no deja dejar una nota');
+  /* Y NO pregunta qué alimentos lleva: salen del nombre. Tenerlo aquí además
+     del nombre era escribir dos veces lo mismo, y el desplegable de setenta
+     alimentos era lo más caro de todo el formulario. */
+  assert.ok(!html.includes('data-item-list="receta"'), 'volvió el desplegable de alimentos');
   // Lo que se retiró no vuelve por aquí.
   assert.ok(!/name="servings"/.test(html), 'vuelve a preguntar cuántas porciones rinde');
   assert.ok(!/name="participants"/.test(html), 'vuelve a preguntar quiénes la comen');
   assert.ok(!/name="quantity"|name="unit"/.test(html), 'vuelve a preguntar cuánto lleva de cada alimento');
 
-  // Y lo que ya tenía viene puesto: sin esto, editar borraría los alimentos.
-  assert.ok(html.includes(`value="${id.maduro}" selected`), 'el alimento que ya tenía no viene elegido');
+  // Lo que ya tenía se conserva al guardar, no al pintar: lo vigila la prueba
+  // de «editar no le borra los alimentos a una preparación».
   assert.ok(html.includes('value="Mangú"'), 'el nombre que ya tenía no viene escrito');
   assert.ok(html.includes('Agua bien caliente'), 'la nota que ya tenía no viene escrita');
 });
@@ -178,7 +181,34 @@ test('leerPreparacion lee los cuatro campos, vengan de donde vengan', () => {
   assert.equal(leida.name, 'Locrio de pollo', 'no se limpian los espacios');
   assert.deepEqual(leida.uses, ['almuerzo', 'cena']);
   assert.equal(leida.note, 'Dejar una parte');
-  assert.deepEqual(leida.items, [{ id: undefined, productId: 'producto-1' }], 'una fila en blanco se coló');
+  /* Sin `state` no hay catálogo contra el que mirar el nombre, así que devuelve
+     lo que ya había y nada más. Leer un formulario nunca puede ser la operación
+     que le borre los alimentos a una preparación guardada. */
+  assert.deepEqual(leida.items, [], 'sin catálogo se inventó algún alimento');
+});
+
+test('los alimentos salen del nombre, y se unen a los que ya había', () => {
+  /* La regla es añadir, nunca quitar, y es la misma que tenía el llenado
+     automático de antes. Vale el doble ahora que no hay filas que corregir:
+     `upsertRecipe` reescribe la ficha entera, así que si leer el formulario
+     devolviera solo lo que dice el nombre, cambiarle una coma al nombre de una
+     preparación con ocho alimentos anotados se los llevaría todos. */
+  const { state, id } = casa();
+  const datos = new Map([['nombre', 'Mangú de plátano maduro con salami'], ['momentos', 'desayuno'], ['nota', '']]);
+
+  const nuevos = leerPreparacion(null, datos, state, []);
+  assert.deepEqual(nuevos.items.map(item => item.productId), [id.maduro, id.salami],
+    'del nombre no salieron los dos alimentos');
+
+  // Y uno que ya estaba y que el nombre no menciona sobrevive.
+  const conAnteriores = leerPreparacion(null, datos, state, [{ productId: id.queso }]);
+  assert.deepEqual(conAnteriores.items.map(item => item.productId), [id.maduro, id.salami, id.queso],
+    'se perdió un alimento que ya estaba anotado');
+
+  // Y lo que sale del nombre no se repite si ya estaba.
+  const repetido = leerPreparacion(null, datos, state, [{ productId: id.salami }]);
+  assert.deepEqual(repetido.items.map(item => item.productId), [id.maduro, id.salami],
+    'un alimento quedó dos veces');
 });
 
 test('leerPreparacion aguanta un Map, que es lo que llega en las pruebas', () => {

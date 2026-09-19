@@ -24,7 +24,6 @@ import {
 } from '../src/model.js';
 import { createDemoState } from '../src/demo.js';
 import { emptyMas, renderMas } from '../src/page-mas.js';
-import { BULK_FORMS, emptyBulk, renderBulk } from '../src/bulk-entry.js';
 
 const MES = todayISO().slice(0, 7);
 const mesesAntes = n => {
@@ -152,66 +151,12 @@ test('guardar la ficha escribe en los habituales, no en ninguna canasta mensual'
 const sinComentarios = fuente => fuente.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
 test('ninguna pantalla pide ya el consumo del mes', () => {
-  for (const archivo of ['src/app.js', 'src/page-mas.js', 'src/setup.js', 'src/bulk-entry.js', 'src/page-compra.js']) {
+  for (const archivo of ['src/app.js', 'src/page-mas.js', 'src/setup.js', 'src/page-compra.js']) {
     const fuente = sinComentarios(readFileSync(archivo, 'utf8'));
     assert.ok(!/name="monthly"/.test(fuente), `${archivo} pide el consumo del mes`);
     assert.ok(!/consumo del mes/i.test(fuente), `${archivo} habla del consumo del mes`);
     assert.ok(!/¿Cuánto se compra?|Cantidad al mes/i.test(fuente), `${archivo} sigue preguntando cuánto se compra al mes`);
   }
-});
-
-/* ── Escribir varios de corrido ────────────────────────────────────────── */
-
-const datos = pares => ({ get: clave => (clave in pares ? String(pares[clave]) : null) });
-const tablaVacia = { querySelectorAll: () => [] };
-
-function bulk(state, destino) {
-  const ctx = { state, bulk: emptyBulk(destino), render: () => {}, commit: () => {}, toast: () => {}, closeModal: () => {} };
-  return ctx;
-}
-
-test('escribir varios de corrido no pide cantidades para los habituales', () => {
-  const ctx = bulk(createEmptyState(), 'habitual');
-  BULK_FORMS['bulk-texto'](null, datos({ texto: 'Arroz, salami y tres plátanos.', destino: 'habitual' }), ctx);
-  const html = renderBulk(ctx);
-
-  assert.ok(html.includes('Arroz') && html.includes('Salami'), 'la tabla perdió las filas');
-  assert.ok(!/<th scope="col">Cantidad<\/th>/.test(html), 'volvió la columna de cantidad');
-  assert.ok(!/data-bulk-cantidad/.test(html), 'volvió el campo de cantidad en cada fila');
-  assert.ok(!/pendiente de cantidad/.test(html), 'una fila sin cantidad vuelve a contarse como algo que falta');
-});
-
-test('una compra que ya se hizo sí las pide: ahí la cantidad es un hecho', () => {
-  const ctx = bulk(createEmptyState(), 'compra');
-  BULK_FORMS['bulk-texto'](null, datos({ texto: 'Compré 5 libras de arroz y atún.', destino: 'compra' }), ctx);
-  const html = renderBulk(ctx);
-
-  assert.ok(/<th scope="col">Cantidad<\/th>/.test(html), 'una compra tiene que poder decir cuánto se llevó');
-  assert.ok(/data-bulk-cantidad/.test(html), 'falta el campo de cantidad en la compra');
-});
-
-test('ya no se puede escribir «solo para un mes concreto»', () => {
-  const fuente = readFileSync('src/bulk-entry.js', 'utf8');
-  assert.ok(!/Solo para un mes concreto/.test(fuente), 'volvió el destino de un mes suelto');
-  assert.ok(!/type="month"/.test(fuente), 'volvió el selector de mes');
-  assert.ok(!/setMonthChange/.test(fuente), 'volvió a escribirse un cambio de mes');
-});
-
-test('lo escrito de corrido entra sin cantidad, y no pisa la que ya había', () => {
-  const { state, arroz } = casa();
-  const ctx = bulk(state, 'habitual');
-  BULK_FORMS['bulk-texto'](null, datos({ texto: '30 libras de arroz y dos paquetes de café.', destino: 'habitual' }), ctx);
-  BULK_FORMS['bulk-revision'](tablaVacia, datos({}), ctx);
-
-  // El arroz ya estaba con 20: volver a nombrarlo es decir «esto lo compro
-  // siempre», no «ahora son 30». Las 30 del texto no se escriben en ninguna
-  // parte, porque aquí ya no se anota ninguna cantidad.
-  assert.equal(habitualLines(state).find(linea => linea.productId === arroz).quantity, 20,
-    'el texto reescribió una cantidad que nadie pidió cambiar');
-  const cafe = productByName(state, 'Café');
-  assert.ok(cafe, 'el café no se registró');
-  assert.equal(habitualLines(state).find(linea => linea.productId === cafe.id).quantity, null,
-    'lo nuevo nació con una cantidad que nadie escribió');
 });
 
 /* ── 2. Que lo viejo siga estando ──────────────────────────────────────── */
