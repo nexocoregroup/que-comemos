@@ -44,8 +44,8 @@ android {
         //
         // Si usas la firma de aplicaciones de Play, el número tampoco se puede
         // reutilizar aunque hayas retirado la versión que lo llevaba.
-        versionCode 17
-        versionName "3.9"
+        versionCode 18
+        versionName "3.10"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
