@@ -80,10 +80,24 @@ export function filaDeAlimento(state, item = {}) {
    mismo dicho con las palabras de lo que se come. */
 export function camposDePreparacion(state, receta = {}) {
   const momentos = receta.uses || [];
+  /* El campo se rellena con los nombres de los alimentos que la preparación ya
+     tiene. Eso lo convierte en un ida y vuelta completo: lo que se ve es lo que
+     hay, y quitar uno es borrar su palabra. Sin esto habría que adivinar qué
+     guardó la app, y quitar algo sería imposible. */
+  const escritos = (receta.items || [])
+    .map(item => nombreDelAlimento(state, item.productId))
+    .filter(nombre => nombre && nombre !== 'Producto eliminado')
+    .join(', ');
   return `<label class="field"><span>¿Cómo se llama?</span>
       <input name="nombre" data-preparacion-nombre required autocomplete="off" maxlength="60"
         value="${esc(receta.name || '')}" placeholder="Ej. Plátano maduro con salami" enterkeyhint="done">
-      <small>Pon el <strong>alimento principal</strong> y sus <strong>acompañantes</strong>: «plátano maduro con salami», «arroz con pollo». De ahí saca la app con qué avisarte si alguien de la casa debe evitar alguno.</small>
+      <small>Pon el <strong>alimento principal</strong> y sus <strong>acompañantes</strong>: «plátano maduro con salami», «arroz con pollo».</small>
+    </label>
+
+    <label class="field"><span>¿Qué más lleva? <span class="muted">(opcional)</span></span>
+      <textarea name="alimentos" data-preparacion-alimentos rows="2" maxlength="300" autocapitalize="none" spellcheck="true" enterkeyhint="done" placeholder="Ej. yuca, auyama, maíz, res, pollo, cilantro">${esc(escritos)}</textarea>
+      <small>Separados por comas. Es para los platos cuyo nombre no dice lo que llevan —un sancocho, un locrio— y sirve para avisarte si alguien de la casa debe evitar alguno. No hace falta la sal, el agua, el aceite ni los condimentos.</small>
+      <p class="small muted" data-preparacion-reconocidos>${esc(loQueSeReconoce(state, receta.name || '', escritos))}</p>
     </label>
 
     <div class="field">
@@ -95,6 +109,30 @@ export function camposDePreparacion(state, receta = {}) {
     <label class="field"><span>Nota para quien cocina <span class="muted">(opcional)</span></span>
       <textarea name="nota" maxlength="140" placeholder="Ej. guardar lo que sobre para el desayuno del día siguiente" autocapitalize="sentences" spellcheck="true" enterkeyhint="done">${esc(receta.note || '')}</textarea>
     </label>`;
+}
+
+/* Lo que la app entendió, en un renglón.
+   ────────────────────────────────────────────────────────────────────────────
+   Sin esto, escribir «auyama» cuando el catálogo no tiene auyama no produce
+   ningún efecto y tampoco ningún aviso: la app se queda callada y quien
+   escribió da por hecho que quedó anotada. Es el mismo error que `avisos.js`
+   evita al decir «no se ha podido comprobar» en vez de no decir nada, y aquí
+   se paga más caro todavía, porque de estos alimentos salen las alergias.
+
+   Se nombra lo reconocido, no lo ignorado: decir qué palabras NO se entendieron
+   exige saber cuáles se consumieron, y el motor devuelve alimentos, no trozos
+   de texto. Ver la lista de lo que sí entró basta para notar lo que falta. */
+export function loQueSeReconoce(state, nombre, escritos) {
+  const hallados = alimentosEnElTexto(state, `${nombre}, ${escritos}`);
+  /* Solo cuentan los productos de esta casa, y hay que decirlo cuando no se
+     reconoce ninguno: es la diferencia entre «lo escribí mal» y «eso todavía no
+     está en mi lista». Y no es un capricho del buscador —una restricción se
+     anota sobre un producto registrado, así que un alimento que la casa no
+     tiene no puede chocar con nada—. */
+  if (!hallados.length) {
+    return 'Todavía no reconozco ninguno. Solo cuentan los de Mis productos habituales; si falta alguno, añádelo ahí.';
+  }
+  return `Reconocidos: ${hallados.map(item => item.name).join(', ')}.`;
 }
 
 /* ── Leer lo que se escribió ───────────────────────────────────────────────
@@ -119,6 +157,9 @@ export function leerPreparacion(formulario, datos, state = null, anteriores = []
     : [].concat(datos.get('momentos') || []).map(String);
 
   const nombre = String(datos.get('nombre') ?? raiz?.querySelector('[data-preparacion-nombre]')?.value ?? '').trim();
+  const delCampo = datos.get('alimentos') ?? raiz?.querySelector('[data-preparacion-alimentos]')?.value ?? null;
+  const hayCampo = state && delCampo !== null;
+  const escritos = String(delCampo || '');
 
   return {
     name: nombre,
@@ -144,7 +185,18 @@ export function leerPreparacion(formulario, datos, state = null, anteriores = []
        Sin `state` no hay catálogo contra el que mirar, así que se devuelve tal
        cual lo que ya había: leer un formulario nunca puede ser la operación que
        le borre los alimentos a una preparación guardada. */
-    items: unirAlimentos(state ? alimentosEnElTexto(state, nombre).map(item => ({ productId: item.id })) : [], anteriores)
+    /* Los alimentos salen de los DOS campos: del nombre —«plátano maduro con
+       salami» no necesita más— y del campo de abajo, que existe para el
+       sancocho y el locrio, cuyo nombre no nombra nada de lo que llevan.
+
+       Cuando el formulario trae ese campo, lo que diga manda: viene relleno con
+       lo que la preparación ya tenía, así que borrar una palabra es la forma de
+       quitar un alimento. Si no lo trae —el envío se puede probar con un `Map`
+       y sin pantalla— se conserva lo que había, porque leer un formulario nunca
+       puede ser la operación que le borre los alimentos a una preparación. */
+    items: hayCampo
+      ? alimentosEnElTexto(state, `${nombre}, ${escritos}`).map(item => ({ productId: item.id }))
+      : unirAlimentos([], anteriores)
   };
 }
 

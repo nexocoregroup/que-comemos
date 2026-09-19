@@ -17,7 +17,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { addProduct, alimentosEnElTexto, createEmptyState, upsertRecipe } from '../src/model.js';
-import { camposDePreparacion, leerPreparacion, opcionesDeAlimento } from '../src/preparacion.js';
+import { camposDePreparacion, leerPreparacion, loQueSeReconoce, opcionesDeAlimento } from '../src/preparacion.js';
 
 const fuente = nombre => readFileSync(resolve(import.meta.dirname, '..', 'src', nombre), 'utf8');
 
@@ -187,28 +187,75 @@ test('leerPreparacion lee los cuatro campos, vengan de donde vengan', () => {
   assert.deepEqual(leida.items, [], 'sin catálogo se inventó algún alimento');
 });
 
-test('los alimentos salen del nombre, y se unen a los que ya había', () => {
-  /* La regla es añadir, nunca quitar, y es la misma que tenía el llenado
-     automático de antes. Vale el doble ahora que no hay filas que corregir:
-     `upsertRecipe` reescribe la ficha entera, así que si leer el formulario
-     devolviera solo lo que dice el nombre, cambiarle una coma al nombre de una
-     preparación con ocho alimentos anotados se los llevaría todos. */
+test('el sancocho: lo que el nombre no dice, lo dice el campo de abajo', () => {
+  /* Quitamos el desplegable de alimentos porque el nombre del plato ya dice de
+     qué es, y para «plátano maduro con salami» es cierto. No lo es para el
+     sancocho, el locrio o un asopao: platos de siete cosas cuyo nombre no
+     nombra ninguna, y en esta casa no son la excepción.
+
+     Así que los alimentos salen de los dos campos, y el de abajo se escribe
+     con comas en vez de elegirse en una lista de setenta. */
   const { state, id } = casa();
-  const datos = new Map([['nombre', 'Mangú de plátano maduro con salami'], ['momentos', 'desayuno'], ['nota', '']]);
+  const sancocho = new Map([
+    ['nombre', 'Sancocho'], ['momentos', 'almuerzo'], ['nota', ''],
+    ['alimentos', 'papa, arroz, queso']
+  ]);
+  const leido = leerPreparacion(null, sancocho, state);
+  assert.deepEqual(leido.items.map(item => item.productId).sort(), [id.arroz, id.papa, id.queso].sort(),
+    'un plato cuyo nombre no dice nada se quedó sin alimentos');
+});
 
-  const nuevos = leerPreparacion(null, datos, state, []);
-  assert.deepEqual(nuevos.items.map(item => item.productId), [id.maduro, id.salami],
-    'del nombre no salieron los dos alimentos');
-
-  // Y uno que ya estaba y que el nombre no menciona sobrevive.
-  const conAnteriores = leerPreparacion(null, datos, state, [{ productId: id.queso }]);
-  assert.deepEqual(conAnteriores.items.map(item => item.productId), [id.maduro, id.salami, id.queso],
-    'se perdió un alimento que ya estaba anotado');
-
-  // Y lo que sale del nombre no se repite si ya estaba.
-  const repetido = leerPreparacion(null, datos, state, [{ productId: id.salami }]);
-  assert.deepEqual(repetido.items.map(item => item.productId), [id.maduro, id.salami],
+test('el nombre y el campo se suman, sin repetir', () => {
+  const { state, id } = casa();
+  const datos = new Map([
+    ['nombre', 'Mangú de plátano maduro con salami'], ['momentos', 'desayuno'], ['nota', ''],
+    ['alimentos', 'queso, salami']
+  ]);
+  const leido = leerPreparacion(null, datos, state);
+  assert.deepEqual(leido.items.map(item => item.productId), [id.maduro, id.salami, id.queso],
+    'el nombre y el campo no se suman bien');
+  assert.equal(new Set(leido.items.map(item => item.productId)).size, leido.items.length,
     'un alimento quedó dos veces');
+});
+
+test('borrar una palabra del campo quita ese alimento, y sin campo no se borra nada', () => {
+  /* Las dos mitades de la misma regla.
+
+     El campo viene relleno con lo que la preparación ya tiene, así que es un
+     ida y vuelta completo: lo que se ve es lo que hay, y quitar un alimento es
+     borrar su palabra. Eso solo es seguro porque el campo llega; cuando no
+     llega —un envío probado con un `Map` y sin pantalla— se conserva lo que
+     había, porque `upsertRecipe` reescribe la ficha entera y leer un
+     formulario no puede ser la operación que la vacíe. */
+  const { state, id } = casa();
+
+  const conCampo = new Map([['nombre', 'Sancocho'], ['momentos', 'almuerzo'], ['nota', ''], ['alimentos', 'papa']]);
+  assert.deepEqual(leerPreparacion(null, conCampo, state, [{ productId: id.queso }]).items.map(i => i.productId),
+    [id.papa], 'el campo manda: el queso borrado tenía que irse');
+
+  const sinCampo = new Map([['nombre', 'Sancocho'], ['momentos', 'almuerzo'], ['nota', '']]);
+  assert.deepEqual(leerPreparacion(null, sinCampo, state, [{ productId: id.queso }]).items.map(i => i.productId),
+    [id.queso], 'sin campo se borraron los alimentos que ya había');
+});
+
+test('el campo viene relleno con lo que la preparación ya tiene', () => {
+  // Sin esto habría que adivinar qué guardó la app, y quitar algo sería
+  // imposible: no se puede borrar una palabra que no está escrita.
+  const { state, id } = casa();
+  const html = camposDePreparacion(state, { name: 'Sancocho', items: [{ productId: id.papa }, { productId: id.queso }] });
+  const campo = /<textarea[^>]*data-preparacion-alimentos[^>]*>([^<]*)<\/textarea>/.exec(html)?.[1];
+  assert.equal(campo, 'Papa, Queso', 'el campo no trae los alimentos que ya estaban');
+});
+
+test('se dice qué alimentos se reconocieron, para que el silencio no engañe', () => {
+  /* Escribir «auyama» cuando el catálogo no la tiene no produce ningún efecto
+     ni ningún aviso: la app se calla y quien escribió da por hecho que quedó
+     anotada. Es el mismo error que `avisos.js` evita diciendo «no se ha podido
+     comprobar», y aquí se paga más caro, porque de estos alimentos salen las
+     alergias. */
+  const { state } = casa();
+  assert.match(loQueSeReconoce(state, 'Sancocho', 'papa, auyama'), /Reconocidos:.*Papa/);
+  assert.match(loQueSeReconoce(state, 'Sancocho', 'auyama, mapuey'), /Todavía no reconozco/);
 });
 
 test('leerPreparacion aguanta un Map, que es lo que llega en las pruebas', () => {

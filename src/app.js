@@ -30,7 +30,7 @@ import { COMPRA_ACTIONS, COMPRA_FORMS, emptyCompra, listaEnCurso, modalPendiente
 import { MAS_ACTIONS, PAGINAS_MAS, TITULOS_MAS, emptyMas, renderMas } from './page-mas.js';
 import { anotar, falloAnterior, fallosRecientes, instalarRed, olvidarFalloAnterior, protegida } from './fallos.js';
 import { CUENTA_ACTIONS, CUENTA_FORMS, emptyCuenta, renderCuenta, volvimosDeGoogle } from './page-cuenta.js';
-import { camposDePreparacion, filaDeAlimento, leerPreparacion } from './preparacion.js';
+import { camposDePreparacion, filaDeAlimento, leerPreparacion, loQueSeReconoce } from './preparacion.js';
 import { CAJON_DE_ESTE_TELEFONO, arrancarSesion, cajonDe, fundirSesion, guardarSesion, olvidarSesion } from './sesion.js';
 import { guardarCopiaAntesDeBajar, mereceLaPenaVincular, sincronizar } from './sincronizar.js';
 import { hayNube } from './config-nube.js';
@@ -2111,6 +2111,27 @@ document.addEventListener('input', event => {
      No repinta: mover el cursor a media palabra sería peor que el ahorro. Y
      solo añade, nunca quita, aunque el nombre cambie: quitar una fila que
      alguien puso a mano es el error caro. */
+  /* Lo que la app va entendiendo, escrito debajo mientras se escribe.
+
+     No repinta: repintar movería el cursor a media palabra. Escribe en un solo
+     nodo, que es lo que permite hacerlo sin tocar nada más. El respiro es el
+     mismo que tenía el llenado automático de antes —setecientos milisegundos—
+     porque el problema es idéntico: reconocer a media palabra iría poniendo y
+     quitando nombres delante de quien escribe. */
+  if (event.target.matches('[data-preparacion-nombre], [data-preparacion-alimentos]')) {
+    const formulario = event.target.closest('form');
+    clearTimeout(relojDeAlimentos);
+    relojDeAlimentos = setTimeout(() => {
+      const renglon = formulario?.querySelector('[data-preparacion-reconocidos]');
+      if (!renglon) return;
+      renglon.textContent = loQueSeReconoce(
+        state,
+        formulario.querySelector('[data-preparacion-nombre]')?.value || '',
+        formulario.querySelector('[data-preparacion-alimentos]')?.value || ''
+      );
+    }, ESPERA_ANTES_DE_LEER_EL_NOMBRE_MS);
+  }
+
   const buscadores = {
     // `alimento-filtro` apuntaba a una clave que `emptyMas()` no creaba y a un
     // `id` que ninguna pantalla pintaba: era el resto de «Alimentos de la casa»,
