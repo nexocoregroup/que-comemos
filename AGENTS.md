@@ -42,7 +42,7 @@ proyecto. Están declarados en `src/theme.css`; un hex suelto en una pantalla se
 queda fuera del tema y deja de responder a cualquier cambio posterior.
 
 **Compilar no es probar, y `npm test` en verde tampoco.** Ninguna prueba de este
-proyecto ejecuta una pantalla en un navegador. Que las 673 pasen dice que la
+proyecto ejecuta una pantalla en un navegador. Que las 666 pasen dice que la
 lógica está bien, no que algo se vea, ni que un botón responda.
 
 **`android/keystore.properties` no se abre nunca.** Ni para mirar. Google no deja
@@ -76,7 +76,7 @@ Consecuencias que hay que tener presentes al tocar código:
 
 | Qué | Cómo | Notas |
 |---|---|---|
-| Pruebas | `npm test` | 673, unos 16 s. El número crece; si no cuadra, manda `npm test`, no esta tabla. Sin argumentos: `node --test tests/` con la carpeta como argumento **no** funciona |
+| Pruebas | `npm test` | 666, unos 16 s. El número crece; si no cuadra, manda `npm test`, no esta tabla. Sin argumentos: `node --test tests/` con la carpeta como argumento **no** funciona |
 | Servidor local | `npm start` | Puerto 4173, o `PORT` |
 | Copiar a `www/` | `node build.js` | |
 | Preparar el APK | `npm run android` | `build.js` y después `cap sync android` |
