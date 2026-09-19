@@ -713,9 +713,22 @@ export function renderSetup(ctx) {
   const posicion = posicionDe(setup, setup.paso);
   const actual = PASOS.find(item => item.id === setup.paso) || PASOS[0];
 
+  /* En el paso de los rubros había tres títulos seguidos: «Organizar mi casa»
+     en la cabecera, «Mis productos habituales» aquí, y «Otros productos
+     habituales» dos renglones más abajo, en la ficha de la categoría. Los dos
+     últimos dicen casi lo mismo y el de abajo es el que de verdad informa,
+     porque cambia con cada una de las ocho categorías.
+
+     Se esconde, no se borra. Este `h2` es el único encabezado de la pantalla:
+     la línea de la categoría es un `<p>` con `role="status"`, y un elemento no
+     puede ser a la vez el encabezado de la página y la región que anuncia los
+     cambios. Quitándolo del todo, quien navega por encabezados se queda sin
+     saber en qué paso está. Con `sr-only` no ocupa un píxel y sigue estando. */
+  const loDiceLaCategoria = setup.paso === PASO.alimentos;
+
   return `<section class="setup">
     <div class="setup-head">
-      <div><p class="eyebrow">Paso ${posicion + 1} de ${visibles.length}</p><h2>${esc(actual.titulo)}</h2></div>
+      <div><p class="eyebrow">Paso ${posicion + 1} de ${visibles.length}</p><h2${loDiceLaCategoria ? ' class="sr-only"' : ''}>${esc(actual.titulo)}</h2></div>
       ${setup.paso === PASO.plan ? '' : button('Salir', 'setup-salir', 'btn-quiet btn-small')}
     </div>
     ${barra(setup)}
