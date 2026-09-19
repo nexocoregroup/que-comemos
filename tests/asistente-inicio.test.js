@@ -35,7 +35,7 @@ import {
   PASO, PASOS, SETUP_ACTIONS, SETUP_FORMS, avanceGuardado, emptySetup, pasosDe, renderSetup
 } from '../src/setup.js';
 import { HOGAR_ACTIONS, HOGAR_FORMS, emptyHogar } from '../src/hogar.js';
-import { addProduct, createEmptyState, personasActivas, setHabitualBasket, upsertPerson, upsertRecipe } from '../src/model.js';
+import { addProduct, createEmptyState, marcarRecorridoOfrecido, personasActivas, recorridoYaOfrecido, setHabitualBasket, upsertPerson, upsertRecipe } from '../src/model.js';
 import { loadState, saveState } from '../src/storage.js';
 
 function contexto(state = createEmptyState()) {
@@ -578,4 +578,73 @@ test('desde el repaso se vuelve a cualquier paso sin perder nada', () => {
   // Un paso que no existe no lleva a ninguna parte.
   SETUP_ACTIONS['setup-ir']({ dataset: { paso: '99' } }, ctx);
   assert.equal(ctx.ui.setup.paso, PASO.alimentos);
+});
+
+/* ── El recorrido, ofrecido donde se ve ────────────────────────────────── */
+
+test('al terminar de registrar la casa se ofrece el recorrido', () => {
+  /* Estaba escrito —seis pasos con su motor de siguiente, atrás y saltar— y no
+     lo veía nadie: la única puerta era Ajustes → Ver el recorrido, y ahí no
+     entra quien acaba de instalar una app, entra quien ya se atascó. O sea que
+     estaba construido para alguien que nunca iba a pasar por delante.
+
+     Terminar el registro es el único momento en que tiene sentido preguntarlo:
+     se acaban de ver las cinco pantallas por encima, ya hay datos dentro y
+     todavía no se sabe qué se puede hacer con ellos. */
+  const ctx = contexto();
+  SETUP_ACTIONS['setup-terminar'](null, ctx);
+  assert.equal(ctx.ui.modal?.type, 'recorrido', 'terminar el registro no ofrece el recorrido');
+  assert.equal(ctx.ui.page, 'hoy', 'terminar tiene que dejar en Hoy, con o sin ventana');
+  assert.equal(ctx.ui.setup, null, 'el recorrido inicial se quedó abierto');
+});
+
+test('la ventana no vuelve a salir si ya se preguntó una vez', () => {
+  // Se guarda que se PREGUNTÓ, no que se hiciera. Quien dijo «ahora no» no
+  // tiene que esquivar la misma ventana cada vez que reorganice su casa.
+  const ctx = contexto();
+  marcarRecorridoOfrecido(ctx.state);
+  SETUP_ACTIONS['setup-terminar'](null, ctx);
+  assert.equal(ctx.ui.modal, null, 'se vuelve a ofrecer el recorrido a quien ya dijo que no');
+  // Y entonces sí se dice en voz alta que quedó registrada, que es el aviso al
+  // que la ventana sustituía.
+  assert.ok(ctx.avisos.some(aviso => /registrada/i.test(aviso)), 'sin ventana nadie dice que terminó');
+});
+
+test('la marca del recorrido sobrevive a guardar y volver a leer', () => {
+  const state = createEmptyState();
+  assert.equal(recorridoYaOfrecido(state), false, 'una casa nueva ya viene preguntada');
+  marcarRecorridoOfrecido(state);
+
+  const memoria = new Map();
+  const almacen = { getItem: k => memoria.get(k) || null, setItem: (k, v) => memoria.set(k, v) };
+  saveState(state, almacen);
+  assert.equal(recorridoYaOfrecido(loadState(almacen)), true, 'la respuesta se perdió al guardar');
+});
+
+test('un estado sin ajustes no revienta al marcarlo', () => {
+  // Un respaldo viejo o dañado puede llegar sin `settings`. Preguntar por el
+  // recorrido no puede ser lo que tire la app.
+  const state = createEmptyState();
+  delete state.settings;
+  assert.equal(recorridoYaOfrecido(state), false);
+  marcarRecorridoOfrecido(state);
+  assert.equal(recorridoYaOfrecido(state), true);
+});
+
+test('las dos respuestas de la ventana existen y hacen lo suyo', () => {
+  /* La ventana vive en app.js, que no se puede importar aquí, así que se lee.
+     Que las dos acciones tengan quien las atienda lo vigila nada-suelto; lo que
+     se comprueba aquí es lo que esa prueba no puede ver: que LAS DOS marcan que
+     ya se preguntó. Si solo lo marcara el «sí», decir «ahora no» dejaría la
+     ventana saliendo para siempre. */
+  const codigo = readFileSync(resolve(import.meta.dirname, '..', 'src', 'app.js'), 'utf8');
+  for (const accion of ['recorrido-si', 'recorrido-no']) {
+    const desde = codigo.indexOf(`action === '${accion}'`);
+    assert.ok(desde > 0, `no hay quien atienda «${accion}»`);
+    assert.match(codigo.slice(desde, desde + 260), /marcarRecorridoOfrecido/,
+      `«${accion}» no marca que ya se preguntó`);
+  }
+  // Y el «sí» arranca el recorrido de verdad, no solo cierra la ventana.
+  const si = codigo.indexOf("action === 'recorrido-si'");
+  assert.match(codigo.slice(si, si + 260), /goTour\(0\)/, 'decir que sí no arranca el recorrido');
 });

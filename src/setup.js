@@ -50,6 +50,7 @@ import { resumenDeRestricciones } from './hogar.js';
 import { normalizeName } from './text-parse.js';
 import { button, conteo, esc, niceDate, notice } from './ui-kit.js';
 import { camposDePreparacion, leerPreparacion } from './preparacion.js';
+import { recorridoYaOfrecido } from './model.js';
 import { icono, iconoDeCategoria } from './icons.js';
 
 // Los pasos se llaman por su nombre y no por su número. Los números cambian
@@ -1159,6 +1160,21 @@ export const SETUP_ACTIONS = {
     olvidarAvance(ctx.state);
     ctx.ui.setup = null;
     ctx.ui.page = 'hoy';
+
+    /* Y aquí se ofrece el recorrido, que es el único momento en que tiene
+       sentido: alguien acaba de pasar por las cinco pantallas de registro, ya
+       tiene datos dentro y todavía no sabe qué puede hacer con ellos. Ofrecerlo
+       antes sería una clase antes de la primera pregunta; ofrecerlo desde
+       Ajustes —lo único que había— es esconderlo donde solo entra quien ya se
+       atascó.
+
+       La ventana sustituye al aviso flotante en vez de sumarse a él: dos
+       mensajes a la vez sobre lo mismo se leen peor que uno. */
+    if (!recorridoYaOfrecido(ctx.state)) {
+      ctx.guardar();
+      ctx.openModal('recorrido');
+      return;
+    }
     ctx.commit('Tu casa está registrada. Lo que falte lo pones cuando quieras desde Plan semanal.');
   }
 };

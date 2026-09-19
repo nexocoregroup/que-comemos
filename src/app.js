@@ -9,7 +9,7 @@
 import {
   ESTADOS_SIN_COMIDA, MOMENTOS, SLOTS, SLOTS_PRINCIPALES, UNITS, addDays, actualizarHabitual, agregarHabitual, anotarComidaSuelta, copyPlan, createEmptyState, dependents, esOpcional,
   etiquetaDeMomento, exportState, findSimilarProducts, habitualLines, importState, esActiva, isAbsent, makeRecipePlan, mergeProducts, movePlan, nextId,
-  personasActivas, planFor, ponerFrecuencia, product, recadoDe, guardarRecado, removeHabitualLine, rubroDe,
+  marcarRecorridoOfrecido, personasActivas, planFor, ponerFrecuencia, product, recadoDe, guardarRecado, removeHabitualLine, rubroDe,
   resumenDeLista, reutilizarComida, setAbsence, setEquivalence,
   detalleDeOrigen, etiquetaDeOrigen, origenDe, setStatusPlan, sliceStyle, todayISO, updatePlan, updateProduct, upsertRecipe
 } from './model.js';
@@ -1414,6 +1414,19 @@ function renderModal() {
         <div class="modal-actions"><button type="submit" class="btn btn-danger">Unir los dos</button></div></form>`);
   }
 
+  /* La casa acaba de quedar registrada y se pregunta si se quiere ver cómo
+     funciona. Una pregunta, dos salidas y ninguna preseleccionada: «Ahora no»
+     va primero y en voz baja, porque quien acaba de rellenar cinco pantallas
+     tiene derecho a querer usar la app ya. Y se dice dónde queda el recorrido
+     para quien diga que no, que es lo que convierte un «no» en un «luego». */
+  if (m.type === 'recorrido') {
+    return modal('Tu casa ya está registrada',
+      'Lo que falte lo pones cuando quieras desde Plan semanal.',
+      `<p>¿Te enseño cómo funciona? Son <strong>seis pasos cortos</strong>, y en cada uno te lleva a la pantalla de la que habla para que la veas de verdad.</p>
+      <p class="small muted">Puedes salirte a la mitad, y volver a verlo cuando quieras desde Ajustes → Ver el recorrido.</p>
+      <div class="modal-actions">${button('Ahora no', 'recorrido-no', 'btn-quiet')}${button('Sí, enséñame', 'recorrido-si', 'btn-primary')}</div>`);
+  }
+
   if (m.type === 'diagnostico') return modalDiagnostico();
 
   if (m.type === 'equivalence') {
@@ -1908,6 +1921,13 @@ document.addEventListener('click', event => {
       render();
     }
     else if (action === 'open-tour') { ui.modal = null; goTour(0); }
+    // Las dos respuestas marcan lo mismo: que ya se preguntó. Lo que cambia es
+    // lo que pasa después.
+    else if (action === 'recorrido-si') { marcarRecorridoOfrecido(state); guardar(); ui.modal = null; goTour(0); }
+    else if (action === 'recorrido-no') {
+      marcarRecorridoOfrecido(state); ui.modal = null;
+      commit('Listo. Si algún día quieres verlo, está en Ajustes → Ver el recorrido.');
+    }
     else if (action === 'tour-prev') goTour(Math.max(0, ui.tour - 1));
     else if (action === 'tour-next') { if (ui.tour + 1 < TOUR_STEPS.length) goTour(ui.tour + 1); else { ui.tour = null; render(); toast('Listo. Puedes volver a verlo desde Ajustes.'); } }
     else if (action === 'tour-skip') { ui.tour = null; render(); }

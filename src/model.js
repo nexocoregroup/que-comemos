@@ -1140,6 +1140,23 @@ export function planFor(state, date, slot) { return state.plans.find(item => ite
    entero de una casa que venga de una versión más nueva. Lo que sí hace falta
    es la entrada en `OPTIONAL_V3`, para que un respaldo de antes de hoy no
    llegue sin el campo. */
+/* ── ¿Ya se ofreció el recorrido? ──────────────────────────────────────────
+
+   Una pregunta que se hace una sola vez en la vida de una casa. Vive en
+   `settings`, que es un objeto libre y por eso no obliga a subir
+   `SCHEMA_VERSION`: una versión de la app que no lo conozca lo conserva al
+   leer y al guardar, igual que cualquier otro ajuste que no entienda.
+
+   Se guarda que se PREGUNTÓ, no que se hiciera. Quien dijo «ahora no» no tiene
+   que volver a esquivar la misma ventana cada vez que reorganice su casa, y
+   quien lo hizo tampoco. El recorrido sigue estando en Ajustes para las dos. */
+export const recorridoYaOfrecido = state => Boolean(state?.settings?.recorridoOfrecido);
+
+export function marcarRecorridoOfrecido(state) {
+  if (!state.settings || typeof state.settings !== 'object') state.settings = { reviewWeekday: 5, onboarded: false };
+  state.settings.recorridoOfrecido = true;
+}
+
 export function recadoDe(state, date) {
   const guardados = state.recados;
   if (!guardados || typeof guardados !== 'object') return '';
