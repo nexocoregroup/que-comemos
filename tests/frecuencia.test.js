@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import {
   addProduct, addPurchase, createEmptyState, createReview, frecuenciaDe, habitualLines,
   historialDeFrecuencia, inventoryNow, periodosDelMes, ponerFrecuencia,
-  saveReview, setHabitualBasket, agregarALista, cerrarLista, listasCerradas
+  saveReview, setHabitualBasket, todayISO, agregarALista, cerrarLista, listasCerradas
 } from '../src/model.js';
 import { loadState, saveState } from '../src/storage.js';
 import { PASO, PASOS, SETUP_ACTIONS, SETUP_FORMS, avanceGuardado, emptySetup, pasosDe, renderSetup } from '../src/setup.js';
@@ -288,7 +288,7 @@ test('la página de Organización de compra se dibuja, con y sin historial', () 
   ponerFrecuencia(state, 'quincenal', '2026-10');
   const html = renderMas(ctx);
   revisar(html, 'organización con historial');
-  assert.ok(html.includes('Cómo se reparte el mes') || frecuenciaDe(state, new Date().toISOString().slice(0, 7)) !== 'quincenal');
+  assert.ok(html.includes('Cómo se reparte el mes') || frecuenciaDe(state, todayISO().slice(0, 7)) !== 'quincenal');
 
   ctx.ui.mas.cambiandoFrecuencia = true;
   const conFormulario = renderMas(ctx);
@@ -307,7 +307,7 @@ test('el formulario de cambio nunca ofrece un mes ya pasado', () => {
   const ctx = contexto(state, 'organizacion');
   ctx.ui.mas.cambiandoFrecuencia = true;
   const html = renderMas(ctx);
-  const mesActual = new Date().toISOString().slice(0, 7);
+  const mesActual = todayISO().slice(0, 7);
   const anterior = new Date(`${mesActual}-01T12:00:00`);
   anterior.setMonth(anterior.getMonth() - 1);
   const clave = `${anterior.getFullYear()}-${String(anterior.getMonth() + 1).padStart(2, '0')}`;

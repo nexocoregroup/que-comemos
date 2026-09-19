@@ -16,7 +16,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 
-import { addDays, dateRange, monthBounds, validDate, weekStart, weekdayOf } from '../src/model.js';
+import { addDays, dateRange, monthBounds, todayISO, validDate, weekStart, weekdayOf } from '../src/model.js';
 
 /* ── Cruces de mes y de año ────────────────────────────────────────────── */
 
@@ -135,7 +135,11 @@ test('«Toda la semana» marca días también en una semana pasada', () => {
 });
 
 test('en la semana de hoy el atajo no llena los días que ya pasaron', () => {
-  const hoy = new Date().toISOString().slice(0, 10);
+  /* `todayISO()` y no `toISOString()`. El segundo da el día en UTC, y el atajo
+     compara contra el día local: en UTC-4, a partir de las ocho de la noche el
+     día UTC ya es el siguiente, así que esta prueba daba por «pasado» el día
+     que la app estaba marcando y fallaba todas las noches. */
+  const hoy = todayISO();
   const lunes = weekStart(hoy);
   const dias = dateRange(lunes, addDays(lunes, 6));
   const casillas = dias.map(value => ({ value, checked: false }));
@@ -170,4 +174,37 @@ test('la fecha de hoy se pregunta cada vez, no se guarda al cargar', () => {
     }
   }
   assert.deepEqual(congeladas, [], 'la fecha de hoy se calcula al cargar el módulo, no en cada pintada');
+});
+
+test('nadie saca el día ni el mes de hoy de un sello UTC recortado', () => {
+  /* `new Date().toISOString()` da la hora en UTC. Recortarlo a diez caracteres
+     para quedarse con la fecha, o a siete para quedarse con el mes, mezcla dos
+     husos: en Santo Domingo —UTC-4— a partir de las ocho de la noche el día UTC
+     ya es el siguiente, y el último día del mes también es ya el mes siguiente.
+
+     Lo que sale de ahí es lo peor que le puede pasar a una prueba: falla según
+     la hora a la que se ejecute. Pasó tres veces. `tests/pages.test.js` lo
+     documenta desde la primera, pero documentarlo no impidió las otras dos, así
+     que ahora lo mira esto.
+
+     El sello entero —`toISOString()` sin recortar— es correcto y no se toca:
+     un instante en UTC es exactamente lo que hay que guardar para decir cuándo
+     pasó algo. Lo que no vale es derivar de él un día del calendario. Para eso
+     está `todayISO()`, que usa el reloj de quien tiene el teléfono. */
+  const carpetas = [['src', readdirSync('src')], ['tests', readdirSync('tests')]];
+  const culpables = [];
+  for (const [carpeta, nombres] of carpetas) {
+    for (const nombre of nombres.filter(n => n.endsWith('.js'))) {
+      const ruta = `${carpeta}/${nombre}`;
+      const fuente = readFileSync(ruta, 'utf8');
+      fuente.split(/\r?\n/).forEach((linea, i) => {
+        if (/toISOString\(\)\s*\.\s*(?:slice|substring|substr)\s*\(/.test(linea)
+          || /toISOString\(\)\s*\.\s*split\s*\(/.test(linea)) {
+          culpables.push(`${ruta}:${i + 1}`);
+        }
+      });
+    }
+  }
+  assert.deepEqual(culpables, [],
+    'se saca una fecha del calendario de un sello UTC; usa todayISO() en su lugar');
 });
