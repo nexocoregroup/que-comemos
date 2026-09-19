@@ -477,7 +477,7 @@ Después, copia `android/keystore.properties.example` a `android/keystore.proper
 
 > **Google no deja cambiar esa clave una vez publicada la primera versión.** Si pierdes el `.jks` o su contraseña, no puedes actualizar tu propia app nunca más: hay que publicarla de cero con otro identificador, y quien ya la tuviera no recibe la actualización. Guarda una copia en un sitio que sobreviva a que se te dañe la computadora. El `.jks` y el `keystore.properties` están en `.gitignore` a propósito.
 
-**3. `versionCode`.** Ahora mismo está en `12` en `android/app/build.gradle`, con `versionName "3.6.1"`. **Tiene que crecer con cada publicación**: Play rechaza un número repetido, y el error aparece al subir, no al compilar. La cuenta hasta aquí: 1 → 1.0, 2 → 2.0, 3 → 2.1, 4 → 2.2, 5 → 3.0, 6 → 3.1, 7 → 3.2, 8 → 3.3, 9 → 3.4, 10 → 3.5, 11 → 3.6, 12 → 3.6.1.
+**3. `versionCode`.** Ahora mismo está en `13` en `android/app/build.gradle`, con `versionName "3.6.2"`. **Tiene que crecer con cada publicación**: Play rechaza un número repetido, y el error aparece al subir, no al compilar. La cuenta hasta aquí: 1 → 1.0, 2 → 2.0, 3 → 2.1, 4 → 2.2, 5 → 3.0, 6 → 3.1, 7 → 3.2, 8 → 3.3, 9 → 3.4, 10 → 3.5, 11 → 3.6, 12 → 3.6.1, 13 → 3.6.2.
 
 Esta línea se queda vieja sola cada vez que se compila, y aquí ya pasó: decía 9 → 3.4 con el proyecto en 10. Lo que manda es `android/app/build.gradle`; esto es un resumen para no tener que abrirlo.
 
