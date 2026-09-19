@@ -100,6 +100,24 @@ test('una categoría desconocida cae en «otros» y no en un hueco', () => {
   assert.equal(iconoDeCategoria(undefined), icono('otros'));
 });
 
+test('compartir.js escribe texto, no interfaz', () => {
+  /* Esta prueba existe para sostener la excepción de la siguiente. `compartir.js`
+     puede llevar emojis porque lo que produce no es una pantalla: es un mensaje
+     de texto que se manda por WhatsApp, donde no hay SVG que valga y donde un
+     triángulo de aviso es lo único que impide que un aviso de alergia se lea de
+     refilón.
+
+     Esa excepción solo es honesta mientras el archivo siga siendo de texto
+     plano. El día que alguien le añada una etiqueta HTML, deja de ser un medio
+     distinto y vuelve a ser interfaz — y entonces esta prueba se pone en rojo
+     antes de que el emoji llegue a ninguna pantalla. */
+  const codigo = readFileSync(join(SRC, 'compartir.js'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/(^|[^:])\/\/.*$/gm, '$1');
+  const etiquetas = codigo.match(/<\/?[a-z][a-z0-9]*[\s/>]/gi) || [];
+  assert.deepEqual(etiquetas, [], 'compartir.js dejó de escribir texto plano y ahora dibuja interfaz');
+});
+
 test('no quedan emoji de sistema haciendo de icono en la interfaz', () => {
   // No queda ninguno. La excepción sigue escrita porque el caso que describe
   // puede volver: una frase que señala una tecla del teclado del teléfono
@@ -110,7 +128,11 @@ test('no quedan emoji de sistema haciendo de icono en la interfaz', () => {
   const PICTOGRAMA = /\p{Extended_Pictographic}/u;
   const sueltos = [];
   for (const archivo of readdirSync(SRC)) {
-    if (!archivo.endsWith('.js') || archivo === 'catalog-seed.js') continue;
+    // `compartir.js` no dibuja: arma el mensaje que se manda por WhatsApp. Ahí
+    // no hay dibujo nuestro que sustituya al triángulo de aviso, y el aviso de
+    // alergia es justo lo que no puede leerse de refilón. Que siga siendo texto
+    // y no interfaz lo vigila la prueba de aquí arriba.
+    if (!archivo.endsWith('.js') || archivo === 'catalog-seed.js' || archivo === 'compartir.js') continue;
     const texto = readFileSync(join(SRC, archivo), 'utf8');
     for (const [i, linea] of texto.split(/\r?\n/).entries()) {
       if (/^\s*(\/\/|\*|\/\*)/.test(linea)) continue;       // comentarios, no

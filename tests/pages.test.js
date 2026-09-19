@@ -492,7 +492,15 @@ test('los cuadros de texto libre vienen preparados para escribir de corrido', ()
   const fuentes = ['src/bulk-entry.js', 'src/setup.js', 'src/app.js'];
   const sinPreparar = [];
   for (const archivo of fuentes) {
-    const codigo = readFileSync(archivo, 'utf8');
+    /* Sin los comentarios. Un `<textarea>` nombrado dentro de una explicación
+       —«repintar reemplaza el <textarea> y se lleva el cursor»— no es un cuadro
+       de texto que alguien vaya a usar, y contarlo como tal obligaría a no poder
+       escribir el nombre de la etiqueta al explicar por qué se hace algo. Se
+       quitan de verdad, no por el principio de la línea: un comentario de varias
+       líneas tiene renglones que empiezan por cualquier palabra. */
+    const codigo = readFileSync(archivo, 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, ' ')
+      .replace(/(^|[^:])\/\/.*$/gm, '$1');
     for (const etiqueta of codigo.match(/<textarea\b[^>]*>/g) || []) {
       if (!/autocapitalize=/.test(etiqueta)) sinPreparar.push(`${archivo}: textarea sin autocapitalize`);
     }

@@ -583,7 +583,7 @@ const STEPS = { 1: v1toV2, 2: v2toV3, 3: v3toV4, 4: v4toV5, 5: v5toV6, 6: v6toV7
 
 // Campos que aparecieron dentro de una misma versión del esquema. Un respaldo
 // exportado antes de que existieran se rellena en vez de rechazarse.
-const OPTIONAL_V3 = { mealRoutines: [], monthPlans: {}, monthOverrides: {}, activity: [], settings: { reviewWeekday: 5, onboarded: false } };
+const OPTIONAL_V3 = { mealRoutines: [], monthPlans: {}, monthOverrides: {}, activity: [], recados: {}, settings: { reviewWeekday: 5, onboarded: false } };
 
 export function migrate(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {

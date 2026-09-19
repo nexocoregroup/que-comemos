@@ -107,6 +107,13 @@ export const createEmptyState = () => ({
   version: SCHEMA_VERSION, seq: 0, demo: false,
   products: [], people: [], recipes: [], plans: [], absences: [],
   opening: {}, purchases: [], reviews: [], corrections: [], manualItems: [],
+  // Los recados del día: lo que hay que hacer en la casa y no se come. Va aquí,
+  // vacío, y no solo en `OPTIONAL_V3`, porque una casa recién creada y otra que
+  // acaba de volver del disco tienen que ser el MISMO objeto. Si solo lo
+  // rellenara la migración, guardar y volver a leer añadiría una clave que antes
+  // no estaba, y la prueba del viaje de ida y vuelta —la que comprueba que nada
+  // se pierde ni se inventa por el camino— dejaría de ser cierta.
+  recados: {},
   // La canasta habitual es lo que la casa consume en un mes corriente. Cada mes
   // guarda solo aquello en lo que se aparta de ella: comprar algo
   // extraordinario en septiembre no debe reescribir el hábito.
@@ -1112,6 +1119,43 @@ export function deleteRecipe(state, id) {
   // Calendar entries keep their own quantities and title.
 }
 export function planFor(state, date, slot) { return state.plans.find(item => item.date === date && item.slot === slot); }
+
+/* ── El recado del día ─────────────────────────────────────────────────────
+
+   Lo que hay que hacer hoy en la casa y no se come: sacar la basura, que viene
+   el plomero a las nueve. No es una lista de tareas ni pretende serlo —esta app
+   decide comidas—, es un renglón libre que viaja dentro del mensaje que se le
+   manda a quien cocina, que es lo único que hacía falta.
+
+   Va por día y no como un recado fijo porque un quehacer tiene fecha: «hoy
+   viene el plomero» deja de ser verdad mañana, y un recado que se queda puesto
+   se lee al tercer día como si fuera de hoy.
+
+   Vive en su propio objeto, `state.recados`, y no dentro de una comida: no
+   pertenece al desayuno ni a la cena. Es un campo nuevo del estado y NO sube
+   `SCHEMA_VERSION`, a propósito: `migrate()` no usa lista blanca —clona el
+   estado y normaliza lo que conoce—, así que una versión de la app que no sepa
+   de recados lo conserva intacto al leer y al volver a guardar. Subir la
+   versión sí habría roto algo: un teléfono sin actualizar rechaza el estado
+   entero de una casa que venga de una versión más nueva. Lo que sí hace falta
+   es la entrada en `OPTIONAL_V3`, para que un respaldo de antes de hoy no
+   llegue sin el campo. */
+export function recadoDe(state, date) {
+  const guardados = state.recados;
+  if (!guardados || typeof guardados !== 'object') return '';
+  return String(guardados[date] || '').trim();
+}
+
+// Guardar un recado vacío lo borra en vez de dejar la clave puesta: un objeto
+// que solo crece acaba llevándose trescientos días vacíos dentro de cada copia
+// de seguridad.
+export function guardarRecado(state, date, texto) {
+  if (!state.recados || typeof state.recados !== 'object') state.recados = {};
+  const limpio = String(texto || '').trim().slice(0, 500);
+  if (limpio) state.recados[date] = limpio;
+  else delete state.recados[date];
+  return limpio;
+}
 // Sin decir nada, una comida es para toda la casa. Solo quien esté dado de baja
 // o marcado fuera ese día se queda fuera de la cuenta.
 export function effectiveParticipants(state, recipe, date, slot, selected) {

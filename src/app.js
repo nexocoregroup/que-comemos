@@ -9,13 +9,14 @@
 import {
   ESTADOS_SIN_COMIDA, MOMENTOS, SLOTS, SLOTS_PRINCIPALES, UNITS, addDays, actualizarHabitual, agregarHabitual, anotarComidaSuelta, copyPlan, createEmptyState, dependents, esOpcional,
   etiquetaDeMomento, exportState, findSimilarProducts, habitualLines, importState, esActiva, isAbsent, makeRecipePlan, mergeProducts, movePlan, nextId,
-  personasActivas, planFor, ponerFrecuencia, product, removeHabitualLine, rubroDe,
+  personasActivas, planFor, ponerFrecuencia, product, recadoDe, guardarRecado, removeHabitualLine, rubroDe,
   resumenDeLista, reutilizarComida, setAbsence, setEquivalence,
   detalleDeOrigen, etiquetaDeOrigen, origenDe, setStatusPlan, sliceStyle, todayISO, updatePlan, updateProduct, upsertRecipe
 } from './model.js';
 import { clearAll, hasSavedState, loadStateDetailed, saveState } from './storage.js';
 import { createDemoState } from './demo.js';
 import { LEGAL } from './legal.js';
+import { compartirTexto, textoDelDia } from './compartir.js';
 import { avisosDe, guardarAvisos, horaEnPalabras, programarRecordatorio } from './recordatorio.js';
 import { BRAND_MARK } from './brand.js';
 import { icono } from './icons.js';
@@ -1092,6 +1093,7 @@ function renderToday() {
       </div>
       ${hechas === total ? '' : button('Ver la semana', 'navigate', 'btn-secondary', 'data-page="semana"')}
     </section>
+    ${bloqueDeCompartir()}
     <div class="grid grid-3">${SLOTS_PRINCIPALES.map(slot => tarjetaDeComida(slot, today())).join('')}</div>
     ${bloqueDeMeriendas(today())}
     ${pieDeHoy()}`;
@@ -1177,6 +1179,38 @@ function queLleva(plan) {
   const filas = plan.items.map(item => `<li><strong>${esc(productName(item.productId))}</strong></li>`).join('');
   const hijos = dependents(state, plan.id);
   return `<ul class="food-list">${filas}</ul>${hijos.length ? `<p class="small muted">De esta comida se vuelve a comer en ${hijos.map(hijo => `${cap(etiquetaDeMomento(hijo.slot))} del ${niceDate(hijo.date, { day: 'numeric', month: 'short' })}`).join(', ')}. Guarda una parte.</p>` : ''}`;
+}
+
+/* ── Mandarle el día a quien cocina ────────────────────────────────────────
+
+   En muchas casas quien planifica y quien cocina no son la misma persona, y
+   hasta ahora la segunda no veía nada de esto: ni las comidas, ni las notas
+   —el campo se llama «Nota para quien cocina» y solo lo leía quien lo
+   escribía—, ni los avisos de alergia. Se lo contaban de boca cada mañana.
+
+   El botón arma el mensaje y abre la bandeja del teléfono. **El último toque,
+   el de enviar, es de la persona**: Android no deja otra cosa, y está bien que
+   no la deje. Por eso el texto del botón dice «Compartir» y no «Enviar».
+
+   Va arriba, justo debajo del encabezado, y no en Ajustes ni al final de la
+   pantalla: es lo que se hace cada mañana. Medido a 375 px, detrás de las tres
+   tarjetas de comida caía en el píxel 1819 —cuatro deslizamientos—, y una
+   acción diaria que hay que buscar deja de hacerse.
+
+   A cambio de estar arriba se queda en lo imprescindible: el botón, un renglón
+   que dice qué hace y el recado. Sin título propio: el botón ya lo dice, y un
+   `<h2>` más empujaría las comidas del día otros treinta píxeles hacia abajo
+   por no decir nada nuevo. */
+function bloqueDeCompartir() {
+  const recado = recadoDe(state, today());
+  return `<section class="card compartir-hoy">
+    ${button('Compartir el día de hoy', 'compartir-dia', 'btn-primary')}
+    <p class="tiny muted">Se abre WhatsApp —o lo que elijas— con las comidas, las notas y los avisos de alergia ya escritos. El último toque, el de enviar, es tuyo.</p>
+    <label class="field">
+      <span>Otros quehaceres de hoy</span>
+      <textarea name="recado" data-recado rows="2" maxlength="500" autocapitalize="sentences" spellcheck="true" enterkeyhint="done" placeholder="Ej. Sacar la basura. El plomero viene a las 9.">${esc(recado)}</textarea>
+    </label>
+  </section>`;
 }
 
 function pieDeHoy() {
@@ -1787,6 +1821,23 @@ document.addEventListener('click', event => {
     // verá el resultado de lo que se está por escribir.
     if (el.dataset.goto) { ui.page = el.dataset.goto; alEntrarEnUnaSeccion(); }
 
+    /* Guardar el recado antes de armar el texto, y no confiar en que el
+       `change` del campo haya saltado ya. Salta —tocar el botón le quita el
+       foco al campo, y ese orden es de fiar— pero descansar en el orden de dos
+       eventos para que no se pierda lo que alguien acaba de escribir es la
+       clase de apuesta que se pierde una vez cada cien mañanas. */
+    if (action === 'compartir-dia') {
+      const campo = document.querySelector('[data-recado]');
+      if (campo) guardarRecado(state, today(), campo.value);
+      guardar();
+      const texto = textoDelDia(state, today());
+      compartirTexto(texto, `Lo de hoy`).then(salida => {
+        if (salida.ok && salida.via === 'portapapeles') toast('Copiado. Pégalo donde quieras mandarlo.');
+        else if (!salida.ok && salida.motivo !== 'cancelado') toast('No se pudo abrir para compartir.', true);
+      }).catch(error => anotar('compartir:dia', error));
+      return;
+    }
+
     if (action === 'navigate') {
       ui.page = el.dataset.page;
       ui.modal = null; ui.drawerOpen = false;
@@ -2022,6 +2073,10 @@ function pintarChoques(form) {
 
 document.addEventListener('change', event => {
   const el = event.target;
+  /* El recado del día se guarda al salir del campo, sin repintar: repintar
+     reemplaza el `<textarea>` y se lleva por delante el cursor de quien todavía
+     estaba escribiendo. Es el mismo motivo por el que existe `guardar()`. */
+  if (el.hasAttribute?.('data-recado')) { guardarRecado(state, today(), el.value); guardar(); }
   if (el.id === 'assign-recipe') pintarChoques(el.closest('form'));
   // Marcar o desmarcar a alguien cambia el aviso: puede que el choque fuera con
   // esa persona, o puede que aparezca uno nuevo.
