@@ -182,8 +182,9 @@
   border-radius: var(--curva-1);
 }
 
-/* El botón de menú del teléfono medía 36×36. */
-.mobile-brand .menu-toggle { width: var(--toque); height: var(--toque); border-radius: var(--curva-2); }
+/* El botón de menú del teléfono medía 36×36. Vivía en una fila propia junto
+   al isotipo; ahora está en la cabecera, con la corrección 18. */
+.mobile-menu-toggle { width: var(--toque); height: var(--toque); border-radius: var(--curva-2); }
 
 /* Los enlaces dentro de una frase medían 16 px de alto: la altura de la letra.
    No se pueden agrandar sin romper el renglón —son botones que viven dentro de
@@ -432,7 +433,6 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
   .mobile-nav button .nav-icon { width: 21px; height: 21px; }
 }
 
-.mobile-brand { position: relative; }
 .engranaje-movil { display: none; margin-left: auto; flex: none; }
 @media (max-width: 700px) { .engranaje-movil { display: grid; } }
 
@@ -642,3 +642,38 @@ summary:focus-visible {
    hasta que quepa— deja «Ej. Mangú con salami», que no dice de qué es el
    mangú y por tanto no enseña lo único que había que enseñar. */
 input[data-preparacion-nombre]::placeholder { font-size: .88rem; }
+
+/* ── 18. Una cabecera en vez de dos ────────────────────────────────────────
+
+   En el teléfono había dos filas apiladas haciendo el trabajo de una: la de
+   arriba con el menú, el isotipo, «¿Qué comemos?» y el engranaje; la de abajo
+   con el antetítulo y el título. Medido a 375×812, el primer contenido
+   empezaba en el píxel 164 — el veinte por ciento de la pantalla gastado
+   antes de decir nada, y en el recorrido inicial peor todavía, porque debajo
+   viene otro título más: el del paso.
+
+   De lo que había, lo único necesario eran los dos botones y el título. El
+   isotipo y el nombre de la app le dicen a alguien en qué app está, que es lo
+   que ya sabe: acaba de tocar su icono. Siguen estando donde sí hacen falta
+   —la pantalla de arranque y el cajón del menú—, que es donde alguien puede
+   dudar.
+
+   El título baja de 2,1 rem a 1,45. Es el precio de meterlo entre dos botones
+   en 375 px: a 2,1 rem, «Organización de compra» ocupaba la fila entera y no
+   cabía nada más. Sigue siendo el elemento más grande de la pantalla.
+
+   En el escritorio no cambia nada: ahí sobra el alto, el título grande es la
+   identidad de la app y el menú lateral ya lleva el nombre. */
+.mobile-menu-toggle { display: none; }
+@media (max-width: 700px) {
+  .mobile-menu-toggle { display: grid; }
+  .topline { align-items: center; margin-bottom: var(--aire-4); }
+  .topline-heading { gap: var(--aire-3); }
+  .topline h1 { font-size: 1.45rem; line-height: 1.22; margin: 0; }
+
+  /* El antetítulo que nunca cambia. Se pinta igual —en el escritorio sí cabe—
+     y aquí se esconde: quince píxeles y un renglón por una palabra que dice lo
+     mismo en las nueve pantallas. El de Ajustes se queda, que ese sí informa. */
+  .eyebrow-de-siempre { display: none; }
+  .topline .eyebrow { font-size: .68rem; margin-bottom: 1px; }
+}

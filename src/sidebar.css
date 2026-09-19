@@ -27,7 +27,6 @@
 @media (max-width: 700px) {
   body.menu-open { overflow: hidden; }
   .desktop-menu-toggle { display: none; }
-  .mobile-brand .menu-toggle { width: 36px; height: 36px; border-radius: 10px; font-size: 19px; margin-right: 3px; }
   .sidebar { display: flex; position: fixed; top: 0; bottom: 0; left: 0; z-index: var(--z-cajon); width: min(84vw, 300px); height: 100dvh; min-height: 0; overflow-y: auto; padding: 18px 20px 24px; transform: translateX(-105%); visibility: hidden; pointer-events: none; box-shadow: 10px 0 35px #30241c26; }
   .shell.drawer-open .sidebar { transform: translateX(0); visibility: visible; pointer-events: auto; }
   .drawer-scrim { display: block; position: fixed; inset: 0; z-index: var(--z-cajon-velo); border: 0; background: #30241c9e; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .24s ease, visibility .24s ease; }

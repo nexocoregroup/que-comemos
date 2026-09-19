@@ -144,3 +144,53 @@ test('cada formulario que se dibuja tiene quien lo guarde', () => {
   assert.deepEqual([...escritos].filter(nombre => !atendidos.has(nombre)).sort(), [],
     'formularios que al enviarlos no guardan nada');
 });
+
+test('cada clase que se busca en el documento es una clase que alguien pinta', () => {
+  /* La misma familia que el resto de este archivo: el navegador no denuncia un
+     `querySelector` que no encuentra nada. Devuelve `null`, el `?.` se lo traga
+     y no pasa nada — solo que el foco no se mueve, o el renglón no se repinta,
+     y quien lo usa no sabe por qué.
+
+     Pasó al juntar las dos cabeceras del teléfono en una: el botón de menú
+     dejaba de vivir dentro de `.mobile-brand`, y dos líneas de app.js seguían
+     buscándolo ahí para devolverle el foco al cerrar el cajón. Se arregló a
+     mano, que es exactamente lo que este archivo existe para no tener que
+     hacer.
+
+     Los selectores que importan van dentro de un ternario —`querySelector(enMovil()
+     ? '.a' : '.b')`— así que no vale mirar lo que sigue al paréntesis: se buscan
+     las cadenas que SON un selector de clase, estén donde estén. */
+
+  // Una cadena hecha solo de clases: '.foo', '.foo.bar', '.foo .bar'.
+  const ES_SELECTOR = /^\.[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)*(?:\s+\.[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)*)*$/;
+
+  const buscadas = new Map();
+  const pintadas = new Set();
+
+  for (const nombre of ARCHIVOS) {
+    const fuente = sinComentarios(leer(nombre));
+    for (const [, , literal] of fuente.matchAll(/(['"])([^'"\n]+)\1/g)) {
+      if (!ES_SELECTOR.test(literal)) continue;
+      for (const [, clase] of literal.matchAll(/\.([a-z][a-z0-9-]*)/g)) {
+        if (!buscadas.has(clase)) buscadas.set(clase, `${nombre}: «${literal}»`);
+      }
+    }
+    // Lo que se pinta: un atributo class="…" o una clase puesta a mano. El
+    // valor puede llevar huecos de plantilla, así que se parte por todo lo que
+    // no puede formar parte de un nombre de clase.
+    for (const [, valor] of fuente.matchAll(/class="([^"]*)"/g)) {
+      for (const trozo of valor.split(/[\s${}?:'`()|&!.]+/)) {
+        if (/^[a-z][a-z0-9-]*$/.test(trozo)) pintadas.add(trozo);
+      }
+    }
+    for (const [, clase] of fuente.matchAll(/classList\.(?:add|toggle|remove)\(\s*'([a-z][a-z0-9-]*)'/g)) {
+      pintadas.add(clase);
+    }
+  }
+
+  assert.ok(buscadas.size >= 5, `solo se encontraron ${buscadas.size} selectores de clase: el patrón se quedó atrás`);
+
+  const huerfanas = [...buscadas].filter(([clase]) => !pintadas.has(clase))
+    .map(([clase, donde]) => `.${clase} — ${donde}`);
+  assert.deepEqual(huerfanas.sort(), [], 'se busca una clase que nadie pinta: ese querySelector devuelve null en silencio');
+});

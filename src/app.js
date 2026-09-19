@@ -1035,8 +1035,7 @@ function pintar() {
     </aside>
     <button type="button" class="drawer-scrim" data-action="close-sidebar" aria-label="Cerrar menú lateral"></button>
     <main class="main">
-      <div class="mobile-brand"><button type="button" class="menu-toggle" data-action="toggle-sidebar" aria-label="${ui.drawerOpen ? 'Ocultar menú' : 'Abrir menú'}" aria-controls="app-sidebar" aria-expanded="${ui.drawerOpen}">${icono('menu', { tamano: 22 })}</button><span class="brand-mark">${BRAND_MARK}</span><span>¿Qué comemos?</span>${engranaje('icon-btn engranaje-movil', '')}</div>
-      <header class="topline"><div class="topline-heading"><button type="button" class="menu-toggle desktop-menu-toggle" data-action="toggle-sidebar" aria-label="${ui.sidebarCollapsed ? 'Abrir menú' : 'Ocultar menú'}" aria-controls="app-sidebar" aria-expanded="${!ui.sidebarCollapsed}">${icono('menu', { tamano: 22 })}</button>${enSubpantallaDeAjustes() ? `<button type="button" class="icon-btn volver-a-ajustes" data-action="navigate" data-page="ajustes" aria-label="Volver a Ajustes" title="Volver a Ajustes">${icono('izquierda', { tamano: 20 })}</button>` : ''}<div><p class="eyebrow">${esc(eyebrow())}</p><h1>${esc(pageTitle())}</h1></div></div>${engranaje('icon-btn engranaje-plegado', '')}</header>
+      <header class="topline"><div class="topline-heading"><button type="button" class="menu-toggle desktop-menu-toggle" data-action="toggle-sidebar" aria-label="${ui.sidebarCollapsed ? 'Abrir menú' : 'Ocultar menú'}" aria-controls="app-sidebar" aria-expanded="${!ui.sidebarCollapsed}">${icono('menu', { tamano: 22 })}</button><button type="button" class="menu-toggle mobile-menu-toggle" data-action="toggle-sidebar" aria-label="${ui.drawerOpen ? 'Ocultar menú' : 'Abrir menú'}" aria-controls="app-sidebar" aria-expanded="${ui.drawerOpen}">${icono('menu', { tamano: 22 })}</button>${enSubpantallaDeAjustes() ? `<button type="button" class="icon-btn volver-a-ajustes" data-action="navigate" data-page="ajustes" aria-label="Volver a Ajustes" title="Volver a Ajustes">${icono('izquierda', { tamano: 20 })}</button>` : ''}<div class="topline-titulo"><p class="eyebrow${dentroDeAjustes() ? '' : ' eyebrow-de-siempre'}">${esc(eyebrow())}</p><h1>${esc(pageTitle())}</h1></div></div>${engranaje('icon-btn engranaje-plegado', '')}${engranaje('icon-btn engranaje-movil', '')}</header>
       ${noSePudoGuardar ? notice('No pude guardar lo último en este teléfono', `${esc(noSePudoGuardar)} Lo que ves en pantalla <strong>todavía no está a salvo</strong>: si cierras la app, se pierde. ${button('Descargar una copia ahora', 'export', 'btn-primary btn-small')}`, 'error') : ''}
       ${avisoDeSesion ? notice('Sobre tu cuenta', `${esc(avisoDeSesion)} <button type="button" class="enlace" data-action="navigate" data-page="cuenta">Ir a mi cuenta</button>`, 'warn') : ''}
       ${ui.cuenta?.conflicto ? notice('Hay dos versiones de tu casa', 'Se guardaron cambios en este teléfono y en tu cuenta desde la última vez. Decide cuál se queda cuando puedas; mientras tanto no se toca ninguna. <button type="button" class="enlace" data-action="navigate" data-page="cuenta">Ver las dos</button>', 'warn') : ''}
@@ -1052,7 +1051,13 @@ function pintar() {
   document.querySelector('#modal-root').innerHTML = ui.modal ? renderModal() : ui.tour === null ? '' : tourCard();
 }
 
-const eyebrow = () => (esPaginaDeAjustes(ui.page) && ui.page !== 'ajustes' ? 'Ajustes' : 'Organización de comidas');
+const dentroDeAjustes = () => esPaginaDeAjustes(ui.page) && ui.page !== 'ajustes';
+/* «Ajustes» dentro de Ajustes orienta: dice de dónde se salió y adónde vuelve
+   el botón de atrás. «Organización de comidas» es idéntico en todas las demás
+   pantallas, y un antetítulo que nunca cambia no orienta, decora. En el
+   teléfono se pinta igual pero se esconde con `eyebrow-de-siempre`, porque ahí
+   cada renglón de la cabecera se paga con contenido que no se ve. */
+const eyebrow = () => (dentroDeAjustes() ? 'Ajustes' : 'Organización de comidas');
 
 /* ── Hoy ───────────────────────────────────────────────────────────────── */
 
@@ -1697,7 +1702,7 @@ function closeSidebar() {
     try { localStorage.setItem(SIDEBAR_KEY, '1'); } catch { /* La preferencia es opcional. */ }
   }
   render();
-  document.querySelector(sidebarOnMobile() ? '.mobile-brand .menu-toggle' : '.desktop-menu-toggle')?.focus();
+  document.querySelector(sidebarOnMobile() ? '.mobile-menu-toggle' : '.desktop-menu-toggle')?.focus();
 }
 function toggleSidebar() {
   if (sidebarOnMobile()) ui.drawerOpen = !ui.drawerOpen;
@@ -1706,7 +1711,7 @@ function toggleSidebar() {
     try { localStorage.setItem(SIDEBAR_KEY, ui.sidebarCollapsed ? '1' : '0'); } catch { /* La preferencia es opcional. */ }
   }
   render();
-  document.querySelector(sidebarOnMobile() ? (ui.drawerOpen ? '.sidebar-close' : '.mobile-brand .menu-toggle') : (ui.sidebarCollapsed ? '.desktop-menu-toggle' : '.sidebar-close'))?.focus();
+  document.querySelector(sidebarOnMobile() ? (ui.drawerOpen ? '.sidebar-close' : '.mobile-menu-toggle') : (ui.sidebarCollapsed ? '.desktop-menu-toggle' : '.sidebar-close'))?.focus();
 }
 
 // Para el «+»: la comida de hoy que todavía no se ha decidido, o el desayuno.
