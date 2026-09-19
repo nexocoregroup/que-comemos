@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 // Las preparaciones.
 //
@@ -249,8 +251,24 @@ test('no queda ninguna pregunta sobre quién come en la pantalla de preparacione
 test('una preparación sin alimentos lo dice en voz baja, no en rojo', () => {
   const html = renderMas(contexto(conPreparaciones()));
   assert.ok(html.includes('Sin alimentos anotados'));
-  assert.ok(html.includes('aportar a la compra'));
   assert.ok(!/error|falta obligatori/i.test(html));
+});
+
+test('sin alimentos y con alguien que evita algo, se dice que no se ha revisado nada', () => {
+  // Esto es lo que no se puede callar. Una preparación sin alimentos no choca
+  // con nada, y eso se leía igual que «revisada y limpia». Para una casa con una
+  // alergia al maní, las dos cosas no se parecen.
+  const state = conPreparaciones();
+  upsertPerson(state, { name: 'Sofía', kind: 'nino', restricciones: [{ productId: null, texto: 'Maní', motivo: 'alergia' }] });
+  const html = renderMas(contexto(state));
+  revisar(html, 'preparaciones con una alergia en casa');
+  assert.ok(/no ha revisado/.test(html), 'no dice que no pudo revisar nada');
+  assert.ok(!/segura|sin problemas|todo bien/i.test(html), 'no puede presentarla como segura');
+});
+
+test('sin nadie que evite nada, no se alarma de algo que no hay', () => {
+  const html = renderMas(contexto(conPreparaciones()));
+  assert.ok(!/no ha revisado/.test(html), 'avisa de alergias en una casa donde nadie evita nada');
 });
 
 test('el buscador filtra por nombre, por nota y por alimento', () => {
@@ -276,19 +294,69 @@ test('el buscador filtra por nombre, por nota y por alimento', () => {
   assert.ok(html.includes('Nada coincide'));
 });
 
-test('los bloques se pliegan y se despliegan, y se acuerdan', () => {
+/* Plegar ya no lo hace la app: lo hace el navegador.
+
+   Los bloques son `<details class="plegable">` y la acción solo apunta en qué
+   quedaron, porque el siguiente repintado reconstruye la pantalla desde el
+   estado y se llevaría el atributo `open` por delante. Dos consecuencias que
+   esta prueba tiene que imitar para decir algo cierto:
+
+     · al entrar en la acción, `open` todavía vale lo de ANTES del clic —el
+       oyente corre antes de que el navegador lo cambie—;
+     · lo plegado sigue estando en el HTML. Lo esconde el navegador, no la
+       plantilla, y eso es una mejora: el «buscar en la página» lo encuentra.
+
+   Así que lo que se comprueba es el atributo, no la ausencia del texto. */
+const abierto = (html, momento) => {
+  const encaje = new RegExp(`<details[^>]*class="[^"]*recetas-bloque[^"]*"[^>]*>\\s*<summary[^>]*data-momento="${momento}"`, 's').exec(html);
+  assert.ok(encaje, `no encuentro el bloque de ${momento}`);
+  return / open[ >]/.test(encaje[0]);
+};
+const plegar = (ctx, momento, estabaAbierto) =>
+  MAS_ACTIONS['receta-plegar']({ dataset: { momento }, closest: () => ({ open: estabaAbierto }) }, ctx);
+
+test('los bloques empiezan plegados, se despliegan y se acuerdan', () => {
+  /* Empezaban todos abiertos, con el argumento de que una casa con seis
+     preparaciones no quiere abrir cinco cajones. Con quince y sus tarjetas
+     enteras, lo que se abre es una pared: cinco cabeceras con su cuenta dicen
+     lo mismo en cinco renglones y dejan elegir por dónde entrar. Es la misma
+     regla que en los rubros de Mis productos habituales, y ahora las dos
+     pantallas se leen igual. */
   const ctx = contexto(conPreparaciones());
-  assert.ok(renderMas(ctx).includes('Mangú con salami'), 'empiezan abiertos');
+  const primero = renderMas(ctx);
+  assert.ok(!abierto(primero, 'desayuno'), 'vuelven a abrirse todos de golpe');
+  assert.ok(primero.includes('Desayunos'), 'la cabecera y su cuenta tienen que verse aunque esté plegado');
 
-  MAS_ACTIONS['receta-plegar']({ dataset: { momento: 'desayuno' } }, ctx);
-  MAS_ACTIONS['receta-plegar']({ dataset: { momento: 'cena' } }, ctx);
-  const plegado = renderMas(ctx);
-  assert.ok(!plegado.includes('Mangú con salami'), 'plegados sus dos bloques, desaparece de la vista');
-  assert.ok(plegado.includes('Desayunos'), 'pero la cabecera sigue ahí');
-  assert.ok(plegado.includes('Sancocho'), 'los demás bloques no se tocan');
+  plegar(ctx, 'desayuno', false);
+  plegar(ctx, 'cena', false);
+  const abiertoDos = renderMas(ctx);
+  assert.ok(abierto(abiertoDos, 'desayuno'), 'abrir un bloque no se recuerda');
+  assert.ok(abierto(abiertoDos, 'cena'), 'abrir un bloque no se recuerda');
+  assert.ok(!abierto(abiertoDos, 'almuerzo'), 'los demás bloques no se tocan');
+  assert.ok(abiertoDos.includes('Sancocho'), 'lo plegado sigue en el HTML: lo esconde el navegador');
 
-  MAS_ACTIONS['receta-plegar']({ dataset: { momento: 'desayuno' } }, ctx);
-  assert.ok(renderMas(ctx).includes('Mangú con salami'));
+  plegar(ctx, 'desayuno', true);
+  assert.ok(!abierto(renderMas(ctx), 'desayuno'), 'no se vuelve a cerrar');
+});
+
+test('al entrar en la sección, los bloques vuelven a estar plegados', () => {
+  // Un bloque abierto es una decisión de hace un momento, no una preferencia de
+  // la casa. Volver media hora después no puede enseñar la pantalla tal como la
+  // dejó el último vistazo.
+  const codigo = readFileSync(resolve(import.meta.dirname, '..', 'src', 'app.js'), 'utf8');
+  const fn = /function alEntrarEnUnaSeccion\(\) \{[\s\S]*?\n\}/.exec(codigo)?.[0] || '';
+  assert.ok(fn, 'no encuentro dónde se reinician los pliegues');
+  assert.ok(/recetasAbiertas = \[\]/.test(fn), 'los bloques de Preparaciones se quedan como se dejaron');
+  assert.ok(/rubrosAbiertos = \[\]/.test(fn), 'los rubros de Productos se quedan como se dejaron');
+  assert.ok(/verPasados = false/.test(fn), 'los días ya pasados se quedan abiertos');
+});
+
+test('buscando, ningún bloque se queda plegado sobre lo que coincide', () => {
+  const ctx = contexto(conPreparaciones());
+  plegar(ctx, 'desayuno', true);
+  ctx.ui.mas.recetaFiltro = 'mangú';
+  assert.ok(abierto(renderMas(ctx), 'desayuno'),
+    'lo que coincide con la búsqueda se quedó escondido detrás de un pliegue');
 });
 
 test('la pantalla vacía y la pantalla llena se dibujan las dos', () => {
@@ -304,4 +372,63 @@ test('una preparación que se quedó sin momento se avisa en vez de esconderse',
   revisar(html, 'preparaciones con una sin momento');
   assert.ok(html.includes('sin momento'));
   assert.ok(html.includes('Sancocho'));
+});
+
+/* ── La ficha sin cantidades ───────────────────────────────────────────────
+
+   Desde la etapa 1 una preparación es una ficha reutilizable con nombre,
+   momentos y nota para quien cocina. Los alimentos que lleva son un dato
+   opcional, y su cantidad también: una casa apunta «locrio: arroz, pollo,
+   aceitunas» mucho antes de saber cuántas tazas, y muchas veces no lo sabe
+   nunca. Exigir el número era pedir un inventario antes de dejar apuntar la
+   idea. */
+
+test('una instalación nueva puede crear una preparación sin ninguna cantidad', () => {
+  const { state, platano, salami } = casa();
+  const receta = upsertRecipe(state, {
+    name: 'Mangú con salami', uses: ['desayuno'], note: 'El agua bien caliente.',
+    items: [{ productId: platano }, { productId: salami }]
+  });
+  assert.equal(receta.items.length, 2, 'los alimentos se guardan igual');
+  for (const item of receta.items) {
+    assert.equal(item.quantity, null);
+    assert.equal(item.unit, null, 'sin cantidad no se guarda unidad: «3 de nada» no dice nada');
+  }
+  assert.equal(receta.note, 'El agua bien caliente.');
+});
+
+test('se pueden mezclar alimentos medidos y sin medir en la misma preparación', () => {
+  const { state, platano, salami } = casa();
+  const receta = upsertRecipe(state, {
+    name: 'Mangú', uses: ['desayuno'],
+    items: [{ productId: platano, quantity: 4, unit: 'unidad' }, { productId: salami }]
+  });
+  assert.equal(receta.items[0].quantity, 4);
+  assert.equal(receta.items[0].unit, 'unidad');
+  assert.equal(receta.items[1].quantity, null);
+});
+
+test('lo que sigue sin poderse guardar es una cantidad imposible o un alimento que no existe', () => {
+  const { state, platano } = casa();
+  assert.throws(() => upsertRecipe(state, { name: 'X', uses: ['cena'], items: [{ productId: platano, quantity: 0, unit: 'unidad' }] }), /mayor que cero/);
+  assert.throws(() => upsertRecipe(state, { name: 'X', uses: ['cena'], items: [{ productId: 'no-existe' }] }), /Selecciona un alimento/);
+  assert.throws(() => upsertRecipe(state, { name: 'X', uses: ['cena'], items: [{ productId: platano, quantity: 3 }] }), /unidad/);
+});
+
+test('una preparación sin cantidades se puede poner en el calendario igual', () => {
+  const { state, platano } = casa();
+  const receta = upsertRecipe(state, { name: 'Sancocho', uses: ['almuerzo'], items: [{ productId: platano }] });
+  const plan = makeRecipePlan(state, receta.id, '2026-10-05', 'almuerzo', null);
+  assert.equal(plan.title, 'Sancocho');
+  assert.equal(plan.items.length, 1);
+  assert.equal(plan.items[0].quantity, null, 'la comida tampoco se inventa cuánto lleva');
+});
+
+test('un respaldo viejo no cambia: sus cantidades siguen donde estaban', () => {
+  const { state, platano } = casa();
+  upsertRecipe(state, { name: 'Mangú', uses: ['desayuno'], items: [{ productId: platano, quantity: 4, unit: 'unidad' }] });
+  const { ok, state: despues } = migrate(state);
+  assert.ok(ok);
+  assert.equal(despues.version, SCHEMA_VERSION);
+  assert.deepEqual(despues.recipes[0].items[0], { productId: platano, quantity: 4, unit: 'unidad', personId: null });
 });

@@ -84,7 +84,7 @@
 
 <p class="marca">¿Qué comemos? · NexoCore</p>
 <h1>Aviso de privacidad</h1>
-<p class="fecha">Última actualización: 16 de septiembre de 2026</p>
+<p class="fecha">Última actualización: 18 de septiembre de 2026</p>
 
 <div class="resumen">
   <p><strong>En corto:</strong> todo lo que escribes en esta app se queda guardado en tu teléfono.</p>
@@ -100,12 +100,13 @@
 <h2>Qué se guarda y dónde se guarda</h2>
 <p>La app guarda lo que tú escribes en ella:</p>
 <ul>
-  <li>Los alimentos de tu casa y las cantidades que sueles comprar.</li>
-  <li>Las comidas que planificas, tus rutinas y las notas que dejas.</li>
+  <li>Los productos que tu casa compra de costumbre.</li>
+  <li>Las comidas que planificas y las notas que dejas para quien cocina.</li>
   <li>Las personas de la casa, con el nombre que tú les pongas y los alimentos que evita cada quien, si los anotas.</li>
-  <li>Tus compras, tus revisiones de «cuánto queda» y el historial que sale de ahí.</li>
+  <li>Tus compras y el historial que sale de ahí.</li>
   <li>Tus preferencias, como si el menú lateral va abierto o cerrado.</li>
 </ul>
+<p>Si usaste una versión anterior de la app, siguen guardadas además las rutinas y las revisiones de «cuánto queda» que escribiste entonces. Ya no se crean en ninguna pantalla, pero no se borraron: están ahí, viajan en el respaldo y se van con todo lo demás el día que borres tus datos.</p>
 <p>Todo eso se guarda en el <strong>almacenamiento local del navegador dentro de tu propio teléfono</strong> —lo que en términos técnicos se llama <code>localStorage</code>—. Es el mismo teléfono donde instalaste la app.</p>
 <p><strong>Con la sincronización apagada, que es como viene,</strong> no se copia a ninguna parte. Si abres la app en otro teléfono, ahí empiezas de cero: son dos almacenes distintos que no se hablan.</p>
 <p><strong>Si la enciendes,</strong> ese mismo contenido se guarda además en tu cuenta, en servidores de Supabase, y vuelve solo cuando entras desde otro teléfono. Puedes apagarla cuando quieras, y borrar la cuenta borra lo que hubiera subido.</p>
@@ -119,7 +120,7 @@
 <div class="aviso">
   <p><strong>La copia automática de Android está apagada a propósito.</strong></p>
   <p>Android suele subir solo los datos de las aplicaciones a la cuenta de Google del dueño del teléfono. En esta app eso está desactivado: tu despensa no se sube a Google Drive ni se pasa sola a un teléfono nuevo.</p>
-  <p>El precio de esa decisión hay que decirlo claro: <strong>si no usas cuenta y pierdes el teléfono sin haber guardado una copia, se pierde todo</strong>. Por eso existe <em>Más → Respaldo</em>, y por eso insistimos en que la uses.</p>
+  <p>El precio de esa decisión hay que decirlo claro: <strong>si no usas cuenta y pierdes el teléfono sin haber guardado una copia, se pierde todo</strong>. Por eso existe <em>Ajustes → Respaldo</em>, y por eso insistimos en que la uses.</p>
 </div>
 
 <h2>Qué no recogemos, y qué sí — sin medias verdades</h2>
@@ -138,41 +139,27 @@
 </ul>
 <p>No es una promesa suelta: la app tiene <strong>una sola puerta de salida a la red</strong>, y solo sabe hablar con el proyecto de Supabase que guarda tu cuenta. Hay una prueba automática que se pone en rojo el día que alguien abra una segunda o le ponga otra dirección.</p>
 
-<h2>El micrófono y el dictado</h2>
-<p>La app pide permiso de micrófono (<code>RECORD_AUDIO</code>) por una sola razón: para que puedas <strong>dictar en vez de escribir</strong>.</p>
-<ul>
-  <li>El micrófono se abre <strong>solo cuando tú tocas el botón de dictar</strong>. Nunca antes, nunca de fondo, nunca mientras la app está cerrada.</li>
-  <li>La app <strong>no graba, no guarda y no envía audio por su cuenta</strong>. No hay ningún archivo de voz en tu teléfono ni en ningún otro lado.</li>
-  <li>Quien entiende lo que dices es el <strong>reconocedor de voz del propio Android</strong>, el mismo del micrófono del teclado. La app solo recibe el texto ya convertido.</li>
-</ul>
-
-<h3>Aquí viene la parte que hay que decir completa</h3>
-<p>Ese reconocedor de Android funciona de dos maneras, y cuál te toca depende de tu teléfono:</p>
-<ul>
-  <li><strong>Si tu teléfono entiende la voz por sí solo</strong> y tiene descargado el paquete de español, todo pasa dentro del aparato. Tu voz no sale del teléfono.</li>
-  <li><strong>Si tu teléfono no lo trae</strong>, Android hace lo que hace siempre en ese caso: <strong>manda el audio a sus servidores</strong> para entenderlo, y por eso ahí el dictado necesita conexión. Eso lo hace Android, no nosotros, pero pasa igual y tienes derecho a saberlo.</li>
-</ul>
-<p><strong>La app le pregunta a tu teléfono cuál de los dos casos es el suyo, y si el audio va a salir te lo dice en pantalla antes de abrir el micrófono.</strong> No lo supone: lo comprueba cada vez. Así que si no ves ningún aviso, es que en tu teléfono la voz se queda dentro.</p>
-<p>Puedes ver la respuesta para tu aparato, con calma, en <strong>Más → Ajustes → Detalle de este aparato</strong>.</p>
-<p>Cuando Android manda ese audio a sus servidores, lo que pase con él ya depende de Google y de los ajustes de voz de tu propio teléfono, no de esta app.</p>
-<p>Si usas la app <strong>desde un navegador</strong> en vez de instalada, el dictado lo hace el navegador, que necesita conexión y manda la voz a sus servidores. Ahí también te avisamos antes de abrir el micrófono.</p>
-<p>Y si prefieres no usar nada de esto: <strong>escribir a mano funciona siempre</strong>, en todos los campos. Puedes negar el permiso de micrófono y la app sigue completa.</p>
-
-<h2>El permiso de internet, y cuándo se usa de verdad</h2>
-<p>La app pide el permiso <code>INTERNET</code> y lo usa <strong>para una sola cosa: las cuentas</strong>. Ni una más.</p>
-<p><strong>Sin cuenta, la app no llama a ninguna parte.</strong> Ni al abrirse, ni al guardar, ni de fondo. Los alimentos, la canasta, el menú, la compra y el inventario salen todos de tu propio teléfono, y puedes usarla el mes completo en modo avión.</p>
+<h2>Los permisos, y cuándo se usan de verdad</h2>
+<p>La app pide cuatro permisos: uno para hablar con la red y tres para poder avisarte. Conviene decir los cuatro.</p>
+<p><code>INTERNET</code> lo usa <strong>para una sola cosa: las cuentas</strong>. Ni una más.</p>
+<p><code>POST_NOTIFICATIONS</code> es el que tu teléfono te pregunta, y sirve para <strong>un único recordatorio</strong>: si a la hora que tú digas todavía no has decidido la cena de ese día, te lo recuerda. <strong>Viene apagado.</strong> Se enciende en Ajustes → Avisos, y es entonces cuando se te pregunta, no al abrir la app.</p>
+<p><code>RECEIVE_BOOT_COMPLETED</code> y <code>WAKE_LOCK</code> no te los pregunta nadie porque no hace falta: el primero vuelve a poner ese recordatorio después de que apagues y enciendas el teléfono, y el segundo deja que el aviso llegue con la pantalla apagada. Los dos son del recordatorio y de nada más.</p>
+<p><strong>El aviso lo prepara tu propio teléfono.</strong> No sale de él, no lo manda ningún servidor, y no hace falta cuenta ni internet para recibirlo.</p>
+<p>Lo que la app <strong>no</strong> pide es <code>SCHEDULE_EXACT_ALARM</code>, el permiso que haría falta para que un aviso salte al segundo exacto. Un recordatorio de la cena puede llegar unos minutos después y sirve igual.</p>
+<p><strong>Sin cuenta, la app no llama a ninguna parte.</strong> Ni al abrirse, ni al guardar, ni de fondo. Tus productos habituales, el plan de la semana y la lista de la compra salen todos de tu propio teléfono, y puedes usarla el mes completo en modo avión.</p>
 <p>Esto no es una promesa de buena fe, es cómo está escrito: al arrancar, la app mira si hay una sesión guardada en este teléfono, y <strong>si no la hay se detiene ahí mismo, sin tocar la red</strong>.</p>
 <p>Si creas una cuenta, la app habla con un sitio y solo con uno: el proyecto de Supabase donde viven las cuentas. Ahí van tu correo y tu contraseña al registrarte y al entrar, y ahí va tu casa <strong>solo si además enciendes la sincronización</strong>.</p>
 <p>No hay ninguna otra puerta de salida a la red, y hay una prueba automática que se pone en rojo el día que alguien abra una segunda o le cambie la dirección a esta. Ninguna analítica, ningún informe de fallos, ninguna publicidad y ninguna librería de terceros llamando a su casa: esas puertas no existen, y la misma prueba las vigila.</p>
 
 <h2>El respaldo lo guardas tú</h2>
-<p>En <em>Más → Respaldo</em> puedes escribir una copia de tus datos. Es un archivo <code>.json</code> que <strong>se descarga a tu teléfono</strong> y que tú guardas donde quieras: en el mismo teléfono, en una memoria, en tu correo, donde te parezca.</p>
+<p>En <em>Ajustes → Respaldo</em> puedes escribir una copia de tus datos. Es un archivo <code>.json</code> que <strong>se descarga a tu teléfono</strong> y que tú guardas donde quieras: en el mismo teléfono, en una memoria, en tu correo, donde te parezca.</p>
 <p>La app <strong>no sube ese archivo a ningún sitio</strong>. Una vez descargado, esa copia es tuya y su cuidado también: si la mandas por chat o la subes a una nube, esos datos van a donde tú los mandes.</p>
 <p>El respaldo lleva lo de tu casa y nada más: alimentos, cantidades, comidas, personas, compras y revisiones. No lleva identificadores tuyos ni nada que te señale a ti.</p>
 
 <h2>Permisos que la app no pide</h2>
 <p>Vale la pena decir también lo que no está:</p>
 <ul>
+  <li>No pide <strong>micrófono</strong>.</li>
   <li>No pide <strong>cámara</strong>.</li>
   <li>No pide <strong>galería ni fotos</strong>.</li>
   <li>No pide <strong>ubicación</strong>.</li>
@@ -180,14 +167,15 @@
   <li>No pide <strong>teléfono ni llamadas</strong>.</li>
   <li>No pide acceso a los <strong>archivos</strong> de tu teléfono.</li>
 </ul>
-<p>Son dos permisos en total —internet y micrófono— y ninguno más. Hay una prueba automática que falla si alguno de los otros se cuela.</p>
+<p>Tampoco pide <strong>permiso de alarma exacta</strong>, que es el que haría falta para que un aviso salte al segundo. El recordatorio de la cena puede llegar unos minutos después y sirve igual, así que ese permiso se quita del paquete aunque el componente que manda los avisos lo traiga puesto.</p>
+<p>Hay una prueba automática que falla si alguno de los que no están se cuela.</p>
 
 <h2>Cómo borrar tus datos</h2>
 <p>Todos los caminos los recorres tú, desde tu teléfono, sin pedirle permiso a nadie:</p>
 <ul>
-  <li><strong>Lo del teléfono, desde dentro de la app:</strong> <em>Más → Respaldo → Borrar todos mis datos</em>. Te pide confirmación y borra todo lo que la app guardó: alimentos, comidas, personas, compras, revisiones, la copia interna de seguridad y tus preferencias de pantalla.</li>
+  <li><strong>Lo del teléfono, desde dentro de la app:</strong> <em>Ajustes → Respaldo → Borrar todos mis datos</em>. Te pide confirmación y borra todo lo que la app guardó: alimentos, comidas, personas, compras, revisiones, la copia interna de seguridad y tus preferencias de pantalla.</li>
   <li><strong>Lo del teléfono, desinstalando:</strong> al desinstalar la app, Android se lleva por delante todo su almacenamiento, incluida la caché del sistema. También puedes hacerlo sin desinstalar, desde <em>Ajustes de Android → Aplicaciones → ¿Qué comemos? → Almacenamiento → Borrar datos</em>.</li>
-  <li><strong>La cuenta, si llegaste a crear una:</strong> <em>Más → Mi cuenta → Borrar mi cuenta</em>. Borra de una vez la cuenta y todo lo que hubiera subido —tu correo, tu nombre y la casa que tuvieras guardada— y borra además lo que quede en este teléfono.</li>
+  <li><strong>La cuenta, si llegaste a crear una:</strong> <em>Ajustes → Mi cuenta → Borrar mi cuenta</em>. Borra de una vez la cuenta y todo lo que hubiera subido —tu correo, tu nombre y la casa que tuvieras guardada— y borra además lo que quede en este teléfono.</li>
 </ul>
 <p>Todos son inmediatos y no se pueden deshacer. <strong>Guarda una copia antes si la quieres.</strong></p>
 <p>Hay una página dedicada a esto, con los pasos uno por uno: <a href="eliminar-datos.html">Cómo eliminar tus datos</a>.</p>
@@ -196,8 +184,8 @@
 <p>En las apps con cuenta, uno le escribe a la empresa para que le enseñe sus datos, los corrija, se los lleve o se los borre. <strong>Aquí no hace falta esperar a nadie</strong>, porque los botones los tienes tú:</p>
 <ul>
   <li><strong>Verlos y corregirlos:</strong> están en la app, en tus propias pantallas, y se cambian ahí mismo.</li>
-  <li><strong>Llevártelos:</strong> <em>Más → Respaldo</em> escribe un archivo con todo lo tuyo, se descarga a tu teléfono y es tuyo.</li>
-  <li><strong>Borrarlos:</strong> <em>Más → Respaldo → Borrar todos mis datos</em> para lo del teléfono, y <em>Más → Mi cuenta → Borrar mi cuenta</em> para lo de la cuenta, que se lleva las dos cosas de una vez.</li>
+  <li><strong>Llevártelos:</strong> <em>Ajustes → Respaldo</em> escribe un archivo con todo lo tuyo, se descarga a tu teléfono y es tuyo.</li>
+  <li><strong>Borrarlos:</strong> <em>Ajustes → Respaldo → Borrar todos mis datos</em> para lo del teléfono, y <em>Ajustes → Mi cuenta → Borrar mi cuenta</em> para lo de la cuenta, que se lleva las dos cosas de una vez.</li>
 </ul>
 <p>Si nunca creaste una cuenta, <strong>no tenemos absolutamente nada tuyo</strong> y no hay nada que pedirnos. Si la creaste, lo que hay es tu correo, tu nombre y la casa que hayas subido, y el botón para borrarlo está en la app.</p>
 <p>Si prefieres escribirnos, o algo de esto no te cuadra, escribe a <strong>nexocore.group@gmail.com</strong> y te contestamos.</p>
@@ -208,7 +196,7 @@
 <p>Si un adulto anota el nombre de un niño de la casa y lo que no puede comer, ese dato se queda en el teléfono de esa familia. Si ese adulto enciende la sincronización, viaja a su cuenta junto con el resto de la casa, y conviene que lo sepa antes de encenderla.</p>
 
 <h2>Esto no es consejo de alimentación ni médico</h2>
-<p>La app enseña cantidades de alimentos para <strong>organizar la casa y calcular la compra</strong>. Eso es todo lo que hace.</p>
+<p>La app enseña cantidades de alimentos para <strong>organizar las comidas de la casa y escribir la lista de la compra</strong>. Eso es todo lo que hace: no calcula dietas, no lleva inventario y no promete una compra exacta.</p>
 <p>Las cantidades que ves salen de lo que tú misma escribiste, y las del ejemplo son datos inventados para que veas cómo funciona. <strong>No son recomendaciones nutricionales, ni dietas, ni consejo médico.</strong> Para eso hay que hablar con un profesional de la salud.</p>
 
 <h2>Cambios en este aviso</h2>

@@ -52,7 +52,8 @@
      Cuatro, no nueve. La regla es que la curva crece con el tamaño de la caja:
      un control pequeño con la curva de una tarjeta parece una pastilla. */
   --curva-1: 10px;   /* controles menudos: etiquetas, fichas */
-  --curva-2: 13px;   /* botones y campos */
+  --curva-2: 13px;   /* botones */
+  --curva-campo: 14px; /* cajas de escribir: ver la corrección 21 */
   --curva-3: 18px;   /* tarjetas en el teléfono */
   --curva-4: 22px;   /* tarjetas en pantalla grande, modales */
   --curva-llena: 999px;
@@ -80,6 +81,28 @@
   --ico-1: 16px;
   --ico-2: 20px;
   --ico-3: 24px;
+
+  /* ── Las capas ───────────────────────────────────────────────────────────
+     Siete valores, de abajo arriba, y ninguno suelto. Antes había ocho números
+     repartidos en seis archivos —1, 20, 25, 30, 35, 41, 42, 50— que nadie
+     eligió juntos, y el orden que salía estaba mal en un sitio: el cajón
+     lateral quedaba en 42 y el modal en 30, así que el cajón se dibujaba
+     ENCIMA de una ventana abierta. Con el dedo no se llegaba —el velo del modal
+     tapa el botón de menú— pero bastaba que algún día apareciera otra forma de
+     abrirlo para que la ventana quedara detrás.
+
+     El hueco de diez entre escalones es para que quepa un velo justo debajo de
+     lo que tapa, sin volver a inventar un número. */
+  --z-barra: 20;      /* la barra de abajo, en el teléfono */
+  --z-flotante: 30;   /* el botón + y lo que despliega */
+  --z-recorrido: 40;  /* la tarjeta del recorrido de bienvenida */
+  --z-cajon-velo: 50;
+  --z-cajon: 51;      /* el menú lateral del teléfono */
+  --z-modal: 60;      /* una ventana tapa todo lo anterior: es la tarea de ahora */
+  --z-aviso: 70;      /* el aviso de abajo se lee siempre, incluso sobre un modal */
+  /* El 90 es la pantalla de arranque, y no está declarado aquí: vive escrito a
+     mano en index.html porque tiene que pintarse aunque esta hoja no llegue.
+     Se apunta en la escala para que nadie lo reutilice creyéndolo libre. */
 }
 
 /* ── Los iconos ───────────────────────────────────────────────────────────
@@ -96,7 +119,6 @@
 
 /* Un icono dentro de un botón se alinea con la palabra, no con la caja. */
 .btn .ico { margin-block: -2px; }
-
 
 /* ═══════════════════════════════════════════════════════════════════════════
    CORRECCIONES
@@ -148,7 +170,6 @@
 #app > .cuenta .cuenta-sin { padding-top: var(--aire-6); gap: var(--aire-3); }
 #app > .cuenta .cuenta-marca { padding-block: var(--aire-2) var(--aire-4); gap: var(--aire-3); }
 
-
 /* ── 2. Lo que se toca era demasiado pequeño ──────────────────────────────
    `.btn-small` medía 35 px de alto. Está por debajo de lo que recomienda
    cualquier guía —44 en iOS, 48 en Android— y se nota justo donde peor cae:
@@ -162,8 +183,9 @@
   border-radius: var(--curva-1);
 }
 
-/* El botón de menú del teléfono medía 36×36. */
-.mobile-brand .menu-toggle { width: var(--toque); height: var(--toque); border-radius: var(--curva-2); }
+/* El botón de menú del teléfono medía 36×36. Vivía en una fila propia junto
+   al isotipo; ahora está en la cabecera, con la corrección 18. */
+.mobile-menu-toggle { width: var(--toque); height: var(--toque); border-radius: var(--curva-2); }
 
 /* Los enlaces dentro de una frase medían 16 px de alto: la altura de la letra.
    No se pueden agrandar sin romper el renglón —son botones que viven dentro de
@@ -183,7 +205,6 @@
   inset: -6px -6px;
 }
 
-
 /* ── 3. El botón + tapaba lo que había debajo ─────────────────────────────
    El «+» flota sobre el contenido, que es lo que tiene que hacer. El problema
    era que no se leía como que flotaba: un círculo terracota sobre una tarjeta
@@ -201,7 +222,6 @@
   .main { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
 }
 
-
 /* ── 4. Aire ──────────────────────────────────────────────────────────────
    El margen lateral del teléfono era 16 px. A 20 la aplicación deja de verse
    apretada contra el cristal, y sigue habiendo 335 px de contenido en el
@@ -209,29 +229,15 @@
 @media (max-width: 700px) {
   .main { padding-left: var(--margen-pantalla); padding-right: var(--margen-pantalla); }
 
-  /* Los calendarios se salen del margen a propósito para poder deslizarse de
-     lado; si cambia el margen, tiene que cambiar su compensación o aparece una
-     franja en blanco a la derecha. */
-  .calendar-week, .calendar-month {
-    margin-right: calc(var(--margen-pantalla) * -1);
-    padding-right: var(--margen-pantalla);
-  }
-
+  
   /* Las tarjetas respiran un punto más y la curva sube con ellas. */
   .card { padding: var(--aire-5); border-radius: var(--curva-3); }
   .topline { margin-bottom: var(--aire-6); }
 }
 
-/* Las filas del menú «Más» estaban a 15 px del borde de su tarjeta mientras el
-   texto de al lado estaba a 20: se veía descolgado. */
-.mas-lista { padding: var(--aire-1); }
-.mas-item { padding: var(--aire-4) var(--aire-3); gap: var(--aire-3); border-radius: var(--curva-2); }
-.mas-icono { width: var(--ico-3); display: grid; place-items: center; color: var(--clay); }
-
 /* Los atajos del «+»: el icono en terracota, separado del texto. */
 .quick-icon { width: var(--ico-3); display: grid; place-items: center; color: var(--clay); }
 .quick-item { border-radius: var(--curva-2); gap: var(--aire-3); }
-
 
 /* ── 5. Sombras y curvas, de la escala ────────────────────────────────────
    Las mismas cajas que antes, con las alturas del sistema. Cambia poco de una
@@ -251,7 +257,6 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
   .modal { border-radius: var(--curva-4) var(--curva-4) 0 0; }
 }
 
-
 /* ── 6. Los huecos donde antes iba un emoji ───────────────────────────────
    Un emoji es texto: se centraba solo con `text-align` y se medía con
    `font-size`. Un SVG no. Cada sitio que tenía un emoji necesita ahora decir
@@ -268,6 +273,7 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
    lateral: es el único sitio donde se toca con el pulgar sin mirar. */
 .mobile-nav button .nav-icon { width: 22px; height: 22px; }
 
+
 /* La pantalla vacía. El dibujo es lo primero que se ve, así que va en
    terracota y con aire debajo. */
 .empty-ico {
@@ -283,29 +289,26 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
    parece descolgado. */
 .notice .ico, .demo-banner .ico { margin-top: 2px; }
 
-/* Las flechas de «entrar aquí» y de «desplegar». Se apagan a propósito: dicen
-   hacia dónde, no piden que las toques. */
-.mas-flecha, .recetas-flecha {
-  display: grid;
-  place-items: center;
-  color: var(--ink-muted);
-}
+/* Aquí vivía `.recetas-flecha`, la flecha de los bloques de Preparaciones.
+   Se fue con el botón que la llevaba: esos bloques son ahora `<details
+   class="plegable">` y la flecha la pone la hoja, la misma «›» que gira en los
+   otros tres sitios que se pliegan. Había dos dibujos distintos para el mismo
+   gesto, y uno de ellos —`icono('derecha')`— es el que en Plan semanal
+   significa «semana siguiente»: el mismo dibujo prometía dos cosas. */
 
 /* Un icono dentro de una línea de texto corrida. `vertical-align` y no flex:
    la línea tiene que seguir fluyendo como texto. */
-.ico-linea, .enlace .ico {
+.enlace .ico {
   display: inline-block;
   vertical-align: -3px;
   margin-right: 5px;
 }
-.ico-linea { color: var(--clay); }
 
 .setup-rubro-emoji { display: grid; place-items: center; color: var(--clay); }
 
 /* El «+» flotante y los botones redondos de cerrar. */
 .fab { font-size: 0; }
 .icon-btn { color: var(--clay-dark); }
-
 
 /* ── 7. Los dos que quedaban por debajo de la medida ──────────────────────
    Las flechas de mes medían 31 px de ancho —el alto ya estaba bien— y el
@@ -314,7 +317,6 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
 .btn-flecha { min-width: var(--toque-chico); padding-inline: var(--aire-2); }
 .segmented button { min-height: var(--toque-chico); padding: var(--aire-2) var(--aire-4); border-radius: var(--curva-1); }
 .segmented { border-radius: var(--curva-2); }
-
 
 /* ── 8. Enlaces que se apilaban unos sobre otros ──────────────────────────
    «¿Hay merienda hoy? Anotar la merienda de mañana · Anotar la de tarde» es
@@ -350,28 +352,6 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
    y es justo lo que hacía que una robara los toques de la de al lado. */
 .ficha-toque::after { content: none; }
 
-
-/* ── 9. Los títulos del menú se partían en dos líneas ─────────────────────
-   La fila es [dibujo] [título + explicación] [pista] [flecha], los cuatro en
-   una línea. En pantalla ancha caben. En 375 px, después de descontar el
-   dibujo, la flecha y una pista como «última: 16 sept», al título le quedaban
-   136 px para una palabra que necesita 150, y «Mi canasta habitual» se partía
-   en dos renglones. Todas las filas quedaban de alturas distintas y la lista se
-   veía desigual.
-
-   La pista baja a su propia línea y se alinea bajo el texto, no bajo el dibujo.
-   El título recupera 100 px y ya no se parte. */
-@media (max-width: 700px) {
-  .mas-item { flex-wrap: wrap; }
-  .mas-flecha { order: 2; }
-  .mas-pista {
-    order: 3;
-    flex-basis: 100%;
-    margin-left: calc(var(--ico-3) + var(--aire-3));
-    margin-top: 2px;
-  }
-}
-
 /* La escala de gravedad de las restricciones es una escala tipográfica —«!»,
    «·», «?»— y solo el primer escalón era un emoji: el ⚠ que Android dibuja
    amarillo, rompiendo la paleta justo en el aviso más serio. Ahora es nuestro,
@@ -384,17 +364,399 @@ input.text, select.text, textarea.text { border-radius: var(--curva-2); }
    quitaba sitio. Un objetivo táctil no negocia su tamaño. */
 .icon-btn { flex: none; }
 
-/* La columna del botón de quitar, en las filas de cantidad del asistente,
-   medía 34 px. Quitar un alimento de la canasta por error es de las pocas cosas
-   de esta pantalla que cuesta deshacer, así que es justo el botón que no puede
-   fallarse. Los 6 px salen de la columna del nombre, que va sobrada. */
-.setup-cantidad-row { grid-template-columns: minmax(0, 2fr) minmax(72px, .7fr) minmax(100px, 1fr) var(--toque-chico); }
-@media (max-width: 700px) {
-  .setup-cantidad-row { grid-template-columns: minmax(0, 1fr) 105px var(--toque-chico); }
+/* Las filas con cuatro columnas —nombre, cantidad, unidad y quitar— ya solo
+   las usa el asistente de entrada. Dentro de una preparación la fila es la
+   simple de aquí abajo. */
+.item-row { grid-template-columns: minmax(110px, 2fr) minmax(70px, .7fr) minmax(90px, 1fr) var(--toque-chico); }
+
+/* La fila de un alimento dentro de una preparación: solo el alimento y el botón
+   de quitarlo. La ficha ya no pregunta cuánto lleva —eso se decide en la lista
+   de cada compra—, así que la cuadrícula de cuatro columnas sobra. */
+.item-row-simple { grid-template-columns: minmax(0, 1fr) var(--toque-chico); }
+
+/* Y el botón vuelve a su columna.
+   ────────────────────────────────────────────────────────────────────────────
+   En styles.css, dentro de la consulta de 700 px, sobrevive
+   `.item-row .remove-item { grid-column: 3 }`. Es de cuando la fila tenía tres
+   columnas en el teléfono —nombre, cantidad, unidad— y el botón iba en la
+   tercera. La Fase 3 quitó las cantidades y dejó dos columnas; aquella regla se
+   quedó, y con dos pesos de selector (0,2,0) le gana a `.item-row-simple`
+   (0,1,0), que no puede contradecirla desde la plantilla.
+
+   El resultado, medido en un teléfono de 375 px: la cuadrícula resolvía a
+   `263px 40px 30px` —tres columnas donde se declararon dos—, la de 40 px
+   quedaba vacía, y el botón de quitar el alimento acababa en una tercera
+   columna inventada, midiendo 30 px de ancho y separado del campo por 50 px de
+   nada. Treinta píxeles en el botón que borra un ingrediente.
+
+   `auto` lo devuelve al flujo normal de la cuadrícula, que es la segunda
+   columna. Va aquí y no dentro de styles.css porque esa hoja es una sola línea
+   de catorce mil caracteres; la regla de esta casa es corregirla desde aquí. */
+.item-row-simple .remove-item { grid-column: auto; }
+
+/* ── Cinco secciones, y un engranaje ───────────────────────────────────────
+
+   La barra de abajo pasó de cuatro columnas a cinco. Con cinco, cada una mide
+   setenta píxeles en un teléfono de 360, y sesenta y ocho después del relleno.
+   Ahí tienen que caber cinco palabras enteras.
+
+   Lo que pasó, y conviene que quede escrito: esta hoja se afinó cuando la
+   quinta etiqueta era «Preparo». Después la etiqueta creció a «Preparaciones»
+   —trece letras— y nadie volvió aquí. Para que aquella palabra cupiera se
+   encogió toda la barra a 9,28 píxeles de cuerpo, y **aun así no cabía**: pedía
+   70,2 y tenía 68, así que en un teléfono de 360 la quinta salía cortada por el
+   `text-overflow`. Las otras cuatro, que piden entre 19 y 50, llevaban años
+   achicadas para nada.
+
+   Ninguna letra legible arregla eso: a 12 píxeles «Preparaciones» necesita 83.
+   Así que la etiqueta corta vuelve a ser corta —está en `NAV`, en app.js, que
+   es donde viven los nombres— y aquí el cuerpo vuelve a leerse. Con «Productos»
+   como la más larga de las cinco, 12 píxeles dejan margen de sobra.
+
+   El `text-overflow` se queda de red, no de plan: hoy no lo toca ninguna, pero
+   un teléfono más estrecho de lo que soportamos vale más que corte una palabra
+   a que descuadre la fila entera.
+
+   El engranaje no está en la barra. Cinco secciones más un sexto botón serían
+   seis columnas de sesenta píxeles, y Ajustes no es una sección: es donde se
+   entra una vez cada muchos meses. Va arriba, junto al nombre de la app, que es
+   donde se busca un engranaje. */
+.mobile-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.mobile-nav { padding-inline: 3px; }
+.mobile-nav button { font-size: .75rem; padding: 5px 1px; gap: 3px; line-height: 1.15; min-width: 0; }
+.mobile-nav button { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mobile-nav button .nav-icon { width: 22px; height: 22px; }
+/* Por debajo de 360 px la columna baja de 71 a 62, y «Productos» —la más larga
+   de las cinco— deja de caber a doce. Un escalón antes del corte: se lee peor
+   que a doce y muchísimo mejor que cortada, que es lo que hacía. */
+@media (max-width: 359px) {
+  .mobile-nav button { font-size: .66rem; }
+  .mobile-nav button .nav-icon { width: 21px; height: 21px; }
 }
-/* Y lo mismo en las filas de la canasta y de los alimentos sueltos. */
-.item-row { grid-template-columns: minmax(110px, 2fr) minmax(70px, .7fr) minmax(90px, 1fr) minmax(105px, 1.1fr) var(--toque-chico); }
-.basket-row { grid-template-columns: minmax(120px, 2.1fr) minmax(70px, .75fr) minmax(90px, 1fr) minmax(110px, 1.1fr) var(--toque-chico); }
-@media (max-width: 700px) {
-  .basket-row { grid-template-columns: minmax(0, 1fr) 100px var(--toque-chico); }
+
+.engranaje-movil { display: none; margin-left: auto; flex: none; }
+@media (max-width: 700px) { .engranaje-movil { display: grid; } }
+
+/* El tercero: la cabecera. Solo aparece en escritorio con el menú plegado, que
+   es el único momento en que los otros dos no están. El lateral se esconde con
+   el menú y el del teléfono está apagado por encima de 700 px, así que sin este
+   quien pliega el menú se queda sin puerta a Ajustes —y el plegado se recuerda
+   entre sesiones, así que se quedaba sin ella para siempre—. */
+.engranaje-plegado { display: none; flex: none; }
+@media (min-width: 701px) { .shell.sidebar-collapsed .engranaje-plegado { display: grid; } }
+.engranaje-plegado.active { background: var(--clay-light); color: var(--clay-dark); }
+.engranaje-movil.active { background: var(--clay-light); color: var(--clay-dark); }
+
+/* En el lateral, el engranaje es una fila más de la barra: el mismo alto, el
+   mismo relleno y el mismo verde cuando está abierto. Lo separa la línea que
+   `.secondary` ya trae. */
+.sidebar .secondary button { display: flex; align-items: center; gap: 12px; }
+.sidebar .secondary button svg { flex: none; }
+
+/* ── 10. Las capas, aplicadas a lo que vive en styles.css ─────────────────
+   Las otras hojas usan las variables en su propio sitio; estas tres están
+   dentro de la línea minificada, así que se repiten aquí. Ver la escala
+   completa arriba, en `:root`. */
+.mobile-nav { z-index: var(--z-barra); }
+.modal-overlay { z-index: var(--z-modal); }
+#toast { z-index: var(--z-aviso); }
+
+/* ── 11. La altura de la ventana en un teléfono ───────────────────────────
+   `100vh` en un navegador móvil mide la ventana CON las barras del navegador
+   retraídas, que es un alto que muchas veces no existe: la página se queda más
+   larga que lo que se ve y aparece un desplazamiento que nadie pidió. Dentro
+   del WebView del APK pasa lo mismo cuando el teclado sube.
+
+   `dvh` mide lo que de verdad hay. Las dos líneas van juntas y en este orden a
+   propósito: un navegador que no entienda `dvh` se queda con `vh` y todo sigue
+   como antes. Ya se hizo así en la portada de la cuenta y en el recorrido; esto
+   cierra los dos que faltaban.
+
+   `.sidebar` no entra: por encima de 700 px las dos unidades valen lo mismo, y
+   por debajo el cajón ya se mide solo en `sidebar.css` con `min-height: 0`.
+   Repetirlo aquí pisaría ese cero y estiraría el cajón. */
+body, .shell { min-height: 100vh; min-height: 100dvh; }
+
+/* ── 12. Bloques apilados que se tocaban ──────────────────────────────────
+   Catorce sitios donde dos bloques grandes quedaban pegados, sin un píxel
+   entre ellos: las seis tarjetas de Ajustes una detrás de otra, las tres de
+   Respaldo, las cinco de Funciones avanzadas, las de Historial, y en la
+   portada de Hoy el bloque de terracota contra las tarjetas de comida.
+
+   La causa es que en esta aplicación el aire entre hermanos lo pone siempre el
+   contenedor —`.grid` con `gap: 18px`, `.stack` con 14— y `.card` no trae
+   margen propio a propósito, para no sumar al hueco cuando va dentro de uno de
+   ellos. Las pantallas que escriben las tarjetas sueltas, colgando de `.main`,
+   se quedan sin contenedor y por tanto sin aire.
+
+   Por eso el selector pide `.main >`: así solo alcanza a las que cuelgan
+   directamente, y una tarjeta dentro de un `.grid` o un `.stack` sigue sin
+   margen, que es lo correcto —si no, la fila de Desayuno, Almuerzo y Cena
+   sumaría 16 px a los 18 del hueco y solo en dos de las tres tarjetas—. */
+.main > .card + .card,
+.main > .hero + * { margin-top: var(--aire-4); }
+
+/* ── 13. Los dos lados de «¿quién come de esto?» ──────────────────────────
+   Son dos `<fieldset>` porque hace falta `disabled` de golpe sobre el lado que
+   no está a la vista: los dos usan el mismo `name`, y un campo escondido con
+   `display: none` se envía igual que uno visible. Deshabilitado no.
+
+   El navegador le pone al fieldset borde, margen y un ancho mínimo propio que
+   rompe la cuadrícula; aquí se le quitan los tres y se le devuelve la separación
+   que `.field` daba antes de que hubiera dos lados. */
+.quien-come { gap: 0; }
+.quien-come > fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  display: grid;
+  gap: var(--aire-2);
 }
+
+/* ── 14. El alto mínimo de las tarjetas de comida, en el teléfono ──────────
+
+   `.meal-card` pide 220 px de alto como mínimo. Ese número existe para igualar
+   tres tarjetas puestas en fila —Desayuno, Almuerzo y Cena, una al lado de la
+   otra en pantalla ancha—, y ahí hace su trabajo. Apiladas en una columna no
+   iguala nada: solo estira con aire vacío una tarjeta que a veces cabe en
+   cuatro líneas.
+
+   Lo que costaba: entrando a las seis de la tarde a resolver la cena, la
+   pantalla se llenaba con el desayuno, que ya se comió, y la cena empezaba por
+   debajo del borde de un teléfono de 812 px.
+
+   El hero va en el mismo arreglo porque es el otro sumando del mismo problema:
+   26 px de aire arriba y abajo más un título que escala hasta 2,55 rem se
+   comen medio primer pantallazo para decir la fecha y una frase. Baja, no
+   desaparece. */
+@media (max-width: 700px) {
+  .meal-card { min-height: 0; }
+  .hero { padding: var(--aire-5) var(--aire-5); }
+  .hero h2 { font-size: 1.5rem; margin: var(--aire-1) 0; }
+}
+
+/* ── 15. Un anillo de foco que se vea ──────────────────────────────────────
+
+   styles.css pone `outline: none` a todos los campos y theme.css lo sustituye
+   por un cambio de borde de 1 px más un halo terracota al 16 %. Sobre la crema
+   del fondo ese halo queda en torno a 1,1:1 de contraste, o sea prácticamente
+   invisible: lo único que marca el foco es el borde, que pasa de beige a
+   terracota. Es perceptible, pero es un píxel.
+
+   Dos decisiones dentro de este arreglo:
+
+     · `:focus-visible` y no `:focus`. Con `:focus`, un anillo de 3 px saltaría
+       en cada toque de dedo sobre cada casilla de la tabla de entrada de
+       corrido, que es ruido puro. `:focus-visible` solo aparece cuando el
+       navegador cree que hace falta: teclado, no dedo.
+     · el `box-shadow` de theme.css se queda. En la tabla de bulk-entry es lo
+       que distingue la celda activa sin ensanchar la fila, y quitarlo por
+       poner el anillo cambiaría una pantalla que nadie se quejó de que
+       estuviera mal.
+
+   El `outline-offset` separa el anillo del borde para que se lean como dos
+   cosas y no como un borde gordo. */
+.field input:focus-visible,
+.field select:focus-visible,
+.field textarea:focus-visible,
+input.text:focus-visible,
+select.text:focus-visible,
+textarea.text:focus-visible {
+  outline: 2px solid var(--clay);
+  outline-offset: 2px;
+}
+
+/* Y lo mismo para lo que se toca sin ser un campo. La app tiene botones de
+   varias clases y ninguno declaraba anillo propio: heredaban el del navegador,
+   que sobre terracota macizo desaparece. */
+button:focus-visible,
+[data-action]:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--clay);
+  outline-offset: 2px;
+}
+.btn-primary:focus-visible { outline-color: var(--ink); }
+
+/* ── 16. Que se vea por dónde se empieza ───────────────────────────────────
+
+   La pantalla de una casa vacía tiene un solo botón que importa, «Organizar mi
+   casa», y debajo un enlace callado para ver el ejemplo. Aun así el botón se
+   queda quieto en medio de un bloque grande de terracota, y en una pantalla
+   donde todavía no se ha hecho nada, quieto es fácil de no ver.
+
+   Una onda que sale del borde y se desvanece. No parpadea, no cambia de color
+   y no se mueve de sitio: lo único que hace es respirar cada dos segundos y
+   medio, que es lo que separa «esto es lo que hay que tocar» de un cartel.
+
+   Es la sombra la que crece, y no una escala. Escalar un botón ancho lo separa
+   dos píxeles por los lados largos y quince por los cortos, así que el anillo
+   sale deforme y casi no se ve; una sombra con `spread` crece lo mismo por los
+   cuatro lados y sigue el redondeo del botón sola. Se probó primero con escala
+   y no se veía: por eso está escrito aquí.
+
+   Se repite sin fin, y aquí eso no es ruido: esta pantalla solo existe mientras
+   la casa está vacía. En cuanto alguien apunta lo primero deja de pintarse, así
+   que la animación se acaba sola porque se acaba la pantalla. Una animación
+   infinita en una pantalla de todos los días sería otra conversación. */
+.start-hero .btn { animation: empezar-aqui 2.6s cubic-bezier(.22, .72, .36, 1) infinite; }
+@keyframes empezar-aqui {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 255, 255, .55); }
+  70%  { box-shadow: 0 0 0 16px rgba(255, 255, 255, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+}
+
+/* Quien pidió menos movimiento no ve ninguno. El botón sigue siendo lo único
+   blanco sobre la terracota de esa tarjeta, que ya es señal de sobra. */
+@media (prefers-reduced-motion: reduce) {
+  .start-hero .btn { animation: none; }
+}
+
+/* ── 17. Las dos notas del paso de productos ───────────────────────────────
+
+   La pantalla de una categoría gana dos párrafos: para qué sirve marcar, y
+   —solo en la última— que ahí dentro también va lo que no se come. Son notas,
+   no instrucciones: si se pintaran con el mismo peso que la frase de arriba,
+   serían siete líneas de texto seguidas antes del primer producto, y lo que
+   pasa con siete líneas seguidas en un teléfono es que no se lee ninguna.
+
+   Por eso van más pequeñas y más juntas que la intro, y la de limpieza lleva
+   una raya de salvia a la izquierda: es lo que la separa de «más de lo mismo»
+   y la convierte en un apunte al margen. */
+.setup-para-que, .setup-no-se-come {
+  font-size: .86rem;
+  margin-bottom: var(--aire-3);
+}
+.setup-no-se-come {
+  border-left: 3px solid var(--sage);
+  padding-left: var(--aire-3);
+}
+
+/* El ejemplo del nombre de una preparación tiene que nombrar dos alimentos
+   para que se vea que los de abajo se llenan solos, y dos nombres de alimento
+   no caben a 16 px en el campo del recorrido inicial, que es más estrecho que
+   el de la sección: medido a 375 px, 243 px de texto en 237 de hueco. Se
+   cortaba por el final, que es justo donde está la palabra que enseña algo.
+
+   Una pista puede ser más pequeña que lo que se escribe encima; el nombre de
+   verdad se sigue viendo a tamaño completo. Lo contrario —acortar el ejemplo
+   hasta que quepa— deja «Ej. Mangú con salami», que no dice de qué es el
+   mangú y por tanto no enseña lo único que había que enseñar. */
+input[data-preparacion-nombre]::placeholder { font-size: .88rem; }
+
+/* ── 18. Una cabecera en vez de dos ────────────────────────────────────────
+
+   En el teléfono había dos filas apiladas haciendo el trabajo de una: la de
+   arriba con el menú, el isotipo, «¿Qué comemos?» y el engranaje; la de abajo
+   con el antetítulo y el título. Medido a 375×812, el primer contenido
+   empezaba en el píxel 164 — el veinte por ciento de la pantalla gastado
+   antes de decir nada, y en el recorrido inicial peor todavía, porque debajo
+   viene otro título más: el del paso.
+
+   De lo que había, lo único necesario eran los dos botones y el título. El
+   isotipo y el nombre de la app le dicen a alguien en qué app está, que es lo
+   que ya sabe: acaba de tocar su icono. Siguen estando donde sí hacen falta
+   —la pantalla de arranque y el cajón del menú—, que es donde alguien puede
+   dudar.
+
+   El título baja de 2,1 rem a 1,45. Es el precio de meterlo entre dos botones
+   en 375 px: a 2,1 rem, «Organización de compra» ocupaba la fila entera y no
+   cabía nada más. Sigue siendo el elemento más grande de la pantalla.
+
+   En el escritorio no cambia nada: ahí sobra el alto, el título grande es la
+   identidad de la app y el menú lateral ya lleva el nombre. */
+.mobile-menu-toggle { display: none; }
+@media (max-width: 700px) {
+  .mobile-menu-toggle { display: grid; }
+  .topline { align-items: center; margin-bottom: var(--aire-4); }
+  .topline-heading { gap: var(--aire-3); }
+  .topline h1 { font-size: 1.45rem; line-height: 1.22; margin: 0; }
+
+  /* El antetítulo que nunca cambia. Se pinta igual —en el escritorio sí cabe—
+     y aquí se esconde: quince píxeles y un renglón por una palabra que dice lo
+     mismo en las nueve pantallas. El de Ajustes se queda, que ese sí informa. */
+  .eyebrow-de-siempre { display: none; }
+  .topline .eyebrow { font-size: .68rem; margin-bottom: 1px; }
+}
+
+/* ── 19. Un color por momento del día ──────────────────────────────────────
+
+   Cinco momentos que hasta ahora se distinguían solo por su nombre escrito.
+   El color no está para decorar: dice a qué hora se come, y por eso los cinco
+   van en una línea que empieza en el dorado de la mañana, pasa por la
+   terracota de la marca al mediodía y termina en la salvia de la noche. Son
+   los dos colores de la casa con el camino entre ellos, así que no hay ningún
+   tono que no estuviera ya.
+
+   Cada uno es lo bastante oscuro para leerse sobre crema, porque el mismo
+   color pinta el borde de la tarjeta Y el nombre del momento: dos tonos por
+   momento serían diez colores que mantener de acuerdo.
+
+   La semana no necesita marca nueva en el HTML: sus filas ya llevan
+   `data-slot`. Las tarjetas de Hoy sí, y por eso llevan `data-momento`. */
+:root {
+  --momento-desayuno: #9a6a1e;
+  --momento-merienda-manana: #7d6a2c;
+  --momento-almuerzo: #a04b22;
+  --momento-merienda-tarde: #6b6440;
+  --momento-cena: #54603a;
+}
+[data-momento="desayuno"], [data-slot="desayuno"] { --momento: var(--momento-desayuno); }
+[data-momento="merienda-manana"], [data-slot="merienda-manana"] { --momento: var(--momento-merienda-manana); }
+[data-momento="almuerzo"], [data-slot="almuerzo"] { --momento: var(--momento-almuerzo); }
+[data-momento="merienda-tarde"], [data-slot="merienda-tarde"] { --momento: var(--momento-merienda-tarde); }
+[data-momento="cena"], [data-slot="cena"] { --momento: var(--momento-cena); }
+
+/* Sutil quiere decir esto: un filo de cuatro píxeles y el nombre del momento.
+   Teñir la tarjeta entera pondría cinco fondos distintos compitiendo con la
+   comida, que es lo que hay que leer. */
+.meal-card, .merienda-card { border-left: 4px solid var(--momento, var(--line)); }
+.meal-card .slot, .merienda-card .slot { color: var(--momento, var(--clay)); }
+.semana-momento-nombre { color: var(--momento, var(--ink-muted)); }
+
+/* ── 20. Las dos barras, en terracota ──────────────────────────────────────
+
+   La barra lateral y la de abajo eran crema sobre crema: la app entera se leía
+   como una sola superficie pálida. En terracota, la navegación se separa del
+   contenido de un vistazo y el color de la marca aparece donde siempre está a
+   la vista.
+
+   Lo que se mira al elegir los tonos del texto: crema sobre terracota da algo
+   más de seis a uno de contraste, que pasa de sobra para texto pequeño. La
+   sección activa invierte —crema de fondo, terracota oscura encima— porque
+   sobre un fondo de color ya fuerte, marcar con otro color no se ve; el que se
+   ve es el hueco.
+
+   El isotipo es un PNG con el trazo en terracota, así que sobre terracota
+   desaparecía. Va sobre una placa crema, que además es como vive en el icono
+   de la app. Los iconos de las secciones no necesitan nada: están dibujados
+   con `currentColor` y siguen al texto. */
+.sidebar { background: var(--clay); border-right-color: var(--clay-dark); }
+.sidebar .brand { color: var(--canvas); }
+.sidebar .brand-mark { background: var(--canvas); border-radius: var(--curva-2); padding: 5px; }
+.nav button, .secondary button { color: #f7e6da; }
+.nav button:hover, .secondary button:hover { background: #ffffff26; color: #fffaf6; }
+.nav button.active, .secondary button.active { background: var(--canvas); color: var(--clay-dark); }
+.secondary { border-top-color: #ffffff3d; }
+.side-foot { color: #f0d5c3; }
+.sidebar-close { background: #ffffff26; color: var(--canvas); }
+.sidebar-close:hover { background: #ffffff3d; }
+
+@media (max-width: 700px) {
+  .mobile-nav { background: var(--clay); border-top-color: var(--clay-dark); }
+  .mobile-nav button { color: #f7e6da; }
+  .mobile-nav button.active { background: var(--canvas); color: var(--clay-dark); }
+}
+
+/* ── 21. Los campos, con el redondeo de las tarjetas ───────────────────────
+
+   Las cajas de escribir iban a diez píxeles de radio y las tarjetas a
+   dieciocho: dentro de una tarjeta, un campo con las esquinas más duras que
+   la caja que lo contiene se lee como algo pegado encima. Catorce las acerca sin
+   llegar a la pastilla, que a partir de ahí empieza a parecer un botón.
+
+   Van todos, no solo los de cantidad: dejar los de texto con las esquinas
+   viejas dejaría dos redondeos distintos en el mismo formulario, que es peor
+   que el problema de partida. */
+.field input, .field select, .field textarea,
+input.text, select.text, textarea.text { border-radius: var(--curva-campo); }

@@ -49,72 +49,76 @@ const ir = pagina => `document.querySelector('[data-action="navigate"][data-page
 
 // Rellena las casillas de la revisión para que se vea lo que la pantalla hace:
 // restar. Vacía no enseña nada, y «la resta hecha» es justo la idea que hay que
-// contar. Se escriben cantidades creíbles y se avisa a la app como si las
-// hubiera tecleado alguien.
-const RELLENAR_REVISION = `
-  const casillas = [...document.querySelectorAll('input[name^="consume-"]')].slice(0, 4);
-  const valores = [2, 1, 3, 1];
-  casillas.forEach((casilla, i) => {
-    casilla.value = String(valores[i % valores.length]);
-    casilla.dispatchEvent(new Event('input', { bubbles: true }));
-  });
-  return casillas.length;`;
+// contar. Una lista con todo pendiente no enseña nada: lo que hay que ver es
+// que lo comprado se tacha y baja al final, así que se marcan un par de líneas.
+const MARCAR_COMPRADO = `
+  const tachar = [...document.querySelectorAll('[data-action="compra-tachar"]')].slice(0, 2);
+  for (const boton of tachar) { boton.click(); await new Promise(r => setTimeout(r, 250)); }
+  return tachar.length;`;
 
 const PANTALLAS = [
   {
     archivo: '1-hoy.png',
-    titulo: 'Hoy — lo que se come, con sus cantidades',
+    titulo: 'Hoy — lo que se come, y la nota de quien cocina',
     // Un poco abajo: el rótulo del día ya se entendió, y así entran el desayuno
     // entero y el principio del almuerzo, que es lo que hay que enseñar.
     hacer: ir('hoy'),
     desplazar: 150
   },
   {
-    archivo: '2-plan-mensual.png',
-    titulo: 'Plan mensual — el mes y las rutinas de la casa',
+    archivo: '2-plan-semanal.png',
+    titulo: 'Plan semanal — siete días, uno debajo de otro',
     // Sin bajar: esta es la que enseña la cabecera de la app, y una cabecera
     // cortada por la mitad es lo primero que se nota en una ficha de tienda.
-    hacer: ir('mes'),
+    hacer: ir('semana'),
     desplazar: 0
   },
   {
-    archivo: '3-rutina.png',
-    titulo: 'Una rutina — unos días de la semana llenan el mes',
-    // La del ejemplo, no una vacía: lunes, miércoles, viernes y sábado ya
-    // puestos es lo que hay que enseñar. Un formulario en blanco no explica
-    // nada a quien todavía no sabe para qué sirve.
-    hacer: `${ir('mes')};
+    archivo: '3-poner-en-dias.png',
+    titulo: 'Una comida en varios días — se marcan y se ponen',
+    // Con una preparación elegida y los siete días siguientes ya marcados, que
+    // es lo que hay que enseñar: una ventana vacía no explica nada a quien
+    // todavía no sabe para qué sirve. El desplazamiento baja dentro de la
+    // ventana —no de la página— hasta las casillas de los días.
+    hacer: `${ir('semana')};
       await new Promise(r => setTimeout(r, 400));
-      document.querySelector('[data-action="open-routine"]')?.click();`
+      document.querySelector('[data-action="semana-poner-en-dias"]')?.click();
+      await new Promise(r => setTimeout(r, 500));
+      const receta = document.querySelector('[data-form="poner-en-dias"] [name="recipeId"]');
+      if (receta) {
+        const opcion = [...receta.options].find(o => o.value);
+        if (opcion) { receta.value = opcion.value; receta.dispatchEvent(new Event('change', { bubbles: true })); }
+      }
+      await new Promise(r => setTimeout(r, 300));
+      document.querySelector('[data-action="poner-dias-atajo"][data-cuantos="7"]')?.click();`,
+    desplazar: 430
   },
   {
     archivo: '4-compra.png',
-    titulo: 'La compra — de dónde sale cada línea',
-    // Hasta la lista. Arriba solo hay avisos, y un aviso no enseña para qué
-    // sirve la pantalla.
+    titulo: 'Preparar la compra — tus productos, por rubros',
+    // Hasta el buscador y el primer rubro. Más abajo se pierde de vista que
+    // esto se puede buscar, que es la mitad de para qué sirve la pantalla.
     hacer: ir('compra'),
-    desplazar: 620
+    desplazar: 430
   },
   {
-    archivo: '5-cuanto-queda.png',
-    titulo: '¿Cuánto queda? — la resta ya hecha',
+    archivo: '5-mi-lista.png',
+    titulo: 'Mi lista — lo pendiente arriba, lo comprado tachado',
     hacer: `${ir('compra')};
       await new Promise(r => setTimeout(r, 400));
-      document.querySelector('[data-action="open-new-review"]')?.click();
+      [...document.querySelectorAll('[data-action="compra-vista"]')]
+        .find(b => /mi lista/i.test(b.textContent))?.click();
       await new Promise(r => setTimeout(r, 500));
-      // El modal solo pregunta de qué día. La pantalla que interesa es la de
-      // después.
-      document.querySelector('[data-form="new-review"]')?.requestSubmit();
-      await new Promise(r => setTimeout(r, 700));
-      ${RELLENAR_REVISION}`,
-    desplazar: 260
+      ${MARCAR_COMPRADO}`,
+    // Lo que esta captura tiene que enseñar son las dos mitades a la vez: un
+    // renglón por buscar arriba y, debajo, «Ya en el carrito» con lo tachado.
+    // Bajar hasta el final enseña solo la segunda.
+    desplazar: 640
   },
   {
-    archivo: '6-canasta.png',
-    titulo: 'Mi canasta habitual — se escribe una sola vez',
-    hacer: `${ir('mas')};
-      await new Promise(r => setTimeout(r, 400));
-      document.querySelector('[data-action="navigate"][data-page="canasta"]')?.click();`,
+    archivo: '6-habituales.png',
+    titulo: 'Mis productos habituales — se marcan una sola vez',
+    hacer: ir('canasta'),
     desplazar: 500
   }
 ];

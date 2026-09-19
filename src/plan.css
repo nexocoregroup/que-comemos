@@ -90,6 +90,11 @@
   line-height: 1;
 }
 .plegable[open] > summary::before { transform: rotate(90deg); }
+/* La flecha sigue girando —el estado abierto tiene que verse— pero sin
+   recorrido: llega girada en vez de girar. */
+@media (prefers-reduced-motion: reduce) {
+  .plegable > summary::before { transition: none; }
+}
 .plegable > summary:hover { background: var(--surface-soft); }
 .plegable > *:not(summary) { margin: 0 15px 15px; }
 .plegable > .card { box-shadow: none; }
@@ -153,15 +158,6 @@
 }
 .chip-check:has(input:focus-visible) { outline: 2px solid var(--clay-dark); outline-offset: 2px; }
 
-/* Los siete días tienen que caber en una línea a 375 px: siete columnas iguales
-   y el texto abreviado a tres letras. Una rejilla, no un flex que se parta. */
-.dias-semana {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 6px;
-}
-.dias-semana .chip-check { padding: 0; font-size: .8rem; }
-
 /* Los días sueltos del mes: siete columnas, como un calendario, para que
    «los viernes» se vean alineados en una misma columna aunque se elijan a mano.
    Cada ficha lleva el número grande y la inicial del día debajo. */
@@ -178,6 +174,11 @@
 }
 .dia-suelto span { display: flex; flex-direction: column; align-items: center; gap: 1px; }
 .dia-suelto em { font-style: normal; font-size: .62rem; opacity: .72; font-weight: 600; }
+/* El sábado y el domingo, marcados en bajito. Elegir «los tres viernes» o
+   «el fin de semana» sin tener que contar es la mitad del trabajo de esta
+   rejilla, y la inicial sola no basta cuando hay treinta y una fichas. */
+.dia-suelto.finde { background: color-mix(in srgb, var(--sage) 9%, transparent); }
+.dia-suelto.finde em { opacity: .95; color: var(--sage); }
 
 .radio-fila { display: flex; flex-wrap: wrap; gap: 8px; }
 .radio-pill {
@@ -195,15 +196,7 @@
 .radio-pill:has(input:checked) { background: var(--clay); border-color: var(--clay); color: #fff; }
 .radio-pill:has(input:focus-visible) { outline: 2px solid var(--clay-dark); outline-offset: 2px; }
 
-/* Una respuesta que no se elige porque no hay nada que elegir: unas fechas
-   sueltas solo pueden valer para su mes. Se enseña con la misma forma que las
-   demás para que se lea como una respuesta, y sin cursor de mano para que nadie
-   la toque esperando que cambie. */
-.radio-pill-fijo { cursor: default; margin: 0 0 10px; opacity: .85; }
-
-/* Las dos fechas de vigencia, lado a lado mientras quepan. */
-.rutina-vigencia { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
-@media (max-width: 420px) { .rutina-vigencia { grid-template-columns: 1fr; } }
+@media (max-width: 420px) {  }
 
 /* La versión larga: cuando la opción necesita explicarse, la píldora no sirve. */
 .opcion-larga { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
@@ -239,65 +232,10 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
   font-weight: 700;
   color: var(--ink);
 }
-.rutina-form .hint { margin-top: 9px; }
-
-/* ── Plan mensual ───────────────────────────────────────────────────────── */
-
-.plan-barra { margin-bottom: 16px; }
-.plan-mes-nombre { min-width: 165px; text-align: center; }
-
-.plan-cabecera {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-  align-items: center;
-  justify-content: space-between;
-}
-.plan-cifra { flex: 1 1 230px; min-width: 0; }
-.plan-porcentaje {
-  font-size: 2.7rem;
-  font-weight: 800;
-  line-height: 1;
-  color: var(--clay);
-  letter-spacing: -.03em;
-}
-.plan-porcentaje span { font-size: 1.1rem; font-weight: 700; margin-left: 2px; }
-.plan-progreso { margin: 12px 0 10px; }
-.plan-resumen-texto { margin: 0; font-size: .92rem; color: var(--ink-muted); line-height: 1.6; }
-.plan-resumen-texto strong { color: var(--ink); }
-.plan-acciones { display: flex; flex-wrap: wrap; gap: 10px; }
-
-.plan-slots { margin-top: 18px; }
-.plan-slot-cifra { font-size: 1.7rem; font-weight: 800; margin: 10px 0 2px; letter-spacing: -.02em; }
-.plan-slot-cifra .muted { font-size: 1rem; font-weight: 600; }
-
-.plan-cambios { margin: 0 0 8px; font-size: .95rem; line-height: 1.6; }
-
-.plan-calendario-pie { margin-top: 16px; }
+.dias-form .hint { margin-top: 9px; }
 
 /* Una comida fuera de casa está resuelta, no pendiente: se marca en salvia, que
    en esta paleta es siempre «esto está bien», y nunca en el gris de «falta». */
-.month-meal.fuera { background: #eef0e6; color: var(--sage); border-color: #d8ddc6; }
-
-/* ── El recorrido de preparar el mes ────────────────────────────────────── */
-
-.plan-bloque { max-width: 720px; }
-.plan-bloque-head { margin-bottom: 20px; }
-.plan-bloque-head .progress { margin-bottom: 12px; }
-.plan-bloque-head h2 { margin: 12px 0 0; font-size: 1.45rem; line-height: 1.25; }
-.plan-bloque-texto { margin: 0 0 18px; color: var(--ink-muted); line-height: 1.6; max-width: 58ch; }
-.plan-bloque-texto strong { color: var(--ink); }
-.plan-bloque-pie {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-top: 26px;
-  padding-top: 20px;
-  border-top: 1px solid var(--line);
-}
-
-.plan-pendiente .list-row-title { font-size: .95rem; }
 
 .plan-ok {
   display: flex;
@@ -320,136 +258,61 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 .plan-ok strong { display: block; font-size: 1.1rem; }
 .plan-ok span:not(.plan-ok-icono) { color: var(--ink-muted); font-size: .9rem; }
 
-.plan-lista-final { margin: 18px 0 0; padding-left: 20px; line-height: 2; }
-.plan-lista-final strong { color: var(--clay); }
-
-.plan-canasta-cifras {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-  gap: 16px;
-  text-align: center;
-}
-.plan-canasta-cifras strong { display: block; font-size: 1.6rem; font-weight: 800; color: var(--clay); }
-.plan-canasta-cifras span { font-size: .8rem; color: var(--ink-muted); line-height: 1.4; display: block; margin-top: 3px; }
-
-/* ── Compra ─────────────────────────────────────────────────────────────── */
-
-.compra-periodo { margin-bottom: 10px; }
-.compra-mes { min-width: 165px; text-align: center; }
-.compra-otras { margin: 0 0 18px; }
-.compra-fechas { margin-bottom: 18px; align-items: flex-end; }
-
-.compra-fila { align-items: center; gap: 14px; }
-.compra-cantidad {
-  flex: 0 0 auto;
-  text-align: right;
-  font-size: 1.02rem;
-  font-variant-numeric: tabular-nums;
-}
-.compra-cantidad strong { color: var(--clay-dark); }
 .compra-acciones { margin-top: 16px; }
 
-/* ── Más ────────────────────────────────────────────────────────────────── */
+/* Aquí vivía `.mas-volver`, la fila de «‹ Ajustes» más el título repetido que
+   abría las siete subpantallas de Ajustes. El título ya lo escribe el `<h1>` de
+   la cabecera; el botón subió a esa misma cabecera, que es donde lo pondría
+   cualquier aplicación de teléfono. */
 
-.mas-lista { padding: 6px; }
-.mas-item {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  width: 100%;
-  padding: 15px 13px;
-  border: 0;
-  border-radius: 12px;
-  background: none;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  color: var(--ink);
-  min-height: 60px;
-  box-sizing: border-box;
-}
-.mas-item + .mas-item { border-top: 1px solid var(--line); border-radius: 0; }
-.mas-item:hover { background: var(--surface-soft); }
-.mas-item:focus-visible { outline: 2px solid var(--clay); outline-offset: -2px; }
-.mas-icono { font-size: 1.35rem; flex: 0 0 auto; width: 30px; text-align: center; }
-.mas-texto { flex: 1; min-width: 0; }
-.mas-texto strong { display: block; font-size: .98rem; font-weight: 650; }
-.mas-texto span { display: block; font-size: .83rem; color: var(--ink-muted); margin-top: 2px; }
-.mas-pista { flex: 0 0 auto; font-size: .78rem; color: var(--ink-muted); white-space: nowrap; }
-.mas-flecha { flex: 0 0 auto; color: var(--clay-line); font-size: 1.3rem; line-height: 1; }
-.mas-pie { margin-top: 18px; }
-.mas-pie h3 { margin: 0 0 8px; }
+/* El botón de volver, al lado del título de la pantalla. Del mismo tamaño que
+   el del menú y el del engranaje, porque los tres son lo mismo: cómo se sale de
+   donde estás. */
+.volver-a-ajustes { flex: none; }
 
-.mas-volver {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0 0 18px;
-  flex-wrap: wrap;
-}
-.mas-volver h2 { margin: 0; font-size: 1.35rem; }
+/* ── Los ocho rubros, que son los mismos en las tres pantallas ─────────────
 
-/* ── La canasta, editable de una vez ────────────────────────────────────── */
+   Mis productos habituales, Preparar la compra y Mi lista agrupan por los ocho
+   mismos rubros, con el mismo icono y el mismo orden: es una sola lista vista
+   desde tres sitios. El icono y la separación entre bloques estaban escritos
+   dos veces con dos nombres y las copias ya habían empezado a separarse; aquí
+   se escriben una vez.
 
-.canasta-grupo {
-  margin: 22px 0 9px;
-  font-size: .82rem;
-  text-transform: uppercase;
-  letter-spacing: .07em;
-  color: var(--ink-muted);
-}
+   Lo que NO se comparte es la cabecera, y no por descuido: el gesto no es el
+   mismo. En Productos la cabecera se pliega y es un <summary>; en Compra solo
+   titula, porque ahí los rubros van siempre abiertos —recorrerlos con los ojos
+   ES la tarea de esa pantalla—. */
+
+.canasta-rubro, .compra-rubro { margin-top: var(--aire-6); }
+.canasta-grupo-icono, .compra-rubro-icono { color: var(--clay); display: flex; }
+
+/* La cabecera plegable de Productos. El peso y el alto vienen del <summary> de
+   .plegable; aquí solo se manda el nombre a ocupar el hueco y el contador al
+   extremo, que es donde se lee de un vistazo sin competir con el nombre. */
+.canasta-grupo { font-size: .95rem; font-weight: 800; letter-spacing: -.02em; }
+.canasta-grupo-titulo { flex: 1; min-width: 0; }
+.canasta-grupo .badge-count { margin-left: 0; }
 .canasta-card { padding: 6px 12px; }
+/* Tres columnas: el nombre, editar y la equis. Eran cuatro cuando dos de ellas
+   eran la cantidad del mes y su medida. Sin esas dos caben en un renglón hasta
+   en el teléfono más estrecho, así que la fila ya no se parte. */
 .canasta-fila {
   display: grid;
-  grid-template-columns: 1fr 88px 104px 40px;
+  grid-template-columns: 1fr auto auto;
   align-items: center;
-  gap: 9px;
+  gap: var(--aire-3);
   padding: 9px 0;
 }
 .canasta-fila + .canasta-fila { border-top: 1px solid var(--line); }
 .canasta-nombre { font-size: .94rem; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
-.canasta-cantidad { text-align: right; font-variant-numeric: tabular-nums; }
-.canasta-unidad { min-width: 0; }
-/* La historia de la línea —desde cuándo vale esta cantidad, y la que ya está
-   escrita para más adelante— va debajo y de lado a lado. Es una nota al pie de
-   la fila: no puede robarle sitio a la cantidad, que es lo que se viene a
-   tocar. Solo aparece en las líneas que han tenido más de una cantidad. */
-.canasta-historia { grid-column: 1 / -1; margin: 0; line-height: 1.35; }
+/* La nota es para quien va al colmado —«el de la bolsa azul»—, así que va
+   pegada al nombre y en voz baja: se lee cuando se busca, no antes. */
+.canasta-nota { display: block; font-size: .78rem; font-weight: 500; color: var(--ink-muted); }
+.canasta-editar { font-size: .84rem; }
 
-/* A 375 px las cuatro columnas dejan el nombre en dos letras. Se parte en dos
-   líneas: el nombre arriba y los controles debajo, alineados a la derecha. */
-@media (max-width: 560px) {
-  .canasta-fila {
-    grid-template-columns: 1fr 92px 40px;
-    grid-template-areas: 'nombre nombre nombre' 'unidad cantidad quitar';
-    row-gap: 7px;
-  }
-  .canasta-nombre { grid-area: nombre; }
-  .canasta-cantidad { grid-area: cantidad; }
-  .canasta-unidad { grid-area: unidad; }
-  .canasta-fila > button { grid-area: quitar; }
-}
-
-/* ── Revisión: buscar, filtrar y dictar ─────────────────────────────────── */
-
-.revision-herramientas {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 14px;
-}
-.revision-buscar { flex: 1 1 200px; min-width: 0; }
-/* La ficha de «solo lo que falta» se enciende como cualquier otra ficha, y el
-   estado se anuncia además con aria-pressed: un botón que solo cambia de color
-   no existe para quien no distingue esos dos tonos. */
+/* Una ficha encendida se anuncia además con aria-pressed: un botón que solo
+   cambia de color no existe para quien no distingue esos dos tonos. */
 .chip.activa { background: var(--clay); border-color: var(--clay); color: #fff; }
-.revision-aviso {
-  flex-basis: 100%;
-  margin: 0;
-  color: var(--sage);
-  line-height: 1.5;
-}
 
 /* ── Revisión: filas, no tabla ──────────────────────────────────────────── */
 
@@ -488,7 +351,6 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 /* La pista de «Respaldo» cuando hace demasiado que no se guarda una copia.
    Con el respaldo automático de Android apagado, esta es la única red que hay,
    así que el dato deja de ser gris y pasa a pedir atención. */
-.mas-pista.alerta { color: var(--clay); font-weight: 700; }
 
 /* ── Un documento largo, para leer ──────────────────────────────────────── */
 
@@ -508,57 +370,35 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 
 /* ── Preparaciones: cinco bloques, uno por momento del día ─────────────────
 
-   La cabecera es un botón de ancho completo, no una flechita: en un teléfono
-   lo que se toca es la fila entera, y el número de al lado dice cuántas hay
-   sin tener que abrirla. */
+   Lo que se toca es la fila entera, y el número de al lado dice cuántas hay sin
+   tener que abrirla.
 
-.recetas-bloque { margin-bottom: 18px; }
-.recetas-cabecera {
-  display: flex; align-items: center; gap: 10px; width: 100%;
-  border: 1px solid var(--line); border-radius: 14px; padding: 13px 15px;
-  background: var(--surface); color: var(--ink); text-align: left;
-  font: inherit; font-weight: 800; letter-spacing: -.02em; min-height: 52px;
-  margin-bottom: 12px;
-}
-.recetas-cabecera:hover { border-color: var(--clay-line); background: var(--clay-light); }
-.recetas-cabecera[aria-expanded="false"] { margin-bottom: 0; }
-.recetas-flecha { color: var(--clay); font-size: 1.05rem; line-height: 1; width: 14px; text-align: center; }
+   Era un <button aria-expanded> propio que al plegarse llamaba a render() y
+   repintaba la aplicación completa: la página se acortaba y el dedo perdía el
+   sitio. Ahora es el <summary> de un .plegable, que es el único motor de
+   plegado que queda en la app —el navegador resuelve teclado y lector de
+   pantalla, y abrir un bloque no toca el resto de la pantalla—. De aquel botón
+   se conserva lo que valía: el peso de la fila y su alto. */
+
+.recetas-bloque > summary { font-weight: 800; letter-spacing: -.02em; min-height: 52px; }
 .recetas-titulo { flex: 1; min-width: 0; }
-.recetas-cabecera .badge-count { margin-left: 0; font-size: .78rem; }
-.recetas-vacio { margin: 0 0 4px 39px; }
+.recetas-bloque > summary .badge-count { margin-left: 0; font-size: .78rem; }
 
 .receta-tarjeta .between { margin-bottom: 8px; }
 .receta-tarjeta h3 { margin: 0; font-size: 1.06rem; }
 .receta-tarjeta .pill { margin-right: 4px; }
 .receta-incompleta { font-style: italic; }
 
+/* El aviso de lo que no se pudo comprobar. No es una alarma —no se sabe que
+   haya un problema— pero tampoco silencio, que se leería como «revisado». */
+.choque-sinsaber { background: var(--surface-soft); border: 1px dashed var(--line); color: var(--ink-muted); }
+.choque-sinsaber .choque-marca { color: var(--clay); font-size: 1.05rem; }
+
 /* El formulario de una preparación: seis cosas en fila, ninguna escondida. */
 .receta-form { display: grid; gap: 18px; }
 .receta-form .field { gap: 8px; }
 .receta-form .field > span { font-size: .88rem; line-height: 1.4; }
 .receta-momentos { gap: 8px; }
-
-/* La casilla de una ficha marcable no crece con la ficha.
-   `.check-chip` es un flex y el `input` no trae tamaño propio, así que con una
-   etiqueta larga —«Merienda de mañana»— el navegador le daba a la casilla todo
-   el ancho sobrante: un cuadro de 85 píxeles al lado de un texto de tres
-   renglones. Con las etiquetas cortas de siempre no se notaba. */
-.check-chip input[type="checkbox"], .check-chip input[type="radio"] {
-  flex: 0 0 auto;
-  width: 16px;
-  height: 16px;
-  margin: 0;
-}
-.receta-momentos .check-chip { align-items: center; }
-
-/* ── Cinco momentos: tres que se cuentan y dos que no ──────────────────────
-
-   Las meriendas se ven menos que las comidas a propósito. No son menos
-   importantes cuando existen; lo que no pueden es parecer un hueco cuando no
-   existen, porque hay casas que no meriendan y no les falta nada. */
-
-.plan-slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
-.plan-slot-opcional { opacity: .88; border-style: dashed; }
 
 .meriendas { margin-top: 16px; }
 .merienda-card { padding: 15px; }
@@ -567,16 +407,6 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 .merienda-card.vacia { border-style: dashed; }
 .meriendas-vacias { margin: 16px 0 0; }
 .meriendas-vacias .enlace { font-size: .85rem; }
-
-/* En el calendario, la merienda va más fina y en gris: la casilla de un día
-   tiene que seguir leyéndose de un vistazo con cinco cosas dentro. */
-.month-meal-opcional { background: #f7f4ef; color: #7a6c60; font-size: .64rem; }
-.month-meal-merienda {
-  border: 1px dashed #dbcfc0; background: transparent; color: #9a8878;
-  display: block; width: 100%; text-align: left; border-radius: 6px;
-  padding: 3px 5px; margin-top: 5px; font-size: .63rem; line-height: 1.2;
-}
-.month-meal-merienda:hover { background: #f6f1ea; color: var(--clay-dark); }
 
 /* ── Avisos por gravedad ───────────────────────────────────────────────────
 
@@ -605,8 +435,7 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 
 @media (max-width: 700px) {
   .meriendas { grid-template-columns: 1fr; }
-  .plan-slots { grid-template-columns: 1fr 1fr; }
-}
+  }
 
 /* ── De dónde salió cada comida ────────────────────────────────────────────
 
@@ -640,61 +469,13 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
   margin: 0 0 14px; font-size: .84rem; color: var(--ink-muted);
 }
 .origen-linea strong { color: var(--ink); }
-.origen-resumen .plan-sub { margin-top: 0; }
-.origen-lista { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 7px; }
-.origen-lista li { display: flex; align-items: center; gap: 9px; font-size: .9rem; color: var(--ink-muted); }
-.origen-lista strong { color: var(--ink); font-size: 1.05rem; min-width: 2ch; }
 
-/* En el calendario el origen es una barra a la izquierda de la pastilla. Poner
-   ahí la palabra dejaría la casilla ilegible en un teléfono de 360, y el nombre
-   accesible del botón ya la dice entera para quien no distingue el color.
-   El selector repite .calendar-month para ganarle a calendar.css. */
-.month-meal[data-origen] { border-left: 3px solid var(--origen, transparent); }
-.calendar-month .month-meal[data-origen] { border-left: 4px solid var(--origen, transparent); }
 
-/* ── Un día entero ─────────────────────────────────────────────────────── */
 
-.dia-momentos { display: grid; gap: 8px; }
-.dia-momento {
-  display: flex; align-items: center; gap: 11px; text-align: left; width: 100%;
-  border: 1px solid var(--line); border-radius: 14px; padding: 11px 13px;
-  background: var(--surface); color: var(--ink);
-}
-.dia-momento:hover { border-color: var(--clay-line); background: var(--surface-soft); }
-.dia-momento:focus-visible { outline: 2px solid var(--clay); outline-offset: 2px; }
-.dia-momento.vacio { border-style: dashed; }
-.dia-momento-letra {
-  flex: 0 0 auto; min-width: 30px; text-align: center;
-  font-size: .76rem; font-weight: 850; color: var(--clay-dark);
-  background: var(--clay-light); border-radius: 8px; padding: 5px 4px;
-}
-.dia-momento-texto { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
-.dia-momento-texto strong { font-size: .92rem; }
-.dia-momento-texto span { font-size: .8rem; color: var(--ink-muted); overflow-wrap: anywhere; }
-.dia-momento.vacio .dia-momento-letra { color: var(--ink-muted); background: var(--surface-soft); }
 
-/* El recorrido de tres bloques, escrito arriba para que se vea dónde se está. */
-.plan-bloque-pasos { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0 0; font-size: .74rem; }
-.plan-bloque-pasos .strong { color: var(--clay-dark); font-weight: 800; }
-.plan-cerrado { margin: 12px 0 0; }
+
 .radio-bloque.elegida { border-color: var(--clay); background: var(--clay-light); }
 .radio-bloque.elegida strong { color: var(--clay-dark); }
-
-/* Los rótulos que parten el índice de Más en tres. */
-.mas-grupo {
-  margin: 20px 0 8px; font-size: .74rem; font-weight: 800;
-  text-transform: uppercase; letter-spacing: .09em; color: var(--ink-muted);
-}
-.mas-grupo:first-of-type { margin-top: 4px; }
-
-/* ¿Solo este mes, o para siempre? La de siempre nunca viene marcada. */
-.destino-opciones { gap: 8px; }
-.destino-opcion { display: flex; align-items: flex-start; gap: 11px; min-height: 0; padding: 13px 14px; cursor: pointer; }
-.destino-opcion input { flex: 0 0 auto; margin-top: 3px; width: 16px; height: 16px; }
-.destino-opcion span { display: grid; gap: 3px; }
-.destino-opcion strong { font-size: .95rem; }
-.destino-opcion:has(input:checked) { border-color: var(--clay); background: var(--clay-light); }
-.destino-opcion:has(input:checked) strong { color: var(--clay-dark); }
 
 /* ── Un período cerrado ────────────────────────────────────────────────────
 
@@ -716,3 +497,258 @@ button.radio-bloque:focus-visible { outline: 2px solid var(--clay); outline-offs
 }
 .cierre-seccion .food-list { margin: 0; }
 .cierre-seccion p { margin: 0 0 6px; }
+
+/* Cambiar el plato de un solo día, dentro de la ventana de la comida. Va en su
+   propia caja para que no se confunda con el formulario de abajo, que es el que
+   edita esta comida: son dos cosas distintas y una de ellas borra la otra. */
+.sustituir-comida {
+  display: grid; gap: var(--aire-3);
+  margin: var(--aire-4) 0;
+  padding: var(--aire-4);
+  border: 1px solid var(--line); border-radius: var(--curva-3);
+  background: var(--surface-soft);
+}
+.sustituir-comida .field { margin: 0; }
+.sustituir-comida .btn { justify-self: start; }
+
+/* ── La compra: dos vistas ─────────────────────────────────────────────────
+
+   Preparar y Mi lista. No hay una tercera, y las dos caben en un pulgar: en
+   «preparar» se toca un producto y se dice cuánto; en «mi lista» se toca un
+   renglón y queda tachado. */
+
+.compra-cabecera { margin-bottom: var(--aire-5); }
+.compra-vistas { width: 100%; margin-top: var(--aire-3); }
+.compra-vistas button { flex: 1; }
+
+/* La separación y el icono los pone el bloque compartido de más arriba. */
+.compra-rubro-titulo {
+  display: flex; align-items: center; gap: var(--aire-2);
+  margin: 0 0 var(--aire-3); font-size: .95rem; letter-spacing: -.02em;
+}
+
+.compra-productos { display: flex; flex-wrap: wrap; gap: var(--aire-2); }
+.compra-producto {
+  display: inline-flex; align-items: center; gap: var(--aire-2);
+  min-height: var(--toque); padding: var(--aire-2) var(--aire-4);
+  border: 1px solid var(--line); border-radius: var(--curva-llena);
+  background: var(--surface); color: var(--ink);
+  font-size: .9rem; font-weight: 650; text-align: left;
+}
+.compra-producto:hover { background: var(--clay-light); border-color: var(--clay-line); }
+.compra-producto.puesto { background: var(--clay-light); border-color: var(--clay); }
+.compra-producto-mas { color: var(--clay); display: flex; }
+.compra-producto .pill { font-size: .68rem; }
+
+/* La casilla de «¿cuánto?» se abre en el sitio del producto, no encima de la
+   pantalla: quien la cierra sigue exactamente donde estaba. */
+.compra-poner, .compra-ocasional {
+  flex: 1 1 100%;
+  display: grid; gap: var(--aire-3);
+  border: 1px solid var(--clay-line); border-radius: var(--curva-3);
+  background: var(--clay-light); padding: var(--aire-4);
+}
+.compra-poner-nombre, .compra-ocasional-titulo { margin: 0; font-weight: 800; color: var(--clay-dark); }
+.compra-poner-campos { display: grid; grid-template-columns: minmax(0, 1fr) minmax(110px, .7fr); gap: var(--aire-3); }
+.compra-poner .field, .compra-ocasional .field { margin: 0; }
+.compra-poner input, .compra-poner select,
+.compra-ocasional input, .compra-ocasional select { background: var(--surface); }
+.compra-poner p:last-child { margin: 0; }
+.compra-ocasional-abrir { margin-top: var(--aire-6); }
+
+/* ── Mi lista ──────────────────────────────────────────────────────────── */
+
+/* ── Un renglón: el nombre, la cantidad, y lo demás plegado ────────────────
+
+   Enseñaba cuatro controles a la vez —la casilla de traje con su Anotar,
+   cambiar lo pedido y quitar— y medía unos 170 px de alto. Con cuarenta cosas
+   apuntadas eso no es una lista que se lee: es una que se recorre. Lo que se
+   hace de pie en un pasillo es mirar el nombre, mirar cuánto y tocar una vez;
+   corregir es la excepción, y ahora se pide.
+
+   Rejilla y no flex, y por un motivo concreto: los controles tienen que ocupar
+   la fila entera debajo mientras el botón que los abre se queda arriba a la
+   derecha. Con `flex-wrap` eso obliga a envolver los controles y el botón en un
+   mismo contenedor, y entonces el botón baja con ellos. */
+.compra-lista { display: grid; gap: 0; }
+.compra-renglon {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--aire-2);
+  border-top: 1px solid var(--line); padding: var(--aire-3) 0;
+}
+.compra-renglon:first-child { border-top: 0; }
+.compra-tachar {
+  display: flex; align-items: center; gap: var(--aire-3);
+  min-width: 0; min-height: var(--toque);
+  border: 0; background: none; text-align: left; color: var(--ink);
+  padding: 0;
+}
+
+/* La flecha que despliega. Es la misma «›» que gira en los cuatro sitios que se
+   pliegan en la app: el mismo dibujo para el mismo gesto. */
+.compra-mas {
+  width: var(--toque); height: var(--toque);
+  display: grid; place-items: center;
+  border: 0; background: none; color: var(--clay);
+  font-size: 1.3rem; line-height: 1; border-radius: 10px;
+}
+.compra-mas span { display: block; transition: transform .18s ease; }
+.compra-mas[aria-expanded="true"] span { transform: rotate(90deg); }
+.compra-mas:hover { background: var(--clay-light); }
+@media (prefers-reduced-motion: reduce) { .compra-mas span { transition: none; } }
+.compra-tachar-caja {
+  flex: none; display: grid; place-items: center;
+  width: 26px; height: 26px; border-radius: 8px;
+  border: 2px solid var(--clay-line); background: var(--surface); color: #fff;
+}
+.compra-renglon.tachado .compra-tachar-caja { background: var(--sage); border-color: var(--sage); }
+.compra-renglon-texto { display: grid; gap: 2px; min-width: 0; }
+.compra-renglon.tachado .compra-renglon-texto strong { text-decoration: line-through; opacity: .62; }
+.compra-renglon.a-medias .compra-tachar-caja { border-color: var(--clay); background: var(--clay-light); }
+.compra-renglon-acciones { grid-column: 1 / -1; gap: var(--aire-2); margin-top: var(--aire-2); }
+/* «Traje 3» y no un cuadro mudo con un «¿cuánto?» que desaparece al escribir.
+   La etiqueta cabe delante sin robarle ancho al nombre del producto: el
+   contenedor es flex y el cuadro se queda en sus 84 px. */
+.compra-parcial { display: flex; align-items: center; gap: var(--aire-2); }
+.compra-parcial-etiqueta { font-size: .78rem; font-weight: 800; color: var(--ink-muted); }
+.compra-parcial input { width: 84px; min-height: var(--toque-chico); }
+/* El contador de arriba. Sustituye a la tarjeta «Ya en el carrito», que era
+   adonde saltaba un renglón al tacharlo: dice lo mismo sin mover nada de
+   sitio. `tabular-nums` para que el número no cambie de ancho al pasar de 9 a
+   10 y la línea entera no se recoloque en cada toque. */
+.compra-conteo {
+  margin: 0 0 var(--aire-4);
+  font-size: .9rem; color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.compra-conteo strong { color: var(--ink); }
+
+/* La cabecera de rubro dentro de «Mi lista»: el mismo dibujo que en
+   «Preparar» pero más callado, porque aquí no abre una sección, solo separa
+   un pasillo del siguiente. Solo sale cuando hay más de un rubro; con uno,
+   una cabecera es un renglón que no dice nada. */
+.compra-lista-rubro { margin-top: var(--aire-5); color: var(--ink-muted); font-size: .88rem; }
+.compra-lista-rubro:first-of-type { margin-top: 0; }
+
+/* `.compra-tachados` se fue con la tarjeta que atenuaba entera. Lo tachado se
+   distingue por su propio renglón —la caja verde y la raya— y ya no hace
+   falta apagar nada: si se apagara el renglón entero, «Editar» y «Quitar»
+   quedarían medio invisibles justo en el que más se toca por error. */
+.compra-acciones { justify-content: stretch; }
+.compra-acciones .btn { flex: 1; }
+.compra-historial { margin-top: var(--aire-7); }
+
+/* ── Ajustes: un índice de filas ───────────────────────────────────────────
+
+   Eran ocho tarjetas con un párrafo cada una. Una fila dice a dónde lleva y
+   cuánto hay al otro lado, y se lee con el pulgar sin desplazar. El dato de
+   debajo del nombre no es decoración: es lo que se venía a comprobar, y varias
+   veces ahorra entrar. */
+
+.ajustes-indice { padding: 4px 8px; }
+.ajustes-fila {
+  display: flex; align-items: center; gap: var(--aire-3);
+  width: 100%; min-height: 62px; padding: var(--aire-3) var(--aire-2);
+  border: 0; background: none; color: var(--ink); text-align: left; font: inherit;
+}
+.ajustes-fila + .ajustes-fila { border-top: 1px solid var(--line); }
+.ajustes-fila:hover { background: var(--clay-light); }
+.ajustes-icono { flex: none; display: grid; place-items: center; color: var(--clay); }
+.ajustes-texto { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.ajustes-texto strong { font-size: .97rem; letter-spacing: -.02em; }
+.ajustes-texto span { font-size: .82rem; color: var(--ink-muted); line-height: 1.35; }
+.ajustes-flecha { flex: none; display: grid; place-items: center; color: var(--ink-muted); }
+
+/* ── Los días que ya pasaron ───────────────────────────────────────────────
+
+   Plegados, y solo cuando hoy está dentro de lo que se enseña. El contenido
+   pierde el margen lateral de .plegable porque son tarjetas de día enteras, no
+   un párrafo dentro de una caja. */
+.semana-pasados > .semana-dias { margin: 0 12px 12px; }
+
+/* ── Plan semanal ──────────────────────────────────────────────────────────
+
+   Siete tarjetas, una por día, una debajo de otra. No es una cuadrícula: en un
+   teléfono, siete columnas obligan a que cada comida quepa en media línea, y
+   media línea no dice «Plátano maduro con acompañamientos».
+
+   En pantalla ancha caben dos columnas de días, que es lo que hace que una
+   semana se vea de un vistazo sin tener que desplazarse. */
+
+.semana-barra { align-items: center; gap: 12px; }
+.semana-mover { gap: 8px; }
+.semana-rango { font-size: 1.05rem; letter-spacing: -.02em; min-width: 12ch; }
+.semana-controles { gap: 8px; flex-wrap: wrap; }
+.semana-vista button { white-space: nowrap; }
+
+.semana-resumen { margin-bottom: 18px; padding: 15px 18px; }
+.semana-resumen p { margin: 0; }
+.semana-resumen p + p { margin-top: 6px; }
+
+.semana-dias { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+.semana-dia { padding: 16px 16px 14px; }
+.semana-dia.ya-paso { opacity: .72; }
+.semana-dia.es-hoy { border-color: var(--clay-line); box-shadow: 0 5px 20px #a04b2218; }
+.semana-dia-cabecera { align-items: flex-start; margin-bottom: 12px; gap: 10px; }
+.semana-dia-semana { display: block; font-size: .7rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--clay); }
+.semana-dia-titulo { font-size: 1.02rem; margin: 3px 0 0; letter-spacing: -.02em; }
+
+.semana-momentos { display: grid; gap: 6px; }
+.semana-momento {
+  display: grid; grid-template-columns: 8.5ch minmax(0, 1fr) 20px;
+  align-items: center; gap: 10px; width: 100%; text-align: left;
+  border: 1px solid transparent; border-radius: 11px; background: var(--surface-soft);
+  padding: 9px 11px; color: inherit; min-height: 44px; line-height: 1.25;
+}
+.semana-momento:hover { background: var(--clay-light); }
+.semana-momento:focus-visible { outline: 3px solid var(--clay); outline-offset: 2px; }
+.semana-momento-nombre { font-size: .7rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-muted); }
+.semana-momento-texto { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.semana-momento-texto em { display: block; font-style: normal; font-weight: 500; font-size: .78rem; color: var(--ink-muted); margin-top: 2px; }
+.semana-momento-marca { text-align: right; color: var(--ink-muted); font-weight: 800; }
+.semana-momento.vacio { background: transparent; border-style: dashed; border-color: var(--line); }
+.semana-momento.vacio .semana-momento-texto { font-weight: 500; color: var(--ink-muted); }
+.semana-momento.fuera .semana-momento-texto { font-weight: 600; color: var(--sage); }
+
+.semana-anadir-merienda { display: inline-block; margin-top: 10px; font-size: .82rem; }
+.semana-pie { margin-top: 18px; }
+
+@media (max-width: 700px) {
+  .semana-barra { flex-direction: column; align-items: stretch; }
+  .semana-mover { justify-content: space-between; }
+  .semana-controles { justify-content: space-between; }
+  .semana-dias { grid-template-columns: 1fr; }
+  .semana-momento { grid-template-columns: 7.5ch minmax(0, 1fr) 18px; gap: 8px; }
+}
+
+/* ── Los datos que están y no se pueden leer ───────────────────────────────
+
+   Una tarjeta sola en la pantalla, sin barra ni menú, porque mientras esto se
+   ve no hay app que usar: usarla pisaría lo guardado. Ancho de lectura, no de
+   pantalla — son cuatro párrafos que hay que leer enteros antes de tocar el
+   botón rojo de abajo. */
+.ilegible { max-width: 560px; margin: var(--aire-6) auto; }
+.ilegible h2 { margin-top: 0; }
+.ilegible .modal-actions { justify-content: flex-start; }
+
+/* Las dos salidas de la franja del ejemplo. Eran una sola, y se llamaba
+   «Borrar el ejemplo» aunque lo que hacía era vaciar la aplicación entera. */
+.demo-salidas { margin-top: var(--aire-3); }
+
+/* ── Avisos ────────────────────────────────────────────────────────────────
+
+   Un interruptor y una hora. No hay más, y la pantalla no finge que lo haya:
+   una lista de categorías de notificación con una sola categoría es una lista
+   que sobra. */
+.avisos-caja { display: grid; gap: var(--aire-4); }
+.avisos-linea { align-items: start; gap: var(--aire-4); }
+.avisos-linea h3 { margin: 0 0 var(--aire-1); }
+.avisos-linea p { margin: 0; }
+.avisos-linea .btn { flex: none; }
+.avisos-hora {
+  display: flex; align-items: flex-end; gap: var(--aire-3); flex-wrap: wrap;
+  border-top: 1px solid var(--line); padding-top: var(--aire-4);
+}
+.avisos-hora .field { margin: 0; flex: 0 1 150px; }

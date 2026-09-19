@@ -8,7 +8,7 @@ Todo lo de aquí sale de leer el código de la app, no de suponer. Cuando algo d
 - **Identificador:** `com.nexocore.quecomemos`
 - **Categoría sugerida:** Estilo de vida (alternativa razonable: Productividad)
 - **Precio:** gratis, sin compras dentro de la app
-- **Actualizado:** 16 de septiembre de 2026
+- **Actualizado:** 17 de septiembre de 2026
 - **Correo de contacto:** `nexocore.group@gmail.com` — **provisional**
 
 Ese correo ya está escrito en las cuatro páginas de `legal/` y en `src/legal.js`, y va también en la ficha de la tienda, donde **es público**: lo ve cualquiera que abra la ficha. Está marcado como provisional a la espera del buzón oficial de NexoCore; cuando cambie, cambia en seis archivos a la vez:
@@ -91,32 +91,52 @@ Como la app **sí** permite crear una cuenta, esto pasó de opcional a **obligat
 
 - **¿La app permite crear una cuenta?** → **Sí**.
 - **URL donde se solicita la eliminación de la cuenta** → la de `legal/eliminar-datos.html`. Google exige que esa página se pueda abrir **sin iniciar sesión**, y esta cumple: es una página pública.
-- Esa página explica los tres caminos, y el **camino 3** es el de la cuenta: *Más → Mi cuenta → Borrar mi cuenta*, inmediato, sin formulario y sin espera.
+- Esa página explica los tres caminos, y el **camino 3** es el de la cuenta: *Ajustes → Mi cuenta → Borrar mi cuenta*, inmediato, sin formulario y sin espera.
 - También ofrece un correo de respaldo para quien ya no pueda entrar a la app. Google valora que exista esa salida.
 - **Qué se borra y qué se conserva:** se borra todo —correo, nombre, contraseña, la casa guardada— y no se conserva nada. Si el formulario pide detallar retención, la respuesta es que no hay retención.
 
-### El micrófono: por qué NO se declara como dato recogido
 
-Aquí es donde se equivoca la gente, así que conviene tenerlo claro y por escrito.
+---
 
-**Por qué el audio no cuenta como «recopilado por la app»:**
+## 2 bis. Declaración de apps de salud
 
-Para Google, «recopilar» significa que **la app** saca datos del dispositivo. Con el audio no lo hace nunca, ni con cuenta ni sin ella:
+**Es un formulario aparte del de seguridad de los datos, y se olvida porque no
+se parece en nada a lo que uno espera.** Está en Play Console → Contenido de la
+app → «Declaración de apps de salud».
 
-- No graba. No se crea ningún archivo de audio, ni temporal.
-- No guarda. No hay audio en `localStorage` ni en ninguna parte.
-- No transmite. La única salida de red de la app habla con el servicio de cuentas y solo sabe mandar texto de la casa; no hay ninguna ruta por la que pueda salir audio.
+Lo que sorprende, y por eso está escrito aquí: **es obligatorio para todas las
+apps publicadas**, tengan o no funciones de salud. Una app que no tenga
+ninguna también lo rellena, para certificar que no las tiene.
 
-Lo que hace es pedirle al **reconocedor de voz del propio Android** —el mismo del micrófono del teclado— que le devuelva texto. El audio lo maneja ese servicio del sistema, y la app solo recibe la cadena de texto ya convertida. Un servicio del sistema operativo del usuario no es un «tercero» tuyo en el sentido del formulario.
+> «All developers that have an app published on Google Play must complete the
+> Health apps declaration», y explícitamente cubre las apps «that do not offer
+> any health features», que «must complete this form and certify that no
+> health features are offered».
+>
+> — <https://support.google.com/googleplay/android-developer/answer/14738291>
 
-**Qué hay que declarar de todas formas, para no tener problemas:**
+**Esta app no es de salud, pero toca datos de salud.** Las alergias que se
+anotan en Familia son datos de salud —por eso ya se declaran como tales en la
+sección de seguridad de los datos, apartado 2— y se usan para una función que
+no es de salud: avisar de que una comida lleva algo que alguien evita. Ese caso
+lo cubre el formulario expresamente:
 
-Lo de arriba es correcto, pero declarar «no recojo nada» con `RECORD_AUDIO` en el manifiesto es exactamente el patrón que hace que un revisor mire dos veces. Así que:
+> «If your app provides health features or accesses health data to support
+> non-health features, you must declare one or more of the following
+> features.»
 
-1. **Deja la explicación del micrófono en la política de privacidad.** Ya está en `legal/privacidad.html`, y dice la verdad completa: incluido que en los teléfonos sin reconocimiento local, **Android manda el audio a sus servidores** para entenderlo. Eso lo hace Android, no la app, pero ocultarlo sería mentir.
-2. **Ten lista la nota al revisor** del apartado 7. Es donde se explica en dos líneas para qué está el permiso.
-3. **Que el permiso se pida en contexto.** La app solo abre el micrófono cuando la persona toca «Dictar», que es justo lo que Play quiere ver. Y antes de abrirlo comprueba si el audio va a salir del aparato; si va a salir, lo dice en pantalla.
-4. **Si algún día la app llegara a enviar audio** —o cualquier otra cosa que no esté en la tabla de arriba— hay que **volver a este formulario y declararlo**. Ya pasó una vez con las cuentas y la declaración se quedó vieja durante semanas; que no vuelva a pasar.
+Así que hay que entrar y marcar lo que corresponda, aunque la ficha de la
+tienda esté en la categoría que esté. Si Play lo detecta sin declarar, puede
+bloquear una actualización.
+
+**Lo que sí está resuelto y no hay que tocar:** el descargo médico. Para una
+app no médica, Google pide «a clear disclaimer in their app description
+indicating that the app is 'not a medical device and does not diagnose, treat,
+cure, or prevent any medical condition'»
+(<https://support.google.com/googleplay/android-developer/answer/16679511>), y
+eso ya está en el aviso de privacidad y en la descripción de la ficha, con
+estas palabras: «No son recomendaciones nutricionales ni consejo médico: para
+eso, un profesional de la salud».
 
 ---
 
@@ -164,24 +184,35 @@ Es una herramienta para quien maneja la casa, la compra y el presupuesto. Marcar
 
 Cuida que la ficha acompañe a esa respuesta: nada de personajes infantiles, colores de caramelo ni lenguaje de dibujos animados en el ícono ni en las capturas. La identidad de la app —terracota, crema, una mesa de casa— ya va por ahí, así que no hay nada que cambiar.
 
-La política de privacidad dice que **la app no está dirigida a menores de 13 años y no recoge datos de nadie**. Las dos frases son coherentes con marcar 18+.
+La política de privacidad dice que **la app no está dirigida a menores de 13 años y no le pide datos personales a quien la usa**. Las dos frases son coherentes con marcar 18+.
+
+### El micrófono: ya no se pide
+
+Hubo un dictado, y con él el permiso `RECORD_AUDIO` y un `<queries>` para
+encontrar el motor de reconocimiento de Android. **Se retiraron los tres** al
+quitarle a la app la voz propia. Los campos de texto siguen admitiendo el
+micrófono del teclado del teléfono, que lo pone el teclado y no esta app: no hay
+permiso que pedir ni nada que declarar.
+
+Queda escrito aquí porque la instrucción de siempre sigue en pie: **si algún día
+la app llegara a enviar audio —o cualquier otra cosa que no esté en la tabla de
+arriba— hay que volver a este formulario y declararlo.** Ya pasó una vez con las
+cuentas y la declaración se quedó vieja durante semanas; que no vuelva a pasar.
 
 ---
 
 ## 5. Declaración de permisos
 
-La app pide **dos permisos y ninguno más**. Hay una prueba (`tests/seguridad.test.js`) que falla si alguno de los otros se cuela en el manifiesto.
+La app pide **un permiso y ninguno más**. Hay una prueba (`tests/seguridad.test.js`) que falla si alguno de los otros se cuela en el manifiesto.
 
 | Permiso | Para qué | ¿Hay que declararlo aparte? |
 |---|---|---|
-| `INTERNET` | **Nada.** Está declarado, pero no hay código que pueda usarlo. | No. Es un permiso normal, no sensible. |
-| `RECORD_AUDIO` | Dictar en vez de escribir. | **No hay formulario de declaración.** Ver abajo. |
+| `INTERNET` | La cuenta, que es opcional. Sin sesión iniciada no se hace ni una llamada. | No. Es un permiso normal, no sensible. |
+| `POST_NOTIFICATIONS` | El recordatorio de la cena, que viene apagado. Se pide al encenderlo en Ajustes → Avisos, nunca al abrir la app. | No hay formulario. Android lo pregunta en el momento. |
+| `RECEIVE_BOOT_COMPLETED` | Volver a programar ese recordatorio tras reiniciar el teléfono. | No. Permiso normal. |
+| `WAKE_LOCK` | Que el aviso llegue con la pantalla apagada. | No. Permiso normal. |
+| ~~`SCHEDULE_EXACT_ALARM`~~ | **No se pide.** Lo declara el complemento de notificaciones y el manifiesto lo quita con `tools:node="remove"`. Los avisos van con `isExactNotification: false`, que usa alarma inexacta. | Si se colara, Play lo miraría con lupa: el hermano `USE_EXACT_ALARM` solo se admite a despertadores, temporizadores y calendarios. |
 
-**Sobre el micrófono.** `RECORD_AUDIO` **no** está en la lista de permisos sensibles que obligan a llenar un formulario de declaración en Play Console —esa lista es SMS, registro de llamadas, acceso a todos los archivos, accesibilidad, alarmas exactas, ubicación en segundo plano y poco más—. Aun así, es un permiso que se mira con lupa, así que ten la explicación lista y ponla donde se pueda:
-
-> El micrófono se usa únicamente para dictar texto en lugar de escribirlo. Se activa solo cuando la persona pulsa el botón «Dictar». La app no graba, no almacena ni transmite audio: el reconocimiento lo realiza el motor de voz de Android y la app únicamente recibe el texto resultante. Toda la funcionalidad está disponible escribiendo a mano; el permiso se puede denegar y la app sigue completa.
-
-**Sobre `<queries>`.** El manifiesto declara un `<queries>` con el intent `android.speech.RecognitionService`. Es lo correcto y **no necesita declaración**: no se usa `QUERY_ALL_PACKAGES`, que sí la necesitaría. Está ahí porque desde Android 11 el sistema esconde qué apps hay instaladas, y sin eso el teléfono no encuentra su propio motor de voz.
 
 **Sobre `INTERNET`, si alguien pregunta.** Es un permiso normal: Play no lo cuestiona y no hay formulario que llenar. La respuesta, si hace falta darla: **se usa únicamente para la cuenta, que es opcional**. Sin sesión iniciada la app no hace ninguna petición y funciona por completo en modo avión. El destino es uno solo —el proyecto de Supabase que presta el servicio de cuentas— y una prueba automatizada falla si aparece un segundo. La política de privacidad lo explica con esas mismas palabras, en su propia sección, en vez de esconderlo.
 
@@ -206,24 +237,15 @@ No hay usuario, ni contraseña, ni código, ni nada que darle al revisor. Marca 
 **Ojo con dónde va la explicación.** Al marcar «sin restricciones», Play normalmente **no te da ningún campo de texto libre**: el hueco para instrucciones solo aparece si declaras que hay acceso restringido. Así que no busques dónde pegar esto durante el envío. Ten el texto guardado y úsalo cuando haga falta:
 
 - Si el formulario **sí** te ofrece un campo de instrucciones o comentarios, pégalo ahí.
-- Si Google te escribe pidiendo aclaraciones sobre el micrófono o sobre el permiso de internet —que es el motivo más probable de una consulta en esta app—, esta es la respuesta, ya redactada.
+- Si Google te escribe pidiendo aclaraciones sobre el permiso de internet —que es el motivo más probable de una consulta en esta app—, esta es la respuesta, ya redactada.
 - Si alguna vez tienes que apelar un rechazo, lo mismo.
 
-**Este es el texto que contesta el «no pudimos probar la función del micrófono»** (1.274 caracteres):
+**Este es el texto para cuando Google pregunte cómo probar la app** (unos 900 caracteres):
 
 ```
 La app funciona sin cuenta, sin registro y sin conexión. No hacen falta
 credenciales: al abrirla, toque "Ver un ejemplo" para cargar datos de
 demostración y recorrer todas las pantallas.
-
-Sobre el permiso de micrófono (RECORD_AUDIO): se usa solo para dictar texto
-en lugar de escribirlo, y únicamente cuando el usuario pulsa el botón
-"Dictar". La app no graba, no almacena ni transmite audio; el reconocimiento
-lo hace el motor de voz de Android y la app recibe solo el texto. Para
-probarlo: botón + (abajo a la derecha) -> "Hablar o dictar".
-
-Toda la funcionalidad está disponible escribiendo a mano. El permiso se puede
-denegar y la app sigue siendo completamente utilizable.
 
 Sobre el permiso de INTERNET: se usa unicamente para la cuenta, que es
 opcional. Sin sesion iniciada la app no realiza ninguna peticion de red y
@@ -260,10 +282,10 @@ publicidad, ni informes de fallos, ni SDK de terceros.
 ### Descripción breve (máximo 80 caracteres)
 
 ```
-Organiza lo habitual de tu casa y cada mes revisa solo lo que será diferente.
+Organiza lo habitual de tu casa y decide con calma qué se come esta semana.
 ```
 
-*77 caracteres.* Es la frase que sale bajo el nombre en los resultados, así que dice la idea completa de la app en una línea.
+*75 caracteres.* Es la frase que sale bajo el nombre en los resultados, así que dice la idea completa de la app en una línea.
 
 ### Descripción completa (máximo 4000 caracteres)
 
@@ -273,72 +295,80 @@ hay que llenar noventa y tres casillas al mes, y eso no lo hace nadie dos
 veces.
 
 ¿Qué comemos? parte de otra idea: lo habitual de tu casa se escribe UNA vez.
-Cada mes empieza ya preparado, y tú solo revisas lo que va a ser diferente.
+Y no hay que llenar un mes: se planifica la semana que viene, o las dos
+siguientes.
 
 
 LO QUE SE ESCRIBE UNA SOLA VEZ
 
-Tu canasta habitual: lo que normalmente se compra en tu casa. Plátanos, arroz,
-huevos, salami, atún, queso. Se escribe una vez y se usa todos los meses.
+Tus productos habituales: lo que normalmente se compra en tu casa. Plátanos,
+arroz, huevos, salami, atún, queso. Se marcan una vez, sin pedirte cantidades, y
+están ahí cada vez que preparas una compra.
 
-Tus rutinas: "plátano maduro con huevo, desayuno, lunes miércoles viernes y
-sábado". Con una sola acción se llenan todos esos desayunos del mes, sobre las
-fechas reales del calendario.
+Tus comidas habituales: "plátano maduro con huevo", "arroz con carne", "mangú
+con salami". Nombre, en qué momentos se comen y una nota para quien cocina. Se
+escriben una vez y se reutilizan cualquier día, sin volver a escribirlas.
 
-Cuando el hábito de la casa cambia de verdad, cambias la canasta. Lo demás es
-la excepción de ese mes, y se queda en ese mes.
-
-
-CUATRO PANTALLAS, NI UNA MÁS
-
-HOY, para quien cocina. El desayuno, el almuerzo y la cena con sus cantidades,
-para quién es cada cosa y qué hay que apartar. Nada de configuraciones.
-
-PLAN MENSUAL. El progreso del mes y el recorrido de "Preparar este mes": cinco
-pantallas cortas, una pregunta cada una.
-
-LA COMPRA. Una sola lista y una sola cuenta: lo que tu casa consume al mes,
-más lo que cambia este mes, menos lo que ya queda en casa. Cada línea dice de
-dónde sale.
-
-MÁS. Todo lo demás, ordenado por la frecuencia real con que hace falta.
+Lo que se come cada día lo decides tú, el día que quieras. La app no propone
+platos ni rellena el calendario por su cuenta.
 
 
-¿CUÁNTO QUEDA? (NO "¿CUÁNTO SE CONSUMIÓ?")
+CINCO SECCIONES, NI UNA MÁS
 
-La diferencia parece pequeña y no lo es. Lo primero se contesta abriendo la
-nevera y mirando. Lo segundo obliga a recordar toda la semana y restar de
-cabeza. La app hace la resta: había 8 plátanos, quedan 2, se consumieron 6.
+HOY, para quien cocina. El desayuno, el almuerzo y la cena, para quién es cada
+cosa y la nota de quien organizó. Nada de configuraciones.
+
+PLAN SEMANAL. Siete días de lunes a domingo, o catorce si los pides. Tocas una
+comida y eliges: una de tus preparaciones, algo escrito a mano para ese día, o
+lo que sobró de otra comida. También puedes decir que se come fuera, que se
+pedirá, o dejarla sin decidir. No hay vista de mes y no la hay a propósito.
+
+LA COMPRA. La lista de un viaje al colmado. Tus productos habituales están ahí
+agrupados por rubros para no tener que acordarte de todo: tocas lo que hace
+falta esta vez, dices cuánto, y vas tachando en el supermercado. Si pediste 2 y
+solo había 1, se anota 1 y queda 1 pendiente.
+
+MIS PRODUCTOS HABITUALES. Lo que tu casa compra de costumbre, por rubros. Se
+marca una vez y no lleva cantidades del mes.
+
+PREPARACIONES. Las comidas que sabes hacer: nombre, en qué momentos se comen y
+una nota para quien cocina. Se guardan una vez y se ponen las veces que quieras.
+
+Y un engranaje para lo de una vez cada muchos meses: la familia, el historial,
+el respaldo, tu cuenta y las preferencias.
+
+
+LO QUE ESTA APP NO HACE
+
+No lleva inventario de tu despensa. No calcula cuánto tienes que comprar. No
+propone platos, no copia semanas, no repite comidas y no rellena meses. No
+cuenta calorías ni propone dietas. Decides tú qué se come y qué entra en la
+lista; lo que hace la app es acordarse por ti de lo que esta casa compra de
+costumbre y de lo que sabe preparar.
 
 
 COMIDAS FUERA DE CASA
 
-Marcar una comida fuera la deja resuelta: no cuenta como pendiente y no genera
-alimentos. Se puede aplicar a un día, a todos los domingos, al primer y tercer
-domingo, o a lo que haga falta. Y valer solo para ese mes o quedarse como
-rutina.
+Marcar una comida fuera la deja resuelta: no cuenta como pendiente. Se puede
+aplicar a una comida, a un día entero, o a varios días de una vez con la misma
+ventana de arriba.
 
 
-HABLAR EN VEZ DE ESCRIBIR
 
-Se puede dictar: "quedan dos plátanos, diez huevos y media libra de queso". El
-reconocimiento de voz es el de tu propio Android, el mismo del micrófono del
-teclado. Escribir a mano funciona siempre, con micrófono o sin él.
-
-
-TUS DATOS SE QUEDAN EN TU TELÉFONO
+TUS DATOS SE QUEDAN EN TU TELÉFONO, SALVO QUE TÚ DIGAS OTRA COSA
 
 Esto no es un eslogan, es cómo está hecha:
 
-- Sin cuentas. Sin registro, sin correo, sin contraseña.
-- Sin conexión. Funciona completa en modo avión.
-- Sin anuncios, sin analítica, sin rastreadores.
-- El desarrollador no recibe ningún dato tuyo. Ninguno.
-- La copia automática de Android está desactivada a propósito: tu despensa no
-  se sube a la nube.
+- La cuenta es opcional. La app entera funciona sin registrarse: sin correo,
+  sin contraseña y sin una sola llamada a la red.
+- Subir los datos es una segunda decisión aparte, con su propio interruptor.
+  Sirve para recuperar tu casa al cambiar de teléfono, y viene apagada. Si la
+  enciendes, tus datos se guardan en un servidor para que puedas bajarlos.
+- Sin anuncios, sin analítica, sin rastreadores. Nunca.
+- La copia automática de Android está desactivada a propósito.
 
-Como todo vive en tu teléfono, las copias te tocan a ti: Más, Respaldo, y
-guardas el archivo donde quieras.
+Como todo vive en tu teléfono, las copias te tocan a ti: el engranaje,
+Respaldo, y guardas el archivo donde quieras.
 
 
 HECHA PARA UNA CASA DOMINICANA
@@ -354,7 +384,7 @@ las del ejemplo son datos inventados para enseñarte cómo funciona. No son
 recomendaciones nutricionales ni consejo médico: para eso, un profesional de la
 salud.
 
-No sincroniza entre dispositivos, y no lo promete.
+No sube nada sola: la cuenta y la sincronización vienen apagadas.
 
 
 Gratis, sin compras dentro de la app.
@@ -362,7 +392,7 @@ Gratis, sin compras dentro de la app.
 NexoCore, República Dominicana.
 ```
 
-*3.178 caracteres, por debajo del límite de 4.000.* Queda sitio de sobra si quieres añadir algo; cuenta los caracteres antes de pegar, porque Play corta sin avisar.
+*3.904 caracteres, por debajo del límite de 4.000.* Queda poco margen: para añadir algo hay que quitar otro tanto. Cuenta los caracteres antes de pegar, porque Play corta sin avisar.
 
 ### Otros campos de la ficha
 
@@ -411,12 +441,12 @@ $bt = Get-ChildItem "$env:LOCALAPPDATA\Android\Sdk\build-tools" -Directory | Sor
 
 **1. Las seis capturas, y por qué esas.** Las genera `npm run capturas`; el orden es el del archivo y cada una tiene una idea sola:
 
-1. **Hoy** — el desayuno y el almuerzo con sus cantidades. Es lo que la gente va a ver todos los días.
-2. **Plan mensual** — el progreso del mes y las rutinas de la casa.
-3. **Editar la rutina** — «todos los lunes, miércoles, viernes y sábados». Es la idea central de la app, y por eso se abre una rutina que ya existe en vez de un formulario en blanco.
-4. **La compra** — la lista con lo que queda en casa junto a cada línea.
-5. **¿Cuánto queda?** — la revisión con la resta hecha: «había 16 ruedas, se consumió 14».
-6. **Mi canasta habitual** — lo que se escribe una sola vez.
+1. **Hoy** — el desayuno, el almuerzo y la cena, con qué lleva cada uno y la nota de quien cocina. Es lo que la gente va a ver todos los días.
+2. **Plan semanal** — los siete días, con lo que hay decidido y lo que falta.
+3. **Poner una comida en varios días** — con una preparación elegida y los días que quedan de la semana ya marcados. Es la única ayuda que la app da para no tocar treinta casillas, y por eso se enseña con algo marcado en vez de un formulario en blanco.
+4. **Preparar la compra** — los productos habituales por rubros, con el buscador.
+5. **Mi lista** — lo pendiente arriba y lo comprado tachado al final.
+6. **Mis productos habituales** — lo que se marca una sola vez.
 
 Para rehacerlas hay que tener el servidor en marcha (`npm start`). Si cambia el orden de una pantalla y la captura sale en otro sitio, se ajusta `desplazar` en `tools/capturas.js`, que es la única cosa de ahí que depende de cómo esté puesta la app hoy.
 
@@ -434,7 +464,9 @@ Por orden, y con lo que ya está hecho marcado.
 
 > **Compruébalo antes de contar con la fecha:** desde hace un tiempo Google exige a las **cuentas personales nuevas** hacer una prueba cerrada con un mínimo de participantes durante un número de días seguidos antes de poder publicar en producción. Las cuentas de organización tienen otro camino, pero piden un número D-U-N-S. El requisito exacto cambia cada tanto, así que míralo en la Play Console del día en que abras la cuenta y **cuenta ese tiempo en el plan**.
 
-**2. La clave de firma. No existe todavía.** Es el paso que no se puede deshacer.
+**2. La clave de firma. Ya existe** (`android/que-comemos.jks`, con su `keystore.properties` al lado, los dos fuera de git). Las versiones 2.0 en adelante salen firmadas con ella; sus huellas están en el apartado 9.
+
+Si alguna vez hay que crear una desde cero —en otra máquina, para otra app— este es el comando. **Es el paso que no se puede deshacer.**
 
 ```powershell
 cd android
@@ -445,7 +477,9 @@ Después, copia `android/keystore.properties.example` a `android/keystore.proper
 
 > **Google no deja cambiar esa clave una vez publicada la primera versión.** Si pierdes el `.jks` o su contraseña, no puedes actualizar tu propia app nunca más: hay que publicarla de cero con otro identificador, y quien ya la tuviera no recibe la actualización. Guarda una copia en un sitio que sobreviva a que se te dañe la computadora. El `.jks` y el `keystore.properties` están en `.gitignore` a propósito.
 
-**3. `versionCode`.** Ahora mismo está en `1` en `android/app/build.gradle`, con `versionName "1.0"`. Para la primera subida está bien. **A partir de ahí tiene que crecer con cada publicación**: Play rechaza un número repetido, y el error aparece al subir, no al compilar.
+**3. `versionCode`.** Ahora mismo está en `17` en `android/app/build.gradle`, con `versionName "3.9"`. **Tiene que crecer con cada publicación**: Play rechaza un número repetido, y el error aparece al subir, no al compilar. La cuenta hasta aquí: 1 → 1.0, 2 → 2.0, 3 → 2.1, 4 → 2.2, 5 → 3.0, 6 → 3.1, 7 → 3.2, 8 → 3.3, 9 → 3.4, 10 → 3.5, 11 → 3.6, 12 → 3.6.1, 13 → 3.6.2, 14 → 3.6.3, 15 → 3.7, 16 → 3.8, 17 → 3.9.
+
+Esta línea se queda vieja sola cada vez que se compila, y aquí ya pasó: decía 9 → 3.4 con el proyecto en 10. Lo que manda es `android/app/build.gradle`; esto es un resumen para no tener que abrirlo.
 
 **4. El AAB.** Play no acepta APK desde 2021.
 
@@ -464,7 +498,7 @@ cd android
 .\gradlew assembleRelease
 ```
 
-Instala ese APK en un teléfono y recorre la app entera, sobre todo el dictado, que es lo que se resuelve por reflexión y lo que el minificador podría tumbar.
+Instala ese APK en un teléfono y recorre la app entera, sobre todo el inicio de sesión con Google y el respaldo, que son lo que se resuelve por reflexión y lo que el minificador podría tumbar.
 
 **6. Las páginas legales publicadas y abriendo. Hecho.** Están en <https://nexocoregroup.github.io/que-comemos/legal/>, servidas por GitHub Pages desde `main`. Ojo con eso: Pages publica `main`, así que un texto corregido en una rama no está publicado hasta que la rama se fusiona. Apartado 1.
 
@@ -478,7 +512,13 @@ Instala ese APK en un teléfono y recorre la app entera, sobre todo el dictado, 
 - **`targetSdk 36`, `minSdk 24`** — al día con lo que Play exige.
 - **Respaldo automático desactivado** — `allowBackup="false"`, `fullBackupContent="false"` y `dataExtractionRules`. Es lo que impide que Android suba la despensa a la cuenta de Google del dueño del teléfono sin que nadie lo pida.
 - **Tráfico sin cifrar bloqueado** — `networkSecurityConfig` con `cleartextTrafficPermitted="false"` y solo las autoridades del sistema.
-- **Permisos al mínimo** — dos, con una prueba que falla si entra un tercero.
+- **Permisos al mínimo** — uno, `INTERNET`. La prueba que lo vigila
+  (`tests/seguridad.test.js`) es una lista de prohibidos —cámara, micrófono,
+  ubicación, contactos, almacenamiento—, no una lista blanca de uno: un permiso
+  nuevo que no esté en esa lista entra sin que salte nada. Lo que sí se rompería
+  al añadir uno son los textos legales, que prometen «un permiso en total» en
+  cuatro sitios (`src/legal.js`, `legal/privacidad.html`, `legal/index.html` y
+  este documento) y que `tests/legal.test.js` compara con el código.
 - **Ícono de 512×512** — `src/icon-512.png`.
 
 ---

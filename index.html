@@ -4,7 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#fbf7f1">
-  <meta name="description" content="Organiza las comidas de casa y compra según lo que realmente queda.">
+  <!-- Sin esto, Android decide por su cuenta cómo pintar lo suyo: el desplegable
+       de un <select>, el calendario de una fecha, el menú de un campo de texto.
+       En un teléfono en modo oscuro los pintaba en gris oscuro, y abrir «elegir
+       un alimento» dentro de una app de fondo crema parecía salirse a otra
+       aplicación. Declarar el esquema hace que los pinte claros.
+
+       Es lo único que se puede hacer: un <select> lo dibuja el sistema, no la
+       página, y ninguna regla de CSS entra ahí dentro. Para que fueran iguales
+       que el resto habría que sustituir los veintidós por controles propios. -->
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="Decide en familia qué se desayuna, se almuerza y se cena, y lleva la lista al colmado.">
   <!-- Lo que el navegador tiene permitido hacer con esta página.
        No es una muralla, y conviene decir por qué: `script-src` lleva
        `'unsafe-inline'` porque Capacitor inyecta su puente como un <script> en
@@ -45,26 +55,90 @@
   <link rel="stylesheet" href="src/sidebar.css">
   <link rel="stylesheet" href="src/onboarding.css">
   <link rel="stylesheet" href="src/quick-add.css">
-  <link rel="stylesheet" href="src/calendar.css">
   <link rel="stylesheet" href="src/theme.css">
   <link rel="stylesheet" href="src/setup.css">
-  <link rel="stylesheet" href="src/chat.css">
   <link rel="stylesheet" href="src/bulk.css">
   <link rel="stylesheet" href="src/plan.css">
-  <!-- El panel de dictado va el último: aparece dentro de cuatro pantallas
-       distintas y tiene que verse igual en las cuatro. -->
-  <link rel="stylesheet" href="src/voz.css">
   <link rel="stylesheet" href="src/cuenta.css">
   <link rel="stylesheet" href="src/hogar.css">
   <!-- Las medidas del sistema y las correcciones de alineación. Va la última a
        propósito: corrige números escritos en las hojas de arriba, y para eso
        tiene que hablar después que ellas. -->
   <link rel="stylesheet" href="src/sistema.css">
+  <!-- La pantalla de arranque se dibuja aquí dentro, y no en una hoja aparte.
+
+       Es lo único de toda la app que tiene que poder pintarse aunque ninguna
+       de las once hojas de estilo llegue: es lo primero que se ve, y lo que
+       tapa mientras el resto carga. Una hoja que falle dejaría al usuario
+       mirando el nombre de la app sin fondo, encima de una pantalla a medio
+       hacer. Escrito aquí, eso no puede pasar.
+
+       El 90 de `z-index` está por encima de todo lo demás. La escala vive en
+       sistema.css —barra 20, flotante 30, recorrido 40, cajón 50, ventana 60,
+       aviso 70— y este número se apunta allí para que nadie lo reutilice, pero
+       se escribe a mano aquí por lo mismo de arriba. -->
+  <style>
+    #arranque {
+      position: fixed; inset: 0; z-index: 90;
+      display: grid; place-content: center; justify-items: center; gap: 16px;
+      background: #fbf7f1;
+      transition: opacity .38s ease;
+    }
+    #arranque.se-va { opacity: 0; pointer-events: none; }
+    #arranque img {
+      width: 112px; height: 112px; display: block;
+      animation: arranque-marca .68s cubic-bezier(.16, .84, .44, 1) both;
+    }
+    #arranque p {
+      margin: 0;
+      font-family: Montserrat, ui-sans-serif, -apple-system, "Segoe UI", sans-serif;
+      font-weight: 850; letter-spacing: -.045em; font-size: 1.45rem; color: #342a24;
+      animation: arranque-nombre .5s .18s cubic-bezier(.16, .84, .44, 1) both;
+    }
+    @keyframes arranque-marca {
+      from { opacity: 0; transform: scale(.84); }
+      to   { opacity: 1; transform: none; }
+    }
+    @keyframes arranque-nombre {
+      from { opacity: 0; transform: translateY(7px); }
+      to   { opacity: 1; transform: none; }
+    }
+    /* Quien pidió menos movimiento ve lo mismo, pero ya colocado. */
+    @media (prefers-reduced-motion: reduce) {
+      #arranque img, #arranque p { animation-duration: .01ms; }
+      #arranque { transition-duration: .01ms; }
+    }
+  </style>
 </head>
 <body>
+  <!-- Lo primero que se ve. La quita `quitarElArranque()` de src/app.js en
+       cuanto hay algo debajo que enseñar, con un mínimo de tiempo a la vista
+       para que el gesto se complete: una animación que arranca y se corta a
+       la mitad se lee como un tirón, no como una entrada.
+
+       `aria-hidden` porque es decoración: quien usa un lector de pantalla no
+       tiene por qué esperar a que termine una animación para llegar a la app,
+       que ya está pintada debajo. -->
+  <div id="arranque" aria-hidden="true">
+    <img src="src/isotipo.png" alt="" width="112" height="112">
+    <p>¿Qué comemos?</p>
+  </div>
   <div id="app"></div>
   <div id="modal-root"></div>
   <div id="toast" role="status" aria-live="polite"></div>
+  <!-- La segunda región viva, y la única permanente que no se ve.
+
+       El aviso flotante de arriba sirve para confirmar algo que se acaba de
+       guardar: es visible, dura 4,2 segundos y tapa la parte de abajo de la
+       pantalla. Marcar cuarenta renglones en un pasillo no puede sacar
+       cuarenta avisos flotantes encima del sitio donde está el dedo, pero sí
+       tiene que oírse.
+
+       Está aquí y no dentro de #app a propósito: una región viva que nace
+       junto a su contenido no se dispara nunca, porque el lector de pantalla
+       necesita que la región ya estuviera ahí para notar que cambió. Y todo
+       lo que hay dentro de #app se reescribe entero en cada repintado. -->
+  <p id="anuncio" class="sr-only" role="status" aria-live="polite"></p>
   <script type="module" src="src/app.js"></script>
 </body>
 </html>

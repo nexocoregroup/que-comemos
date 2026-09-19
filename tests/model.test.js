@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { addDays, addProduct, habitualLines, choquesDeLaComida, deletePlan, product, setSlice, setHabitualBasket, setHabitualLine, addPurchase, balances, convert, correctReview, createEmptyState, createReview, exportState, importState, inventoryNow, linkPlan, makeRecipePlan, repeatWeek, saveReview, setAbsence, setEquivalence, shoppingList, todayISO, updatePlan, upsertPerson, upsertRecipe, weekStart } from '../src/model.js';
+import { ORIGENES, ORIGENES_IDS, WEEKDAYS, WEEKDAY_LABELS, WEEKDAY_SHORT, addDays, addProduct, habitualLines, choquesDeLaComida, comidasDecididas, dateRange, deletePlan, dependents, effectiveBasket, etiquetaDeOrigen, origenDe, planFor, product, reutilizarComida, setSlice, setHabitualBasket, setHabitualLine, addPurchase, balances, convert, correctReview, createEmptyState, createReview, exportState, importState, inventoryNow, makeRecipePlan, monthBounds, saveReview, setAbsence, setEquivalence, setReviewScope, setStatusPlan, todayISO, ultimaCompra, updatePlan, upsertPerson, upsertRecipe, weekStart, weekdayOf } from '../src/model.js';
 import { loadState, saveState, STORAGE_KEY } from '../src/storage.js';
 
 function setup() {
@@ -11,8 +11,115 @@ function setup() {
   return { state, platano, recipeId };
 }
 
-test('de ocho plátanos quedan dos: consumió seis y el próximo menú de siete sugiere cinco', () => {
-  const { state, platano, recipeId } = setup();
+
+/* ── El calendario real ────────────────────────────────────────────────────
+
+   Estas cuatro venían de las pruebas del motor de rutinas, que se fue entero.
+   La aritmética del calendario no se fue con él: los días se siguen recorriendo
+   uno a uno —ahora de lunes a domingo, y ya no de mes en mes— y quien la
+   equivoque perderá el 29 de febrero, o enseñará la semana de al lado, sin que
+   nada más se queje. */
+
+// Los días de un mes que de verdad caen en ese día de la semana, contados sobre
+// el calendario y sin pasar por el código que se está probando.
+function diasRealesDe(month, weekday) {
+  const { start, end } = monthBounds(month);
+  return dateRange(start, end).filter(date => {
+    const dia = new Date(`${date}T12:00:00`).getDay();
+    return (dia === 0 ? 7 : dia) === weekday;
+  });
+}
+
+test('los días de la semana se cuentan como los cuenta la gente: el lunes es el 1 y el domingo el 7', () => {
+  assert.deepEqual(WEEKDAYS, [1, 2, 3, 4, 5, 6, 7]);
+  assert.equal(WEEKDAY_LABELS.length, 7);
+  assert.equal(WEEKDAY_SHORT.length, 7);
+  assert.equal(WEEKDAY_LABELS[0], 'Lunes');
+  assert.equal(WEEKDAY_LABELS[6], 'Domingo');
+  assert.equal(WEEKDAY_SHORT[0], 'Lun');
+  assert.equal(weekdayOf('2026-10-04'), 7, 'el 4 de octubre de 2026 es domingo');
+  assert.equal(weekdayOf('2026-10-05'), 1);
+});
+
+test('ningún día del mes se queda fuera, ni en febrero ni en los meses de 31', () => {
+  // 28, 29 (bisiesto), 30 y 31 días. Si el mes se recorriera sumando semanas o
+  // dando por hecha una longitud, aquí faltarían fechas.
+  const casos = [['2026-02', 28], ['2028-02', 29], ['2026-09', 30], ['2026-10', 31]];
+  for (const [mes, largo] of casos) {
+    const { start, end } = monthBounds(mes);
+    const fechas = dateRange(start, end);
+    assert.equal(fechas.length, largo, `${mes} tiene ${largo} días`);
+    assert.equal(start, `${mes}-01`);
+    assert.equal(end, `${mes}-${String(largo).padStart(2, '0')}`, `${mes} no termina donde debería`);
+    let total = 0;
+    for (const dia of WEEKDAYS) {
+      const esperadas = diasRealesDe(mes, dia);
+      assert.deepEqual(fechas.filter(fecha => weekdayOf(fecha) === dia), esperadas, `${mes}: todos los ${WEEKDAY_LABELS[dia - 1]}`);
+      total += esperadas.length;
+    }
+    assert.equal(total, largo, `${mes}: los siete días de la semana cubren el mes entero, sin sobras ni faltas`);
+  }
+});
+
+test('un lunes que cae el 29, el 30 o el 31 sale igual que el del día 5', () => {
+  assert.equal(weekdayOf('2026-11-30'), 1, 'el lunes 30 de noviembre de 2026');
+  assert.equal(weekdayOf('2026-12-31'), 4, 'el jueves 31 de diciembre de 2026');
+  assert.equal(weekdayOf('2028-02-29'), 2, 'el martes 29 de febrero de 2028');
+  assert.equal(diasRealesDe('2028-02', 2).length, 5, 'febrero bisiesto que empieza en martes tiene cinco martes');
+  // Y en un mes que empieza en domingo, el primer domingo es el día 1.
+  assert.deepEqual(diasRealesDe('2026-03', 7), ['2026-03-01', '2026-03-08', '2026-03-15', '2026-03-22', '2026-03-29']);
+});
+
+// La semana empieza en lunes, y esa cuenta es la que decide qué siete días se
+// ven. Equivocarla no rompe nada a la vista: enseña la semana de al lado.
+test('el lunes de una semana es el mismo aunque la semana cruce de mes o de año', () => {
+  // Fechas escritas contra un calendario, no calculadas como las calcula la app.
+  assert.equal(weekStart('2026-09-14'), '2026-09-14', 'el lunes de un lunes es él mismo');
+  assert.equal(weekStart('2026-09-20'), '2026-09-14', 'el domingo cierra la semana de su lunes');
+
+  // Del lunes 28 de septiembre al domingo 4 de octubre: una semana partida
+  // entre dos meses sigue siendo una semana.
+  for (const dia of dateRange('2026-09-28', '2026-10-04')) {
+    assert.equal(weekStart(dia), '2026-09-28', `el ${dia} debería caer en la semana del 28 de septiembre`);
+  }
+  // Y del lunes 28 de diciembre de 2026 al domingo 3 de enero de 2027, entre
+  // dos años.
+  for (const dia of dateRange('2026-12-28', '2027-01-03')) {
+    assert.equal(weekStart(dia), '2026-12-28', `el ${dia} debería caer en la semana del 28 de diciembre`);
+  }
+  // El 29 de febrero de un bisiesto cae en martes y su semana empieza el 28.
+  assert.equal(weekdayOf('2028-02-29'), 2);
+  assert.equal(weekStart('2028-02-29'), '2028-02-28');
+
+  // Volver a pedir el lunes de un lunes no mueve la semana ni un día: es lo que
+  // pasa cada vez que se guarda y se vuelve a leer el inicio de la vista.
+  for (const lunes of ['2026-09-28', '2026-12-28', '2028-02-28']) {
+    assert.equal(weekStart(weekStart(lunes)), lunes, `el lunes ${lunes} se movió al repetir la cuenta`);
+  }
+});
+
+test('una comida fuera no cuenta como pendiente: ya está decidida', () => {
+  // Sobre treinta y un días seguidos, que es donde se ve si la cuenta suma.
+  const state = createEmptyState();
+  const octubre = dateRange('2026-10-01', '2026-10-31');
+  const antes = comidasDecididas(state, octubre);
+  assert.equal(antes.dias, 31);
+  assert.equal(antes.huecos, 93, 'treinta y un días por las tres comidas que una casa espera resolver');
+  assert.equal(antes.pendientes, 93, 'un mes vacío está entero por decidir');
+  assert.equal(antes.decididas, 0);
+  setStatusPlan(state, '2026-10-04', 'almuerzo', 'outside');
+  setStatusPlan(state, '2026-10-05', 'cena', 'order');
+  setStatusPlan(state, '2026-10-06', 'cena', 'unplanned');
+  const despues = comidasDecididas(state, octubre);
+  assert.equal(despues.fuera, 1);
+  assert.equal(despues.pedido, 1);
+  assert.equal(despues.encasa, 0);
+  assert.equal(despues.pendientes, 91, 'fuera y pedido dejan de ser huecos; «sin decidir» no');
+  assert.equal(despues.decididas, 2, 'lo decidido y lo pendiente tienen que sumar los huecos');
+});
+
+test('de ocho plátanos quedan dos: la revisión deduce que se consumieron seis', () => {
+  const { state, platano } = setup();
   // El modo normal pregunta lo que se puede mirar en la nevera —cuánto queda—
   // y deduce el consumo. Es la misma cuenta al revés, pero sin obligar a nadie
   // a restar de memoria.
@@ -21,28 +128,12 @@ test('de ocho plátanos quedan dos: consumió seis y el próximo menú de siete 
   saveReview(state, review.id, { [platano]: 2 }, true);
   assert.equal(review.consumed[platano], 6, 'de ocho quedan dos: se consumieron seis');
   assert.equal(inventoryNow(state)[platano], 2);
-  const tomorrow = addDays(todayISO(), 1);
-  makeRecipePlan(state, recipeId, tomorrow, 'desayuno');
-  const list = shoppingList(state, tomorrow, tomorrow, 'menu');
-  assert.equal(list.lines[0].purchaseQuantity, 5);
 });
 
-test('la preparación reservada se compra una sola vez y en la fecha de preparación', () => {
-  const { state, platano, recipeId } = setup();
-  state.opening[platano] = 0;
-  const prep = '2026-09-15';
-  const source = makeRecipePlan(state, recipeId, prep, 'cena');
-  linkPlan(state, source.id, '2026-09-16', 'desayuno', { [source.items[0].id]: 2 });
-  assert.equal(shoppingList(state, prep, prep, 'menu').lines[0].need, 7);
-  assert.equal(shoppingList(state, '2026-09-16', '2026-09-16', 'menu').lines.length, 0);
-  assert.equal(shoppingList(state, '2026-09-16', '2026-09-30', 'menu').lines.length, 0);
-});
-
-test('la compra sugerida no cambia las existencias y la confirmada sí', () => {
+test('poner una comida no cambia las existencias y anotar la compra sí', () => {
   const { state, platano, recipeId } = setup();
   makeRecipePlan(state, recipeId, todayISO(), 'cena');
-  shoppingList(state, todayISO(), todayISO(), 'menu');
-  assert.equal(inventoryNow(state)[platano], 8);
+  assert.equal(inventoryNow(state)[platano], 8, 'decidir qué se come no descuenta nada de la despensa');
   addPurchase(state, { lines: [{ productId: platano, quantity: 3, unit: 'unidad' }] });
   assert.equal(inventoryNow(state)[platano], 11);
 });
@@ -73,22 +164,22 @@ test('vacío significa pendiente; cero explícito completa', () => {
   assert.equal(inventoryNow(state)[platano], 8);
 });
 
-test('unidades incompatibles quedan pendientes hasta configurar equivalencia; paquetes enteros', () => {
+test('una unidad sin equivalencia no se convierte a ojo, y el paquete se compra entero', () => {
   const state = createEmptyState();
   const rice = addProduct(state, { name: 'Arroz', controlUnit: 'taza', purchaseUnit: 'lb' }).id;
   const salami = addProduct(state, { name: 'Salami', controlUnit: 'rueda', purchaseUnit: 'paquete' }).id;
-  assert.equal(convert(state, rice, 2, 'lb'), null);
-  const recipe = upsertRecipe(state, { name: 'Comida', uses: ['cena'], items: [{ productId: rice, quantity: 2, unit: 'lb' }, { productId: salami, quantity: 17, unit: 'rueda' }], covers: [] });
-  makeRecipePlan(state, recipe.id, todayISO(), 'cena');
-  let list = shoppingList(state, todayISO(), todayISO(), 'menu');
-  assert.ok(list.pending.some(item => item.productId === rice));
-  assert.equal(list.lines.find(item => item.productId === salami).purchaseQuantity, null);
+  assert.equal(convert(state, rice, 2, 'lb'), null, 'sin equivalencia no se inventa una cuenta');
+  assert.equal(convert(state, salami, 1, 'paquete'), null);
+  // Y mientras no la haya, anotar esa compra se rechaza en vez de guardarla con
+  // una cantidad inventada.
+  assert.throws(() => addPurchase(state, { lines: [{ productId: rice, quantity: 2, unit: 'lb' }] }), /equivalencia/);
   setEquivalence(state, rice, 'lb', 2);
   setEquivalence(state, salami, 'paquete', 12);
-  list = shoppingList(state, todayISO(), todayISO(), 'menu');
-  assert.equal(list.lines.find(item => item.productId === rice).need, 4);
-  assert.equal(list.lines.find(item => item.productId === salami).purchaseQuantity, 2);
-  assert.equal(list.lines.find(item => item.productId === salami).acquiredControl, 24);
+  assert.equal(convert(state, rice, 2, 'lb'), 4, 'dos libras son cuatro tazas');
+  assert.equal(convert(state, salami, 2, 'paquete'), 24);
+  addPurchase(state, { lines: [{ productId: salami, quantity: 2, unit: 'paquete' }] });
+  assert.equal(inventoryNow(state)[salami], 24, 'lo comprado entra en la unidad con la que se controla');
+  assert.throws(() => addPurchase(state, { lines: [{ productId: salami, quantity: 1.5, unit: 'paquete' }] }), /completos/);
 });
 
 test('exportación, importación y recarga del almacenamiento local recuperan datos', () => {
@@ -100,19 +191,6 @@ test('exportación, importación y recarga del almacenamiento local recuperan da
   assert.deepEqual(loadState(storage), state);
   assert.deepEqual(importState(exportState(state)), state);
   assert.equal(loadState(storage).opening[platano], 8);
-});
-
-test('repetir semana conserva el vínculo y no duplica la necesidad en el día de servir', () => {
-  const { state, platano, recipeId } = setup();
-  state.opening[platano] = 0;
-  const source = makeRecipePlan(state, recipeId, '2026-09-07', 'cena');
-  linkPlan(state, source.id, '2026-09-08', 'desayuno', { [source.items[0].id]: 2 });
-  const result = repeatWeek(state, weekStart('2026-09-07'), '2026-09');
-  assert.ok(result.count >= 2);
-  const repeated = state.plans.find(item => item.date === '2026-09-15' && item.slot === 'desayuno');
-  assert.equal(repeated.kind, 'linked');
-  assert.equal(shoppingList(state, '2026-09-14', '2026-09-14', 'menu').lines[0].need, 7);
-  assert.equal(shoppingList(state, '2026-09-15', '2026-09-15', 'menu').lines.length, 0);
 });
 
 test('una restricción avisa pero no impide poner la comida', () => {
@@ -156,20 +234,66 @@ test('marcar una ausencia no encoge lo que ya estaba puesto', () => {
   assert.equal(inventoryNow(state)[platano], 8 - antes.items[0].quantity + antes.items[0].quantity, 'el inventario no cambia por una ausencia');
 });
 
-test('una comida vinculada protege el alimento reservado ante cambios de cantidad o unidad', () => {
+// De aquí salía la comida vinculada de antes, la que apartaba cantidades. Ya
+// no se aparta nada —«lo que sobre» no es un número—, pero el enlace sigue
+// existiendo, y sigue siendo lo que impide que una comida quede colgando de
+// otra que alguien borró sin enterarse.
+test('borrar una comida no deja rastro, y la que dependía de ella se va con permiso', () => {
   const { state, recipeId } = setup();
-  const source = makeRecipePlan(state, recipeId, todayISO(), 'cena');
-  linkPlan(state, source.id, addDays(todayISO(), 1), 'desayuno', { [source.items[0].id]: 2 });
-  const original = structuredClone(source.items[0]);
-  assert.throws(() => updatePlan(state, source.id, { title: source.title, note: '', participants: [], items: [{ ...original, quantity: 1 }] }), /menor/);
-  assert.throws(() => updatePlan(state, source.id, { title: source.title, note: '', participants: [], items: [{ ...original, unit: 'paquete' }] }), /vinculada/);
-  assert.deepEqual(source.items[0], original);
+  const origen = makeRecipePlan(state, recipeId, todayISO(), 'cena');
+  const sobras = reutilizarComida(state, origen.id, addDays(todayISO(), 1), 'desayuno');
+  assert.deepEqual(dependents(state, origen.id).map(plan => plan.id), [sobras.id]);
+
+  assert.equal(deletePlan(state, origen.id, true), 1, 'con permiso se lleva también la que dependía de ella');
+  assert.equal(state.plans.length, 0, 'quedó una comida colgando de otra que ya no existe');
+  assert.equal(planFor(state, todayISO(), 'cena'), undefined);
+  assert.equal(planFor(state, addDays(todayISO(), 1), 'desayuno'), undefined);
 });
 
-test('un período de compra inválido se rechaza sin calcular una lista engañosa', () => {
-  const { state } = setup();
-  assert.throws(() => shoppingList(state, '2026-02-30', '2026-03-02'), /válido/);
-  assert.throws(() => shoppingList(state, '2026-09-20', '2026-09-01'), /válido/);
+/* ── De dónde salió cada comida ────────────────────────────────────────────
+
+   Delante de un martes con mangú nadie se atreve a tocar nada si no sabe si lo
+   puso él o si vino de un respaldo de cuando la app decidía sola. */
+
+test('los cuatro orígenes que el usuario tiene que distinguir están todos, y ninguno a medias', () => {
+  const etiquetas = ORIGENES.map(origen => origen.etiqueta);
+  for (const esperada of ['Rutina', 'Mes anterior', 'Excepción', 'Cambio manual']) {
+    assert.ok(etiquetas.includes(esperada), `falta el origen «${esperada}»`);
+  }
+  for (const id of ORIGENES_IDS) {
+    const origen = ORIGENES.find(item => item.id === id);
+    assert.ok(origen.etiqueta && origen.detalle, `el origen «${id}» está a medias`);
+  }
+  // Y uno que no existe no deja la pantalla en blanco.
+  assert.equal(etiquetaDeOrigen('lo-que-sea'), 'Cambio manual');
+  assert.equal(origenDe(null), null);
+});
+
+test('cada forma de poner una comida deja escrito de dónde vino', () => {
+  const { state, recipeId } = setup();
+  // A mano, desde la comida de un día.
+  assert.equal(origenDe(makeRecipePlan(state, recipeId, '2026-10-05', 'cena')), 'manual');
+  // Marcada fuera de casa: eso es una excepción por definición.
+  assert.equal(origenDe(setStatusPlan(state, '2026-10-08', 'cena', 'outside')), 'excepcion');
+  // Y una comida guardada sin decirlo tampoco se queda en «undefined».
+  assert.equal(origenDe({ kind: 'recipe', routineId: null }), 'manual');
+  assert.equal(origenDe({ kind: 'order', routineId: null }), 'excepcion');
+  assert.equal(origenDe({ kind: 'recipe', routineId: 'regla-vieja-1' }), 'rutina');
+});
+
+test('rehacer a mano una comida vieja de una rutina la convierte en un cambio manual', () => {
+  // «Rutina» ya no lo produce nadie, pero sigue guardado en los respaldos de
+  // cuando la app llenaba el calendario sola. Una comida que se reescribe deja
+  // de venir de aquella regla, y tiene que dejar de decirlo.
+  const { state, platano, recipeId } = setup();
+  const plan = makeRecipePlan(state, recipeId, '2026-10-05', 'desayuno', null, 'regla-vieja-1', 'rutina');
+  assert.equal(origenDe(plan), 'rutina');
+
+  updatePlan(state, plan.id, {
+    title: 'Plátano cocido con más plátano', note: '', participants: plan.participants,
+    items: [{ ...plan.items[0], productId: platano, quantity: 9 }]
+  });
+  assert.equal(origenDe(plan), 'manual', 'la comida sigue diciendo que la puso una rutina que ya no reconocería');
 });
 
 test('un producto nuevo arranca con lo que ya hay en casa, no en cero', () => {
@@ -205,23 +329,16 @@ test('un respaldo anterior al grosor sigue siendo válido', () => {
   assert.equal(inventoryNow(restored)[salami], 4, 'las existencias se leen igual sin el campo nuevo');
 });
 
-test('la canasta habitual se escribe por mes y se pide por la parte del período que toca', () => {
+test('escribir la canasta habitual no mueve existencias, y una línea mala no deja media canasta', () => {
   const state = createEmptyState();
   const arroz = addProduct(state, { name: 'Arroz', controlUnit: 'lb', purchaseUnit: 'lb', opening: 4 }).id;
   setHabitualBasket(state, [{ productId: arroz, quantity: 30, unit: 'lb' }]);
-  // Septiembre tiene 30 días: una quincena de 15 pide la mitad de la canasta.
-  const quincena = shoppingList(state, '2026-09-01', '2026-09-15', 'casa');
-  const linea = quincena.lines.find(line => line.productId === arroz);
-  assert.equal(linea.need, 15);
-  assert.equal(linea.available, 4);
-  assert.equal(linea.shortfall, 11);
-  assert.deepEqual(quincena.missing, [], 'comprando por canasta no se reprochan las comidas sin planificar');
-  assert.equal(shoppingList(state, '2026-09-01', '2026-09-30', 'casa').lines[0].need, 30, 'el mes entero pide la canasta completa');
-  // Las dos bases son excluyentes: el menú no suma la canasta.
-  assert.equal(shoppingList(state, '2026-09-01', '2026-09-15', 'menu').lines.length, 0);
+  assert.equal(habitualLines(state).length, 1);
+  assert.equal(habitualLines(state)[0].quantity, 30);
   assert.equal(inventoryNow(state)[arroz], 4, 'escribir la canasta no mueve existencias');
   assert.throws(() => setHabitualBasket(state, [{ productId: 'producto-inventado', quantity: 1, unit: 'lb' }]), /alimento/);
   assert.equal(state.habitualBasket.lines.length, 1, 'una canasta rechazada deja la anterior intacta');
+  assert.equal(habitualLines(state)[0].quantity, 30, 'y la que valía sigue diciendo lo mismo');
 });
 
 test('la canasta crea los alimentos que no existen, sin registrarlos aparte', () => {
@@ -260,8 +377,8 @@ test('la canasta y la ficha del producto escriben la misma línea', () => {
   assert.equal(habitualLines(state).length, 1);
   assert.equal(habitualLines(state)[0].quantity, 25);
   assert.equal(habitualLines(state)[0].id, id, 'conserva su identidad al corregirla');
-  // Y lo escrito en la ficha es lo que lee la compra por canasta.
-  assert.equal(shoppingList(state, '2026-09-01', '2026-09-30', 'casa').lines[0].need, 25);
+  // Y lo escrito en la ficha es lo que la canasta de un mes cualquiera dice.
+  assert.equal(effectiveBasket(state, '2026-09').find(linea => linea.productId === arroz).quantity, 25);
   // Vacío o cero la quita: un consumo de cero no significa nada.
   setHabitualLine(state, arroz, '', 'lb');
   assert.equal(habitualLines(state).length, 0);
@@ -279,7 +396,71 @@ test('una cantidad que todavía no se sabe se guarda pendiente en vez de perder 
   ]);
   assert.equal(habitualLines(state).length, 2, 'el alimento sin cantidad se conserva');
   assert.equal(habitualLines(state)[1].quantity, null);
-  const lista = shoppingList(state, '2026-09-01', '2026-09-30', 'casa');
-  assert.equal(lista.lines.length, 1, 'una línea sin cantidad no se puede calcular…');
-  assert.ok(lista.pending.some(item => item.reason === 'cantidad'), '…pero se avisa de que está pendiente');
+  // Y llega así a la canasta del mes: sin cantidad, que no es lo mismo que en
+  // cero. Un cero lo dejaría fuera de la compra sin que nadie lo decidiera.
+  const detergente = effectiveBasket(state, '2026-09').find(linea => linea.productId === habitualLines(state)[1].productId);
+  assert.ok(detergente, 'el alimento sin cantidad desapareció de la canasta del mes');
+  assert.equal(detergente.quantity, null, 'una cantidad que no se sabe no puede convertirse en cero');
+});
+
+/* ── La revisión parte de la compra anterior ───────────────────────────────
+
+   Venía de las pruebas del cierre de períodos. Lo que se fue de aquel archivo
+   fue el cálculo de la lista de compra; preguntar «¿cuánto te queda de lo que
+   trajiste?» sigue siendo lo que hace una revisión. */
+
+function casaConCompra() {
+  const state = createEmptyState();
+  const arroz = addProduct(state, { name: 'Arroz', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
+  const aceite = addProduct(state, { name: 'Aceite', controlUnit: 'unidad', purchaseUnit: 'unidad' }).id;
+  setHabitualBasket(state, [
+    { productId: arroz, quantity: 20, unit: 'lb' },
+    { productId: aceite, quantity: 2, unit: 'unidad' }
+  ]);
+  return { state, arroz, aceite };
+}
+const MES_EN_CURSO = todayISO().slice(0, 7);
+const DIA = numero => `${MES_EN_CURSO}-${String(numero).padStart(2, '0')}`;
+
+test('una revisión pregunta por lo que se trajo en la compra anterior', () => {
+  const { state, arroz, aceite } = casaConCompra();
+  addPurchase(state, { date: DIA(2), lines: [{ productId: arroz, quantity: 10, unit: 'lb' }] });
+
+  const revision = createReview(state, DIA(15));
+  assert.equal(revision.origen, 'compra');
+  assert.equal(revision.purchaseId, ultimaCompra(state).id);
+  assert.deepEqual(revision.productIds, [arroz], 'preguntó por algo que no se compró');
+
+  // Y la despensa entera sigue a un toque.
+  addPurchase(state, { date: DIA(3), lines: [{ productId: aceite, quantity: 2, unit: 'unidad' }] });
+  setReviewScope(state, revision.id, 'todo');
+  assert.equal(revision.productIds.length, 2);
+
+  // Volver a «lo de la compra» vuelve a la compra de esta revisión, no a la
+  // última que se haya anotado desde entonces: una revisión empezada el martes
+  // no puede cambiar de tema porque el jueves alguien anotara otra compra.
+  setReviewScope(state, revision.id, 'compra');
+  assert.deepEqual(revision.productIds, [arroz]);
+  assert.equal(revision.purchaseId, state.purchases[0].id);
+});
+
+test('sin ninguna compra anotada, la revisión no se queda en blanco', () => {
+  const { state, arroz } = casaConCompra();
+  addProduct(state, { name: 'Sal', controlUnit: 'unidad', purchaseUnit: 'unidad', opening: 3 });
+  const revision = createReview(state, todayISO());
+  assert.equal(revision.origen, 'todo', 'sin compra anterior no hay «lo de la compra» que enseñar');
+  assert.ok(revision.productIds.length >= 1);
+  assert.ok(arroz);
+});
+
+test('lo ya contestado no se cae al cambiar de alcance', () => {
+  const { state, arroz, aceite } = casaConCompra();
+  addPurchase(state, { date: DIA(2), lines: [{ productId: arroz, quantity: 10, unit: 'lb' }, { productId: aceite, quantity: 2, unit: 'unidad' }] });
+  const revision = createReview(state, DIA(15));
+  saveReview(state, revision.id, { [arroz]: 4 });
+
+  setReviewScope(state, revision.id, 'todo');
+  setReviewScope(state, revision.id, 'compra');
+  assert.ok(revision.productIds.includes(arroz));
+  assert.equal(revision.remaining[arroz], 4, 'se perdió lo que ya estaba contado');
 });

@@ -9,61 +9,22 @@
 // entendió queda anotado en `pending` y la fila se conserva igual, porque
 // perder el producto es mucho peor que dejar un hueco que se llena en un toque.
 
+// Decidir si dos nombres son el mismo alimento se hace en un solo sitio, y ese
+// sitio es `nombres.js`. Este módulo se limita a leer palabras; que además
+// tuviera su propia idea del plural español era pedir que un día discreparan.
+import { normalizeName, palabras, plano, presentar } from './nombres.js';
+export { normalizeName };
+
 // Las unidades del modelo, copiadas a propósito en vez de importadas: este
 // módulo es puro —solo texto— y arrastrar model.js metería el estado de la casa
 // en algo que únicamente lee palabras.
 export const UNITS = ['unidad', 'lb', 'taza', 'lata', 'paquete', 'rueda', 'rebanada'];
 
 const round = value => Math.round((value + Number.EPSILON) * 1000) / 1000;
-// Quitar la tilde también convierte la «ñ» en «n». Es a propósito: quien dicta
-// la compra escribe «pina» tan a menudo como «piña», y los dos tienen que
-// llegar al mismo alimento.
-const sinTildes = texto => String(texto ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '');
-const plano = texto => sinTildes(texto).toLocaleLowerCase('es');
-const palabras = texto => String(texto ?? '').trim().split(/\s+/).filter(Boolean);
 // Las frases se guardan escritas y se parten aquí para poder leerlas de un
 // vistazo arriba. Las más largas primero: «no compramos» tiene que ganarle a
 // «no», o se quedaría a medias.
 const frases = lista => lista.map(frase => frase.split(' ')).sort((a, b) => b.length - a.length);
-
-// Palabras que terminan en «s» sin ser plural. Las de tres letras o menos ya
-// quedan fuera por tamaño («mes», «gas», «dos»).
-const INVARIABLES = new Set(['anis', 'pais', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'cuscus']);
-// Los plurales que no siguen la regla son poquísimos y todos de cocina: no vale
-// la pena un diccionario entero para «nueces».
-const IRREGULARES = { nueces: 'nuez', maices: 'maíz', arroces: 'arroz', raices: 'raíz', peces: 'pez', luces: 'luz' };
-// Consonantes con las que una palabra española puede terminar. Deciden qué
-// pierde un plural en -es: «panes» es «pan» porque «pan» termina bien, pero
-// «tomates» es «tomate», no «tomat».
-const FINALES = 'nlrdzjxs';
-const TILDES = { a: 'á', e: 'é', i: 'í', o: 'ó', u: 'ú' };
-
-// Devuelve el singular conservando las tildes, porque el mismo cálculo sirve
-// para el nombre que se enseña («Jamón») y para el que se compara («jamon»).
-function singular(palabra) {
-  const base = plano(palabra);
-  if (IRREGULARES[base]) return IRREGULARES[base];
-  if (base.length <= 3 || INVARIABLES.has(base) || !base.endsWith('s')) return palabra;
-  if (!base.endsWith('es') || !FINALES.includes(base.at(-3))) return palabra.slice(0, -1);
-  const raiz = palabra.slice(0, -2);
-  // El plural en -es le quita la tilde al singular agudo: «jamones» es «jamón».
-  // Solo en palabras largas, porque «panes» sí es «pan».
-  return raiz.replace(/^(..+)([aeiou])n$/, (todo, inicio, vocal) => inicio + TILDES[vocal] + 'n');
-}
-
-// El nombre con el que se compara y se busca: sin tildes, sin mayúsculas, sin
-// plurales obvios y con los espacios colapsados. Dos personas escribiendo el
-// mismo alimento tienen que llegar aquí al mismo texto.
-export function normalizeName(texto) {
-  return palabras(texto).map(palabra => plano(singular(plano(palabra)))).join(' ');
-}
-
-// El nombre que se enseña: una sola mayúscula al principio. El resto en
-// minúscula a propósito, para que «ARROZ» y «Arroz» se vean igual en la lista.
-function presentar(texto) {
-  const nombre = palabras(String(texto ?? '').toLocaleLowerCase('es')).map(singular).join(' ');
-  return nombre ? nombre[0].toLocaleUpperCase('es') + nombre.slice(1) : '';
-}
 
 const NUMEROS = {
   un: 1, uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10,

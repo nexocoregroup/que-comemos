@@ -15,20 +15,23 @@ import assert from 'node:assert/strict';
 //    toca y decide quien cocina.
 
 import {
-  MOMENTOS, SLOTS, SLOTS_PRINCIPALES, addProduct, choquesDeLaComida, createEmptyState,
-  deletePlan, esOpcional, etiquetaDeMomento, generateMonth, gravedadDeLaComida, inventoryNow,
-  makeRecipePlan, planFor, setAbsence, setHabitualBasket, setStatusPlan, shoppingList,
+  MOMENTOS, SLOTS, SLOTS_PRINCIPALES, addProduct, choquesDeLaComida, comidasDecididas, createEmptyState,
+  dateRange, deletePlan, effectiveBasket, esOpcional, etiquetaDeMomento, gravedadDeLaComida, inventoryNow,
+  makeRecipePlan, planFor, setAbsence, setHabitualBasket, setStatusPlan,
   upsertPerson, upsertRecipe
 } from '../src/model.js';
-import { monthProgress, openMonth } from '../src/routines.js';
-import { emptyMes, renderMes } from '../src/page-mes.js';
+import { emptySemana, renderSemana } from '../src/page-semana.js';
+
+// El lunes 5 de octubre de 2026 y los seis días que le siguen: una semana
+// entera, escrita contra el calendario.
+const LUNES = '2026-10-05';
+const SEMANA = dateRange(LUNES, '2026-10-11');
 
 function contexto(state, extra = {}) {
   return {
     state,
-    ui: { page: 'mes', modal: null, mes: emptyMes('2026-10'), ...extra },
-    commit: () => {}, toast: () => {}, render: () => {}, closeModal: () => {}, openModal: () => {}, startTour: () => {},
-    servicios: { transcribe: false, chat: false, enElAparato: { voz: false } }
+    ui: { page: 'semana', modal: null, semana: emptySemana(LUNES), ...extra },
+    commit: () => {}, toast: () => {}, render: () => {}, closeModal: () => {}, openModal: () => {}, startTour: () => {}
   };
 }
 
@@ -100,73 +103,51 @@ test('un día con las tres comidas puestas y sin meriendas está completo', () =
   assert.equal(SLOTS.filter(esOpcional).every(slot => !planFor(state, '2026-10-05', slot)), true, 'las meriendas están vacías');
 });
 
-test('un mes entero sin ninguna merienda llega al cien por cien', () => {
+test('una semana entera sin ninguna merienda no deja ningún hueco, y lo dice', () => {
   const { state } = casa();
   const receta = upsertRecipe(state, { name: 'Algo', uses: [...SLOTS], items: [] });
-  openMonth(state, '2026-10');
-  for (let dia = 1; dia <= 31; dia++) {
-    const fecha = `2026-10-${String(dia).padStart(2, '0')}`;
-    for (const slot of SLOTS_PRINCIPALES) makeRecipePlan(state, receta.id, fecha, slot);
-  }
-  const progreso = monthProgress(state, '2026-10');
-  assert.equal(progreso.pendientes, 0, 'no queda ningún hueco');
-  assert.equal(progreso.porcentaje, 100);
-  assert.equal(progreso.huecos, 31 * 3, 'los huecos que se cuentan son tres al día, no cinco');
-  assert.equal(progreso.meriendas, 0);
+  for (const fecha of SEMANA) for (const slot of SLOTS_PRINCIPALES) makeRecipePlan(state, receta.id, fecha, slot);
+
+  const cuenta = comidasDecididas(state, SEMANA);
+  assert.equal(cuenta.pendientes, 0, 'no queda ningún hueco');
+  assert.equal(cuenta.huecos, 7 * 3, 'los huecos que se cuentan son tres al día, no cinco');
+  assert.equal(cuenta.decididas, 7 * 3);
+  assert.equal(cuenta.meriendas, 0);
+
+  const html = renderSemana(contexto(state));
+  assert.ok(html.includes('No queda ningún hueco'), 'no dice que la semana está completa');
+  assert.ok(!html.includes('por decidir'), 'sigue avisando de huecos que no existen');
 });
 
-test('las meriendas puestas se cuentan aparte y no cambian el porcentaje', () => {
+test('las meriendas puestas se cuentan aparte y no cambian lo que falta', () => {
   const { state } = casa();
   const receta = upsertRecipe(state, { name: 'Algo', uses: [...SLOTS], items: [] });
-  openMonth(state, '2026-10');
-  makeRecipePlan(state, receta.id, '2026-10-05', 'merienda-tarde');
-  const progreso = monthProgress(state, '2026-10');
-  assert.equal(progreso.meriendas, 1);
-  assert.equal(progreso.huecos, 31 * 3, 'una merienda puesta no añade un hueco nuevo');
-  assert.equal(progreso.encasa, 0, 'ni se cuenta como una de las tres');
+  makeRecipePlan(state, receta.id, LUNES, 'merienda-tarde');
+  const cuenta = comidasDecididas(state, SEMANA);
+  assert.equal(cuenta.meriendas, 1);
+  assert.equal(cuenta.huecos, 7 * 3, 'una merienda puesta no añade un hueco nuevo');
+  assert.equal(cuenta.encasa, 0, 'ni se cuenta como una de las tres');
+  assert.equal(cuenta.pendientes, 7 * 3, 'las tres de cada día siguen enteras por decidir');
 });
 
-test('rellenar el mes automáticamente no inventa meriendas', () => {
-  const { state } = casa();
-  upsertRecipe(state, { name: 'Algo', uses: [...SLOTS], items: [] });
-  openMonth(state, '2026-10');
-  generateMonth(state, '2026-10');
-  const meriendas = state.plans.filter(plan => esOpcional(plan.slot));
-  assert.equal(meriendas.length, 0, 'nadie pidió sesenta y dos meriendas');
-  assert.equal(state.plans.filter(plan => !esOpcional(plan.slot)).length, 31 * 3, 'y sí las tres de cada día');
-});
-
-test('comprando por menú, una merienda vacía no sale como comida sin planificar', () => {
-  const { state } = casa();
-  const receta = upsertRecipe(state, { name: 'Algo', uses: [...SLOTS], items: [] });
-  for (const slot of SLOTS_PRINCIPALES) makeRecipePlan(state, receta.id, '2026-10-05', slot);
-  const lista = shoppingList(state, '2026-10-05', '2026-10-05', 'menu');
-  assert.deepEqual(lista.missing, [], 'las tres están puestas: no falta nada');
-});
-
-test('el calendario del mes se dibuja con los cinco momentos', () => {
+test('la semana enseña los cinco momentos de un día, y dice que dos son opcionales', () => {
   const { state, pan } = casa();
   const receta = upsertRecipe(state, { name: 'Pan con queso', uses: [...SLOTS], items: [{ productId: pan, quantity: 1, unit: 'unidad' }] });
-  makeRecipePlan(state, receta.id, '2026-10-05', 'merienda-tarde');
-  makeRecipePlan(state, receta.id, '2026-10-05', 'desayuno');
-  const ctx = contexto(state);
-  ctx.ui.mes.vista = 'calendario';
-  const html = renderMes(ctx);
-  revisar(html, 'calendario');
-  assert.ok(html.includes('data-slot="merienda-tarde"'), 'la merienda puesta está en el calendario');
-  assert.ok(html.includes('Merienda de tarde del'), 'y se llama por su nombre');
-  assert.ok(html.includes('+ merienda'), 'y se puede añadir la que falta');
-});
+  for (const slot of SLOTS) makeRecipePlan(state, receta.id, LUNES, slot);
+  const html = renderSemana(contexto(state));
+  revisar(html, 'la semana');
 
-test('el resumen del mes enseña los cinco momentos, con las meriendas marcadas como opcionales', () => {
-  const { state } = casa();
-  const receta = upsertRecipe(state, { name: 'Algo', uses: [...SLOTS], items: [] });
-  openMonth(state, '2026-10');
-  makeRecipePlan(state, receta.id, '2026-10-05', 'almuerzo');
-  const html = renderMes(contexto(state));
-  revisar(html, 'resumen del mes');
-  for (const momento of MOMENTOS) assert.ok(html.includes(momento.etiqueta), `falta «${momento.etiqueta}»`);
-  assert.ok(html.includes('Opcional: puede quedar vacía'));
+  // Con los cinco puestos, los cinco se ven, cada uno con su nombre escrito.
+  for (const momento of MOMENTOS) {
+    assert.ok(html.includes(`data-slot="${momento.id}"`), `falta el momento «${momento.id}»`);
+    assert.ok(html.includes(momento.etiqueta), `falta «${momento.etiqueta}»`);
+  }
+  // Y el día que ya tiene las dos meriendas no ofrece anotar otra: el enlace
+  // sale en los seis días que siguen vacíos, y en ninguno más.
+  assert.equal((html.match(/Anotar una merienda/g) || []).length, 6,
+    'el día con las dos meriendas puestas vuelve a ofrecer anotar otra');
+  assert.ok(/meriendas son opcionales|un día sin merienda está completo/i.test(html),
+    'la semana no dice en ninguna parte que las meriendas son opcionales');
 });
 
 /* ── Avisar, no prohibir ───────────────────────────────────────────────── */
@@ -232,20 +213,6 @@ test('quitar a la persona del choque quita el aviso', () => {
   assert.ok(sofia);
 });
 
-test('rellenar el mes automáticamente sí esquiva los choques', () => {
-  // Avisar y dejar decidir es para lo que hace una persona. Cuando es la app la
-  // que elige sola, elegir un plato que choca sería elegir mal.
-  const { state, leche, sofia } = conAlergia();
-  upsertRecipe(state, { name: 'Arroz con leche', uses: [...SLOTS_PRINCIPALES], items: [{ productId: leche, quantity: 2, unit: 'unidad' }] });
-  const buena = upsertRecipe(state, { name: 'Pan', uses: [...SLOTS_PRINCIPALES], items: [] });
-  openMonth(state, '2026-10');
-  generateMonth(state, '2026-10');
-  for (const plan of state.plans) {
-    assert.equal(plan.recipeId, buena.id, 'no se eligió sola la que choca con una alergia');
-  }
-  assert.ok(sofia);
-});
-
 /* ── Una ausencia no encoge la olla ────────────────────────────────────── */
 
 test('marcar a alguien fuera no cambia la comida ni el inventario', () => {
@@ -277,22 +244,26 @@ test('una ausencia con todo el mundo fuera tampoco borra la comida', () => {
 
 test('lo que se marca fuera de casa sigue resolviendo el momento', () => {
   const { state } = casa();
-  setStatusPlan(state, '2026-10-05', 'merienda-tarde', 'outside');
-  assert.equal(planFor(state, '2026-10-05', 'merienda-tarde').kind, 'outside');
-  setStatusPlan(state, '2026-10-05', 'almuerzo', 'outside');
-  const lista = shoppingList(state, '2026-10-05', '2026-10-05', 'menu');
-  assert.ok(!lista.missing.some(item => item.slot === 'almuerzo'), 'un almuerzo fuera no es un hueco');
-  assert.ok(!lista.missing.some(item => esOpcional(item.slot)), 'y una merienda nunca lo es');
+  const pendientesAntes = comidasDecididas(state, SEMANA).pendientes;
+
+  setStatusPlan(state, LUNES, 'merienda-tarde', 'outside');
+  assert.equal(planFor(state, LUNES, 'merienda-tarde').kind, 'outside');
+  assert.equal(comidasDecididas(state, SEMANA).pendientes, pendientesAntes, 'una merienda nunca fue un hueco');
+
+  setStatusPlan(state, LUNES, 'almuerzo', 'outside');
+  const cuenta = comidasDecididas(state, SEMANA);
+  assert.equal(cuenta.pendientes, pendientesAntes - 1, 'un almuerzo fuera sigue contando como hueco');
+  assert.equal(cuenta.fuera, 1, 'y la merienda de fuera no se suma a las tres del día');
 });
 
-test('la lista de la compra no baja por una ausencia', () => {
+test('la canasta del mes no baja por una ausencia', () => {
   // La canasta de la casa no se recalcula porque un hijo coma fuera un martes.
   const { state, arroz } = casa();
   const ana = upsertPerson(state, { name: 'Ana', restricciones: [], habitual: [] });
-  const antes = shoppingList(state, '2026-10-01', '2026-10-31', 'casa').lines.find(linea => linea.productId === arroz).need;
+  const cuanto = () => effectiveBasket(state, '2026-10').find(linea => linea.productId === arroz).quantity;
+  const antes = cuanto();
   setAbsence(state, '2026-10-05', 'cena', ana.id, true);
-  const despues = shoppingList(state, '2026-10-01', '2026-10-31', 'casa').lines.find(linea => linea.productId === arroz).need;
-  assert.equal(despues, antes);
+  assert.equal(cuanto(), antes);
 });
 
 test('deletePlan sigue funcionando con los momentos nuevos', () => {

@@ -23,45 +23,12 @@
 
 .bulk { min-width: 0; }
 /* Un párrafo entero se escribe con sitio para verlo completo; el cuadro de tres
-   líneas obliga a releer a ciegas lo que uno mismo acaba de dictar. */
+   líneas obliga a releer a ciegas lo que uno mismo acaba de escribir. */
 .bulk-texto { min-height: 148px; line-height: 1.55; }
 .bulk-destino { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
 .bulk-entiende { margin: 8px 0 0; padding-left: 19px; display: grid; gap: 6px; line-height: 1.45; }
 .bulk-head { margin: 0; align-items: flex-start; flex-wrap: wrap; }
 .bulk-head p { margin: 5px 0 0; font-variant-numeric: tabular-nums; }
-
-/* ── Dictar ────────────────────────────────────────────────────────────── */
-
-/* El micrófono y su explicación van uno al lado del otro donde caben, y uno
-   encima del otro en un teléfono: el botón nunca se estrecha por debajo de lo
-   que se toca con el pulgar, y la explicación se pliega sola. */
-.bulk-dictado { display: flex; align-items: center; gap: 10px 12px; flex-wrap: wrap; }
-.bulk-dictado p { margin: 0; flex: 1 1 190px; line-height: 1.45; }
-/* `.btn` ya trae los 44 px de alto; aquí solo se deja que la etiqueta larga
-   —«Escuchando… toca para parar»— se parta en dos líneas en vez de desbordar. */
-.bulk-microfono { flex-wrap: wrap; max-width: 100%; text-align: left; }
-.bulk-microfono.escuchando { background: var(--clay-light); border-color: var(--clay); color: var(--clay-dark); }
-
-.bulk-escuchando { margin: 0; display: flex; align-items: center; gap: 10px; font-size: .85rem; line-height: 1.45; color: var(--ink-muted); }
-.bulk-pista-voz { margin: 0; line-height: 1.45; }
-.bulk-onda {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  background: var(--clay);
-  animation: bulk-onda 1.4s ease-out infinite;
-}
-@keyframes bulk-onda {
-  0% { box-shadow: 0 0 0 0 #a04b2229; }
-  70% { box-shadow: 0 0 0 11px #a04b2200; }
-  100% { box-shadow: 0 0 0 0 #a04b2200; }
-}
-/* Quien pidió menos movimiento no pierde el aviso: el punto se queda quieto y
-   encendido, que es lo que de verdad hay que ver. */
-@media (prefers-reduced-motion: reduce) {
-  .bulk-onda { animation: none; box-shadow: 0 0 0 4px #a04b2229; }
-}
 
 /* Lo que existe para el lector de pantalla y no para la vista: la ayuda de cada
    campo y, cuando la tabla es tabla, la etiqueta que ya repite la cabecera. Se
@@ -216,8 +183,22 @@
 .bulk-negadas-lista strong { display: block; }
 .bulk-negadas-lista span { display: block; margin-top: 3px; }
 
-.bulk-confirma { align-items: flex-start; line-height: 1.4; padding: 12px 14px; }
-.bulk-confirma input { margin-top: 2px; width: 20px; height: 20px; flex-shrink: 0; }
+/* La única casilla que sigue viéndose. No es una ficha de elegir entre
+   varias: es decir que sí a algo que se va a guardar, y eso quiere el cuadro
+   delante. `flex: 0 0 auto` porque el `input` no trae tamaño propio y con una
+   frase de dos renglones el navegador le daba todo el ancho sobrante. */
+.bulk-confirma {
+  display: inline-flex;
+  gap: 8px;
+  align-items: flex-start;
+  line-height: 1.4;
+  padding: 12px 14px;
+  background: #faf4ed;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  font-size: .84rem;
+}
+.bulk-confirma input { flex: 0 0 auto; margin-top: 2px; width: 20px; height: 20px; accent-color: var(--clay); }
 
 @media (min-width: 701px) {
   .bulk-destino { grid-template-columns: repeat(2, minmax(0, 1fr)); }

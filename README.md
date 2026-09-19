@@ -1,8 +1,10 @@
 # ¿Qué comemos?
 
-Aplicación local para organizar las comidas de una casa y calcular la compra. Los datos viven en el dispositivo y la app funciona entera sin cuenta y sin conexión: sin sesión iniciada no hace ni una llamada a la red. La cuenta es opcional —sirve para recuperar la casa al cambiar de teléfono— y subir los datos a ella es una segunda decisión aparte, con su propio interruptor; las dos vienen apagadas. La interfaz y los datos de demostración están en español dominicano. Las cantidades del ejemplo son datos de prueba, no recomendaciones nutricionales.
+Aplicación local para decidir en familia qué se desayuna, se almuerza y se cena, y para llevar la lista al colmado. Los datos viven en el dispositivo y la app funciona entera sin cuenta y sin conexión: sin sesión iniciada no hace ni una llamada a la red. La cuenta es opcional —sirve para recuperar la casa al cambiar de teléfono— y subir los datos a ella es una segunda decisión aparte, con su propio interruptor; las dos vienen apagadas. La interfaz y los datos de demostración están en español dominicano. Las cantidades del ejemplo son datos de prueba, no recomendaciones nutricionales.
 
-**La regla que gobierna el diseño:** lo habitual se escribe **una sola vez**. Cada mes empieza ya preparado y el usuario solo registra las excepciones. Marcar «Arroz» en el catálogo inicial lo registra como alimento y lo pone en la canasta habitual; guardar «mangú con salami, martes y jueves de desayuno» llena todos los martes y jueves reales del mes de una vez.
+**La regla que gobierna el diseño:** lo que se escribe una vez es **lo que la casa tiene**; lo que se come cada día lo decide una persona, día a día. La familia registra una sola vez quiénes son, qué compra de costumbre y qué sabe preparar. A partir de ahí planifica a mano la semana que viene, o las dos siguientes si prefiere. La app **no propone platos, no copia semanas, no repite comidas y no rellena meses**, y la compra es una lista aparte que no sale del menú.
+
+Hubo una versión que sí hacía todo eso: se guardaban costumbres —«mangú con salami, los lunes de desayuno»— y el mes se llenaba solo. Se retiró. Llenaba el calendario de comidas que nadie había decidido, y revisarlas una por una costaba más que haberlas puesto.
 
 ## Ejecutar
 
@@ -25,162 +27,149 @@ Las pruebas:
 npm test
 ```
 
-## Las cuatro pantallas
+## Las cinco secciones
 
-La navegación tiene cuatro destinos, y solo cuatro. Antes tenía siete, y cuatro de ellos —Productos y datos, Personas, Preparaciones, Revisión— competían de tú a tú con la pantalla del día. Ninguna casa abre la app para editar una ficha de producto.
+La navegación tiene cinco destinos, y las cinco son cosas que una casa abre. Antes eran cuatro, y el cuarto era **Más**: un cajón con diez filas dentro. Dos de ellas —los productos habituales y las preparaciones— son de lo que más se toca, y estaban a dos pasos por estar guardadas en el sitio donde se guarda lo que no se usa.
 
-- **Hoy** — para quien cocina. El desayuno, el almuerzo y la cena con sus cantidades, para quién es cada cosa, qué hay que apartar para otro día y la nota de quien organizó. Nada de configuraciones ni de cálculos.
-- **Plan mensual** — la pantalla principal. El progreso del mes, las rutinas de la casa y el recorrido de «Preparar este mes».
-- **Compra** — una sola lista, una sola cuenta.
-- **Más** — todo lo demás, ordenado por la frecuencia real con que hace falta: mi canasta habitual, preparaciones, familia y restricciones, revisar lo que queda, alimentos de la casa, historial, respaldo y ajustes.
+- **Hoy** — para quien cocina. El desayuno, el almuerzo y la cena con sus cantidades si las hay, para quién es cada cosa y la nota de quien organizó. Un momento vacío dice *sin decidir*, y no es un error.
+- **Plan semanal** — la pantalla principal. Siete días de lunes a domingo, o catorce si se piden.
+- **Compra** — la lista de un viaje al colmado: se prepara desde los productos habituales y se va tachando.
+- **Mis productos habituales** — lo que esta casa compra de costumbre, por rubros.
+- **Preparaciones** — las comidas que esta casa sabe hacer.
 
-El botón **+** tiene cuatro acciones, no once: poner una comida, hablar o dictar, anotar una compra, añadir un alimento.
+Y un **engranaje**, visible en el celular y en la computadora, que abre **Ajustes**: familia y restricciones, historial, respaldo, mi cuenta, las preferencias de la aplicación —organización de compra y funciones avanzadas— y «cómo funciona». Ajustes no es una sección: es donde se entra una vez cada muchos meses.
+
+**«Alimentos de la casa» se retiró.** Era la ficha técnica de cada producto —su categoría, su unidad de conteo, su equivalencia, cuánto había— y era una segunda manera de administrar lo mismo que ya se administra en *Mis productos habituales*. El modelo sigue guardando categorías y unidades porque las necesita; lo que desapareció es la pantalla que obligaba a gestionarlas. Editar un producto se hace desde su fila en los habituales; archivar y restaurar, desde *Ajustes → Funciones avanzadas*.
+
+El botón **+** tiene cuatro acciones, no once: poner una comida, crear una preparación, preparar la compra, añadir un alimento.
 
 En computadora, el botón ☰ junto al título retrae o muestra el menú lateral. En celular el menú está oculto: ☰ arriba a la izquierda lo abre y ‹ lo cierra.
 
 ## Organizar mi casa
 
-La primera apertura enseña una sola promesa —*organiza una vez lo habitual de tu casa y prepara cada mes cambiando solamente lo diferente*— y un botón: **Organizar mi casa**. Hay un enlace discreto para ver un ejemplo, que no compite con él.
+La primera apertura enseña una sola promesa —*organiza una vez lo habitual de tu casa y decide con calma qué se come esta semana*— y un botón: **Organizar mi casa**. Hay un enlace discreto para ver un ejemplo, que no compite con él.
 
-Son cuatro pasos, y se pueden abandonar y retomar:
+Son cinco pasos, se pueden abandonar y retomar, y en **ninguno se pide una cantidad**:
 
-1. **¿Qué se consume normalmente en tu casa?** Un catálogo de **productos dominicanos** por categorías, con buscador. Es un punto de partida, no una lista completa: *¿No encuentras un alimento? Añadirlo* está siempre a la vista. Nada se marca solo.
-2. **¿Falta algo habitual de tu casa?** Lo que no estaba en la lista, escrito o dictado de corrido: *«Tortillas de maíz, queso gouda, jamón de pavo y yogurt de fresa»*. La app lo separa en filas para revisar. No se abre un formulario por producto.
-3. **Las cantidades.** Todos los alimentos elegidos en **una sola pantalla editable**. La cantidad puede quedar vacía: el alimento se guarda igual y queda pendiente. Aquí **no** se piden equivalencias, grosores de rueda, existencias iniciales ni unidades de compra; eso se pregunta cuando hace falta de verdad, al confirmar una compra.
-4. **Preparar mi primer menú mensual.** Guardar las comidas que se repiten y elegir qué días suelen prepararse, para que la app llene el calendario real del mes.
+1. **Mi hogar.** Cuántas personas comen en casa y, de cada una, el nombre, si es adulto, adolescente o niño, y qué debe evitar si aplica. Nada más: no se pregunta el peso, ni la fecha de nacimiento, ni nada médico. Es la misma ficha que la de *Familia*, no una segunda escrita aparte.
+2. **Productos habituales.** *Selecciona lo que normalmente compras para tu casa. No tienes que indicar cantidades.* Un catálogo de **productos dominicanos** recorrido **rubro por rubro**, ocho pantallas seguidas en la misma posición, con Atrás y Continuar y sin nada que arrastrar de lado. No hay mínimo: si esta casa no compra vegetales frescos, pasa de largo. *¿No encuentras un alimento? Añadirlo* está siempre a la vista y pide **solo el nombre**.
+3. **Cómo compramos.** Mensual o quincenal. Es un dato de la casa y nada más: **no divide cantidades, no lleva cuentas y no avisa de cuándo toca la próxima lista**. Una lista se prepara el día que haga falta. Se cambia cuando se quiera desde *Ajustes → Organización de compra*, y cada cambio vale desde el mes que se le diga en adelante: lo que ya pasó no se reescribe.
+4. **Mis preparaciones.** Nombre, en qué momentos se come, y una nota opcional para quien cocina. Se escriben varias seguidas: al guardar, el formulario queda en blanco para la siguiente. Qué lleva cada plato se añade después, si se quiere, desde *Preparaciones* —y editar una comida desde aquí **no** le borra lo que allí se escribió—.
+5. **Crear mi primer plan.** Arriba, lo registrado línea por línea con un enlace de vuelta a cada paso. Debajo, la única pregunta que queda: **¿siete días o catorce?** Elegido el número se enseñan esos días empezando por hoy, cada uno con su desayuno, su almuerzo y su cena, y en cada momento se elige una de las preparaciones escritas, «fuera de casa», «pedimos comida» o «sin decidir». Elegir guarda al momento y solo ese día.
 
-El recorrido guiado, ahora de cuatro pasos, está en *Más → Ajustes → Cómo funciona*. Ya no se planta delante de la primera pantalla.
+   **Se puede terminar sin poner ni una comida**, y el paso lo dice con todas las letras: lo que no se ponga aquí se pone cuando se quiera desde *Plan semanal*. Y **no se pregunta ningún día fijo**: aquí no se crea ninguna rutina, ni aquí ni en ningún otro sitio.
 
-## Una sola canasta, y los cambios del mes
+Eran siete. Los dos que se fueron —*«¿cuánto se compra al mes?»* y *«cómo se reparte entre las dos quincenas»*— pedían un número que la casa no tiene por qué saber, y lo pedían justo después de marcar los alimentos: quien marcaba ciento cincuenta se encontraba con ciento cincuenta casillas de cantidad antes de poder terminar. El reparto entre quincenas se fue del todo: no lo pregunta ninguna pantalla. Lo que quedó en *Ajustes → Organización de compra* es otra cosa: cada cuánto se compra —mensual o quincenal—, en qué períodos se parte el mes, y desde cuándo vale cada cambio.
 
-Para el usuario existe **una** canasta permanente: **Mi canasta habitual**. Es todo lo que normalmente se compra en esa casa —plátanos, arroz, huevos, salami, jamón, atún, tortillas de maíz, queso—. Se escribe una vez, se usa automáticamente todos los meses y solo se toca cuando el hábito de la casa cambia de verdad:
+El recorrido está también en *Ajustes → Organizar mi casa*. Ya no se planta delante de la primera pantalla, y volver a pasar por él no borra nada: lo ya guardado aparece marcado, lo que una pantalla no pregunta no lo toca, y los cambios de cada mes ni se rozan.
+
+Hay quien lo dejó a medias con una numeración anterior —eran siete pasos; luego cinco, con un repaso al final—. Una tabla por numeración vieja dice a qué paso de hoy corresponde cada uno, para que nadie aterrice en una pantalla que no es la que dejó.
+
+## Mis productos habituales
+
+Un **catálogo de nombres agrupados por rubro**: todo lo que normalmente se compra en esa casa —plátanos, arroz, huevos, salami, jamón, atún, tortillas de maíz, queso—. Se escribe una vez y sirve para no tener que acordarse de todo de cero cada vez que se escribe una lista.
+
+**No lleva cantidades del mes.** La cantidad se decide en el supermercado, delante del estante, y se escribe en la lista de esa compra. Un alimento habitual sin ninguna cantidad es un alimento habitual perfectamente válido, y así entran todos los del recorrido inicial.
+
+Hubo cantidades mensuales, y siguen guardadas en los teléfonos que las escribieron: eran la base de la compra calculada. **Ya no se usan para nada.** Se conservan como historial —con la fecha desde la que valía cada una— y no se piden en ningún sitio. Lo que sigue tal cual es cuándo cambia el hábito de la casa:
 
 > «Ahora nuestra situación mejoró y vamos a consumir cangrejo todos los meses.»
 
-Aparte están los **cambios de este mes**: añadir algo solo para ese mes, cambiar una cantidad, quitar algo temporalmente. Al añadir o cambiar algo desde la planificación mensual, la app pregunta:
+Aparte están los **cambios de este mes** —añadir algo solo para ese mes, cambiar una cantidad, quitar algo temporalmente—. **Hoy no los pide ninguna pantalla**: se anotaban desde la planificación mensual, que se retiró con la vista de mes. El modelo los sigue guardando y leyendo porque hay casas que los escribieron, y lo de abajo cuenta cómo quedaron guardados.
 
-- `Solo este mes`
-- `Desde ahora, todos los meses`
+Editar dentro de *Mis productos habituales* es permanente, y es la única manera de editar que queda.
 
-Editar dentro de *Mi canasta habitual* es permanente. Editar dentro de un mes vale solo para ese mes, con la opción secundaria de *Guardar también como habitual*.
-
-**Por dentro, un mes guarda diferencias, no una copia.** En la versión anterior cada mes guardaba su lista completa, y eso tenía dos consecuencias malas: abrir un mes escribía datos sin que nadie lo pidiera, y un extra de octubre podía acabar pareciendo parte del hábito. Ahora abrir un mes no escribe ninguna canasta, y un producto añadido solo para octubre **no** vuelve a aparecer en noviembre. Su identidad sí se conserva, porque puede estar atada a compras, revisiones e inventario: para el usuario aparece como **«extra de octubre»**, no como una entrada de un catálogo global.
+**Por dentro, un mes guarda diferencias, no una copia.** En una versión antigua cada mes guardaba su lista completa, y eso tenía dos consecuencias malas: entrar en un mes escribía datos sin que nadie lo pidiera, y un extra de octubre podía acabar pareciendo parte del hábito. Desde entonces un mes guarda solo diferencias, y un producto añadido solo para octubre **no** vuelve a aparecer en noviembre. Su identidad sí se conserva, porque puede estar atada a compras y revisiones de aquel momento: en pantalla salía como **«extra de octubre»**, no como una entrada de un catálogo global.
 
 Pasar un cambio a habitual es siempre **explícito y por alimento**. Es lo que separa «este mes compré más pollo» de «en esta casa ahora se come más pollo».
 
-**Cada línea de la canasta guarda su historia, no una cantidad.** «Noventa tazas de arroz desde julio, ciento veinte desde septiembre» son dos tramos de la misma línea, y cada mes lee el que le tocaba. Antes había una sola cantidad: corregirla hoy cambiaba también lo que la app decía de julio, y julio ya se compró. Con eso, la pantalla que existe para acordarte de lo que hiciste distinto —«Y en la compra cambia esto»— era precisamente la que no podía verlo, porque al recalcular el mes anterior con la cantidad de hoy los dos meses salían iguales.
+**Cada línea guarda su historia, no una cantidad.** «Noventa tazas de arroz desde julio, ciento veinte desde septiembre» son dos tramos de la misma línea, y cada mes lee el que le tocaba. Se escribió así cuando la app calculaba la compra, porque corregir hoy una cantidad cambiaba también lo que la app decía de julio, y julio ya se compró. La estructura se conserva —los datos están ahí y la migración no los toca— aunque hoy no alimente ninguna cuenta.
 
-En la práctica:
+Así quedaron escritos esos tramos, de cuando se pedían cantidades, y así se siguen leyendo:
 
-- Corregir una cantidad **vale desde el mes en curso**. Los meses que ya pasaron se quedan con lo que se compró entonces.
-- Si lo que pasó es que estaba **mal escrito**, la app lo ofrece justo después de guardar: «corregir también los meses anteriores». Alcanza hasta donde empezó el dato equivocado, y ni un mes más.
-- Se puede fechar hacia adelante: «desde noviembre son 120». Este mes no cambia, y la canasta lo enseña como lo que viene.
-- **Quitar algo también lleva fecha.** Dejar de comprar pollo desde hoy no borra los meses en que sí se compró.
+- Corregir una cantidad **valía desde el mes en curso**. Los meses que ya pasaron se quedan con lo que se compró entonces.
+- Si lo que pasaba es que estaba **mal escrito**, la app lo ofrecía justo después de guardar: «corregir también los meses anteriores». Alcanzaba hasta donde empezó el dato equivocado, y ni un mes más.
+- Se podía fechar hacia adelante: «desde noviembre son 120».
+- **Quitar algo también llevaba fecha.** Dejar de comprar pollo desde una fecha no borra los meses en que sí se compró.
 
-## Rutinas: la idea central
 
-Organizar un mes tocando noventa y tres casillas no lo hace nadie, y por eso nadie lo hacía. La unidad de trabajo ya no es la casilla: es la costumbre.
+## Planificar a mano, una semana o dos
 
-> Plátano maduro con huevo · desayuno · lunes, miércoles, viernes y sábado · todo el mes
+*Plan semanal* enseña **siete días, de lunes a domingo**, uno debajo de otro y con sus comidas escritas enteras. «Ver dos semanas» enseña catorce. Las flechas mueven **una semana cada vez** —aunque se estén viendo dos: quien mira del 14 al 27 y pulsa «siguiente» espera empezar el 21, no el 28— e «Ir a una fecha» lleva a la semana en que cae el día que se le diga.
 
-Con una sola acción se llenan todos esos desayunos. Al guardar una rutina se elige:
+**No hay vista de mes, y no la hay a propósito.** Un mes entero es más de lo que una casa decide de una sentada, y enseñarlo invita a dejarlo para luego. Las semanas de atrás se pueden mirar; las de adelante están abiertas hasta que alguien las planifique.
 
-- **Qué**: una preparación, «comemos fuera» o «pedimos comida».
-- **En qué comida**: desayuno, almuerzo, cena, o varias.
-- **Qué días de la semana**: los siete, como fichas que se tocan.
-- **Cuáles de esos días**: todos, o solo el 1.º y 3.º, o el 2.º y 4.º.
-- **Hasta cuándo**: solo este mes, o desde ahora todos los meses.
-- **Y si ese día ya tenía algo**: dejarlo como está, o reemplazarlo —con confirmación.
+Se toca una comida y se elige entre tres maneras de contestar:
 
-El *1.º y 3.º* es el ordinal de ese día de la semana **dentro del mes**, no la semana del calendario. Así «primer y tercer domingo, almuerzo fuera» cae siempre donde debe, sean las fechas que sean.
+- **Una preparación guardada** — las que valen para ese momento del día.
+- **Escribirla** — «lo que quedó del sancocho de la vecina». Se anota ese día y solo ese día, y **no entra en el catálogo de preparaciones**: el catálogo es lo que esta casa sabe hacer, no lo que pasó un jueves.
+- **Lo que sobró** — se elige una comida anterior y se pone otra vez. **Sin preguntar cuánto**: cuánto sobró lo sabe quien cocinó, no una cuenta. Queda anotado de dónde viene, y la app avisa antes de dejar borrar la comida de origen.
 
-Al editar una comida que viene de una rutina, la app pregunta **¿qué quieres cambiar?**: solo esta fecha, esta y todas las siguientes, o toda la rutina. Suponerlo destruiría el trabajo de alguien sin avisar.
+Y debajo, las tres que no son comida: **se come fuera**, **se pedirá**, o **todavía no se sabe**.
 
-Toda aplicación masiva se puede **deshacer**.
+Lo que se cambie en un día vale **solo para ese día**. No hay nada que se propague, porque no hay ninguna regla que propagar.
 
-### Meses de 28, 29, 30 y 31 días
+Para no tener que tocar veintiuna casillas hay **una sola ayuda**, y no adivina nada:
 
-Las fechas salen del **calendario real del mes**. No se copia por número de día, no se cubren solo los primeros 28, y ningún día 29, 30 o 31 se queda fuera. Febrero de 28 y febrero de 29 en año bisiesto están cubiertos y comprobados: hay una verificación a fuerza bruta sobre 108 meses (2024–2032, 3288 fechas) que confirma que los siete días de la semana cubren cada mes entero, sin huecos ni repeticiones.
+> **Poner en varios días** → una preparación → en qué comida del día → se marcan los días.
 
-### Apertura automática de un mes
+Los días que ofrece son los que están en pantalla, siete o catorce, con atajos para marcar la semana o las dos. Se ponen esos días y **ninguno más**: no se guarda ninguna costumbre y no vuelve a ejecutarse nunca. Todo se puede deshacer.
 
-Entrar por primera vez en un mes nuevo no enseña un calendario en blanco. La app aplica la canasta habitual, aplica las rutinas permanentes sobre las fechas reales del mes, y avisa:
+Las cinco casillas del día son desayuno, merienda de mañana, almuerzo, merienda de tarde y cena. **Las dos meriendas son opcionales**: no cuentan como hueco y un día sin merienda está completo igual. Hay casas que no meriendan y decirles que les falta algo sería reprocharles una costumbre que no tienen.
 
-> Octubre está preparado con la rutina habitual de tu casa. Revisa lo que será diferente este mes.
+Una preparación se guarda una vez y se reutiliza cualquier día sin volver a escribirla. Guarda su nombre, en qué momentos suele comerse y una nota para quien cocina. Los alimentos que lleva son **opcionales** —sirven para avisar de una restricción— y sus cantidades también. Las porciones no se piden.
 
-Lo que **no** hace: copiar las excepciones del mes anterior, ni los cumpleaños, ni las salidas puntuales. Esas fueron decisiones de aquel mes. Si el mes anterior se organizó a mano y sin rutinas, se ofrece **Usar el patrón del mes pasado**, que copia **por día de la semana** —el lunes 5 de octubre va al lunes 2 de noviembre—, no por número de fecha.
+### La semana empieza en lunes
 
-Abrir un mes es idempotente: entrar dos veces no duplica nada, y nunca toca la canasta habitual.
+Siempre, y da igual el día en que se abra la app: si la semana empezara en el día en curso, «la semana que viene» significaría algo distinto cada mañana. Los días salen del **calendario real**, así que una semana a caballo entre dos meses —o entre dos años— sale entera.
 
-## Comidas fuera de casa
+### Comidas fuera de casa
 
-Cada comida puede estar en uno de cuatro estados: **en casa**, **fuera**, **pediremos comida**, o **todavía no sabemos**. Marcar una comida fuera la deja **resuelta**: no cuenta como pendiente, se ve en el calendario y no genera alimentos en los cálculos que salen del menú.
+Marcar una comida fuera la deja **resuelta**: no cuenta como pendiente y se ve en el calendario. Se puede marcar una comida suelta, un día entero —el botón de los tres puntos de cada día—, o varios días a la vez con la misma ventana de arriba.
 
-Se puede aplicar a una comida, a un día entero, a todos los domingos, al primer y tercer domingo, al segundo y cuarto, o a cualquier combinación de días de la semana; y valer solo para ese mes o guardarse como rutina permanente. Si normalmente comen fuera el primer y tercer domingo pero este mes también salen el cuarto, ese cuarto domingo se marca como excepción **sin alterar la rutina**.
+### De dónde vino cada comida
 
-## Preparar este mes
-
-La pantalla de *Plan mensual* abre con el progreso, el desglose por comida y dos botones: **Preparar este mes** y **Ver calendario**. El recorrido de preparar son cinco pantallas cortas, una pregunta cada una:
-
-1. **Lo que se repite** — comprobar las rutinas, o crear la primera.
-2. **Comidas fuera** — los atajos de domingos y viernes, y los días sueltos.
-3. **Lo que falta** — solo los huecos, no las noventa y tres casillas. Lo que se deje en blanco sigue ahí mañana.
-4. **La compra del mes** — qué será diferente este mes.
-5. **Listo** — «Tu mes está organizado», con el resumen: comidas en casa, fuera, pendientes y cambios en la compra.
+Cada comida lleva un punto de color que dice quién la puso. Hoy solo hay dos respuestas —*Cambio manual*, *Excepción*—, pero se conservan otras tres —*Rutina*, *Mes anterior*, *Sugerida*— porque hay comidas guardadas con ellas en teléfonos reales, de cuando la app llenaba el calendario sola. Borrarlas dejaría a esas comidas sin poder decir de dónde vinieron.
 
 ## La compra
 
-Una sola pantalla y una sola cuenta:
+Una lista para **un viaje al colmado**, no un inventario. La app no sabe lo que
+queda en la despensa y no lo calcula: decide la persona.
+
+*Preparar la compra* enseña tus productos habituales agrupados por rubros, con
+buscador. Se toca uno, se dice cuánto llevar **esta vez** —«maíz en lata → 2
+latas»— y entra en la lista. Que algo esté entre los habituales no significa que
+hoy haga falta: el catálogo está ahí para no tener que acordarse de todo, no
+para llenar la lista solo. También se puede apuntar algo que no está en la
+lista, y entonces pregunta si es solo de esta compra o pasa a las de siempre.
+
+*Mi lista* pone lo pendiente arriba. Un toque marca comprado, la línea se tacha
+y baja al final; se puede desmarcar. Si la lista pedía 2 latas y solo había 1,
+se anota 1 comprada y queda 1 pendiente. Al terminar se guarda con su fecha, lo
+que se pidió y lo que se trajo, y se abre una lista nueva vacía para el próximo
+viaje. Mensual, quincenal o un viaje extra a media semana: no hay que esperar a
+que toque.
+
+### Lo que la app dejó de hacer
+
+Hubo una versión que calculaba la compra:
 
 > lo que tu casa consume al mes + lo que cambia este mes − lo que ya queda en casa
 
-La versión anterior abría con tres botones —Menú, Canasta base, Este mes— y obligaba a elegir una «base de cálculo» antes de ver un solo alimento. Eso es una pregunta de programador.
+Con su libro de existencias, su pantalla de «¿cuánto queda?» y su cálculo desde
+el menú. Se retiró entero. Obligaba a mantener un inventario al día para que la
+cuenta saliera, y una casa no lleva inventario: mira la nevera y decide.
 
-Cada línea dice de dónde sale: de siempre, con la cantidad cambiada este mes, o extra de este mes. Debajo, plegados, quedan lo que ya alcanza en casa, lo que se anota a mano sin seguimiento —detergente, servilletas— y el historial.
+Lo que se escribió con aquella versión **no se borró**. El historial se lee tal
+cual, con un aviso encima que dice lo que es: cantidades anotadas entonces, que
+no dicen lo que hay hoy en la despensa. La pantalla de las revisiones viejas
+sigue accesible y en solo lectura. Arreglar a mano aquellas cifras **se
+retiró**: lo que se escribiera ahí no alimentaba ninguna pantalla, y un botón
+que promete arreglar «lo que hay» afirma que la app sabe lo que hay. Lo que
+sí queda en
+*Funciones avanzadas* es unir dos alimentos repetidos, decir cómo se compra uno,
+y archivar lo que la casa dejó de comprar.
 
-Calcular **desde el menú** sigue existiendo, dentro de *Opciones avanzadas* y con su explicación al lado: suma los alimentos de las comidas planificadas, lo que es más exacto para quien planifica comida por comida y peor si deja huecos. **Las dos cuentas no se suman nunca**: el mismo arroz saldría contado dos veces, una por estar en la canasta y otra por estar dentro de una preparación.
-
-Las comidas fuera de casa afectan al cálculo que sale del menú, porque esas comidas no tienen alimentos. Al calcular desde la canasta **se avisan pero no se descuentan**: almorzar fuera dos domingos no hace que la casa gaste menos detergente, y recortar «a ojo» dejaría la compra corta.
-
-## La revisión: ¿cuánto queda?
-
-La pregunta es **¿cuánto queda?**, no «¿cuánto se consumió?». La diferencia parece pequeña y no lo es: lo primero se contesta abriendo la nevera y mirando; lo segundo obliga a recordar toda la semana y a restar de cabeza. La app hace la resta:
-
-> Había 8 plátanos. Quedan 2. Se consumieron 6.
-
-Se puede revisar solo lo relevante, buscar un alimento, guardar a medias, terminar, corregir después y dictar varias cantidades de corrido. Quien prefiera el método de antes tiene el interruptor de arriba.
-
-No ocupa una pestaña principal: aparece como tarea del día en *Hoy* y en *Compra* el día que toca, configurable en *Más → Ajustes*.
-
-## Lo que mueve y lo que no mueve el inventario
-
-El inventario es un **libro de movimientos**, no un número que se edita. Lo mueven tres cosas y solo tres: las **compras confirmadas** (suman), las **revisiones confirmadas** (restan) y las **correcciones de conteo** (ajustan en cualquier dirección).
-
-Planificar comidas no descuenta nada. La lista sugerida no cambia nada. Abrir un mes no cambia nada. Eso es lo que permite corregir una revisión vieja y que todos los saldos posteriores se recalculen solos.
-
-## El asistente
-
-Es una comodidad, no un requisito: todo lo que hace se puede hacer a mano desde las pantallas. Entiende frases como «pon tortillas con jamón y queso todos los lunes, miércoles y viernes de desayuno», «este mes no comeremos en casa ningún domingo» o «quedan dos plátanos, diez huevos y media libra de queso».
-
-Antes de tocar nada muestra una pantalla que dice **«Entendí lo siguiente»**: cada acción por separado, con sus cantidades, nombres y fechas reales, y una línea que dice hasta dónde llega —un día, un mes, o desde ahora y todos los meses— con los días concretos que toca. De ahí salen tres caminos: **Confirmar**, **Corregir** —que devuelve la frase al campo para arreglarle lo que esté mal, sin volver a dictarla entera— y **Cancelar**.
-
-Se confirma **todo lo que cambia datos**, sin excepción. Antes se confirmaba solo lo amplio y el resto se hacía enseñando un «deshacer». Con el teclado delante eso casi funciona, porque quien escribe ve lo que escribió; dictando no, porque entre lo que alguien dice y lo que la app entendió hay un paso que nadie ve. Deshacer sirve para arrepentirse, no para enterarse. Consultar no cambia nada y por eso no se confirma.
-
-Lo que la frase no dijo se pregunta, y solo eso: «todos los viernes» no elige por su cuenta entre cuatro días y para siempre. Lo que la frase sí dijo no se vuelve a preguntar. Y las dudas que solo se descubren intentándolo —«ya tienes algo parecido», «no hay preparaciones de cena»— salen **antes** de la confirmación, porque descubrirlas después de que alguien diga que sí convierte la confirmación en un trámite que no significa nada.
-
-Lo que no hace nunca: ejecutar código, escribir directamente en el almacenamiento, inventar alimentos o cantidades, cambiar rutinas permanentes en silencio, confundir «este mes» con «todos los meses», pisar comidas existentes sin confirmar, ni **tocar un período ya cerrado** —eso se lee tal como quedó; para corregirlo hay que reabrirlo a mano desde Más → Historial—.
-
-## Dictar: lo hace el teléfono
-
-El reconocimiento de voz es el de Android, **dentro del aparato**. No hace falta cuenta, ni clave, ni servidor, y no cuesta dinero.
-
-Este fue un error de diseño corregido: la primera versión mandaba la voz a un servidor que el usuario tenía que montar. Una casa corriente no despliega un servidor, y pedirlo convertía una función útil en una que nadie iba a usar.
-
-**Lo que la app no promete:** que funcione sin conexión en cualquier teléfono. El reconocimiento local depende del aparato y del paquete de idioma instalado, así que se comprueba de verdad con `isOnDeviceRecognitionAvailable()` antes de decirlo. Donde no exista, Android usa su ruta de siempre, que sí necesita conexión, y la app lo dice.
-
-*Más → Ajustes → Detalle técnico de este aparato* enseña qué complemento tiene ese teléfono y cuál no. Es lo que permite resolver un «no me funciona» sin tener el teléfono delante.
-
-Escribir a mano funciona siempre, en todos los campos, con o sin micrófono.
 
 ### Una sola puerta de salida a la red
 
@@ -188,15 +177,15 @@ La app tiene exactamente un destino: el proyecto de Supabase que presta el servi
 
 **Sin sesión iniciada esa puerta ni se abre.** Al arrancar, la app mira si hay una sesión guardada en el teléfono y, si no la hay, se detiene ahí sin tocar la red: quien no crea cuenta usa la app entera en modo avión. Crear la cuenta es una decisión, y subir los datos de la casa a ella es otra distinta, con su propio interruptor; las dos vienen apagadas.
 
-Hubo además una opción para conectar un servidor propio de modelo y que la asistente entendiera lenguaje totalmente libre. Se quitó por dos razones. La primera es que **no llegaba a funcionar**: la interfaz guardaba la dirección sin activar la capacidad, así que quien la escribía no conseguía nada y no sabía por qué. La segunda es que obligaba a escribir en la política de privacidad un «salvo que tú configures un servidor» que dejaba la promesa en manos de una casilla que nadie entendía.
+Hubo un asistente que entendía frases —«pon tortillas los lunes de desayuno»— y un dictado por micrófono. Los dos se retiraron con la reestructura, y con ellos el complemento nativo de reconocimiento y el permiso `RECORD_AUDIO`: **la app ya no pide el micrófono**. Los campos de texto siguen admitiendo el teclado del teléfono, que trae su propio micrófono; eso lo pone el teclado y no esta app.
 
-Lo que queda es más honesto y más simple: la app reconoce las formas de frase que reconoce, aquí dentro, y **lo que no entiende lo dice** en vez de mandarlo fuera. Para lenguaje realmente libre haría falta un modelo grande, que no cabe en la aplicación.
+Antes de aquello hubo incluso una opción para conectar un servidor propio de modelo. Se quitó porque no llegaba a funcionar y porque obligaba a escribir en la política de privacidad un «salvo que tú configures un servidor» que dejaba la promesa en manos de una casilla que nadie entendía.
 
 ### Qué protege esta app, y qué no
 
 No hay servidor propio ni pagos, y la cuenta la opera Supabase con la contraseña cifrada fuera del alcance de la app: buena parte del catálogo habitual de ataques no tiene dónde agarrarse. Lo que sí tiene superficie es el HTML que se dibuja con texto del usuario, dentro de un WebView que lleva al lado el puente de Capacitor. Por eso todo texto se escapa antes de llegar a la pantalla, y `tests/seguridad.test.js` mete un ataque en cada campo escribible y dibuja las 22 pantallas comprobando que no sale sin escapar en ninguna.
 
-Además: el respaldo automático de Android está **apagado** (`allowBackup="false"` y `dataExtractionRules`), porque encendido sube el almacenamiento de la app a la cuenta de Google del dueño. La contrapartida es que perder el teléfono sin copia es perderlo todo, así que la app avisa en «Más» cuando hace más de un mes que no guardas una.
+Además: el respaldo automático de Android está **apagado** (`allowBackup="false"` y `dataExtractionRules`), porque encendido sube el almacenamiento de la app a la cuenta de Google del dueño. La contrapartida es que perder el teléfono sin copia es perderlo todo, así que la app avisa en Ajustes cuando hace más de un mes que no guardas una.
 
 La política de contenido de `index.html` bloquea scripts de otros sitios, `eval` y cualquier salida a un `http://`. **No es una muralla**, y el comentario del archivo lo dice: `script-src` lleva `'unsafe-inline'` a la fuerza porque Capacitor inyecta su puente como script en línea y sin eso la app no arranca dentro del APK.
 
@@ -204,12 +193,16 @@ Lo que ninguna app puede evitar: que alguien coja el teléfono desbloqueado, o q
 
 ## Respaldos y migración
 
-Los datos se guardan en `localStorage` **solo en ese navegador y dispositivo**, sin sincronización. *Más → Respaldo* escribe un JSON; traerlo de vuelta reemplaza los datos actuales.
+Sin cuenta, los datos se guardan en `localStorage` **solo en ese navegador y dispositivo**. Con cuenta y con el interruptor de sincronizar encendido, suben al servidor para poder bajarlos en otro teléfono; las dos cosas vienen apagadas. *Ajustes → Respaldo* escribe un JSON; traerlo de vuelta reemplaza los datos actuales.
 
-El esquema va por la **versión 3**. Un respaldo de la versión 1 o de la 2 se convierte al importarlo y al cargarlo, en cadena:
+El esquema va por la **versión 10**. Un respaldo de cualquier versión anterior se convierte al importarlo y al cargarlo, en cadena. Cada paso está escrito y comentado en `src/migrate.js`; estos son los dos primeros y el último:
 
 - **v1 → v2.** Los productos pasan a la ficha de catálogo. La categoría queda en «otros» y el origen en «manual»: **no se adivinan**, porque adivinar llenaría la app de etiquetas que nadie eligió.
 - **v2 → v3.** La canasta base pasa a ser **la canasta habitual**. Cada mes que tuviera canasta propia se convierte en **diferencias** contra ella: lo que tenía otra cantidad queda como cambio, lo que no estaba en la base queda como extra, lo que faltaba queda como quitado, y lo que era idéntico **no se guarda** —porque no era una excepción—. No se inventan rutinas a partir del historial. Las facturas guardadas salen del estado vivo; siguen en el respaldo previo.
+- **v9 → v10.** Se cae el andamio de la conversión anterior. Aquella les puso a las reglas hermanas un `grupoId` para recordar que se habían escrito de una sentada, porque las pantallas de entonces las enseñaban juntas. Ahora se añade, se edita, se pausa y se borra **una regla cada vez**, así que el campo no lo lee nadie y se quita. No se pierde nada: no decía qué preparación, ni qué momento, ni qué días —eso lo dice la regla—, solo con cuáles se había tecleado a la vez.
+- **v8 → v9.** La app deja de calcular la compra y pasa a ayudar a decidir la comida. Cada línea de la canasta dice a qué **rubro** pertenece y su cantidad deja de ser obligatoria —la que hubiera escrita se conserva con sus fechas, porque con ella se calcularon compras que ya se cerraron—. Una **regla de repetición** pasa a unir una preparación con **un** momento: las que cubrían varios se parten en una por momento y las comidas que habían puesto se reasignan a la que les toca por su momento. Y aparece dónde guardar las **listas de compra**, que nacen vacías: una lista es una salida concreta al supermercado, no un inventario, y las compras ya anotadas son historial.
+
+El respaldo de los datos de prueba de antes de esa conversión está congelado en `tests/fixtures/`, con su huella en `SUMAS-v8.txt`. Se comprueba desde fuera con `sha256sum -c SUMAS-v8.txt` y desde dentro con `tests/respaldo-v8.test.js`, que además exige que migrarlo no pierda ni un registro.
 
 Compras, revisiones, correcciones, preparaciones, personas, planes, ausencias, identificadores y el contador de secuencia se conservan intactos. La migración es **idempotente**: ejecutarla dos veces da exactamente lo mismo.
 
@@ -243,7 +236,7 @@ winget install EclipseAdoptium.Temurin.21.JDK
 winget install Google.AndroidStudio
 ```
 
-Abre Android Studio una vez para que descargue el SDK, y ciérralo. Después, **la primera vez**, instala el complemento nativo de voz, que es el que mete el reconocimiento de Android dentro del APK:
+Abre Android Studio una vez para que descargue el SDK, y ciérralo. Después, **la primera vez**, instala el andamiaje de Capacitor, que es lo que envuelve la app web dentro del APK:
 
 ```powershell
 npm install
@@ -254,7 +247,7 @@ cd android
 
 El archivo queda en `android/app/build/outputs/apk/debug/app-debug.apk`.
 
-La primera compilación tarda bastante más, porque Gradle baja las bibliotecas de voz. Las siguientes van rápido.
+La primera compilación tarda bastante más, porque Gradle baja sus dependencias. Las siguientes van rápido.
 
 #### Si Gradle falla con «Unable to establish loopback connection»
 
@@ -328,51 +321,48 @@ Esta elección es una hipótesis de diseño, no una afirmación de que un color 
 
 - **La sincronización entre dispositivos está sin probar en uso real.** El código de la cuenta y del sincronizado existe y tiene pruebas, pero nadie lo ha usado todavía con dos teléfonos de verdad. Viene apagada.
 - **La lectura de facturas por fotografía se eliminó.** No funcionaba lo bastante bien y arrastraba los modelos de OCR dentro del APK. Con ella se fueron el complemento de cámara, el de sistema de archivos, el de reconocimiento de texto y los permisos de cámara y de galería.
-- Una rutina reparte por día de la semana. No sabe de feriados, de visitas ni de que en diciembre se come distinto: eso se resuelve como excepción del mes.
-- Las cantidades habituales de Familia no se aplican solas: hay que pedirlas, y lo que traen es la suma de las personas que la preparación cubre, sin ajustar por quién falta ese día.
+- **La app no propone nada.** No elige platos, no copia semanas, no repite comidas y no rellena meses. Si el calendario está vacío es porque nadie lo ha llenado, y así se queda.
+- **Una comida escrita a mano no entra en el catálogo, y eso tiene un precio**: si se repite tres semanas seguidas, hay que escribirla tres veces. Es a propósito —el catálogo es lo que la casa sabe hacer— pero conviene saberlo.
+- Las cantidades habituales de Familia son un dato de consulta y no se aplican solas: hay que pedirlas, y lo que traen es la suma de las personas que la preparación cubre, sin ajustar por quién falta ese día.
 - El grosor de rueda es una etiqueta, no un factor: cambiarlo no recalcula ninguna equivalencia guardada.
-- La canasta se reparte por días del período y nada más.
-- Las equivalencias no se infieren y las unidades incompatibles no se convierten. Sin la equivalencia, la compra avisa de que la lista está incompleta en vez de dar un número equivocado.
-- La lista para un período futuro usa las existencias de hoy hasta que registres consumo real.
-- El dictado es de la **aplicación instalada**; en el navegador se usa el del navegador, que necesita conexión.
-- El reconocimiento de voz dentro del aparato depende del teléfono y del paquete de idioma. La app lo comprueba antes de prometerlo.
-- El asistente entiende frases por su forma. Para lenguaje totalmente libre haría falta un modelo que no cabe en la aplicación.
-- Los alimentos creados desde la canasta o desde un texto **nacen con cero existencias**: la primera lista de compra pedirá de más si ya tenías cosas en casa. Se arregla con una corrección de conteo.
+- Los tramos de los productos habituales guardan desde cuándo vale cada cantidad, y nada más.
+- Las equivalencias no se infieren y las unidades incompatibles no se convierten. Lo que se escribió en una unidad se lee en esa unidad, y nada se traduce por su cuenta.
+- La lista de la compra no mira ningún período: es la de este viaje al colmado.
+- **Las reglas antiguas se conservan como dato y no las enseña ninguna pantalla.** Están en el respaldo y en la migración; decidir si se muestran o se borran es de una fase siguiente.
+- **«Lo que sobró» no dice cuánto sobró.** Enlaza las dos comidas y avisa antes de borrar la de origen, y nada más. Las comidas vinculadas de versiones anteriores sí traían cantidades apartadas, y se siguen leyendo y pintando tal cual.
+- **La app no tiene voz propia.** Se retiraron el asistente, el chat y el dictado, con el complemento nativo de reconocimiento y el permiso `RECORD_AUDIO`. Los campos de texto siguen admitiendo el micrófono del teclado del teléfono, que no es cosa de esta app.
+- Los alimentos creados desde los habituales o desde un texto nacen sin cantidad y sin existencias, que es lo correcto: la app no lleva la cuenta de lo que hay en casa.
 
 ## Estructura del proyecto
 
 **Dominio (puro, sin DOM ni almacenamiento — por eso las pruebas corren en Node a secas)**
 
-- `src/model.js` — reglas de catálogo, canasta habitual, cambios del mes, menú, compras, revisiones e inventario por movimientos. `transaction()` da el todo-o-nada que usan el asistente y las uniones.
-- `src/routines.js` — las rutinas de comida y el calendario real de cada mes: qué fechas cumplen una regla, aplicar una rutina, abrir un mes, copiar el patrón del mes anterior y medir el progreso. Importa el modelo; el modelo no lo importa a él, para no crear un ciclo.
+- `src/model.js` — reglas de catálogo, productos habituales, cambios del mes, menú, listas de compra y el historial del inventario retirado. También el calendario: los días de la semana, el lunes de una fecha, las fechas reales de un rango y la cuenta de cuántas comidas hay decididas. `transaction()` da el todo-o-nada que usan las uniones de alimentos.
 - `src/nombres.js` — normalización y parecido de nombres. Vive aparte porque lo necesitan el modelo, la migración (que no puede importar el modelo sin crear un ciclo) y la entrada de texto de corrido.
 - `src/migrate.js` — conversión entre versiones del esquema. No importa el modelo a propósito: una migración tiene que poder leer datos cuyas reglas ya no son las de hoy.
-- `src/text-parse.js` — el intérprete de español dominicano. Determinista, sin red.
-- `src/assistant.js` — la tabla de acciones permitidas, su validación y su ejecución transaccional.
+- `src/text-parse.js` — el intérprete de español dominicano que separa una lista escrita de corrido. Determinista, sin red.
 - `src/catalog-seed.js` — los productos dominicanos con sus alias.
 
 **Interfaz**
 
 - `src/app.js` — el armazón: estado, navegación, ventanas y reparto de eventos. Las pantallas viven en sus propios archivos.
-- `src/page-mes.js` — Plan mensual: el resumen, el calendario, las rutinas y el recorrido de preparar el mes.
+- `src/page-semana.js` — Plan semanal: siete días o catorce, la ventana de un día entero, la de ir a una fecha y la de poner una comida en varios días.
 - `src/page-compra.js` — la compra.
-- `src/page-mas.js` — «Más» y sus pantallas: canasta habitual, preparaciones, familia, revisión, alimentos, historial, respaldo y ajustes.
+- `src/page-mas.js` — las pantallas que no son del calendario: productos habituales, preparaciones, familia, historial, respaldo, funciones avanzadas y el propio Ajustes. Conserva el nombre de cuando todas vivían dentro de «Más».
 - `src/ui-kit.js` — escapado, formato y los envoltorios de HTML que se repiten. Aquí y no en `app.js` porque los módulos de pantalla también los necesitan, y tener dos versiones de `esc` es la forma más fácil de que a una se le olvide escapar algo.
 - `src/setup.js` — «Organizar mi casa».
-- `src/chat-ui.js` — el asistente y su intérprete local.
-- `src/bulk-entry.js` — escribir o dictar varios alimentos.
-- `src/device.js` — el puente con el reconocimiento de voz del teléfono. No importa ni un paquete de npm: Capacitor deja los complementos en `window.Capacitor.Plugins` y se leen de ahí, que además es la comprobación de disponibilidad más honesta que hay.
+- `src/bulk-entry.js` — escribir varios alimentos de corrido.
 - `src/storage.js` — lectura y escritura locales, con la migración y su respaldo previo.
 - `src/onboarding.js` — texto de la bienvenida y del recorrido. **Se dibuja con `esc()`: no admite etiquetas HTML.**
-- `src/demo.js` — datos de ejemplo, con dos rutinas y un extra del mes para que se vea la idea.
+- `src/demo.js` — datos de ejemplo: una casa con doce días planificados a mano, sus productos habituales sin cantidades y una lista de compra a medio escribir.
 
-**Estilos.** Se cargan en orden y las reglas posteriores ganan a igual especificidad: `styles.css` → `sidebar.css` → `onboarding.css` → `quick-add.css` → `calendar.css` → `theme.css` → `setup.css` → `chat.css` → `bulk.css` → `plan.css`. `quick-add.css` documenta el reparto de capas: barra inferior 20, botón **+** 25, modal 30, recorrido 35, aviso 50.
+**Estilos.** Se cargan en orden y las reglas posteriores ganan a igual especificidad: `styles.css` → `sidebar.css` → `onboarding.css` → `quick-add.css` → `theme.css` → `setup.css` → `bulk.css` → `plan.css` → `cuenta.css` → `hogar.css` → `sistema.css`. `quick-add.css` documenta el reparto de capas: barra inferior 20, botón **+** 25, modal 30, recorrido 35, aviso 50.
 
 **Empaquetado.** `build.js` copia el casco a `www/` — es todo el «build» que hay. `sw.js` guarda ese casco para abrir sin conexión; **si añades un archivo a `src/`, añádelo a su lista y sube la versión del caché**. Hay una prueba que lo comprueba. `capacitor.config.json` y `android/` son el envoltorio nativo.
 
-**Pruebas.** `tests/` — modelo, canastas, rutinas, migración, asistente, parser, dictado, pantallas, seguridad y módulos. `tests/modules.test.js` es la red de seguridad del refactor: lee las importaciones de cada módulo y comprueba que apuntan a algo que existe, carga cada módulo de verdad en Node, y verifica que no queda ningún nombre del modelo anterior ni ningún resto de la lectura de facturas.
+**Pruebas.** `tests/` — modelo, productos habituales, migración, parser, pantallas, seguridad y módulos. `tests/plan-semanal.test.js` ejercita la semana entera: que se vean siete días o catorce, que las flechas muevan de una en una, que mirar no escriba nada, las cuatro maneras de anotar una comida, y que cambiar el jueves no toque el viernes. `tests/respaldo-v10.test.js` abre una casa congelada de la versión 10 del esquema —con sus reglas antiguas, sus comidas y su período cerrado— y comprueba que no se pierde un solo registro y que **ninguna regla vuelve a poner una comida**. `tests/modules.test.js` es la red de seguridad del refactor: lee las importaciones de cada módulo y comprueba que apuntan a algo que existe, carga cada módulo de verdad en Node, y verifica que no queda ningún nombre del modelo anterior ni ningún resto de la lectura de facturas ni de la voz.
 
-La única dependencia nativa es el complemento de reconocimiento de voz, y **solo hace falta para compilar el APK**: mete código nativo dentro de la aplicación. La app web no importa ninguno, así que `npm start` y `npm test` siguen funcionando sin instalar nada.
+**No queda ninguna dependencia de producción.** La última era el complemento de reconocimiento de voz, y se fue con el dictado. `npm start` y `npm test` funcionan sin instalar nada; `npm install` solo hace falta para compilar el APK, y lo que instala es el andamiaje de Capacitor.
 
 ```powershell
 npm install    # solo antes de compilar el APK por primera vez

@@ -1,8 +1,8 @@
 // Los ladrillos con que se dibuja todo: escapado, formato de números y fechas,
 // y los cuatro o cinco envoltorios de HTML que se repiten en cada pantalla.
 //
-// Están aquí y no en app.js porque las pantallas nuevas —la configuración
-// inicial, el plan del mes, el asistente— también los necesitan, y tener
+// Están aquí y no en app.js porque las demás pantallas —la configuración
+// inicial, el plan semanal, la compra— también los necesitan, y tener
 // dos versiones de `esc` es la forma más fácil de que a una se le olvide escapar
 // algo. Ninguna de estas funciones sabe nada del estado: reciben lo que pintan.
 
@@ -11,6 +11,17 @@ import { icono } from './icons.js';
 export const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 export const fmt = value => new Intl.NumberFormat('es-DO', { maximumFractionDigits: 3 }).format(Number(value || 0));
 export const cap = value => String(value || '').charAt(0).toUpperCase() + String(value || '').slice(1);
+
+/* «1 comida(s)» es como habla una máquina que no quiso elegir.
+
+   El paréntesis aparece porque el plural se decide al escribir la plantilla y
+   el número no se sabe hasta que se pinta. Esto lo decide al pintar, que es
+   cuando se sabe, y así una casa con una sola preparación lee «1 preparación»
+   en vez de una fórmula.
+
+   El cero va en plural, que es como se dice en español: «0 comidas». */
+export const conteo = (cantidad, singular, plural) =>
+  `${fmt(cantidad)} ${Number(cantidad) === 1 ? singular : plural}`;
 export const niceDate = (date, options = { weekday: 'long', day: 'numeric', month: 'long' }) => new Intl.DateTimeFormat('es-DO', options).format(new Date(`${date}T12:00:00`));
 export const monthName = month => cap(new Intl.DateTimeFormat('es-DO', { month: 'long', year: 'numeric' }).format(new Date(`${month}-01T12:00:00`)));
 export const shiftMonth = (month, delta) => {

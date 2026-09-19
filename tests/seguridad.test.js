@@ -17,11 +17,10 @@ import { resolve } from 'node:path';
 // aplicación, y es el que estas pruebas vigilan.
 
 import {
-  addProduct, addPurchase, correctStock, createEmptyState, createReview, importState,
-  makeRecipePlan, setHabitualLine, setMonthChange, todayISO, upsertPerson, upsertRecipe
+  addDays, addProduct, addPurchase, agregarALista, agregarOcasional, anotarComidaSuelta, correctStock, crearLista, createEmptyState,
+  createReview, importState, makeRecipePlan, reutilizarComida, setAbsence, setHabitualLine, setMonthChange, todayISO, upsertPerson, upsertRecipe
 } from '../src/model.js';
-import { addRoutine } from '../src/routines.js';
-import { BLOQUES, emptyMes, modalDia, modalRutina, renderMes } from '../src/page-mes.js';
+import { emptySemana, modalDia, modalIrAFecha, modalPonerEnDias, renderSemana } from '../src/page-semana.js';
 import { emptyCompra, renderCompra } from '../src/page-compra.js';
 import { PAGINAS_MAS, emptyMas, renderMas } from '../src/page-mas.js';
 
@@ -35,12 +34,23 @@ function estadoEnvenenado() {
   p.aliases = [VENENO];
   setHabitualLine(s, p.id, 10, 'lb');
   setMonthChange(s, MES, p.id, { quantity: 4, unit: 'lb' });
-  upsertPerson(s, { name: VENENO, restrictions: [], pendingRestrictions: ['<b>mani</b>'], habitual: [] });
+  const persona = upsertPerson(s, { name: VENENO, restrictions: [], pendingRestrictions: ['<b>mani</b>'], habitual: [] });
   const receta = upsertRecipe(s, { name: VENENO, uses: ['almuerzo', 'cena'], covers: [], items: [{ productId: p.id, quantity: 1, unit: 'lb' }], note: VENENO });
   const plan = makeRecipePlan(s, receta.id, todayISO(), 'almuerzo');
   plan.title = VENENO;
   plan.note = VENENO;
-  addRoutine(s, { kind: 'recipe', recipeId: receta.id, slots: ['cena'], weekdays: [1], weeks: null, scope: 'permanent', label: VENENO });
+  // Una comida escrita a mano es la superficie de texto libre más nueva de la
+  // app: un nombre y una nota que nadie pasa por ningún catálogo.
+  anotarComidaSuelta(s, todayISO(), 'cena', { titulo: VENENO, nota: VENENO });
+  // Y lo que sobra de ella, que se lleva el nombre puesto a otro día.
+  reutilizarComida(s, plan.id, addDays(todayISO(), 1), 'almuerzo');
+  // La ventana de un día enseña quién no come en casa, con su nombre.
+  setAbsence(s, todayISO(), 'cena', persona.id, true);
+  // El ataque también dentro de una lista de compra, que es donde más texto
+  // libre escribe una persona: el nombre de la lista y la nota de cada renglón.
+  const lista = crearLista(s, { fecha: todayISO(), nombre: VENENO });
+  agregarALista(s, lista.id, { productId: p.id, cantidad: 2, unidad: 'lb', nota: VENENO });
+  agregarOcasional(s, lista.id, { nombre: VENENO, cantidad: 1, unidad: 'unidad' });
   addPurchase(s, { date: todayISO(), lines: [{ productId: p.id, quantity: 2, unit: 'lb' }] });
   correctStock(s, p.id, 1, VENENO);
   createReview(s, todayISO());
@@ -50,24 +60,22 @@ function estadoEnvenenado() {
 
 const contexto = (state, extra = {}) => ({
   state,
-  ui: { page: 'hoy', modal: null, reviewId: null, correctingReview: false, mes: emptyMes(MES), compra: emptyCompra(MES), mas: emptyMas(), ...extra },
-  commit: () => {}, toast: () => {}, render: () => {}, closeModal: () => {}, openModal: () => {}, startTour: () => {},
-  servicios: { transcribe: false, chat: false, enElAparato: { voz: false } }
+  ui: { page: 'hoy', modal: null, reviewId: null, correctingReview: false, semana: emptySemana(), compra: emptyCompra(MES), mas: emptyMas(), ...extra },
+  commit: () => {}, toast: () => {}, render: () => {}, closeModal: () => {}, openModal: () => {}, startTour: () => {}
 });
 
 function todasLasPantallas(state) {
   const salida = [];
   const ctx = contexto(state);
-  salida.push(['plan mensual', renderMes(ctx)]);
-  ctx.ui.mes.vista = 'calendario';
-  salida.push(['calendario', renderMes(ctx)]);
-  ctx.ui.mes.vista = 'resumen';
-  for (const bloque of BLOQUES) { ctx.ui.mes.bloque = bloque.id; salida.push(['bloque ' + bloque.id, renderMes(ctx)]); }
-  ctx.ui.mes.bloque = null;
-  salida.push(['modal rutina', modalRutina(contexto(state), { month: MES })]);
-  salida.push(['modal día', modalDia(contexto(state), { date: MES + '-05' })]);
+  salida.push(['plan semanal', renderSemana(ctx)]);
+  ctx.ui.semana.vista = 'dos';
+  salida.push(['plan semanal (dos semanas)', renderSemana(ctx)]);
+  ctx.ui.semana.vista = 'una';
+  salida.push(['modal poner en días', modalPonerEnDias(contexto(state), {})]);
+  salida.push(['modal día', modalDia(contexto(state), { date: todayISO() })]);
+  salida.push(['modal ir a una fecha', modalIrAFecha(contexto(state))]);
   salida.push(['compra', renderCompra(contexto(state))]);
-  for (const pagina of ['mas', ...PAGINAS_MAS]) salida.push([pagina, renderMas(contexto(state, { page: pagina }))]);
+  for (const pagina of PAGINAS_MAS) salida.push([pagina, renderMas(contexto(state, { page: pagina }))]);
   const revision = contexto(state, { page: 'revision' });
   revision.ui.reviewId = state.reviews[0].id;
   salida.push(['revisión abierta', renderMas(revision)]);
@@ -76,7 +84,11 @@ function todasLasPantallas(state) {
 
 test('ningún texto del usuario llega a la pantalla sin escapar', () => {
   const pantallas = todasLasPantallas(estadoEnvenenado());
-  assert.ok(pantallas.length > 15, 'deberían probarse todas las pantallas');
+  // Las diez pantallas que hay detrás del engranaje, la revisión abierta, las
+  // dos vistas de la semana, sus tres ventanas y la compra. «Más» ya no es una
+  // pantalla: si alguna de las otras se cae del barrido, esto sale en rojo.
+  assert.equal(pantallas.length, PAGINAS_MAS.length + 7, 'alguna pantalla se quedó fuera del barrido');
+  assert.ok(pantallas.length >= 17, `solo se probaron ${pantallas.length} pantallas`);
   const filtradas = pantallas.filter(([, html]) => html.includes(VENENO)).map(([nombre]) => nombre);
   assert.deepEqual(filtradas, [], 'pantallas donde el ataque sale sin escapar');
   // Y que de verdad se esté pintando el texto, no descartándolo en silencio.
@@ -137,35 +149,22 @@ test('ninguna clave de esta app se queda fuera de «borrar mis datos»', async (
   assert.deepEqual([...almacen.keys()], [], 'claves que esta app escribe y «borrar mis datos» no borra');
 });
 
-// Prometer «tu voz no sale del teléfono» sin comprobarlo era falso en cualquier
-// aparato sin el paquete de español descargado: esos mandan el audio a Google.
-// La promesa tiene que salir de lo que se sabe del aparato, no de un texto fijo.
-test('la promesa sobre la voz depende de lo que se sabe del aparato', async () => {
-  const guardado = globalThis.Capacitor;
-  const { avisoDeVoz } = await import('../src/device.js');
-  try {
-    // Sin Capacitor y sin reconocimiento del navegador no hay dictado ni aviso.
-    delete globalThis.Capacitor;
-    assert.equal(avisoDeVoz(), null, 'sin dictado no hay nada que avisar');
-  } finally {
-    if (guardado === undefined) delete globalThis.Capacitor; else globalThis.Capacitor = guardado;
-  }
-
-  // Y ninguna pantalla puede llevar la promesa escrita a fuego.
+// Esta prueba nació cuando la app dictaba: prometer «tu voz no sale del
+// teléfono» era falso en cualquier aparato sin el paquete de español, porque
+// esos mandan el audio a Google. Ahora la app no escucha nada, así que la
+// promesa no es que esté sin comprobar: es que no tiene de qué hablar. Sigue
+// aquí porque el texto es lo que más fácil vuelve, copiado de una versión
+// vieja, y volvería diciendo que la app hace algo que ya no hace.
+test('ninguna pantalla habla de lo que hace la app con la voz', () => {
   const PROMESAS = ['tu voz no sale del teléfono', 'no sale del aparato'];
   const culpables = [];
   for (const archivo of readdirSync(SRC).filter(nombre => nombre.endsWith('.js'))) {
-    // `device.js` sí puede afirmarlo: es el único que ha preguntado primero.
-    // `legal.js` explica los dos casos enteros, que es lo contrario de prometer.
-    if (archivo === 'device.js' || archivo === 'legal.js') continue;
     const codigo = readFileSync(resolve(SRC, archivo), 'utf8').replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
     for (const promesa of PROMESAS) {
-      // Vale dentro de una condición sobre `avisoDeVoz()`; lo que no vale es
-      // soltarla sin más.
-      if (codigo.includes(promesa) && !codigo.includes('avisoDeVoz()')) culpables.push(`${archivo}: «${promesa}»`);
+      if (codigo.includes(promesa)) culpables.push(`${archivo}: «${promesa}»`);
     }
   }
-  assert.deepEqual(culpables, [], 'pantallas que prometen sobre la voz sin haberlo comprobado');
+  assert.deepEqual(culpables, [], 'pantallas que prometen sobre una voz que la app ya no escucha');
 });
 
 const SRC = resolve(import.meta.dirname, '..', 'src');
@@ -340,10 +339,13 @@ test('Android no saca los datos del teléfono por su cuenta', () => {
   assert.ok(red.includes('cleartextTrafficPermitted="false"'), 'se volvió a permitir tráfico sin cifrar');
 });
 
+// `RECORD_AUDIO` está en esta lista y no en ninguna otra parte a propósito: la
+// app dejó de tener voz propia, y el aviso de privacidad promete un solo
+// permiso. Pedir el micrófono sin usarlo convertiría esa promesa en mentira
+// delante del formulario de Play, que es donde eso se paga caro.
 test('el APK no pide permisos que ya no usa', () => {
   const manifiesto = readFileSync(resolve(import.meta.dirname, '..', 'android', 'app', 'src', 'main', 'AndroidManifest.xml'), 'utf8');
-  for (const permiso of ['CAMERA', 'READ_MEDIA_IMAGES', 'READ_EXTERNAL_STORAGE', 'ACCESS_FINE_LOCATION', 'READ_CONTACTS']) {
+  for (const permiso of ['RECORD_AUDIO', 'CAMERA', 'READ_MEDIA_IMAGES', 'READ_EXTERNAL_STORAGE', 'ACCESS_FINE_LOCATION', 'READ_CONTACTS']) {
     assert.ok(!manifiesto.includes('permission.' + permiso), 'el manifiesto pide ' + permiso + ' sin usarlo');
   }
-  assert.ok(manifiesto.includes('permission.RECORD_AUDIO'), 'el dictado necesita el micrófono');
 });

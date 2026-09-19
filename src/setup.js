@@ -1,40 +1,55 @@
-// «Organizar mi casa»: un camino, de principio a fin.
+// «Organizar mi casa»: cinco pasos, de principio a fin.
 //
-// El asistente anterior ofrecía cuatro formas distintas de empezar antes de
-// dejar marcar un solo alimento. Elegir entre cuatro caminos no es avanzar: es
-// una pregunta más que responder antes de haber entendido para qué sirve la
-// app. Aquí hay un camino y se recorre entero: quién come en esta casa, qué se
-// compra, cuánto, cada cuánto, qué se cocina de costumbre, y el primer menú.
+// Quién come en esta casa, qué se compra de costumbre, cada cuánto se compra,
+// qué se sabe preparar, y el primer plan de comidas. Un camino y se recorre
+// entero.
 //
-// Los dos extremos son nuevos y los dos arreglan el mismo agujero: el asistente
-// terminaba ofreciendo «preparar mi primer menú mensual» a una casa sin nadie
-// registrado y sin una sola preparación guardada, así que al llegar allí no
-// había nada con qué llenar el calendario ni a quién avisarle de una alergia.
+// El quinto paso era un repaso —«Ver mi casa»— y ahora es el primer plan. El
+// repaso no se perdió: está arriba del plan, en cuatro líneas y con su enlace a
+// cada paso. Comprobar lo registrado antes de planificar vale la pena; gastar
+// un paso entero en mirarlo, no.
 //
-// Dos reglas gobiernan el archivo:
+// Eran siete y son cinco. Los dos que se fueron —«¿cuánto se compra al mes?» y
+// «cómo se reparte entre las dos quincenas»— pedían un número que la casa no
+// tiene por qué saber, y lo pedían en el peor momento: quien marcaba ciento
+// cincuenta alimentos se encontraba después con ciento cincuenta casillas de
+// cantidad, una detrás de otra, antes de poder terminar. Ahí se abandona.
 //
-// 1. Una cosa se escribe una vez. Marcar «Arroz» lo registra en el catálogo y
-//    pone su línea en la canasta habitual. No se vuelve a pedir en otro sitio.
-// 2. Volver a pasar por aquí no borra nada. Lo que ya estaba guardado se
-//    precarga a la vista —marcado y con su cantidad escrita—, lo que no se toca
-//    se queda intacto, y los cambios de cada mes ni se rozan: este archivo no
-//    llama a nada que escriba en `monthOverrides`.
+// Cinco reglas gobiernan el archivo:
+//
+// 1. Aquí no se pide ni una cantidad. Ninguna pantalla de este recorrido tiene
+//    dónde escribir cuánto se compra de algo, y hay una prueba que lo vigila
+//    paso por paso. Cuánto llevar se decide en la lista de cada compra, que es
+//    cuando de verdad se sabe.
+// 2. Una cosa se escribe una vez. Marcar «Arroz» lo registra en el catálogo y
+//    lo pone en los productos habituales. No se vuelve a pedir en otro sitio.
+// 3. Volver a pasar por aquí no borra nada. Lo que ya estaba guardado se
+//    precarga a la vista, lo que esta pantalla no pregunta no lo toca —una
+//    preparación editada desde aquí conserva sus alimentos y sus porciones—, y
+//    los cambios de cada mes ni se rozan: este archivo no llama a nada que
+//    escriba en `monthOverrides`.
+// 4. Se puede parar y retomar en cualquier punto. Cada toque escribe el avance,
+//    y salir guarda lo marcado de verdad, no solo el borrador.
+// 5. Nada de lo que se marque aquí se repite solo. El plan del paso 5 pone las
+//    comidas que se elijan, el día que se elijan, y ningún día más: no se
+//    preguntan días fijos, no se guarda ninguna costumbre, y nada se rellena
+//    por su cuenta.
 
 import { RUBROS, SEED_PRODUCTS, categoriaDelRubro, rubroDeCategoria, rubroPorIndice, seedByRubro } from './catalog-seed.js';
 import {
-  FRECUENCIAS, UNITS, addProduct, deleteRecipe, etiquetaDeMomento, findSimilarProducts, frecuenciaDe, habitualLines,
-  historialDeFrecuencia, personasActivas, ponerFrecuencia, ponerReparto, product, productByName, repartoDe,
-  setHabitualBasket, todayISO
+  ESTADOS_SIN_COMIDA, MOMENTOS, SLOTS_PRINCIPALES, UNITS, addDays, addProduct, dateRange,
+  deletePlan, deleteRecipe, etiquetaDeMomento, habitualLines,
+  makeRecipePlan, personasActivas, planFor, product, productByName, setHabitualBasket,
+  setStatusPlan, todayISO, upsertRecipe
 } from './model.js';
 // La ficha de una persona se dibuja en un solo sitio, y ese sitio es `hogar.js`.
 // Aquí solo se enseña el resumen de lo que ya está guardado y se abre esa misma
 // ventana: dos formularios de persona serían dos sitios donde olvidarse de
 // preguntar si un alimento es alergia o manía.
-import { claseDe, resumenDeRestricciones } from './hogar.js';
-import { datesForRule, describeRule, monthProgress, routinesFor } from './routines.js';
+import { resumenDeRestricciones } from './hogar.js';
 import { normalizeName } from './text-parse.js';
-import { cancelarDictado } from './device.js';
-import { button, esc, monthName, notice, options } from './ui-kit.js';
+import { button, conteo, esc, niceDate, notice } from './ui-kit.js';
+import { camposDePreparacion, leerPreparacion } from './preparacion.js';
 import { icono, iconoDeCategoria } from './icons.js';
 
 // Los pasos se llaman por su nombre y no por su número. Los números cambian
@@ -42,24 +57,74 @@ import { icono, iconoDeCategoria } from './icons.js';
 // archivo es la forma más rápida de que al insertar un paso se rompa otro sin
 // que salte ninguna prueba.
 export const PASO = {
-  personas: 1, alimentos: 2, compra: 3,
-  cantidades: 4, reparto: 5, preparaciones: 6, mes: 7
+  personas: 1, alimentos: 2, preparaciones: 4, plan: 5
 };
 
 export const PASOS = [
-  { id: PASO.personas, titulo: '¿Quiénes comen en tu casa?', corto: 'Personas' },
-  { id: PASO.alimentos, titulo: 'La canasta base de tu hogar', corto: 'Alimentos' },
-  { id: PASO.compra, titulo: '¿Cada cuánto hacen la compra principal en tu hogar?', corto: 'Compra' },
-  { id: PASO.cantidades, titulo: '¿Cuánto se compra normalmente al mes?', corto: 'Cantidades' },
-  { id: PASO.reparto, titulo: 'Cómo se reparte entre las dos quincenas', corto: 'Reparto' },
-  { id: PASO.preparaciones, titulo: 'Las comidas que se repiten en tu casa', corto: 'Preparaciones' },
-  { id: PASO.mes, titulo: 'Tu primer mes', corto: 'El mes' }
+  { id: PASO.personas, titulo: 'Mi hogar', corto: 'Hogar' },
+  { id: PASO.alimentos, titulo: 'Mis productos habituales', corto: 'Productos' },
+  { id: PASO.preparaciones, titulo: 'Mis preparaciones', corto: 'Preparaciones' },
+  { id: PASO.plan, titulo: 'Crear mi primer plan', corto: 'Mi plan' }
 ];
 
-// El paso del reparto solo existe para quien compra por quincenas. A quien
-// compra una vez al mes no se le enseña un paso que no tiene nada que decidir,
-// ni se le cuenta en «paso 5 de 8» un paso por el que no va a pasar.
-export const pasosDe = setup => PASOS.filter(paso => paso.id !== PASO.reparto || setup?.frecuencia === 'quincenal');
+/* El 3 era «Cómo compramos»: mensual o quincenal.
+
+   Se retiró porque ya no decide nada. Existía cuando la app repartía la canasta
+   del mes entre las dos quincenas para calcular cuánto comprar, y ese cálculo se
+   fue hace tiempo: hoy cada lista de la compra se escribe a mano, delante del
+   estante, y el plan se hace a siete o a catorce días, que es otra pregunta y se
+   hace en el paso siguiente. Preguntar algo cuya respuesta no cambia una sola
+   pantalla es peor que no preguntarlo: hace creer que sí cambia algo.
+
+   La frecuencia sigue existiendo en Ajustes → Organización de compra, y tiene
+   que seguir: los períodos cerrados del historial se calcularon con la que
+   estuviera vigente entonces, y esa pantalla es la que lo explica. Lo que se
+   retira es preguntárselo a alguien que acaba de instalar la app.
+
+   El hueco del 3 no se reaprovecha a propósito: los ids 4 y 5 se quedan como
+   estaban, así que quien tenga el avance guardado en uno de ellos aterriza donde
+   estaba. Solo el 3 necesita traducción, y la tiene abajo. */
+
+/* ── Dos pasos que se fueron ───────────────────────────────────────────────
+
+   Eran siete y son cinco. Los que faltan son «¿cuánto se compra al mes?» y
+   «cómo se reparte entre las dos quincenas», y los dos se fueron por la misma
+   razón: pedían un número que la casa no tiene por qué saber.
+
+   Quien marcaba ciento cincuenta alimentos se encontraba después con ciento
+   cincuenta casillas de cantidad, una detrás de otra, antes de poder terminar.
+   Ahí es exactamente donde se abandona. Y el número no hacía falta para lo que
+   la app tiene que hacer: una lista de compra se escribe a mano cada vez, y lo
+   único que se necesita recordar es qué compra esta casa, no cuánto.
+
+   El reparto entre quincenas se retiró después, y por la misma razón: partía
+   en dos trozos una cantidad del mes que ya no se usa para nada.
+
+   Los cinco pasos se enseñan siempre. Ya no hay ninguno condicional, así que la
+   cuenta de «paso 3 de 5» no depende de lo que se haya contestado antes. */
+export const pasosDe = () => PASOS;
+
+// La numeración ha cambiado dos veces, y hay gente con el avance guardado a
+// medias en cada una de ellas. El 5 fue «cómo se reparte entre quincenas»,
+// después fue «ver mi casa» y ahora es «crear mi primer plan»: sin traducirlo,
+// quien lo dejó en el paso 5 de entonces aterrizaría en un paso que no es ese.
+//
+// Solo tienen tabla las numeraciones que ya no son la nuestra. Lo guardado con
+// el sello de ahora —y lo que venga de una versión más nueva, en un respaldo
+// traído a mano— se respeta tal cual.
+const ESQUEMA_DE_PASOS = 4;
+const PASO_DE_ANTES = {
+  // Siete pasos, dos de ellos pidiendo cantidades. El 7 era el repaso final.
+  1: { 0: 0, 1: PASO.personas, 2: PASO.alimentos, 3: PASO.preparaciones, 4: PASO.preparaciones, 5: PASO.preparaciones, 6: PASO.preparaciones, 7: PASO.plan },
+  // Cinco pasos con «Ver mi casa» al final: un repaso que no pedía nada. Quien
+  // lo dejó ahí vuelve a sus preparaciones, que es de donde sale el plan que
+  // ahora ocupa ese sitio: plantarle delante un plan sin haber visto con qué
+  // cuenta sería pedirle que elija a ciegas.
+  2: { 0: 0, 1: PASO.personas, 2: PASO.alimentos, 3: PASO.preparaciones, 4: PASO.preparaciones, 5: PASO.preparaciones },
+  // Cinco pasos, el tercero «Cómo compramos». Quien lo dejó justo ahí pasa a
+  // sus preparaciones, que es lo que viene después de ese hueco.
+  3: { 0: 0, 1: PASO.personas, 2: PASO.alimentos, 3: PASO.preparaciones, 4: PASO.preparaciones, 5: PASO.plan }
+};
 const posicionDe = (setup, paso) => pasosDe(setup).findIndex(item => item.id === paso);
 const saltarA = (setup, desde, direccion) => {
   const visibles = pasosDe(setup);
@@ -68,23 +133,40 @@ const saltarA = (setup, desde, direccion) => {
   return destino ? destino.id : desde;
 };
 
+// Siete días o catorce, y no hay un tercer número: tres semanas seguidas ya son
+// un mes con otro nombre, y un mes entero no lo decide nadie de una sentada.
+const DIAS_DE_PLAN = [7, 14];
+
 // El paso 0 no es un paso: es la pantalla que promete una sola cosa antes de
 // pedir nada. Por eso no cuenta en la barra ni lleva número.
 export const emptySetup = () => ({
   paso: 0,
+  esquema: ESQUEMA_DE_PASOS,
   precargado: false,
   rubro: 0,            // cuál de los ocho rubros se está preguntando (0…7)
   elegidos: [],        // todos los nombres marcados, del catálogo o escritos
   propios: [],         // [{ nombre, unidad, categoria, origen }] los que no estaban
-  cantidades: {},      // nombre → { cantidad, unidad, yaGuardada }
   busqueda: '',
-  anadiendo: false,    // ¿está abierta la ventanita de «añadir un alimento»?
+  anadiendo: false,    // ¿está abierta la ventanita de «añadir un producto»?
   nombreNuevo: '',
   errorNuevo: '',
-  frecuencia: null,   // 'mensual' | 'quincenal', se pregunta en el paso de la compra
   personas: null,     // cuántas comen en casa; null es «todavía no lo ha dicho»
+  // La preparación que se está escribiendo en el paso 4. No se guarda entre
+  // sesiones —un nombre a medio teclear no hace falta mañana—; las que se
+  // guardan de verdad están en `state.recipes` desde que se pulsa Guardar.
+  preparacion: null,
+  // Del paso 5 se guarda una sola cosa: si se está planificando a siete días o
+  // a catorce. Las comidas no hacen falta aquí —se escriben en el calendario en
+  // cuanto se eligen, y ahí se quedan—, y el desplegable abierto tampoco.
+  horizonte: null,
   guardados: 0
 });
+
+// Con la misma forma que una preparación guardada —`name`, `uses`, `note`,
+// `items`— porque el formulario es el mismo que el de la sección Preparaciones y
+// lee de ahí. Dos formas para lo mismo eran dos sitios donde olvidarse de un
+// campo, y así fue: este recorrido nunca preguntó qué alimentos lleva.
+const fichaVacia = () => ({ id: '', name: '', uses: [], note: '', items: [], error: '' });
 
 /* ── El avance se guarda solo ──────────────────────────────────────────────
 
@@ -98,7 +180,7 @@ export const emptySetup = () => ({
    guardan los campos que costó rellenar y ninguno más: lo que está a medio
    buscar o la ventanita abierta no hacen falta mañana. */
 
-const CAMPOS_GUARDADOS = ['paso', 'precargado', 'rubro', 'elegidos', 'propios', 'cantidades', 'texto', 'frecuencia', 'personas', 'guardados'];
+const CAMPOS_GUARDADOS = ['paso', 'esquema', 'precargado', 'rubro', 'elegidos', 'propios', 'texto', 'personas', 'horizonte', 'guardados'];
 
 export function guardarAvance(ctx) {
   const setup = ctx.ui.setup;
@@ -118,19 +200,29 @@ export function avanceGuardado(state) {
   // Un respaldo traído a mano puede venir con cualquier cosa escrita aquí. Se
   // recorta a lo que las pantallas saben pintar, en vez de confiar.
   // El 0 es la portada y no está en `PASOS`. De ahí en adelante, un número que
-  // no corresponda a ningún paso —porque se quitó uno, como pasó con el de
-  // dictar— cae al último que sí existe y no a una pantalla en blanco.
+  // no corresponda a ningún paso —porque se quitó alguno entre una versión y
+  // otra— cae al último que sí existe y no a una pantalla en blanco.
   const guardadoEnPaso = Math.max(0, Number(setup.paso) || 0);
-  setup.paso = guardadoEnPaso === 0 || PASOS.some(paso => paso.id === guardadoEnPaso)
-    ? guardadoEnPaso
-    : Math.min(guardadoEnPaso, PASOS[PASOS.length - 1].id);
+  // Lo guardado con una numeración de antes se traduce; lo guardado con la de
+  // ahora se respeta. Sin el sello de esquema no habría forma de distinguirlas:
+  // el mismo 5 ha significado tres pasos distintos.
+  //
+  // El sello se lee de lo guardado y no de `setup`, que es lo guardado encima de
+  // los valores de fábrica: `emptySetup()` ya trae el sello nuevo, así que
+  // preguntárselo a la mezcla decía siempre que sí y no traducía nunca. Sin
+  // sello, lo guardado es de la primera numeración, que es la que no lo tenía.
+  const tabla = PASO_DE_ANTES[Number(guardado.esquema) || 1];
+  const traducido = tabla ? (tabla[guardadoEnPaso] ?? PASO.plan) : guardadoEnPaso;
+  setup.esquema = ESQUEMA_DE_PASOS;
+  setup.paso = traducido === 0 || PASOS.some(paso => paso.id === traducido)
+    ? traducido
+    : Math.min(traducido, PASOS[PASOS.length - 1].id);
   setup.rubro = Math.min(RUBROS.length - 1, Math.max(0, Number(setup.rubro) || 0));
   setup.elegidos = (Array.isArray(setup.elegidos) ? setup.elegidos : []).map(String);
   setup.propios = (Array.isArray(setup.propios) ? setup.propios : []).filter(item => item && item.nombre);
-  setup.cantidades = setup.cantidades && typeof setup.cantidades === 'object' ? setup.cantidades : {};
   setup.anadiendo = false;
-  setup.frecuencia = FRECUENCIAS.includes(setup.frecuencia) ? setup.frecuencia : null;
   setup.personas = Number(setup.personas) > 0 ? Math.min(20, Math.round(Number(setup.personas))) : null;
+  setup.horizonte = DIAS_DE_PLAN.includes(Number(setup.horizonte)) ? Number(setup.horizonte) : null;
   return setup;
 }
 
@@ -139,7 +231,6 @@ export function olvidarAvance(state) {
 }
 
 const ETIQUETA_UNIDAD = { unidad: 'unidades', lb: 'libras', taza: 'tazas', lata: 'latas', paquete: 'paquetes', rueda: 'ruedas', rebanada: 'rebanadas' };
-const unidades = elegida => options(UNITS.map(unidad => [unidad, ETIQUETA_UNIDAD[unidad] || unidad]), elegida);
 const unidadValida = unidad => (UNITS.includes(unidad) ? unidad : null);
 
 // El catálogo indexado por nombre normalizado: es la comparación que usa el
@@ -152,17 +243,6 @@ for (const semilla of SEED_PRODUCTS) {
 }
 const semillaPorNombre = nombre => POR_CLAVE.get(normalizeName(nombre)) || null;
 
-// `findSimilarProducts` compara contra los alimentos de una casa, y el primer
-// día no hay ninguno: sin esto, «pan pita» el primer día no se parecería a nada
-// y «yogur de fresa» tampoco. El catálogo se le presenta con la forma que esa
-// función lee —nombre y alias— para que el parecido lo calcule el comparador
-// del modelo y no una segunda versión escrita aquí.
-const CATALOGO_COMO_CASA = { products: SEED_PRODUCTS.map(item => ({ id: item.name, name: item.name, aliases: item.aliases })) };
-const parecidoA = (state, nombre) =>
-  findSimilarProducts(state, nombre, { limit: 1 })[0]?.product?.name
-  || findSimilarProducts(CATALOGO_COMO_CASA, nombre, { limit: 1 })[0]?.product?.name
-  || '';
-
 /* ── Pantalla inicial ──────────────────────────────────────────────────── */
 
 // Una promesa, un botón. La opción de ver un ejemplo va plegada debajo para que
@@ -170,11 +250,12 @@ const parecidoA = (state, nombre) =>
 // El número de pasos se cuenta, no se escribe a mano.
 //
 // Decía «Ocho pasos cortos» y era verdad cuando se escribió: entonces había
-// ocho, y uno de ellos era un paso propio para dictar los alimentos de corrido.
-// Ese paso se quitó después —dictar es ahora un enlace dentro del paso de los
-// alimentos, que es donde hace falta— y el texto se quedó como estaba. Encima,
-// el paso del reparto solo se le enseña a quien compra por quincenas. Así que
-// a quien compra una vez al mes se le prometían ocho pasos y veía seis.
+// ocho, y uno de ellos era un paso propio para meter los alimentos de corrido.
+// Ese paso se quitó después —escribirlos de corrido es ahora un enlace dentro
+// del paso de los alimentos, que es donde hace falta— y el texto se quedó como
+// estaba, y además había un paso que solo se le enseñaba a quien compraba por
+// quincenas: a quien compra una vez al mes se le prometían ocho pasos y veía
+// seis.
 //
 // Escrito a mano vuelve a pasar la próxima vez que se toque un paso. Contado,
 // no. Hay una prueba que lo vigila.
@@ -185,14 +266,15 @@ function pantallaInicio(setup) {
   const cuantos = pasosDe(setup).length;
   return `<section class="setup setup-inicio">
     <p class="eyebrow">Organizar mi casa</p>
-    <p class="setup-camino">${EN_LETRA[cuantos] || cuantos} pasos cortos: quiénes comen aquí, lo que compras todos los meses, cuánto y cada cuánto, las comidas que se repiten, y el primer menú.</p>
-    <h2 class="setup-promesa">Ahora vamos a crear la canasta base de tu hogar. Selecciona los alimentos que normalmente compras todos los meses. Podrás agregar cualquier alimento que no aparezca.</h2>
+    <p class="setup-camino">${EN_LETRA[cuantos] || cuantos} pasos cortos: quiénes comen aquí, lo que compras normalmente, lo que vas a cocinar estos días, y el plan de esos días.</p>
+    <h2 class="setup-promesa">Vamos a registrar lo que tu casa come y compra de costumbre. <strong>No hace falta indicar cantidades de nada.</strong></h2>
+    <p class="pantalla-intro setup-para-que">Con eso, hacer la lista del súper es marcar lo que toca y poner cuánto, y después ir tachándola mientras llenas el carrito.</p>
     <div class="pantalla-acciones">${button(llevaEmpezado ? 'Seguir donde lo dejé' : 'Empezar', 'setup-empezar', 'btn-primary btn-grande')}</div>
-    ${llevaEmpezado ? `<p class="small muted">Llevas ${setup.elegidos.length} alimento(s) marcados.</p>` : ''}
+    ${llevaEmpezado ? `<p class="small muted">Llevas ${conteo(setup.elegidos.length, 'producto marcado', 'productos marcados')}.</p>` : ''}
     <details class="plegable setup-ejemplo">
-      <summary>¿Qué es la canasta base?</summary>
-      <p class="muted">Una casa marca arroz, huevos, salami, plátanos y detergente, y dice cuánto lleva de cada uno en un mes corriente. Eso es <strong>su canasta base</strong>: hay una sola y se escribe una vez.</p>
-      <p class="muted">En diciembre compran el doble de arroz y no compran plátanos. En lugar de escribir la lista entera otra vez, solo anotan esas dos cosas: son los <strong>cambios de ese mes</strong>. Enero vuelve solo a la canasta base.</p>
+      <summary>¿Qué son los productos habituales?</summary>
+      <p class="muted">Lo que esta casa siempre compra, se coma o no: arroz, huevos, salami, plátanos, y también detergente, cloro, papel higiénico o pañales. Se marca una vez y sirve de recordatorio cada vez que hay que escribir la lista del supermercado, para no tener que acordarse de todo desde cero.</p>
+      <p class="muted">No lleva la cuenta de lo que hay en la casa: <strong>cuánto llevar lo decides en la lista de cada compra</strong>, que es cuando de verdad se sabe. Esa lista se arma aquí dentro, con sus cantidades, y se va tachando en el pasillo del supermercado.</p>
     </details>
     <p class="tiny muted setup-nota">Se puede salir en cualquier momento. Lo que marques se guarda solo.</p>
   </section>`;
@@ -233,7 +315,8 @@ function pantallaDeRubro(setup) {
     </p>
     <div class="progress setup-rubro-progreso"><span style="width:${Math.round((setup.rubro + 1) / RUBROS.length * 100)}%"></span></div>
 
-    <p class="pantalla-intro">Selecciona todos los que compras habitualmente. No importa cuántos sean.</p>
+    <p class="pantalla-intro">Selecciona lo que normalmente compras para tu casa. <strong>No tienes que indicar cantidades.</strong> Marca los que quieras: si esta categoría no la compras, pasa de largo. De aquí sale después la lista de la compra, ya con cantidades, para ir tachándola en el súper.</p>
+    ${rubro.id === 'otros' ? `<p class="pantalla-intro setup-no-se-come">Aquí no es solo de comer: también van el detergente, el cloro, el papel higiénico y los pañales. Están más abajo, o búscalos por el nombre.</p>` : ''}
 
     ${delRubro.length > 12 ? `<div class="setup-buscador">
       <label class="field setup-search"><span class="sr-only">Buscar dentro de ${esc(rubro.titulo)}</span>
@@ -251,8 +334,7 @@ function pantallaDeRubro(setup) {
     <div class="setup-falta">
       ${setup.anadiendo
         ? ventanitaDeAnadir(setup, rubro)
-        : `<button type="button" class="enlace" data-action="setup-falta">¿No encuentras un alimento? Añadirlo</button>
-           <button type="button" class="enlace" data-action="open-bulk" data-destino="habitual">${icono('microfono', { tamano: 16 })}Decirlos de corrido</button>`}
+        : `<button type="button" class="enlace" data-action="setup-falta">¿No encuentras un producto? Añadirlo</button>`}
     </div>
 
     <div class="modal-actions setup-actions">
@@ -280,10 +362,13 @@ function fichaAlimento(nombre, unidad, marcado) {
 // razón práctica: aquí no se puede perder el sitio. Quien la cierra sigue
 // exactamente donde estaba, con lo marcado intacto.
 function ventanitaDeAnadir(setup, rubro) {
-  return `<form data-form="setup-nuevo" class="setup-ventanita" aria-label="Añadir un alimento a ${esc(rubro.titulo)}">
+  // El ejemplo cambia con la categoría porque «Ej. Fresa» dentro de «Otros
+  // productos habituales» vuelve a sugerir que aquí solo entra comida.
+  const ejemplo = rubro.id === 'otros' ? 'Ej. Cloro' : 'Ej. Fresa';
+  return `<form data-form="setup-nuevo" class="setup-ventanita" aria-label="Añadir un producto a ${esc(rubro.titulo)}">
     <p class="setup-ventanita-titulo">Añadir a ${esc(rubro.titulo)}</p>
-    <label class="field"><span class="sr-only">Nombre del alimento</span>
-      <input name="nombre" data-setup-nuevo value="${esc(setup.nombreNuevo || '')}" placeholder="Ej. Fresa" autocomplete="off" maxlength="40" enterkeyhint="done">
+    <label class="field"><span class="sr-only">Nombre del producto</span>
+      <input name="nombre" data-setup-nuevo value="${esc(setup.nombreNuevo || '')}" placeholder="${ejemplo}" autocomplete="off" maxlength="40" enterkeyhint="done">
     </label>
     ${setup.errorNuevo ? `<p class="setup-error" role="alert">${esc(setup.errorNuevo)}</p>` : ''}
     <div class="inline setup-ventanita-acciones">
@@ -294,233 +379,169 @@ function ventanitaDeAnadir(setup, rubro) {
   </form>`;
 }
 
-/* ── Paso 3: cuánto al mes ─────────────────────────────────────────────── */
 
-// Todo en una sola pantalla editable. Abrir un formulario por alimento para
-// veinte alimentos es exactamente lo que hacía que nadie terminara.
-function pasoCantidades(setup) {
-  const filas = filasDeCantidades(setup);
-  const pendientes = filas.filter(fila => fila.cantidad === '').length;
-  const yaGuardadas = filas.filter(fila => fila.yaGuardada).length;
-  return `<form data-form="setup-cantidades">
-    <p class="pantalla-intro">Indica cuánto compras normalmente. Puedes completarlo o corregirlo después.</p>
-    <p class="small muted">Es la cantidad de un <strong>mes completo</strong>, aunque compres dos veces. Si no la sabes, déjala vacía: el alimento se guarda igual y la cantidad queda pendiente.</p>
-    ${yaGuardadas ? `<p class="tiny muted">${yaGuardadas} ${yaGuardadas === 1 ? 'viene' : 'vienen'} con la cantidad que ya tenías escrita. Cámbiala solo si quieres.</p>` : ''}
+/* ── Paso 5: crear mi primer plan ──────────────────────────────────────────
 
-    <div class="setup-cantidades" data-setup-cantidades>${filas.map(fila => filaCantidad(fila)).join('')
-      || '<p class="muted">No hay ningún alimento marcado. Vuelve atrás y marca los que se consumen en tu casa.</p>'}</div>
+   Quien acaba de registrar su casa no necesita que se la cuenten otra vez:
+   necesita salir de aquí con unos días decididos, o sabiendo que puede
+   decidirlos cuando quiera. Por eso el último paso dejó de ser un repaso.
 
-    ${pendientes ? notice(`${pendientes} sin cantidad.`, 'Se guardan igual y se completan cuando lo sepas. Mientras tanto no entran en el cálculo de la compra.') : ''}
-    <p class="tiny muted">Nada más por ahora: ni equivalencias, ni grosor de ruedas, ni lo que ya tienes en casa. Eso se pregunta cuando haga falta de verdad, al confirmar una compra.</p>
+   Nada de lo que se elige aquí se repite solo. No se preguntan días fijos, no
+   se guarda ninguna costumbre y no se rellena ningún hueco: si el jueves hay
+   mangú es porque alguien lo puso el jueves. */
 
-    <div class="modal-actions setup-actions">
-      ${button('Atrás', 'setup-atras', 'btn-quiet')}
-      <span class="tour-spacer"></span>
-      ${button('Completar después', 'setup-luego', 'btn-secondary')}
-      <button type="submit" class="btn btn-primary">Guardar y continuar</button>
-    </div>
-  </form>`;
+// Los tres estados que no nombran ningún plato. El modelo los enumera en
+// `ESTADOS_SIN_COMIDA`; cómo se llaman delante de una persona es cosa de la
+// pantalla que los enseña.
+const SIN_COMIDA = { outside: 'Fuera de casa', order: 'Pedimos comida', unplanned: 'Sin decidir' };
+
+// Empezando por hoy y no por el lunes de esta semana: quien acaba de registrar
+// su casa quiere decidir lo que viene, y el lunes pasado ya se comió.
+const diasDelPlan = setup => (DIAS_DE_PLAN.includes(setup.horizonte)
+  ? dateRange(todayISO(), addDays(todayISO(), setup.horizonte - 1))
+  : []);
+
+// Un hueco en blanco no es lo mismo que un «sin decidir»: el primero es que
+// nadie lo ha mirado todavía, y el segundo es que se miró y no se sabe.
+const loQuePone = plan => {
+  if (!plan) return 'Sin poner';
+  if (ESTADOS_SIN_COMIDA.includes(plan.kind)) return SIN_COMIDA[plan.kind] || 'Sin decidir';
+  return plan.title || 'Sin nombre';
+};
+
+// La cuenta de arriba es lo único que dice si esto va avanzando. Cuenta el
+// desayuno, el almuerzo y la cena; las meriendas no se piden aquí, así que
+// tampoco pueden faltar.
+function textoDeLaCuenta(state, setup) {
+  const dias = diasDelPlan(setup);
+  const total = dias.length * SLOTS_PRINCIPALES.length;
+  const puestas = dias.reduce((suma, date) => suma + SLOTS_PRINCIPALES.filter(slot => planFor(state, date, slot)).length, 0);
+  if (!puestas) return `Ninguna de las ${total} comidas está puesta todavía, y puedes terminar así.`;
+  return `${puestas} de ${total} comidas puestas.${puestas === total ? ' No queda ninguna por decidir.' : ' Las demás se quedan en blanco.'}`;
 }
 
-// Todo lo marcado, sea del catálogo o escrito por la casa, en una sola lista y
-// sin repetidos: el mismo alimento por las dos vías es un alimento, no dos.
-//
-// La lista sale de `elegidos` y solo de ahí. Un alimento que se escribió y
-// después se desmarcó se queda en `propios` —para poder volver a marcarlo sin
-// escribirlo otra vez— pero no llega hasta aquí.
-function filasDeCantidades(setup) {
-  const filas = new Map();
-  const propioDe = nombre => setup.propios.find(item => normalizeName(item.nombre) === normalizeName(nombre));
-  for (const nombre of setup.elegidos) {
-    const clave = normalizeName(nombre);
-    if (!clave || filas.has(clave)) continue;
-    const propio = propioDe(nombre);
-    const guardada = setup.cantidades[nombre] || setup.cantidades[clave] || {};
-    filas.set(clave, {
-      nombre,
-      origen: propio?.origen || 'catalogo',
-      categoria: propio?.categoria || semillaPorNombre(nombre)?.category || '',
-      cantidad: guardada.cantidad ?? '',
-      unidad: unidadValida(guardada.unidad) || unidadValida(propio?.unidad) || unidadValida(semillaPorNombre(nombre)?.controlUnit) || 'unidad',
-      yaGuardada: Boolean(guardada.yaGuardada)
-    });
-  }
-  return [...filas.values()];
-}
+/* ── El repaso, que fue un paso entero ─────────────────────────────────────
 
-function filaCantidad({ nombre = '', unidad = 'unidad', cantidad = '', origen = 'catalogo', categoria = '' } = {}) {
-  return `<div class="item-row setup-cantidad-row" data-setup-cantidad data-origen="${esc(origen)}" data-categoria="${esc(categoria)}">
-    <span class="setup-cantidad-nombre">${esc(nombre)}<input type="hidden" name="nombre" value="${esc(nombre)}"></span>
-    <label class="field"><span class="sr-only">Cantidad al mes de ${esc(nombre)}</span>
-      <input name="cantidad" type="number" min="0" step="any" inputmode="decimal" value="${esc(cantidad)}" placeholder="Al mes" aria-label="Cantidad al mes de ${esc(nombre)}"></label>
-    <label class="field"><span class="sr-only">Unidad de ${esc(nombre)}</span>
-      <select name="unidad" aria-label="Unidad de ${esc(nombre)}">${unidades(unidad)}</select></label>
-    <button type="button" class="btn btn-quiet remove-item" data-action="setup-quitar-cantidad" aria-label="Quitar ${esc(nombre)}">${icono('cerrar', { tamano: 17 })}</button>
-  </div>`;
-}
+   Cuatro líneas: cuánta gente come aquí, cuántos productos habituales, cada
+   cuánto se compra y cuántas preparaciones hay escritas. Cada una vuelve a su
+   paso, que es lo único que se hacía con ellas cuando ocupaban una pantalla. */
 
-/* ── Paso 3: cada cuánto se hace la compra ─────────────────────────────────
-
-   Dos opciones y nada más. No se pregunta el día, ni el presupuesto, ni quién
-   va: lo único que la app necesita saber es en cuántas veces se parte la lista,
-   porque de ahí salen uno o dos períodos de compra al mes. */
-
-function pasoFrecuencia(ctx, setup) {
-  // Solo se enseña marcada una opción que alguien haya elegido de verdad. La
-  // app se comporta como mensual mientras nadie diga nada, pero pintar
-  // «Mensual» ya marcada sería contestar por el usuario una pregunta que
-  // acabamos de hacerle, y dejarle pulsar Continuar sin haber decidido.
-  const yaSeDijo = historialDeFrecuencia(ctx.state).length > 0;
-  const elegida = setup.frecuencia || (yaSeDijo ? frecuenciaDe(ctx.state, todayISO().slice(0, 7)) : '');
-  const opcion = (id, titulo, detalle) => `<button type="button" class="setup-opcion ${elegida === id ? 'activa' : ''}"
-      data-action="setup-frecuencia" data-frecuencia="${id}" aria-pressed="${elegida === id}">
-      <strong>${esc(titulo)}</strong><small>${esc(detalle)}</small></button>`;
-  return `<p class="pantalla-intro">Es lo único que necesitamos saber para armar la lista: si se compra una vez al mes o dos.</p>
-    <div class="setup-opciones">
-      ${opcion('quincenal', 'Quincenal', 'Dos compras: del 1 al 15 y del 16 al último día del mes.')}
-      ${opcion('mensual', 'Mensual', 'Una sola compra que cubre el mes completo.')}
-    </div>
-    <p class="tiny muted">Las quincenas son del 1 al 15 y del 16 al final del mes, sea de 28, 30 o 31 días. No son períodos de catorce días.</p>
-    <p class="tiny muted">Puedes cambiarlo cuando quieras desde Más → Ajustes → Organización de compra, y elegir desde qué mes entra en vigencia.</p>
-
-    <div class="modal-actions setup-actions">
-      ${button('Atrás', 'setup-atras', 'btn-quiet')}
-      <span class="tour-spacer"></span>
-      ${button('Continuar', 'setup-siguiente', 'btn-primary', elegida ? '' : 'disabled')}
-    </div>`;
-}
-
-/* ── Paso 5: cómo se parte el mes entre las dos quincenas ──────────────────
-
-   La necesidad del mes no se toca. Lo que se decide aquí es cuánto de ella se
-   compra en la primera quincena, y solo para los alimentos donde haga falta
-   decirlo: el resto se queda en la mitad sugerida, que no es un dato escrito
-   sino una cuenta que se rehace sola si mañana cambia la cantidad del mes.
-
-   El arroz y el aceite se compran enteros el día 1 aunque duren el mes; la
-   lechuga, no. Esa es exactamente la diferencia que esta pantalla deja marcar. */
-
-function pasoReparto(ctx, setup) {
-  const filas = habitualLines(ctx.state)
-    .map(linea => ({ linea, item: product(ctx.state, linea.productId) }))
-    .filter(fila => fila.item && fila.linea.quantity !== null)
-    .sort((a, b) => a.item.name.localeCompare(b.item.name));
-
-  if (!filas.length) {
-    return `${notice('Todavía no hay cantidades que repartir.', 'Las cantidades que dejaste en blanco se reparten cuando las escribas. Puedes seguir.')}
-      <div class="modal-actions setup-actions">
-        ${button('Atrás', 'setup-atras', 'btn-quiet')}
-        <span class="tour-spacer"></span>
-        ${button('Continuar', 'setup-siguiente', 'btn-primary')}
-      </div>`;
-  }
-
-  return `<p class="pantalla-intro">Tu casa compra dos veces al mes. Esto no cambia cuánto se compra en total: solo dice cuánto de ello entra en la primera compra.</p>
-    <p class="small muted">Sin tocar nada se reparte a la mitad. Cambia solo los que no se reparten así —el arroz o el aceite suelen comprarse enteros el día 1—.</p>
-
-    <div class="card setup-reparto">${filas.map(({ linea, item }) => filaDeReparto(ctx, linea, item)).join('')}</div>
-
-    <div class="modal-actions setup-actions">
-      ${button('Atrás', 'setup-atras', 'btn-quiet')}
-      <span class="tour-spacer"></span>
-      ${button('Continuar', 'setup-siguiente', 'btn-primary')}
-    </div>`;
-}
-
-export function filaDeReparto(ctx, linea, item) {
-  const reparto = repartoDe(ctx.state, linea.productId, linea.quantity);
-  const unidad = ETIQUETA_UNIDAD[linea.unit] || linea.unit;
-  const boton = (modo, texto) => `<button type="button" class="setup-reparto-modo ${reparto.modo === modo ? 'activo' : ''}"
-    data-action="reparto-modo" data-id="${esc(linea.productId)}" data-modo="${modo}" aria-pressed="${reparto.modo === modo}">${esc(texto)}</button>`;
-  return `<div class="setup-reparto-fila" data-reparto="${esc(linea.productId)}">
-    <div class="setup-reparto-nombre">
-      <strong>${esc(item.name)}</strong>
-      <span class="small muted">${esc(`${fmtNumero(linea.quantity)} ${unidad} al mes`)}</span>
-    </div>
-    <div class="setup-reparto-partes">
-      <label class="field"><span>1.ª quincena</span>
-        <input type="number" min="0" step="any" inputmode="decimal" value="${esc(fmtNumero(reparto.primera))}"
-          data-reparto-primera data-id="${esc(linea.productId)}" data-total="${esc(linea.quantity)}"
-          aria-label="Cuánto de ${esc(item.name)} en la primera quincena"></label>
-      <span class="setup-reparto-segunda" data-reparto-segunda>2.ª: <strong>${esc(fmtNumero(reparto.segunda))}</strong> ${esc(unidad)}</span>
-    </div>
-    <div class="setup-reparto-modos">
-      ${boton('mitad', 'A la mitad')}
-      ${boton('todo', 'Todo en la 1.ª')}
-      ${boton('nada', 'Todo en la 2.ª')}
-    </div>
-    ${reparto.sugerido ? '<p class="tiny muted setup-reparto-nota">Repartido a la mitad porque no lo has cambiado.</p>' : ''}
-  </div>`;
-}
-
-// Los números de esta pantalla son cantidades de comida, no dinero: «2.5» se
-// lee mal y «2,5» aún peor dentro de un campo numérico, que espera el punto.
-const fmtNumero = valor => String(Math.round((Number(valor) || 0) * 1000) / 1000);
-
-/* ── Paso 6: el primer menú del mes ────────────────────────────────────── */
-
-/* ── El último paso: revisar el mes, no construirlo ────────────────────────
-
-   Antes esto decía «preparar mi primer menú mensual» y mandaba a una pantalla
-   en blanco a empezar de cero. Ya no hace falta: al escribir cada preparación
-   se dice qué días se repite, así que para cuando se llega aquí el calendario
-   está puesto. Lo que queda es mirarlo y cambiar lo que no cuadre, que es muy
-   distinto de construirlo.
-
-   Y «Cambiar» abre la preparación, no una pantalla de reglas: ahí es donde la
-   persona escribió los días, y es donde va a buscarlos. */
-
-function pasoMenu(ctx, setup) {
+function resumenDeLaCasa(ctx, setup) {
   const { state } = ctx;
-  const mes = todayISO().slice(0, 7);
-  const recetas = state.recipes.length;
-  const gente = personasActivas(state).length;
-  const reglas = routinesFor(state, mes).filter(rutina => rutina.kind === 'recipe');
-  const nombreDe = rutina => state.recipes.find(item => item.id === rutina.recipeId)?.name || 'Preparación eliminada';
+  const gente = personasActivas(state);
+  const habituales = habitualLines(state);
+  const recetas = state.recipes;
+  const sinMomentos = recetas.filter(receta => !receta.uses.length).length;
+  const faltanPersonas = Math.max(0, Math.min(20, Number(setup.personas) || 0) - gente.length);
 
-  const hecho = `<div class="setup-hecho">
-    <span class="setup-hecho-marca" aria-hidden="true">✓</span>
-    <h3>Tu casa ya está escrita</h3>
-    <p class="muted">${gente} persona${gente === 1 ? '' : 's'} en casa, ${setup.guardados} alimento${setup.guardados === 1 ? '' : 's'} en la canasta base y ${recetas} preparaci${recetas === 1 ? 'ón' : 'ones'}. Escrito una sola vez: desde ahora todos los meses parten de ahí y solo anotas lo diferente.</p>
+  const cuenta = (n, singular, plural) => `${n} ${n === 1 ? singular : plural}`;
+  const linea = (paso, titulo, detalle, completo) => `<div class="list-row setup-repaso ${completo ? 'listo' : 'pendiente'}">
+    <div class="list-row-main">
+      <div class="list-row-title">${esc(titulo)}</div>
+      <div class="list-row-sub">${esc(detalle)}</div>
+    </div>
+    ${button('Cambiar', 'setup-ir', 'btn-quiet btn-small', `data-paso="${paso}"`)}
   </div>`;
 
-  if (!reglas.length) {
-    return `${hecho}
-      <p class="pantalla-intro">Falta decir qué días se prepara cada comida. Puedes volver atrás y anotarlo dentro de cada preparación —es donde antes te lo preguntamos— o decirlo ahora de una vez.</p>
-      ${recetas ? '' : notice('No hay ninguna preparación guardada.', 'El menú del mes va a empezar vacío. Puedes volver atrás y escribir dos o tres: con eso, el mes entero queda hecho.')}
-      <div class="modal-actions setup-actions">
-        ${button('Atrás', 'setup-atras', 'btn-quiet')}
-        ${button('Ahora no', 'setup-ahora-no', 'btn-secondary')}
-        ${button('Decir qué días se repiten', 'setup-menu', 'btn-primary btn-grande')}
-      </div>`;
+  return `<div class="card setup-repasos">
+    ${linea(PASO.personas, 'Mi hogar', faltanPersonas
+      ? `${cuenta(gente.length, 'persona registrada', 'personas registradas')} · ${cuenta(faltanPersonas, 'queda', 'quedan')} por llenar`
+      : cuenta(gente.length, 'persona', 'personas'), gente.length > 0 && !faltanPersonas)}
+    ${linea(PASO.alimentos, 'Productos habituales', cuenta(habituales.length, 'producto', 'productos'), habituales.length > 0)}
+    ${linea(PASO.preparaciones, 'Mis preparaciones', sinMomentos
+      ? `${cuenta(recetas.length, 'preparación', 'preparaciones')} · ${cuenta(sinMomentos, 'sin momentos', 'sin momentos')}`
+      : cuenta(recetas.length, 'preparación', 'preparaciones'), recetas.length > 0 && !sinMomentos)}
+  </div>`;
+}
+
+function pasoPlan(ctx, setup) {
+  const { state } = ctx;
+  const hoy = todayISO();
+  const repaso = `<p class="pantalla-intro">Así quedó registrada tu casa. Si algo no está como lo querías, se cambia desde aquí mismo.</p>
+    ${resumenDeLaCasa(ctx, setup)}`;
+  const cierre = `<div class="modal-actions setup-actions">
+      ${button('Atrás', 'setup-atras', 'btn-quiet')}
+      <span class="tour-spacer"></span>
+      ${button('Terminar', 'setup-terminar', 'btn-primary btn-grande')}
+    </div>`;
+
+  // Sin ninguna preparación escrita no habría de dónde elegir, y enseñar tres
+  // desplegables por día con las mismas tres opciones es enseñar un formulario
+  // vacío. Se dice, se ofrece volver a escribirlas, y se puede terminar igual.
+  if (!state.recipes.length) {
+    return `${repaso}
+    <div class="divider"></div>
+    ${notice('Todavía no has escrito ninguna preparación.',
+      'El plan se arma eligiendo entre lo que tu casa sabe preparar, así que por ahora no hay de dónde elegir. Puedes escribir dos o tres y volver aquí, o terminar ahora: <strong>el plan se hace igual de bien después, desde Plan semanal</strong>.')}
+    <p class="setup-plan-volver">${button('Escribir mis preparaciones', 'setup-ir', 'btn-secondary', `data-paso="${PASO.preparaciones}"`)}</p>
+    ${cierre}`;
   }
 
-  const progreso = monthProgress(state, mes);
-  return `${hecho}
-    <p class="pantalla-intro">Y tu mes <strong>ya está montado</strong>. Al escribir cada preparación dijiste qué días se repite, así que la aplicación las colocó sola. Esto es lo que quedó; cambia lo que no sea así.</p>
+  const dias = diasDelPlan(setup);
+  const elegidos = dias.length ? setup.horizonte : null;
+  const cuantos = (numero, titulo, detalle) => `<button type="button" class="setup-opcion ${elegidos === numero ? 'activa' : ''}"
+      data-action="setup-plan-dias" data-dias="${numero}" aria-pressed="${elegidos === numero}">
+      <strong>${esc(titulo)}</strong><small>${esc(detalle)}</small></button>`;
 
-    <div class="card setup-repeticiones">${reglas.map(rutina => {
-      const dias = datesForRule(mes, rutina.weekdays, rutina.weeks).length;
-      return `<div class="list-row">
-        <div class="list-row-main">
-          <div class="list-row-title">${esc(nombreDe(rutina))}</div>
-          <div class="list-row-sub">${esc(describeRule(rutina.weekdays, rutina.weeks))} · ${esc(rutina.slots.map(etiquetaDeMomento).join(' y '))}</div>
-          <div class="list-row-sub">${dias} día${dias === 1 ? '' : 's'} en ${esc(monthName(mes))}${rutina.scope === 'permanent' ? ' · y en los meses siguientes' : ' · solo este mes'}</div>
-        </div>
-        ${button('Cambiar', 'open-recipe', 'btn-quiet btn-small', `data-id="${esc(rutina.recipeId)}"`)}
-      </div>`;
-    }).join('')}</div>
+  return `${repaso}
+    <div class="divider"></div>
+    <p class="pantalla-intro">Ahora deja decidido lo que se come estos días. <strong>Puedes terminar sin poner ni una comida</strong>: lo que no pongas aquí lo pones cuando quieras desde Plan semanal.</p>
 
-    <div class="card soft setup-resumen-mes">
-      <div class="between"><strong>${esc(monthName(mes))}</strong><span class="pill warm">${progreso.porcentaje}%</span></div>
-      <p class="small muted">${progreso.encasa} comida${progreso.encasa === 1 ? '' : 's'} puesta${progreso.encasa === 1 ? '' : 's'} en casa${progreso.fuera ? ` · ${progreso.fuera} fuera` : ''} · ${progreso.pendientes} sin decidir. Lo que quede en blanco no es un error: se decide cuando toque. Las meriendas van aparte, y un día sin merienda está completo igual.</p>
+    <p class="setup-plan-pregunta">${elegidos ? 'Estos son los días. Si quieres, cámbialos:' : '¿Cuántos días quieres planificar?'}</p>
+    <div class="setup-opciones setup-plan-cuantos">
+      ${cuantos(7, '7 días', 'Los siete que vienen, empezando hoy.')}
+      ${cuantos(14, '14 días', 'Dos semanas seguidas, empezando hoy.')}
     </div>
 
-    <div class="modal-actions setup-actions">
-      ${button('Atrás', 'setup-atras', 'btn-quiet')}
-      ${button('+ Otra repetición', 'setup-menu', 'btn-secondary')}
-      ${button('Ver mi mes', 'setup-ver-mes', 'btn-primary btn-grande')}
-    </div>`;
+    ${dias.length
+      ? `<p class="setup-plan-cuenta" role="status" aria-live="polite" data-plan-cuenta>${esc(textoDeLaCuenta(state, setup))}</p>
+    <p class="tiny muted">En cada comida eliges una de tus preparaciones, o dices que se come fuera, que se pide, o que todavía no está decidido. Lo que no toques se queda en blanco, y un día en blanco no es un error.</p>
+    <div class="setup-plan-dias">${dias.map(date => diaDelPlan(ctx, date, hoy)).join('')}</div>
+    <p class="tiny muted setup-nota">Cada comida queda puesta en su día y en ninguno más: nada de lo que elijas aquí vuelve solo la semana siguiente.</p>`
+      : '<p class="tiny muted setup-nota">Elige 7 o 14 y te enseño esos días, uno debajo de otro, empezando por hoy.</p>'}
+
+    ${cierre}`;
+}
+
+function diaDelPlan(ctx, date, hoy) {
+  return `<section class="card setup-plan-dia ${date === hoy ? 'es-hoy' : ''}">
+    <header class="between setup-plan-dia-cabecera">
+      <h3 class="setup-plan-dia-titulo">${esc(niceDate(date, { weekday: 'long', day: 'numeric', month: 'long' }))}</h3>
+      ${date === hoy ? '<span class="pill warm">Hoy</span>' : ''}
+    </header>
+    <div class="setup-plan-momentos">${SLOTS_PRINCIPALES.map(slot => momentoDelPlan(ctx, date, slot)).join('')}</div>
+  </section>`;
+}
+
+/* Un momento del día, con su desplegable.
+
+   No es un `<select>` del sistema, y no por capricho: uno de esos solo cuenta
+   lo que se eligió cuando cambia, y lo que llega hasta aquí son los toques. Con
+   un plegable y un botón por opción, elegir guarda en el mismo gesto —que es lo
+   que promete la pantalla— y se usa igual con el dedo que con el teclado. */
+
+function momentoDelPlan(ctx, date, slot) {
+  const { state } = ctx;
+  const plan = planFor(state, date, slot);
+  // Solo las preparaciones que se comen en este momento: una marcada únicamente
+  // de desayuno no se puede poner de cena, así que ofrecerla sería ofrecer un
+  // error.
+  const suyas = state.recipes.filter(receta => receta.uses.includes(slot));
+  const opcion = (clase, id, etiqueta, puesta) => `<button type="button" class="setup-plan-opcion ${puesta ? 'puesta' : ''}"
+          data-action="setup-plan-poner" data-date="${date}" data-slot="${esc(slot)}" data-clase="${esc(clase)}" data-receta="${esc(id)}"
+          aria-pressed="${puesta}">${esc(etiqueta)}</button>`;
+
+  return `<details class="setup-plan-momento" data-plan-momento>
+        <summary>
+          <span class="setup-plan-momento-nombre">${esc(etiquetaDeMomento(slot))}</span>
+          <span class="setup-plan-momento-texto ${plan ? '' : 'vacio'}" data-plan-texto>${esc(loQuePone(plan))}</span>
+        </summary>
+        <div class="setup-plan-opciones">
+          ${suyas.map(receta => opcion('recipe', receta.id, receta.name, plan?.kind === 'recipe' && plan.recipeId === receta.id)).join('')}
+          ${ESTADOS_SIN_COMIDA.map(estado => opcion(estado, '', SIN_COMIDA[estado] || estado, plan?.kind === estado)).join('')}
+        </div>
+        ${suyas.length ? '' : `<p class="tiny muted">Ninguna de tus preparaciones está marcada como ${esc(etiquetaDeMomento(slot).toLocaleLowerCase('es'))}. Eso se marca en «Mis preparaciones».</p>`}
+      </details>`;
 }
 
 /* ── Paso 1: quiénes comen en esta casa ────────────────────────────────────
@@ -556,7 +577,7 @@ function pasoPersonas(ctx, setup) {
     }
     return `<div class="list-row setup-persona">
       <div class="list-row-main">
-        <div class="list-row-title">${esc(persona.name)} <span class="pill gray">${esc(claseDe(persona.kind).etiqueta)}</span></div>
+        <div class="list-row-title">${esc(persona.name)}</div>
         ${resumenDeRestricciones(state, persona)}
       </div>
       ${button('Editar', 'hogar-editar', 'btn-quiet btn-small', `data-id="${esc(persona.id)}"`)}
@@ -575,7 +596,7 @@ function pasoPersonas(ctx, setup) {
     <div class="card setup-personas">${Array.from({ length: filas }, (unused, i) => fila(i)).join('')}</div>
 
     ${faltan
-      ? notice(`${faltan === 1 ? 'Falta una persona' : `Faltan ${faltan} personas`} por llenar.`, 'Puedes seguir igual y anotarlas después desde Más → Familia y restricciones. Mientras no estén, la app no sabrá avisarte de lo que esa persona debe evitar.')
+      ? notice(`${faltan === 1 ? 'Falta una persona' : `Faltan ${faltan} personas`} por llenar.`, 'Puedes seguir igual y anotarlas después desde Ajustes → Familia y restricciones. Mientras no estén, la app no sabrá avisarte de lo que esa persona debe evitar.')
       : ''}
 
     <p class="tiny muted setup-nota">No te preguntamos el peso, ni la fecha de nacimiento, ni nada médico: la app no lo usa para nada.</p>
@@ -586,53 +607,79 @@ function pasoPersonas(ctx, setup) {
     </div>`;
 }
 
-/* ── Paso 7: las comidas que se repiten ────────────────────────────────────
+/* ── Paso 4: mis preparaciones ─────────────────────────────────────────────
 
-   El asistente terminaba ofreciendo «Preparar mi primer menú mensual», y al
-   entrar ahí no había ninguna preparación que poner: el menú se pedía antes de
-   que existiera nada con qué llenarlo. Es el orden al revés.
+   Nombre, en qué momentos se come, y una nota para quien cocina si hace falta.
+   Nada más, y es a propósito.
 
-   Aquí se escriben. Y se escriben en la ventana de siempre —la misma que sale
-   desde «Nueva preparación»— y no en una versión recortada de ella: el primer
-   intento pedía solo el nombre y los momentos, y quien registraba su casa
-   entera se quedaba sin poder decir qué lleva cada plato, cuánto rinde ni qué
-   nota tiene para quien cocina. Dos formularios de la misma cosa es una
-   promesa rota en el sitio donde más se nota: cuando el segundo enseña campos
-   que el primero no tenía.
+   Aquí se abría la ventana completa de una preparación —la misma de «Nueva
+   preparación»—, con sus alimentos, sus cantidades, cuánto rinde y qué días se
+   repite. Se hizo así para no tener dos formularios de la misma cosa, que es un
+   buen principio, y aun así estaba mal: quien está registrando su casa no
+   quiere describir seis platos, quiere nombrarlos. Con la ventana completa,
+   escribir las seis comidas de una familia eran treinta campos.
 
-   Encadenar es lo otro que hacía falta: «Guardar y añadir otra» deja la
-   ventana abierta y en blanco, para escribir las seis comidas de la casa de
-   una sentada. */
+   Lo que esta pantalla no pregunta, tampoco lo borra: al editar desde aquí una
+   preparación que ya tenía alimentos y porciones, esos se conservan intactos.
+   La ventana completa sigue existiendo en Preparaciones, para quien
+   quiera decir qué lleva cada plato.
+
+   Los días de repetición no se preguntan, ni aquí ni en ningún otro sitio: en
+   esta app una comida se pone el día que alguien la pone, y ninguno más. */
 
 function pasoPreparaciones(ctx, setup) {
   const { state } = ctx;
-  const recetas = state.recipes;
+  const ficha = setup.preparacion || fichaVacia();
+  const editando = Boolean(ficha.id);
+  const dias = Number(setup.horizonte) || 0;
+
   const fila = receta => `<div class="list-row">
     <div class="list-row-main">
       <div class="list-row-title">${esc(receta.name)}</div>
-      <div class="list-row-sub">${receta.uses.length ? esc(receta.uses.map(etiquetaDeMomento).join(' · ')) : 'Sin momentos: no saldrá en el calendario'}</div>
-      <div class="list-row-sub">${receta.items.length
-        ? `${receta.items.length} alimento${receta.items.length === 1 ? '' : 's'}`
-        : '<span class="muted">sin alimentos todavía</span>'}${receta.servings ? ` · rinde ${esc(String(receta.servings))} porcion${Number(receta.servings) === 1 ? '' : 'es'}` : ''}${receta.note ? ' · con nota' : ''}</div>
+      <div class="list-row-sub">${receta.uses.length
+        ? esc(receta.uses.map(etiquetaDeMomento).join(' · '))
+        : '<span class="muted">sin momentos: no saldrá en el calendario</span>'}${receta.items.length ? ` · ${esc(conteo(receta.items.length, 'alimento', 'alimentos'))}` : ''}${receta.note ? ' · con nota' : ''}</div>
     </div>
     <div class="inline">
-      ${button('Editar', 'open-recipe', 'btn-quiet btn-small', `data-id="${esc(receta.id)}"`)}
+      ${button('Editar', 'setup-preparacion-editar', 'btn-quiet btn-small', `data-id="${esc(receta.id)}"`)}
       ${button('Quitar', 'setup-quitar-preparacion', 'btn-quiet btn-small', `data-id="${esc(receta.id)}"`)}
     </div>
   </div>`;
 
-  const sinAlimentos = recetas.filter(receta => !receta.items.length).length;
-  return `<p class="pantalla-intro">Escribe las comidas que se cocinan de costumbre en tu casa: cómo se llama cada una, en qué momentos se come, qué lleva y en qué cantidades, cuánto rinde y la nota para quien cocina. <strong>Es la misma ventana de siempre</strong>, y con «Guardar y añadir otra» se escriben todas de una sentada.</p>
+  /* Primero, cuántos días se van a planificar.
 
-    <div class="setup-preparaciones-anadir">
-      ${button('+ Añadir una preparación', 'open-recipe', 'btn-primary btn-grande')}
+     Estaba al final del recorrido, en la pantalla del plan, y llegaba tarde:
+     para entonces ya habías escrito las preparaciones sin saber cuántas hacían
+     falta. Contestado aquí, la pregunta de abajo deja de ser «escribe todo lo
+     que se cocina en tu casa» —que es lo que hace que nadie termine— y pasa a
+     ser «escribe lo de esta semana». */
+  const cuantos = (numero, titulo, detalle) => `<button type="button" class="setup-opcion ${dias === numero ? 'activa' : ''}"
+      data-action="setup-plan-dias" data-dias="${numero}" aria-pressed="${dias === numero}">
+      <strong>${esc(titulo)}</strong><small>${esc(detalle)}</small></button>`;
+
+  return `<p class="setup-plan-pregunta">¿Cuántos días vas a planificar?</p>
+    <div class="setup-opciones setup-plan-cuantos">
+      ${cuantos(7, '7 días', 'Una semana, empezando hoy.')}
+      ${cuantos(14, '14 días', 'Dos semanas seguidas, empezando hoy.')}
     </div>
 
-    ${recetas.length
-      ? `<div class="card">${recetas.map(fila).join('')}</div>
-         <p class="tiny muted">Una misma preparación puede estar en varios momentos: el mangú con salami suele ser desayuno y cena.${sinAlimentos ? ` Hay ${sinAlimentos} sin alimentos anotados: sirven igual para llenar el calendario, pero no suman a la compra hasta que digas qué llevan.` : ''}</p>`
-      : notice('Todavía no has guardado ninguna.',
-          'Sin preparaciones, el menú del mes empieza vacío y hay que escribir cada día a mano. Con dos o tres, el mes entero queda hecho.')}
+    <p class="pantalla-intro">${dias
+      ? `Ahora escribe las comidas que vas a poner en esos ${dias} días. <strong>No hace falta que escribas todo lo que se cocina en tu casa</strong>: con cinco o seis te sobra, porque la misma preparación se pone en varios días. Cuando llegue el final de la semana, escribes las de la siguiente y así la lista crece sola.`
+      : 'Elige arriba a cuántos días vas a planificar. Después escribes solo las comidas de esos días: <strong>no hace falta escribir todo lo que se cocina en tu casa</strong>.'}</p>
+
+    <form data-form="setup-preparacion" class="setup-preparacion card">
+      ${camposDePreparacion(state, ficha)}
+      ${ficha.error ? `<p class="setup-error" role="alert">${esc(ficha.error)}</p>` : ''}
+      <div class="inline setup-preparacion-acciones">
+        <button type="submit" class="btn btn-primary">${editando ? 'Guardar los cambios' : 'Guardar y añadir otra'}</button>
+        ${editando ? button('Cancelar', 'setup-preparacion-nueva', 'btn-quiet') : ''}
+      </div>
+    </form>
+
+    ${state.recipes.length
+      ? `<div class="card">${state.recipes.map(fila).join('')}</div>`
+      : notice('Todavía no has escrito ninguna.',
+          'Puedes seguir sin escribir ninguna y hacerlo después desde Preparaciones. Lo único que pasa mientras tanto es que en el paso siguiente no habrá nada que elegir.')}
 
     <div class="modal-actions setup-actions">
       ${button('Atrás', 'setup-atras', 'btn-quiet')}
@@ -658,20 +705,30 @@ export function renderSetup(ctx) {
 
   const cuerpo = setup.paso === PASO.personas ? pasoPersonas(ctx, setup)
     : setup.paso === PASO.alimentos ? pantallaDeRubro(setup)
-    : setup.paso === PASO.compra ? pasoFrecuencia(ctx, setup)
-    : setup.paso === PASO.cantidades ? pasoCantidades(setup)
-    : setup.paso === PASO.reparto ? pasoReparto(ctx, setup)
     : setup.paso === PASO.preparaciones ? pasoPreparaciones(ctx, setup)
-    : pasoMenu(ctx, setup);
+    : pasoPlan(ctx, setup);
 
   const visibles = pasosDe(setup);
   const posicion = posicionDe(setup, setup.paso);
   const actual = PASOS.find(item => item.id === setup.paso) || PASOS[0];
 
+  /* En el paso de los rubros había tres títulos seguidos: «Organizar mi casa»
+     en la cabecera, «Mis productos habituales» aquí, y «Otros productos
+     habituales» dos renglones más abajo, en la ficha de la categoría. Los dos
+     últimos dicen casi lo mismo y el de abajo es el que de verdad informa,
+     porque cambia con cada una de las ocho categorías.
+
+     Se esconde, no se borra. Este `h2` es el único encabezado de la pantalla:
+     la línea de la categoría es un `<p>` con `role="status"`, y un elemento no
+     puede ser a la vez el encabezado de la página y la región que anuncia los
+     cambios. Quitándolo del todo, quien navega por encabezados se queda sin
+     saber en qué paso está. Con `sr-only` no ocupa un píxel y sigue estando. */
+  const loDiceLaCategoria = setup.paso === PASO.alimentos;
+
   return `<section class="setup">
     <div class="setup-head">
-      <div><p class="eyebrow">Paso ${posicion + 1} de ${visibles.length}</p><h2>${esc(actual.titulo)}</h2></div>
-      ${setup.paso === PASO.mes ? '' : button('Salir', 'setup-salir', 'btn-quiet btn-small')}
+      <div><p class="eyebrow">Paso ${posicion + 1} de ${visibles.length}</p><h2${loDiceLaCategoria ? ' class="sr-only"' : ''}>${esc(actual.titulo)}</h2></div>
+      ${setup.paso === PASO.plan ? '' : button('Salir', 'setup-salir', 'btn-quiet btn-small')}
     </div>
     ${barra(setup)}
     <div class="setup-body">${cuerpo}</div>
@@ -715,14 +772,28 @@ export function guardarEnLaCanasta(state, filas) {
     }
     if (nuevas.some(linea => linea.productId === item.id)) continue;
     const anterior = previas.find(linea => linea.productId === item.id);
+    // La línea guardada, esté dentro de la canasta ahora mismo o dada de baja.
+    // Se mira solo para heredar la unidad: volver a marcar algo que se había
+    // dejado de comprar no puede cambiarle la medida con la que se contó todos
+    // los meses anteriores.
+    const guardada = state.habitualBasket.lines.find(row => row.productId === item.id);
+    const unidadDeAntes = anterior?.unit
+      || [...(guardada?.tramos || [])].reverse().find(tramo => !tramo.fuera)?.unit;
+    // Tres casos distintos, y confundirlos borra datos:
+    //
+    //  · Sin el campo `cantidad` —el recorrido guiado, que ya no las pregunta—
+    //    se deja la que hubiera. Marcar otra vez el arroz no puede tirar las 25
+    //    libras que alguien escribió el mes pasado.
+    //  · Con el campo vacío o en cero se guarda pendiente: es «todavía no sé» o
+    //    «no lo compro», y un cero no es un consumo.
+    //  · Con un número, ese número.
+    const sinDecirNada = !('cantidad' in fila);
+    const vacia = fila.cantidad === '' || fila.cantidad === null || fila.cantidad === undefined || Number(fila.cantidad) === 0;
     nuevas.push({
       id: anterior?.id,
       productId: item.id,
-      // Un cero no es un consumo: es «todavía no sé» o «no lo compro». Se guarda
-      // como pendiente en vez de tumbar el guardado por un número que nadie
-      // quiso escribir de verdad.
-      quantity: fila.cantidad === '' || fila.cantidad === null || fila.cantidad === undefined || Number(fila.cantidad) === 0 ? null : fila.cantidad,
-      unit: unidad || anterior?.unit || item.controlUnit,
+      quantity: sinDecirNada ? (anterior ? anterior.quantity : null) : vacia ? null : fila.cantidad,
+      unit: unidad || unidadDeAntes || item.controlUnit,
       priority: anterior?.priority || (semilla?.common ? 'obligatorio' : 'frecuente')
     });
   }
@@ -733,91 +804,57 @@ export function guardarEnLaCanasta(state, filas) {
   return nuevas.length;
 }
 
-/* ── Lectura de la pantalla ────────────────────────────────────────────── */
+/* ── De lo marcado a la canasta ────────────────────────────────────────────
 
-const leerFilas = (selector, campos) => [...document.querySelectorAll(selector)].map(fila =>
-  Object.fromEntries([
-    ...campos.map(campo => [campo, fila.querySelector(`[name="${campo}"]`)?.value ?? '']),
-    ['origen', fila.dataset.origen || 'catalogo'],
-    ['categoria', fila.dataset.categoria || '']
-  ]));
+   Antes esto leía el DOM: la pantalla de las cantidades tenía una fila por
+   alimento y se recogía al enviar el formulario. Sin esa pantalla, lo marcado
+   ya está en `setup.elegidos` desde el toque —se escribe ahí y se guarda en el
+   acto—, así que basta con traducirlo a filas.
 
-// Las cantidades del paso 3 viven en el DOM mientras se teclean. Cualquier cosa
-// que redibuje tiene que pasar antes por aquí, o se pierde la columna que
-// alguien acaba de escribir.
+   Ninguna fila lleva cantidad, y eso no es lo mismo que llevarla vacía: una
+   cantidad vacía significaría «no sé cuánto» y borraría la que alguien tuviera
+   escrita de antes. Sin el campo, `guardarEnLaCanasta` deja la que había. */
 
-// El paso 3 se guarda igual por las dos salidas: lo que hay escrito en la
-// pantalla, con las cantidades vacías como pendientes.
-function guardarLoEscrito(ctx) {
-  const filas = leerFilas('[data-setup-cantidad]', ['nombre', 'cantidad', 'unidad']).filter(fila => fila.nombre.trim());
-  if (!filas.length) throw new Error('Marca al menos un alimento antes de guardar.');
-  recordarCantidades(ctx);
+function filasDeLoMarcado(state, setup) {
+  const propios = new Map(setup.propios.map(item => [normalizeName(item.nombre), item]));
+  const yaEnLaLista = new Set(state.habitualBasket.lines.map(linea => linea.productId));
+  return setup.elegidos.map(nombre => {
+    const propio = propios.get(normalizeName(nombre));
+    const semilla = semillaPorNombre(nombre);
+    const fila = {
+      nombre,
+      categoria: propio?.categoria || semilla?.category || '',
+      origen: propio?.origen || (semilla ? 'catalogo' : 'manual')
+    };
+    // La unidad se manda solo para lo que hay que registrar por primera vez.
+    //
+    // Un alimento que ya está en la lista tiene la suya escrita, y esta pantalla
+    // no la pregunta: mandarle la del catálogo le cambiaba el salami de
+    // «paquetes» a «ruedas» —el catálogo lo cuenta en ruedas y lo compra por
+    // paquetes— sin que nadie lo pidiera, y eso le abría un tramo nuevo en su
+    // historial solo por haber vuelto a pasar por aquí.
+    const item = productByName(state, nombre);
+    if (!item || !yaEnLaLista.has(item.id)) fila.unidad = propio?.unidad || semilla?.controlUnit;
+    return fila;
+  });
+}
+
+function guardarLoMarcado(ctx) {
+  const setup = ctx.ui.setup;
+  const filas = filasDeLoMarcado(ctx.state, setup);
+  if (!filas.length) return 0;
   const guardados = guardarEnLaCanasta(ctx.state, filas);
-  ctx.ui.setup.guardados = guardados;
+  setup.guardados = guardados;
   return guardados;
 }
 
-function recordarCantidades(ctx) {
-  const setup = ctx.ui.setup;
-  for (const fila of leerFilas('[data-setup-cantidad]', ['nombre', 'cantidad', 'unidad'])) {
-    if (!fila.nombre.trim()) continue;
-    setup.cantidades[fila.nombre] = { cantidad: fila.cantidad, unidad: unidadValida(fila.unidad) || 'unidad', yaGuardada: setup.cantidades[fila.nombre]?.yaGuardada || false };
-  }
-}
 
-/* ── El reparto entre quincenas, escrito a mano ────────────────────────────
-
-   Lo que se teclea en las casillas de la primera quincena vive en el DOM
-   mientras se edita, igual que las cantidades del paso anterior: cualquier cosa
-   que redibuje tiene que pasar antes por aquí.
-
-   La conversión a modo no es cosmética. Escribir exactamente la mitad se guarda
-   como «a la mitad» —es decir, no se guarda nada— para que la sugerencia siga
-   viva si mañana cambia la cantidad del mes; escribir el total se guarda como
-   «todo en la primera», que es lo que alguien quiso decir aunque el mes cambie
-   de número. Solo lo que está de verdad en medio se guarda como una cifra. */
-
-function guardarUnaParte(state, productId, escrito, total) {
-  const primera = Math.min(total, Math.max(0, Number(escrito) || 0));
-  const mitad = Math.round((total / 2) * 1000) / 1000;
-  try {
-    if (primera >= total && total > 0) ponerReparto(state, productId, 'todo');
-    else if (primera <= 0) ponerReparto(state, productId, 'nada');
-    else if (primera === mitad) ponerReparto(state, productId, 'mitad');
-    else ponerReparto(state, productId, 'cantidad', primera);
-  } catch { /* El alimento se borró mientras se editaba: no hay nada que repartir. */ }
-}
-
-export function leerRepartoEscrito(ctx) {
-  if (typeof document === 'undefined') return;
-  for (const campo of document.querySelectorAll('[data-reparto-primera]')) {
-    const total = Number(campo.dataset.total);
-    if (campo.value === '' || !Number.isFinite(total)) continue;
-    guardarUnaParte(ctx.state, campo.dataset.id, campo.value, total);
-  }
-}
-
-// Una casilla concreta, al salir de ella. Se redibuja porque la segunda
-// quincena y los tres botones de al lado tienen que decir la verdad.
-export function aplicarReparto(ctx, campo) {
-  const total = Number(campo?.dataset?.total);
-  if (!Number.isFinite(total)) return;
-  guardarUnaParte(ctx.state, campo.dataset.id, campo.value, total);
-  ctx.commit('');
-}
-
-// Salir de la pantalla o del paso del micrófono sin retirar los oyentes deja el
-// motor de voz escribiendo en una pantalla que ya no existe.
-// `cancelarDictado` es asíncrona: sin recoger el rechazo, un micrófono que falla
-// al cerrarse tumbaría la salida de la pantalla. Cerrarlo nunca puede impedir
-// irse.
 // Lo que esté escrito en la pantalla que se deja, sea cual sea. Antes esto era
 // un par de `if (paso === 2)` repetidos en tres acciones, y cada paso nuevo
 // obligaba a acordarse de los tres.
 function recordarLoEscrito(ctx) {
   const paso = ctx.ui.setup?.paso;
   if (paso === PASO.personas) recordarPersonas(ctx);
-  if (paso === PASO.cantidades) recordarCantidades(ctx);
 }
 
 // El número que se esté viendo, venga de los botones o de haberlo tecleado.
@@ -836,17 +873,9 @@ function ajustarPersonas(ctx, delta) {
   ctx.render();
 }
 
-function soltarMicrofono(ctx) {
-  const voz = ctx?.ui?.voz;
-  // El panel de dictado es compartido: si el que estaba abierto era el de esta
-  // pantalla, se cierra con ella. Si era el de otra, no se toca.
-  if (voz?.destino === 'setup') { voz.sesion += 1; voz.destino = ''; voz.estado = 'quieto'; }
-  try { Promise.resolve(cancelarDictado()).catch(() => {}); } catch { /* Ya estaba cerrado. */ }
-}
-
-// Lo que ya está guardado se enseña marcado y con su cantidad escrita. Es la
-// única forma de que volver a pasar por el asistente no pise en silencio lo que
-// costó escribir la primera vez: se ve antes de tocarlo.
+// Lo que ya está guardado se enseña marcado. Es la única forma de que volver a
+// pasar por el asistente no pise en silencio lo que costó escribir la primera
+// vez: se ve antes de tocarlo.
 function precargar(ctx) {
   const setup = ctx.ui.setup;
   if (setup.precargado) return;
@@ -855,7 +884,6 @@ function precargar(ctx) {
     const item = product(ctx.state, linea.productId);
     if (!item) continue;
     const semilla = semillaPorNombre(item.name);
-    setup.cantidades[item.name] = { cantidad: linea.quantity === null ? '' : linea.quantity, unidad: linea.unit, yaGuardada: true };
     const nombre = semilla?.name || item.name;
     setup.elegidos = [...new Set([...setup.elegidos, nombre])];
     if (!semilla) {
@@ -891,10 +919,35 @@ function refrescarContadores(ctx) {
 
 const pintarFicha = (casilla, marcado) => casilla.closest('.setup-ficha')?.classList.toggle('marcado', marcado);
 
-/* ── Acciones ──────────────────────────────────────────────────────────── */
+/* Elegir una comida tampoco repinta la pantalla, y por la misma razón: son tres
+   desplegables por día y hasta catorce días, así que un redibujo por elección
+   manda el desplazamiento arriba y deja el pulgar buscando el jueves. Se
+   escribe la comida, se guarda sin pintar, y se tocan a mano las tres cosas que
+   se ven: lo que dice ese momento, cuál de las opciones queda marcada y la
+   cuenta de arriba. */
 
-let dictadoActual = 0;
-let avisadoDeVozAjena = false;
+function pintarMomento(el, ctx) {
+  const momento = el.closest?.('[data-plan-momento]');
+  if (momento) {
+    const texto = momento.querySelector('[data-plan-texto]');
+    if (texto) {
+      const plan = planFor(ctx.state, el.dataset.date, el.dataset.slot);
+      texto.textContent = loQuePone(plan);
+      texto.classList.toggle('vacio', !plan);
+    }
+    for (const boton of momento.querySelectorAll('[data-action="setup-plan-poner"]')) {
+      boton.classList.toggle('puesta', boton === el);
+      boton.setAttribute('aria-pressed', String(boton === el));
+    }
+    // Y se cierra al elegir: dejarlo abierto esconde el día siguiente detrás de
+    // una lista que ya no hace falta.
+    momento.open = false;
+  }
+  const cuenta = document.querySelector('[data-plan-cuenta]');
+  if (cuenta) cuenta.textContent = textoDeLaCuenta(ctx.state, ctx.ui.setup);
+}
+
+/* ── Acciones ──────────────────────────────────────────────────────────── */
 
 export const SETUP_ACTIONS = {
   'setup-open': (el, ctx) => {
@@ -911,19 +964,19 @@ export const SETUP_ACTIONS = {
     ctx.render();
   },
   'setup-salir': (el, ctx) => {
-    const setup = ctx.ui.setup;
     recordarLoEscrito(ctx);
-    soltarMicrofono(ctx);
-    // Salir no descarta nada: el avance se queda escrito donde estaba.
+    // Salir no descarta nada, y desde que no hay paso de cantidades tampoco deja
+    // lo marcado a medio camino: la portada promete que lo que marques se guarda
+    // solo, y eso solo es verdad si lo marcado llega a la canasta. Volver a
+    // entrar lo encuentra marcado, y quitarlo se hace desde Mis productos habituales.
+    guardarLoMarcado(ctx);
     guardarAvance(ctx);
     ctx.ui.page = 'hoy';
-    ctx.render();
-    ctx.toast('Guardado. Puedes retomarlo desde Más → Organizar mi casa.');
+    ctx.commit('Guardado. Puedes retomarlo desde Ajustes → Organizar mi casa.');
   },
   'setup-atras': (el, ctx) => {
     const setup = ctx.ui.setup;
     recordarLoEscrito(ctx);
-    soltarMicrofono(ctx);
     // Volver al paso de los alimentos devuelve el último rubro, no el primero:
     // es donde estaba quien pulsó «Atrás».
     setup.paso = saltarA(setup, setup.paso, -1);
@@ -941,24 +994,6 @@ export const SETUP_ACTIONS = {
 
   // Paso 3: cada cuánto se compra.
   //
-  // La primera vez entra en vigencia desde el mes en curso: no hay pasado que
-  // proteger todavía. Cambiarla después se hace desde Ajustes, y ahí sí se
-  // pregunta desde cuándo.
-  'setup-frecuencia': (el, ctx) => {
-    const setup = ctx.ui.setup;
-    if (!FRECUENCIAS.includes(el.dataset.frecuencia)) return;
-    setup.frecuencia = el.dataset.frecuencia;
-    ponerFrecuencia(ctx.state, setup.frecuencia, todayISO().slice(0, 7));
-    guardarAvance(ctx);
-    ctx.commit('');
-  },
-
-  // Paso 5: el reparto entre quincenas.
-  'reparto-modo': (el, ctx) => {
-    leerRepartoEscrito(ctx);
-    ponerReparto(ctx.state, el.dataset.id, el.dataset.modo);
-    ctx.commit('');
-  },
 
   /* ── Paso 1: los ocho rubros ─────────────────────────────────────────── */
 
@@ -975,10 +1010,21 @@ export const SETUP_ACTIONS = {
   'setup-rubro-seguir': (el, ctx) => {
     const setup = ctx.ui.setup;
     Object.assign(setup, { busqueda: '', anadiendo: false, nombreNuevo: '', errorNuevo: '' });
-    if (setup.rubro >= RUBROS.length - 1) setup.paso = PASO.compra;
-    else setup.rubro += 1;
+    if (setup.rubro < RUBROS.length - 1) {
+      setup.rubro += 1;
+      guardarAvance(ctx);
+      ctx.render();
+      return;
+    }
+    // Último rubro: aquí es donde lo marcado deja de ser un borrador y pasa a
+    // ser la lista de productos habituales de la casa. Antes esto ocurría al
+    // enviar la pantalla de las cantidades, que ya no existe.
+    setup.paso = PASO.preparaciones;
+    const guardados = guardarLoMarcado(ctx);
     guardarAvance(ctx);
-    ctx.render();
+    ctx.commit(guardados
+      ? `${conteo(guardados, 'producto habitual guardado', 'productos habituales guardados')}. Las cantidades no hacen falta: se deciden en cada lista.`
+      : 'Sin productos marcados por ahora. Puedes volver cuando quieras.');
   },
   'setup-limpiar-busqueda': (el, ctx) => {
     ctx.ui.setup.busqueda = '';
@@ -1009,43 +1055,35 @@ export const SETUP_ACTIONS = {
     pintarFicha(el, el.checked);
     refrescarContadores(ctx);
   },
-  // Dictar ya no vive aquí: lo lleva `voz.js`, igual que en las otras tres
-  // pantallas desde donde se puede dictar. El botón manda `voz-abrir`.
 
-  // Paso 3
-  // «Completar después» guarda lo mismo que «Guardar y continuar» —las
-  // cantidades en blanco quedan pendientes, que es legítimo— y se va a Hoy. Es
-  // una acción y no un segundo botón de enviar porque `app.js` construye el
-  // FormData sin el botón que lo envió, así que un `name`/`value` en el botón
-  // no llegaría nunca y las dos salidas harían lo mismo en silencio.
-  'setup-luego': (el, ctx) => {
-    const guardados = guardarLoEscrito(ctx);
-    olvidarAvance(ctx.state);
-    ctx.ui.setup = null;
-    ctx.ui.page = 'hoy';
-    ctx.commit(`${guardados} alimento(s) en tu canasta habitual. Las cantidades que falten las completas cuando quieras.`);
-  },
-  'setup-quitar-cantidad': (el, ctx) => {
-    const fila = el.closest('[data-setup-cantidad]');
-    const nombre = fila?.querySelector('[name="nombre"]')?.value;
-    const setup = ctx.ui.setup;
-    if (nombre) {
-      const clave = normalizeName(nombre);
-      setup.elegidos = setup.elegidos.filter(item => normalizeName(item) !== clave);
-      setup.propios = setup.propios.filter(item => normalizeName(item.nombre) !== clave);
-      delete setup.cantidades[nombre];
-    }
-    fila?.remove();
-    guardarAvance(ctx);
-  },
-
-  // Paso 4
   /* ── Paso 1: cuántas personas comen en casa ──────────────────────────── */
 
   'setup-personas-mas': (el, ctx) => ajustarPersonas(ctx, 1),
   'setup-personas-menos': (el, ctx) => ajustarPersonas(ctx, -1),
 
-  /* ── Paso 7: quitar una preparación recién escrita ───────────────────── */
+  /* ── Paso 4: mis preparaciones ───────────────────────────────────────── */
+
+  // Traer una que ya existe al formulario de arriba. Solo se cargan los tres
+  // campos que esta pantalla sabe pintar; lo demás sigue guardado y se devuelve
+  // intacto al guardar.
+  'setup-preparacion-editar': (el, ctx) => {
+    const receta = ctx.state.recipes.find(item => item.id === el.dataset.id);
+    if (!receta) return;
+    // Con la forma de una preparación guardada, porque el formulario que la
+    // pinta es el mismo que el de la sección. Los alimentos vienen con ella: sin
+    // eso, corregir un nombre desde aquí los borraría al guardar.
+    ctx.ui.setup.preparacion = {
+      id: receta.id, name: receta.name, uses: [...receta.uses],
+      note: receta.note || '', items: (receta.items || []).map(item => ({ ...item })), error: ''
+    };
+    ctx.render();
+    document.querySelector('[data-preparacion-nombre]')?.focus();
+  },
+  'setup-preparacion-nueva': (el, ctx) => {
+    ctx.ui.setup.preparacion = fichaVacia();
+    ctx.render();
+    document.querySelector('[data-setup-preparacion-nombre]')?.focus();
+  },
 
   // Quitar aquí es quitar del todo, y se pregunta: la preparación puede llevar
   // diez minutos escrita o llevar puesta en veinte días del calendario.
@@ -1054,33 +1092,74 @@ export const SETUP_ACTIONS = {
     if (!receta) return;
     const puestas = ctx.state.plans.filter(plan => plan.recipeId === receta.id).length;
     const aviso = puestas
-      ? `«${receta.name}» está puesta en ${puestas} comida(s) del calendario. Quitarla de aquí no las borra, pero dejarán de poder repetirse. ¿Quitarla?`
+      ? `«${receta.name}» está puesta en ${conteo(puestas, 'una comida', 'comidas')} del calendario. Quitarla de aquí no las borra, pero no podrás volver a elegirla. ¿Quitarla?`
       : `¿Quitar «${receta.name}»?`;
     if (!window.confirm(aviso)) return;
     deleteRecipe(ctx.state, receta.id);
     ctx.commit(`«${receta.name}» quitada.`);
   },
 
-  'setup-menu': (el, ctx) => {
-    const mes = todayISO().slice(0, 7);
-    olvidarAvance(ctx.state);
-    ctx.ui.setup = null;
-    ctx.ui.page = 'mes';
-    ctx.openModal('rutina', { month: mes });
+  /* ── Paso 5: volver a un paso desde el resumen ───────────────────────── */
+
+  'setup-ir': (el, ctx) => {
+    const destino = Number(el.dataset.paso);
+    if (!PASOS.some(paso => paso.id === destino)) return;
+    const setup = ctx.ui.setup;
+    recordarLoEscrito(ctx);
+    setup.paso = destino;
+    // Volver a los productos devuelve el primer rubro y no el último: quien
+    // pulsa «Cambiar» ahí viene a repasarlos, no a salir de ellos.
+    if (destino === PASO.alimentos) setup.rubro = 0;
+    guardarAvance(ctx);
+    ctx.render();
   },
-  // Terminar mirando el mes que quedó hecho, no una pantalla en blanco.
-  'setup-ver-mes': (el, ctx) => {
-    olvidarAvance(ctx.state);
-    ctx.ui.setup = null;
-    ctx.ui.page = 'mes';
-    ctx.commit('Tu mes está montado. Revisa lo que será diferente.');
+
+  /* ── Paso 5: el primer plan ──────────────────────────────────────────── */
+
+  // Siete días o catorce. Cambiar de idea no toca ninguna comida ya puesta: las
+  // de la segunda semana siguen escritas aunque se vuelva a siete, y se ven
+  // otra vez en cuanto se pidan catorce.
+  'setup-plan-dias': (el, ctx) => {
+    const cuantos = Number(el.dataset.dias);
+    if (!DIAS_DE_PLAN.includes(cuantos)) return;
+    ctx.ui.setup.horizonte = cuantos;
+    guardarAvance(ctx);
+    ctx.render();
   },
-  'setup-ahora-no': (el, ctx) => {
+
+  // Elegir escribe la comida en el acto, ese día y en ese momento. Volver a
+  // elegir cambia esa comida y ninguna otra: no hay nada detrás que la reparta
+  // por los demás días.
+  'setup-plan-poner': (el, ctx) => {
+    const { state } = ctx;
+    const { clase, date, slot } = el.dataset;
+    if (!SLOTS_PRINCIPALES.includes(slot)) return;
+    if (clase !== 'recipe' && !ESTADOS_SIN_COMIDA.includes(clase)) return;
+
+    const puesta = planFor(state, date, slot);
+    if (puesta) {
+      // El hueco tiene que quedar libre antes de escribir encima. Si de esa
+      // comida depende otra —lo que sobró, comido otro día— se deja como
+      // estaba: llevársela por delante mientras alguien cambia el almuerzo del
+      // martes sería borrar algo que nadie pidió borrar.
+      try { deletePlan(state, puesta.id); }
+      catch { ctx.toast('De esa comida depende otra que guardaste. Cámbiala desde Plan semanal.'); return; }
+    }
+    // `manual` y sin rutina: la puso una persona, y el calendario lo dice.
+    if (clase === 'recipe') makeRecipePlan(state, el.dataset.receta, date, slot, null, null, 'manual');
+    else setStatusPlan(state, date, slot, clase, null, 'manual');
+    guardarAvance(ctx);
+    pintarMomento(el, ctx);
+  },
+
+  'setup-terminar': (el, ctx) => {
+    // Lo marcado ya se guardó al salir de los productos; esto es la red por si
+    // alguien volvió atrás, cambió algo y llegó hasta aquí sin volver a pasar.
+    guardarLoMarcado(ctx);
     olvidarAvance(ctx.state);
     ctx.ui.setup = null;
     ctx.ui.page = 'hoy';
-    ctx.render();
-    ctx.toast('Cuando quieras, el menú del mes está en «Mes».');
+    ctx.commit('Tu casa está registrada. Lo que falte lo pones cuando quieras desde Plan semanal.');
   }
 };
 
@@ -1094,7 +1173,7 @@ export const SETUP_FORMS = {
      Lo único que esto hace con cabeza es no crear dos veces el mismo alimento:
      si lo escrito ya existe —en el catálogo dominicano o en la casa— se marca
      el que hay y se dice dónde estaba, en vez de fabricar un duplicado que
-     partiría el inventario en dos fichas del mismo arroz. */
+     partiría en dos fichas el historial del mismo arroz. */
   'setup-nuevo': (form, data, ctx) => {
     const setup = ctx.ui.setup;
     const rubro = rubroPorIndice(setup.rubro);
@@ -1102,7 +1181,7 @@ export const SETUP_FORMS = {
     setup.nombreNuevo = escrito;
 
     if (escrito.length < 2) {
-      setup.errorNuevo = 'Escribe el nombre del alimento.';
+      setup.errorNuevo = 'Escribe el nombre del producto.';
       ctx.render();
       document.querySelector('[data-setup-nuevo]')?.focus();
       return;
@@ -1141,14 +1220,48 @@ export const SETUP_FORMS = {
     else ctx.toast(`«${nombre}» añadido a ${rubro.titulo} y marcado.`);
   },
 
-  'setup-cantidades': (form, data, ctx) => {
-    const guardados = guardarLoEscrito(ctx);
-    ctx.ui.setup.paso = saltarA(ctx.ui.setup, PASO.cantidades, 1);
-    // El borrador no se borra aquí, aunque la canasta ya esté escrita donde vive
-    // de verdad: detrás quedan dos pasos, y sin borrador cerrar la app en medio
-    // devolvería al principio del asistente. Se borra al terminar.
+  /* ── Paso 4: una preparación ─────────────────────────────────────────────
+
+     Nombre y momentos. La nota es opcional y lo dice.
+
+     Lo delicado está en la última línea: al editar una preparación que ya
+     existe se le devuelven sus alimentos y sus porciones tal como estaban.
+     `upsertRecipe` reescribe la ficha entera con lo que se le pase, así que sin
+     eso, corregirle el nombre a una preparación desde aquí le borraría en
+     silencio los ocho alimentos que alguien anotó en la ventana completa. */
+  'setup-preparacion': (form, data, ctx) => {
+    const setup = ctx.ui.setup;
+    const anteriorId = setup.preparacion?.id || '';
+    // Lo lee la misma función que lee la ventana de la sección, porque es el
+    // mismo formulario. Lo que no entra por `FormData` —los alimentos, que son
+    // filas— lo saca del propio formulario.
+    const leida = leerPreparacion(form, data, ctx.state, setup.preparacion?.items);
+    setup.preparacion = { id: anteriorId, ...leida, error: '' };
+
+    if (leida.name.length < 2) {
+      setup.preparacion.error = 'Escribe cómo se llama la comida.';
+      ctx.render();
+      document.querySelector('[data-preparacion-nombre]')?.focus();
+      return;
+    }
+    if (!leida.uses.length) {
+      setup.preparacion.error = 'Marca en qué momentos se come: es lo que deja elegirla en el desayuno, en el almuerzo o en la cena.';
+      ctx.render();
+      return;
+    }
+
+    const anterior = anteriorId ? ctx.state.recipes.find(item => item.id === anteriorId) : null;
+    upsertRecipe(ctx.state, {
+      id: anterior?.id,
+      ...leida,
+      // Lo que esta pantalla no pregunta, tampoco lo borra.
+      servings: anterior?.servings ?? null
+    });
+    // En blanco y lista para la siguiente: es lo que permite escribir las seis
+    // comidas de una casa de una sentada.
+    setup.preparacion = fichaVacia();
     guardarAvance(ctx);
-    ctx.commit(`${guardados} alimento(s) en tu canasta base.`);
+    ctx.commit(anterior ? `«${leida.name}» actualizada.` : `«${leida.name}» guardada. Escribe la siguiente.`);
   },
 
   /* ── Paso 1: quiénes comen en casa ───────────────────────────────────── */

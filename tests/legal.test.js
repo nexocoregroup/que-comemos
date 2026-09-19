@@ -3,6 +3,12 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+// El archivo de textos se lee de las dos maneras: como texto, para comparar
+// frase por frase con las páginas de `legal/`, y como módulo, para comprobar
+// que los documentos que la app ofrece leer existen de verdad. Se puede
+// importar porque no depende de nada: es un archivo de contenido.
+import { LEGAL } from '../src/legal.js';
+
 /* ── Que los documentos no vuelvan a mentir ────────────────────────────────
 
    Esto existe por un fallo real, no por prudencia abstracta.
@@ -193,4 +199,74 @@ test('la fecha de actualización es la misma dentro y fuera de la app', () => {
     const texto = leer('legal', pagina);
     assert.ok(texto.includes(esperada), `legal/${pagina} no dice «Última actualización: ${esperada}»`);
   }
+});
+
+/* ── La primera pantalla ───────────────────────────────────────────────────
+
+   Google NO exige la pantalla de aceptar, y eso está escrito en app.js para
+   que nadie la defienda con un argumento que no es: el «prominent disclosure»
+   obligatorio se limita a servicios de accesibilidad, ubicación en segundo
+   plano y ver qué apps hay instaladas, y esta no usa ninguno.
+
+   Lo que estas guardias vigilan es lo que sí importa: que la pantalla no se
+   pueda saltar, que los documentos se puedan leer ahí mismo y sin conexión, y
+   que la aceptación quede apuntada con la versión que estaba delante. */
+
+test('la pantalla de entrada va antes que cualquier otra, y no se puede saltar', () => {
+  const codigo = readFileSync(resolve(import.meta.dirname, '..', 'src', 'app.js'), 'utf8');
+  const pintar = /function pintar\(\) \{[\s\S]*?\n\}/.exec(codigo)?.[0] || '';
+  assert.ok(pintar, 'no encuentro pintar()');
+  assert.ok(/if \(tocaAceptar\(\)\)/.test(pintar), 'la pantalla de aceptar dejó de pintarse');
+  // Antes que la portada de la cuenta y que la bienvenida: primero se dice qué
+  // hace la app con lo que escribas, y después se pregunta nada.
+  assert.ok(pintar.indexOf('tocaAceptar') < pintar.indexOf('tocaPedirCuenta'),
+    'la portada de la cuenta volvió a salir antes que la de aceptar');
+  assert.ok(pintar.indexOf('tocaAceptar') < pintar.indexOf('ui.welcome'),
+    'la bienvenida volvió a salir antes que la de aceptar');
+  // Y los datos ilegibles siguen ganándole: ahí lo urgente es no pisarlos.
+  assert.ok(pintar.indexOf('loadError') < pintar.indexOf('tocaAceptar'),
+    'la pantalla de aceptar se puso por delante de los datos ilegibles');
+});
+
+test('los documentos se leen en la propia pantalla, sin salir y sin conexión', () => {
+  // Mandar a alguien a un enlace del navegador para poder entrar en una app
+  // que presume de funcionar sin internet sería contradecirse en la primera
+  // pantalla. El texto sale de `LEGAL`, que viaja dentro.
+  const codigo = readFileSync(resolve(import.meta.dirname, '..', 'src', 'app.js'), 'utf8');
+  const pantalla = /function renderAceptar\(\) \{[\s\S]*?\n\}/.exec(codigo)?.[0] || '';
+  assert.ok(pantalla, 'no encuentro la pantalla de entrada');
+  assert.ok(/LEGAL\[leyendoLegal\]/.test(pantalla), 'los documentos dejaron de leerse dentro de la app');
+  assert.ok(!/https?:\/\//.test(pantalla), 'la pantalla de entrada manda a un enlace de fuera');
+  // Los dos que se ofrecen existen de verdad en el archivo de textos.
+  for (const cual of ['privacidad', 'terminos']) {
+    assert.ok(LEGAL[cual]?.secciones?.length, `falta el documento «${cual}»`);
+  }
+});
+
+test('aceptar deja apuntado cuándo y qué versión', () => {
+  // Una aceptación sin la versión no dice nada, porque los textos se corrigen:
+  // lo que hay que poder responder es qué documento estaba delante ese día.
+  const codigo = readFileSync(resolve(import.meta.dirname, '..', 'src', 'app.js'), 'utf8');
+  const accion = /else if \(action === 'legal-aceptar'\) \{[\s\S]*?\n    \}/.exec(codigo)?.[0] || '';
+  assert.ok(accion, 'no encuentro la acción de aceptar');
+  assert.ok(/version: LEGAL\.actualizado/.test(accion), 'la aceptación dejó de guardar qué versión se aceptó');
+  assert.ok(/cuando:/.test(accion), 'la aceptación dejó de guardar cuándo fue');
+  // Y borrar los datos la olvida: quien pide que se borre todo lo suyo también
+  // pide eso, y la app vuelve a enseñarle los documentos.
+  const almacen = readFileSync(resolve(import.meta.dirname, '..', 'src', 'storage.js'), 'utf8');
+  assert.ok(/'que-comemos-acepto-v1'/.test(almacen), 'la aceptación sobrevive a «borrar mis datos»');
+});
+
+test('la pantalla de arranque se quita sola y no se queda encima', () => {
+  // Una capa transparente encima de la app seguiría siendo dueña de los toques.
+  const codigo = readFileSync(resolve(import.meta.dirname, '..', 'src', 'app.js'), 'utf8');
+  const fn = /function quitarElArranque\(\) \{[\s\S]*?\n\}/.exec(codigo)?.[0] || '';
+  assert.ok(fn, 'no encuentro quitarElArranque()');
+  assert.ok(/capa\.remove\(\)/.test(fn), 'la capa de arranque se queda en el documento');
+  assert.ok(/quitarElArranque\(\);/.test(codigo), 'nadie quita la pantalla de arranque');
+  // Y existe en el documento, con su estilo escrito ahí mismo: es lo único que
+  // tiene que poder pintarse aunque ninguna hoja de estilo llegue.
+  const html = readFileSync(resolve(import.meta.dirname, '..', 'index.html'), 'utf8');
+  assert.ok(/id="arranque"/.test(html), 'se fue la pantalla de arranque');
+  assert.ok(/#arranque \{/.test(html), 'el estilo del arranque se fue a una hoja que puede no llegar');
 });

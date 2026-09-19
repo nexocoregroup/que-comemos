@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   addDays, addProduct, addPurchase, correctReview, createEmptyState, createReview, effectiveBasket,
-  habitualLines, inventoryNow, makeRecipePlan, monthBasketSummary, monthBounds, monthChanges,
-  monthExtras, openMonthChanges, periodMonths, promoteToHabitual, removeHabitualLine,
-  removeMonthChange, saveReview, setHabitualBasket, setHabitualLine, setMonthChange, shoppingList,
-  todayISO, upsertRecipe
+  habitualLines, inventoryNow, monthBasketSummary, monthChanges,
+  monthExtras, openMonthChanges, promoteToHabitual, removeHabitualLine,
+  removeMonthChange, saveReview, setHabitualBasket, setHabitualLine, setMonthChange,
+  todayISO
 } from '../src/model.js';
 
 function casa() {
@@ -188,77 +188,17 @@ test('el resumen del mes cuenta habituales, cambiados, quitados y extras por sep
 
 /* ── La compra ─────────────────────────────────────────────────────────── */
 
-test('la compra por canasta pide lo del mes y descuenta lo que ya hay en casa', () => {
-  const { state, arroz, atun } = casa();
-  state.opening[arroz] = 4;
-  const mes = shoppingList(state, '2026-10-01', '2026-10-31', 'casa');
-  assert.equal(mes.basis, 'casa', 'es la base por omisión y la recomendada');
-  assert.equal(shoppingList(state, '2026-10-01', '2026-10-31').basis, 'casa');
-  const linea = mes.lines.find(line => line.productId === arroz);
-  assert.equal(linea.need, 30, 'el mes entero pide la canasta completa');
-  assert.equal(linea.available, 4);
-  assert.equal(linea.shortfall, 26, 'no se compra lo que ya está en la despensa');
-  assert.equal(mes.lines.find(line => line.productId === atun).shortfall, 8);
-  // Media quincena de un mes de 31 días pide la parte que le toca.
-  const quincena = shoppingList(state, '2026-10-01', '2026-10-15', 'casa');
-  assert.equal(quincena.lines.find(line => line.productId === arroz).need, Math.round(30 * (15 / 31) * 1000) / 1000);
-  assert.deepEqual(mes.missing, [], 'comprando por canasta no se reprochan las comidas sin planificar');
-});
-
-test('la compra de octubre aplica los cambios de octubre y la de noviembre no', () => {
-  const { state, arroz, atun, pollo } = casa();
-  setMonthChange(state, '2026-10', arroz, { quantity: 62, unit: 'lb' });
-  setMonthChange(state, '2026-10', atun, { removed: true });
-  setMonthChange(state, '2026-10', pollo, { quantity: 4, unit: 'lb' });
-  const octubre = shoppingList(state, '2026-10-01', '2026-10-31', 'casa');
-  assert.equal(octubre.lines.find(line => line.productId === arroz).need, 62);
-  assert.equal(octubre.lines.some(line => line.productId === atun), false, 'este mes no se compra atún');
-  assert.equal(octubre.lines.find(line => line.productId === pollo).need, 4);
-  const noviembre = shoppingList(state, '2026-11-01', '2026-11-30', 'casa');
-  assert.equal(noviembre.lines.find(line => line.productId === arroz).need, 30);
-  assert.equal(noviembre.lines.find(line => line.productId === atun).need, 8);
-  assert.equal(noviembre.lines.some(line => line.productId === pollo), false);
-});
-
-test('un período entre dos meses cobra cada tramo contra la canasta de su propio mes', () => {
-  const { state, arroz } = casa();
-  setMonthChange(state, '2026-10', arroz, { quantity: 62, unit: 'lb' });
-  // Del 28 de septiembre al 12 de octubre: 3 días de septiembre (de 30) y 12 de
-  // octubre (de 31). Con la cuenta vieja —15 días sobre los 30 de septiembre—
-  // salía media canasta, que no significaba nada.
-  const tramos = periodMonths('2026-09-28', '2026-10-12');
-  assert.deepEqual(tramos.map(item => [item.month, item.days, item.monthDays]), [['2026-09', 3, 30], ['2026-10', 12, 31]]);
-  const lista = shoppingList(state, '2026-09-28', '2026-10-12', 'casa');
-  const esperado = Math.round((30 * (3 / 30) + 62 * (12 / 31)) * 1000) / 1000;
-  assert.equal(lista.lines.find(line => line.productId === arroz).need, esperado);
-  assert.notEqual(lista.lines.find(line => line.productId === arroz).need, 15, 'ya no es media canasta de septiembre');
-});
-
-test('el menú y la canasta nunca se suman: son dos formas de pedir lo mismo', () => {
-  const { state, arroz } = casa();
-  const receta = upsertRecipe(state, { name: 'Arroz blanco', uses: ['almuerzo'], items: [{ productId: arroz, quantity: 2, unit: 'lb' }], covers: [] }).id;
-  makeRecipePlan(state, receta, '2026-10-05', 'almuerzo');
-  const porCanasta = shoppingList(state, '2026-10-01', '2026-10-31', 'casa');
-  const porMenu = shoppingList(state, '2026-10-01', '2026-10-31', 'menu');
-  assert.equal(porCanasta.lines.find(line => line.productId === arroz).need, 30, 'la canasta no suma el arroz del menú');
-  assert.equal(porMenu.lines.find(line => line.productId === arroz).need, 2, 'el menú no suma la canasta');
-  assert.notEqual(porCanasta.basis, porMenu.basis);
-  assert.ok(porMenu.missing.length > 0, 'el menú sí avisa de las comidas sin decidir');
-});
-
-test('confirmar la compra es lo único que mueve las existencias', () => {
+test('escribir la canasta no mueve nada: solo anotar la compra sube las existencias', () => {
   const { state, arroz } = casa();
   // Las existencias son las de hoy: una compra con fecha futura todavía no está
-  // en la despensa, así que estas cuentas se hacen sobre el mes corriente.
-  const mes = todayISO().slice(0, 7);
-  const { start, end } = monthBounds(mes);
-  shoppingList(state, start, end, 'casa');
-  assert.equal(inventoryNow(state)[arroz], 0, 'calcular una lista no compra nada');
+  // en la despensa, así que esta cuenta se hace sobre el día de hoy.
+  assert.equal(inventoryNow(state)[arroz], 0, 'escribir la canasta metió arroz en la despensa');
+  setMonthChange(state, todayISO().slice(0, 7), arroz, { quantity: 62, unit: 'lb' });
+  assert.equal(inventoryNow(state)[arroz], 0, 'un cambio del mes tampoco compra nada');
+
   addPurchase(state, { date: todayISO(), lines: [{ productId: arroz, quantity: 10, unit: 'lb' }], basis: 'casa' });
   assert.equal(inventoryNow(state)[arroz], 10);
   assert.equal(state.purchases[0].basis, 'casa', 'queda escrito con qué base se calculó');
-  const despues = shoppingList(state, start, end, 'casa');
-  assert.equal(despues.lines.find(line => line.productId === arroz).shortfall, 20, 'y la siguiente lista ya lo descuenta');
 });
 
 test('la revisión pregunta cuánto queda, y corregirla rehace la cuenta', () => {

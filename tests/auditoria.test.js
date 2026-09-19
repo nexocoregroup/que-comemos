@@ -11,14 +11,19 @@ import assert from 'node:assert/strict';
 
 import { SCHEMA_VERSION, migrate } from '../src/migrate.js';
 import {
-  addProduct, addPurchase, cerrarPeriodo, createEmptyState, createReview, effectiveBasket,
-  frecuenciaDe, habitualLines, inventoryNow, makeRecipePlan, monthBounds, periodosDelMes,
-  planFor, ponerFrecuencia, saveReview, setHabitualBasket, setHabitualLine, shoppingList,
-  todayISO, upsertPerson, upsertRecipe
+  addProduct, addPurchase, agregarALista, cerrarLista, comidasDecididas, crearLista, createEmptyState, createReview,
+  dateRange, effectiveBasket, frecuenciaDe, habitualLines, inventoryNow, makeRecipePlan, marcarComprado,
+  monthBounds, periodosDelMes, planFor, ponerFrecuencia, resumenDeLista, saveReview,
+  setHabitualBasket, setHabitualLine, todayISO, upsertPerson, upsertRecipe, weekdayOf
 } from '../src/model.js';
-import {
-  addRoutine, applyRoutine, datesForRule, extenderAMesesAbiertos, openMonth, routinesFor
-} from '../src/routines.js';
+
+// Lo decidido de un mes entero. La app ya no cuenta meses —cuenta los días que
+// se están mirando—, pero la auditoría sigue preguntándose por un mes, que es
+// la unidad en la que una casa compra.
+const decididoEn = (state, mes) => {
+  const { start, end } = monthBounds(mes);
+  return comidasDecididas(state, dateRange(start, end));
+};
 
 /* ══ A. CALENDARIOS ═══════════════════════════════════════════════════════
 
@@ -40,6 +45,16 @@ const SIGUIENTE = (() => {
   return mes === 12 ? `${ano + 1}-01` : `${ano}-${String(mes + 1).padStart(2, '0')}`;
 })();
 
+// Los días de un mes que caen en un día de la semana, contados sobre el
+// calendario y sin pasar por el código que se está probando.
+const diasQueCaenEn = (mes, dia) => {
+  const { start, end } = monthBounds(mes);
+  return dateRange(start, end).filter(fecha => {
+    const numero = new Date(`${fecha}T12:00:00`).getDay();
+    return (numero === 0 ? 7 : numero) === dia;
+  });
+};
+
 // Todos los días del mes, repartidos por día de la semana, según el calendario.
 const todosLosDias = mes => {
   const { start, end } = monthBounds(mes);
@@ -50,23 +65,23 @@ const todosLosDias = mes => {
   return salida;
 };
 
-test('A1 · febrero de 2027 tiene 28 días, y ninguna regla inventa un 29', () => {
+test('A1 · febrero de 2027 tiene 28 días, y el calendario no inventa un 29', () => {
   assert.equal(diasDelMes('2027-02'), 28);
   assert.equal(monthBounds('2027-02').end, '2027-02-28');
   for (let dia = 1; dia <= 7; dia++) {
-    const fechas = datesForRule('2027-02', [dia]);
+    const fechas = diasQueCaenEn('2027-02', dia);
     assert.ok(fechas.every(fecha => Number(fecha.slice(8, 10)) <= 28), `el día ${dia} salió del mes`);
     assert.ok(fechas.length >= 4 && fechas.length <= 5, `${fechas.length} apariciones del día ${dia}`);
   }
   // Los siete días de la semana, juntos, cubren el mes entero sin huecos.
-  const cubiertos = [1, 2, 3, 4, 5, 6, 7].flatMap(dia => datesForRule('2027-02', [dia])).sort();
+  const cubiertos = [1, 2, 3, 4, 5, 6, 7].flatMap(dia => diasQueCaenEn('2027-02', dia)).sort();
   assert.deepEqual(cubiertos, todosLosDias('2027-02'));
 });
 
 test('A2 · febrero de 2028 tiene 29 días, y el 29 se usa', () => {
   assert.equal(diasDelMes('2028-02'), 29);
   assert.equal(monthBounds('2028-02').end, '2028-02-29');
-  const cubiertos = [1, 2, 3, 4, 5, 6, 7].flatMap(dia => datesForRule('2028-02', [dia])).sort();
+  const cubiertos = [1, 2, 3, 4, 5, 6, 7].flatMap(dia => diasQueCaenEn('2028-02', dia)).sort();
   assert.deepEqual(cubiertos, todosLosDias('2028-02'));
   assert.ok(cubiertos.includes('2028-02-29'), 'el año bisiesto perdió su día 29');
 });
@@ -74,7 +89,7 @@ test('A2 · febrero de 2028 tiene 29 días, y el 29 se usa', () => {
 test('A3 · abril tiene 30 días y el 31 no existe', () => {
   assert.equal(diasDelMes('2027-04'), 30);
   assert.equal(monthBounds('2027-04').end, '2027-04-30');
-  const cubiertos = [1, 2, 3, 4, 5, 6, 7].flatMap(dia => datesForRule('2027-04', [dia])).sort();
+  const cubiertos = [1, 2, 3, 4, 5, 6, 7].flatMap(dia => diasQueCaenEn('2027-04', dia)).sort();
   assert.deepEqual(cubiertos, todosLosDias('2027-04'));
   assert.ok(!cubiertos.some(fecha => fecha.endsWith('-31')), 'abril tiene un día 31');
 });
@@ -82,62 +97,45 @@ test('A3 · abril tiene 30 días y el 31 no existe', () => {
 test('A4 · enero tiene 31 días y ninguno se queda fuera', () => {
   assert.equal(diasDelMes('2027-01'), 31);
   assert.equal(monthBounds('2027-01').end, '2027-01-31');
-  const cubiertos = [1, 2, 3, 4, 5, 6, 7].flatMap(dia => datesForRule('2027-01', [dia])).sort();
+  const cubiertos = [1, 2, 3, 4, 5, 6, 7].flatMap(dia => diasQueCaenEn('2027-01', dia)).sort();
   assert.deepEqual(cubiertos, todosLosDias('2027-01'));
   assert.ok(cubiertos.includes('2027-01-31'), 'el día 31 se quedó fuera');
 });
 
-test('A5 · primer y tercer domingo, en cuatro meses distintos', () => {
-  // Domingo es 7 en la numeración ISO, la misma de todo el proyecto.
+test('A5 · los domingos de cuatro meses distintos, fecha por fecha', () => {
+  // Domingo es 7 en la numeración ISO, la misma de todo el proyecto. Las fechas
+  // están escritas a mano, contra un calendario: si se calcularan igual que las
+  // calcula la app, esta prueba no diría nada.
   const esperado = {
-    '2027-01': ['2027-01-03', '2027-01-17'],
-    '2027-02': ['2027-02-07', '2027-02-21'],
-    '2027-04': ['2027-04-04', '2027-04-18'],
-    '2028-02': ['2028-02-06', '2028-02-20']
+    '2027-01': ['2027-01-03', '2027-01-10', '2027-01-17', '2027-01-24', '2027-01-31'],
+    '2027-02': ['2027-02-07', '2027-02-14', '2027-02-21', '2027-02-28'],
+    '2027-04': ['2027-04-04', '2027-04-11', '2027-04-18', '2027-04-25'],
+    '2028-02': ['2028-02-06', '2028-02-13', '2028-02-20', '2028-02-27']
   };
-  for (const [mes, dias] of Object.entries(esperado)) {
-    assert.deepEqual(datesForRule(mes, [7], [1, 3]), dias, `primer y tercer domingo de ${mes}`);
+  for (const [mes, domingos] of Object.entries(esperado)) {
+    assert.deepEqual(diasQueCaenEn(mes, 7), domingos, `los domingos de ${mes}`);
+    for (const fecha of domingos) assert.equal(weekdayOf(fecha), 7, `el ${fecha} no es domingo`);
   }
 });
 
-test('A6 · segundo y cuarto domingo, en los mismos cuatro meses', () => {
-  const esperado = {
-    '2027-01': ['2027-01-10', '2027-01-24'],
-    '2027-02': ['2027-02-14', '2027-02-28'],
-    '2027-04': ['2027-04-11', '2027-04-25'],
-    '2028-02': ['2028-02-13', '2028-02-27']
-  };
-  for (const [mes, dias] of Object.entries(esperado)) {
-    assert.deepEqual(datesForRule(mes, [7], [2, 4]), dias, `segundo y cuarto domingo de ${mes}`);
-  }
-  // Y los dos repartos juntos son todos los domingos del mes, sin repetir uno.
-  for (const mes of Object.keys(esperado)) {
-    const todos = datesForRule(mes, [7]);
-    const juntos = [...datesForRule(mes, [7], [1, 3]), ...datesForRule(mes, [7], [2, 4])].sort();
-    assert.deepEqual(juntos, todos.slice(0, juntos.length), `los domingos de ${mes} no cuadran`);
-  }
-});
-
-test('A7 · una rutina nueva llega a un mes futuro que ya estaba abierto', () => {
+test('A6 · un mes que nadie ha tocado está entero por decidir, y nada lo llena solo', () => {
   const state = createEmptyState();
   const platano = addProduct(state, { name: 'Plátano maduro', controlUnit: 'unidad', purchaseUnit: 'unidad' }).id;
   const mangu = upsertRecipe(state, { name: 'Mangú', uses: ['desayuno'], items: [{ productId: platano, quantity: 4, unit: 'unidad' }] }).id;
 
-  // Se abre enero antes de que exista la rutina: es el caso que importa.
-  openMonth(state, '2027-01');
-  assert.equal(state.plans.length, 0, 'abrir un mes no escribe comidas por su cuenta');
+  // Mirar enero no escribe nada: es la resta que hizo esta fase.
+  const enero = decididoEn(state, '2027-01');
+  assert.equal(state.plans.length, 0, 'mirar un mes escribió comidas por su cuenta');
+  assert.equal(enero.dias, 31);
+  assert.equal(enero.pendientes, 31 * 3, 'enero tendría que estar entero por decidir');
+  assert.equal(enero.decididas, 0);
 
-  const rutina = addRoutine(state, { kind: 'recipe', recipeId: mangu, slots: ['desayuno'], weekdays: [7], weeks: [1, 3], scope: 'permanent' });
-  applyRoutine(state, rutina.id, '2026-12', { modo: 'vacios' });
-  extenderAMesesAbiertos(state, rutina.id, '2026-12', { modo: 'vacios' });
-
-  for (const fecha of datesForRule('2027-01', [7], [1, 3])) {
-    const comida = planFor(state, fecha, 'desayuno');
-    assert.ok(comida, `el ${fecha} se quedó vacío en un mes que ya estaba abierto`);
-    assert.equal(comida.routineId, rutina.id);
-    assert.equal(comida.origen, 'rutina');
-  }
-  assert.ok(routinesFor(state, '2027-01').some(item => item.id === rutina.id));
+  // Y lo que se pone, se pone día a día, en los días que se dijeron y ni uno más.
+  const domingos = diasQueCaenEn('2027-01', 7);
+  for (const fecha of domingos) makeRecipePlan(state, mangu, fecha, 'desayuno', null, null, 'manual');
+  assert.equal(state.plans.length, domingos.length);
+  assert.equal(decididoEn(state, '2027-01').pendientes, 31 * 3 - domingos.length);
+  assert.deepEqual(state.mealRoutines, [], 'poner cinco domingos dejó escrita una costumbre');
 });
 
 /* ══ B. MIGRACIÓN DE DATOS ANTERIORES ═════════════════════════════════════
@@ -240,25 +238,21 @@ test('B3 · los menús anteriores siguen en su día y con su origen', () => {
   }
 });
 
-test('B4 · las rutinas anteriores conservan su regla y siguen aplicando', () => {
+test('B4 · las rutinas anteriores se conservan enteras, aunque ya no pongan comidas', () => {
+  // La app dejó de repetir comidas sola, y con ella se fue todo lo que aplicaba
+  // una regla. Lo que una casa escribió sigue guardado tal cual: convertir un
+  // respaldo no es el momento de decidir que algo suyo sobra.
   const state = convertida();
-  assert.equal(state.mealRoutines.length, 2);
+  assert.equal(state.mealRoutines.length, 2, 'la conversión se llevó por delante lo que había escrito');
   const [mangu, domingos] = state.mealRoutines;
   assert.deepEqual(mangu.weekdays, [1, 3, 5]);
   assert.equal(mangu.scope, 'permanent');
+  assert.equal(mangu.label, 'Mangú de siempre');
   assert.deepEqual(domingos.weeks, [1, 3]);
-  // `desde` llegó después que las rutinas: las viejas salen con el null
-  // explícito, que es «desde siempre», y no con undefined.
-  for (const rutina of state.mealRoutines) {
-    assert.ok('desde' in rutina, 'la rutina no trae el campo de vigencia');
-    assert.equal(rutina.desde, null);
-  }
-  // Y siguen sirviendo: la regla de los lunes, miércoles y viernes se aplica
-  // sobre un mes cualquiera sin tocarla.
-  applyRoutine(state, 'rutina-1', '2027-04', { modo: 'vacios' });
-  for (const fecha of datesForRule('2027-04', [1, 3, 5])) {
-    assert.ok(planFor(state, fecha, 'desayuno'), `el ${fecha} se quedó sin desayuno`);
-  }
+
+  // Y ninguna de ellas escribe nada por su cuenta: el calendario convertido
+  // tiene las tres comidas que tenía el respaldo, ni una más.
+  assert.equal(state.plans.length, 3, 'una regla vieja se puso a llenar el calendario al convertir');
 });
 
 test('B5 · las compras anteriores conservan su fecha, sus líneas y su efecto en el inventario', () => {
@@ -316,7 +310,7 @@ test('B7 · convertir dos y tres veces no duplica ni cambia nada', () => {
    Cada paso comprueba lo suyo antes de pasar al siguiente: si uno falla, se
    sabe cuál, y no hay que adivinar en qué punto se torció. */
 
-test('C · los once pasos, de una cuenta nueva a abrir el mes siguiente', () => {
+test('C · los once pasos, de una cuenta nueva a poner el mes siguiente', () => {
   const pasos = [];
   const hecho = (paso, detalle) => pasos.push(`${paso} · ${detalle}`);
 
@@ -375,31 +369,37 @@ test('C · los once pasos, de una cuenta nueva a abrir el mes siguiente', () => 
   assert.equal(state.recipes.length, 1);
   hecho('6 preparación', 'Mangú con huevo, 2 alimentos');
 
-  // 7. Rutina: lunes, miércoles y viernes de desayuno.
-  const rutina = addRoutine(state, { kind: 'recipe', recipeId: mangu, slots: ['desayuno'], weekdays: [1, 3, 5], weeks: null, scope: 'permanent' });
-  assert.ok(rutina.id);
-  hecho('7 rutina', 'lunes, miércoles y viernes de desayuno');
-
-  // 8. Preparar el mes.
-  openMonth(state, MES);
-  applyRoutine(state, rutina.id, MES, { modo: 'vacios' });
-  const esperados = datesForRule(MES, [1, 3, 5]);
+  // 7. Poner el mes: los lunes, miércoles y viernes de desayuno, marcados a
+  //    mano. Es lo que hace la ventana de «poner una comida en varios días», y
+  //    lo que deja escrito son esas comidas y ninguna regla.
+  const esperados = [1, 3, 5].flatMap(dia => diasQueCaenEn(MES, dia)).sort();
+  for (const fecha of esperados) makeRecipePlan(state, mangu, fecha, 'desayuno', null, null, 'manual');
   for (const fecha of esperados) {
     const comida = planFor(state, fecha, 'desayuno');
     assert.ok(comida, `el ${fecha} se quedó sin desayuno`);
-    assert.equal(comida.origen, 'rutina');
+    assert.equal(comida.origen, 'manual');
   }
-  hecho('8 preparar el mes', `${esperados.length} desayunos puestos por la rutina`);
+  assert.deepEqual(state.mealRoutines, [], 'poner unos desayunos escribió una costumbre que nadie pidió');
+  hecho('7 poner el mes', `${esperados.length} desayunos puestos a mano`);
 
-  // 9. Compra del primer tramo.
-  const lista = shoppingList(state, tramos[0].start, tramos[0].end, 'casa');
-  assert.ok(lista.lines.length >= 3, 'la lista no pidió los tres alimentos de la canasta');
-  const delArroz = lista.lines.find(linea => linea.productId === arroz);
-  // La canasta dice 30 lb al mes: la quincena pide la parte del mes que cubre,
-  // no la mitad redonda, porque los dos tramos no siempre miden lo mismo.
-  const tocan = Math.round((30 * tramos[0].dias / diasDelMes(MES)) * 100) / 100;
-  assert.equal(delArroz.need, tocan, `${tramos[0].dias} de ${diasDelMes(MES)} días tendrían que pedir ${tocan} lb`);
-  hecho('9 compra', `${lista.lines.length} líneas · arroz: ${delArroz.need} lb`);
+  // 8. Lo que falta sigue siendo un hueco, y el mes se mira con huecos.
+  const decidido = decididoEn(state, MES);
+  assert.equal(decidido.dias, diasDelMes(MES));
+  assert.equal(decidido.encasa, esperados.length);
+  assert.equal(decidido.pendientes, diasDelMes(MES) * 3 - esperados.length, 'los huecos no cuadran con lo puesto');
+  hecho('8 mirar el mes', `${decidido.decididas} decididas, ${decidido.pendientes} huecos`);
+
+  // 9. La compra: una lista de la salida, escrita desde los habituales.
+  const lista = crearLista(state, { nombre: 'La del sábado' });
+  for (const linea of habitualLines(state)) agregarALista(state, lista.id, { productId: linea.productId, cantidad: linea.quantity, unidad: linea.unit });
+  assert.equal(lista.lineas.length, 3, 'la lista no recogió los tres alimentos de la canasta');
+  const delArroz = lista.lineas.find(linea => linea.productId === arroz);
+  assert.equal(delArroz.cantidad, 30, 'el renglón del arroz no trae lo que dice la canasta');
+  marcarComprado(state, lista.id, delArroz.id);
+  assert.equal(resumenDeLista(lista).comprados, 1);
+  cerrarLista(state, lista.id);
+  assert.equal(lista.estado, 'cerrada', 'la lista no se pudo cerrar');
+  hecho('9 compra', `${lista.lineas.length} renglones · arroz: ${delArroz.cantidad} lb`);
 
   // 10. Revisar existencias. Se anota la compra y después se revisa lo que queda.
   addPurchase(state, { date: HOY, lines: [{ productId: arroz, quantity: 15, unit: 'lb' }] });
@@ -409,39 +409,43 @@ test('C · los once pasos, de una cuenta nueva a abrir el mes siguiente', () => 
   assert.equal(inventoryNow(state)[arroz], 9, 'la revisión no dejó el saldo en lo que se contó');
   hecho('10 revisión', 'de 15 lb quedan 9: consumió 6');
 
-  // 11. Abrir el mes siguiente, y que la rutina llegue.
-  openMonth(state, SIGUIENTE);
-  extenderAMesesAbiertos(state, rutina.id, MES, { modo: 'vacios' });
-  const delSiguiente = datesForRule(SIGUIENTE, [1, 3, 5]);
+  // 11. El mes siguiente: nace vacío, y se pone igual que este.
+  const antesDelSiguiente = decididoEn(state, SIGUIENTE);
+  assert.equal(antesDelSiguiente.encasa, 0, 'el mes siguiente se llenó solo con lo de este');
+  assert.equal(antesDelSiguiente.pendientes, diasDelMes(SIGUIENTE) * 3);
+
+  const delSiguiente = [1, 3, 5].flatMap(dia => diasQueCaenEn(SIGUIENTE, dia));
+  for (const fecha of delSiguiente) makeRecipePlan(state, mangu, fecha, 'desayuno', null, null, 'manual');
   for (const fecha of delSiguiente) {
     assert.ok(planFor(state, fecha, 'desayuno'), `${SIGUIENTE}: el ${fecha} se quedó vacío`);
   }
   // Y lo del mes en curso no se movió.
-  assert.equal(inventoryNow(state)[arroz], 9, 'abrir el mes siguiente tocó el inventario de este');
+  assert.equal(inventoryNow(state)[arroz], 9, 'poner el mes siguiente tocó el inventario de este');
+  assert.equal(decididoEn(state, MES).encasa, esperados.length, 'poner el mes siguiente cambió el de ahora');
   hecho('11 mes siguiente', `${delSiguiente.length} desayunos en ${SIGUIENTE} (${diasDelMes(SIGUIENTE)} días)`);
 
   assert.equal(pasos.length, 11, 'no se completaron los once pasos');
 });
 
-/* ══ D. HISTORIAL CONGELADO ══════════════════════════════════════════════ */
+/* ══ D. EL MES QUE YA PASÓ NO SE REESCRIBE ═══════════════════════════════ */
 
-test('D · un período cerrado se lee tal como quedó, aunque todo lo demás cambie', () => {
+test('D · un mes que ya pasó se lee tal como quedó, aunque la canasta cambie tres veces', () => {
   const state = createEmptyState();
   const arroz = addProduct(state, { name: 'Arroz', controlUnit: 'lb', purchaseUnit: 'lb' }).id;
   setHabitualBasket(state, [{ productId: arroz, quantity: 30, unit: 'lb', desde: '2026-01' }]);
 
-  const cierre = cerrarPeriodo(state, { start: '2027-01-01', end: '2027-01-31', periodo: 'mes' });
-  const antes = shoppingList(state, '2027-01-01', '2027-01-31', 'casa');
-  assert.equal(antes.congelado, true, 'un período cerrado tendría que leerse de su copia');
-  const pedidoAntes = antes.lines.find(linea => linea.productId === arroz)?.need;
+  const enEnero = () => effectiveBasket(state, '2026-01').find(linea => linea.productId === arroz).quantity;
+  assert.equal(enEnero(), 30, 'enero de 2026 se compró con 30 libras');
 
-  // Se cambia la canasta tres veces después de cerrar.
-  setHabitualLine(state, arroz, 50, 'lb');
-  setHabitualLine(state, arroz, 80, 'lb');
-  setHabitualLine(state, arroz, 120, 'lb');
+  // Se cambia la canasta tres veces después, ya en otro mes.
+  setHabitualLine(state, arroz, 50, 'lb', null, '2026-06');
+  setHabitualLine(state, arroz, 80, 'lb', null, '2026-09');
+  setHabitualLine(state, arroz, 120, 'lb', null, '2027-01');
 
-  const despues = shoppingList(state, '2027-01-01', '2027-01-31', 'casa');
-  assert.equal(despues.lines.find(linea => linea.productId === arroz)?.need, pedidoAntes,
-    'la lista de un mes cerrado cambió al cambiar la canasta de hoy');
-  assert.equal(despues.cierre.id, cierre.id);
+  assert.equal(enEnero(), 30, 'la canasta de un mes que ya pasó cambió al cambiar la de hoy');
+  assert.equal(effectiveBasket(state, '2026-06').find(linea => linea.productId === arroz).quantity, 50);
+  assert.equal(effectiveBasket(state, '2026-09').find(linea => linea.productId === arroz).quantity, 80);
+  assert.equal(effectiveBasket(state, '2027-01').find(linea => linea.productId === arroz).quantity, 120);
+  // Y un mes anterior al primer tramo no se inventa una canasta que no había.
+  assert.deepEqual(effectiveBasket(state, '2025-12'), []);
 });

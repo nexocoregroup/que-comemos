@@ -39,7 +39,7 @@
 //     grep -rn nexocore.group@gmail.com legal/ src/legal.js docs/
 
 export const LEGAL = {
-  actualizado: '2026-09-16',
+  actualizado: '2026-09-18',
 
   privacidad: {
     titulo: 'Aviso de privacidad',
@@ -49,7 +49,7 @@ export const LEGAL = {
         parrafos: [
           'Todo lo que escribes en esta app se queda guardado en tu teléfono.',
           'Puedes usarla sin cuenta, y entonces no sale nada de tu teléfono: la app no llama a ninguna parte. También puedes crear una cuenta, que sirve para recuperar tu casa si cambias de aparato.',
-          'Tener cuenta no significa subir tus datos. Guardar la casa en la cuenta es una segunda decisión, con su propio interruptor en Más → Mi cuenta, y mientras esté apagado no viaja nada.',
+          'Tener cuenta no significa subir tus datos. Guardar la casa en la cuenta es una segunda decisión, con su propio interruptor en Ajustes → Mi cuenta, y mientras esté apagado no viaja nada.',
           'No hay analítica, ni publicidad, ni rastreadores: nadie mide cuánto usas la app ni qué haces dentro, ni con cuenta ni sin ella.',
           'Si enciendes la sincronización, tu casa se guarda en tu cuenta. Más abajo se dice exactamente dónde queda y quién puede llegar a ella, sin adornos.'
         ]
@@ -64,14 +64,15 @@ export const LEGAL = {
       {
         titulo: 'Qué se guarda y dónde',
         parrafos: [
-          'La app guarda lo que tú escribes en ella: los alimentos de tu casa y sus cantidades, las comidas que planificas, tus rutinas y tus notas, las personas de la casa con el nombre que tú les pongas, tus compras, tus revisiones de «cuánto queda» y el historial que sale de ahí.',
+          'La app guarda lo que tú escribes en ella: los alimentos de tu casa y sus cantidades, las comidas que planificas y tus notas, las personas de la casa con el nombre que tú les pongas, tus compras y el historial que sale de ahí.',
+          'Si usaste una versión anterior de la app, siguen guardadas además las rutinas y las revisiones de «cuánto queda» que escribiste entonces. Ya no se crean en ninguna pantalla, pero no se borraron: están ahí, viajan en el respaldo y se van con todo lo demás el día que borres tus datos.',
           'De cada persona de la casa se guardan tres cosas y ninguna más: el nombre o apodo que tú elijas, si es adulto, adolescente o niño, y los alimentos que evita con el motivo que tú marques —alergia, intolerancia, o simplemente que lo evita—. Marcar una alergia es hablar de salud, y por eso conviene decirlo con todas las letras: esa palabra la escribes tú, se guarda igual que todo lo demás, y si enciendes la sincronización viaja a tu cuenta con el resto de tu casa.',
           'Lo que la app no te pide, y no debes escribir en ella, es el peso de nadie, su fecha de nacimiento, un diagnóstico o una medicación. No los necesita para nada, y lo que no se guarda no se puede perder.',
           'Todo eso vive en el almacenamiento local del navegador dentro de tu propio teléfono. Es el mismo teléfono donde instalaste la app, y nada más.',
           'Con la sincronización apagada —que es como viene— no se copia a ninguna parte. Si abres la app en otro teléfono, ahí empiezas de cero.',
           'Si la enciendes, ese mismo contenido se guarda además en tu cuenta, en servidores de Supabase, y vuelve solo cuando entras desde otro teléfono. Puedes apagarla cuando quieras, y borrar la cuenta borra lo que hubiera subido.',
           'La copia automática de Android está apagada a propósito. Android suele subir solo los datos de las aplicaciones a la cuenta de Google del dueño del teléfono; en esta app eso está desactivado, para que tu despensa no acabe en un servidor sin que nadie lo pidiera.',
-          'El precio de esa decisión hay que decirlo claro: si no usas cuenta y pierdes el teléfono sin haber guardado una copia, se pierde todo. Por eso existe Más → Respaldo, y por eso la app insiste en que la uses.'
+          'El precio de esa decisión hay que decirlo claro: si no usas cuenta y pierdes el teléfono sin haber guardado una copia, se pierde todo. Por eso existe Ajustes → Respaldo, y por eso la app insiste en que la uses.'
         ]
       },
       {
@@ -90,25 +91,14 @@ export const LEGAL = {
         ]
       },
       {
-        titulo: 'El micrófono y el dictado',
+        titulo: 'Los permisos, y cuándo se usan de verdad',
         parrafos: [
-          'La app pide permiso de micrófono por una sola razón: para que puedas dictar en vez de escribir.',
-          'El micrófono se abre solo cuando tú tocas el botón de dictar. Nunca antes, nunca de fondo, nunca mientras la app está cerrada.',
-          'La app no graba, no guarda y no envía audio por su cuenta. No queda ningún archivo de voz en tu teléfono ni en ningún otro lado.',
-          'Quien entiende lo que dices es el reconocedor de voz del propio Android, el mismo del micrófono del teclado. La app solo recibe el texto ya convertido.',
-          'Y aquí viene la parte que hay que decir completa. Ese reconocedor funciona de dos maneras, y cuál te toca depende de tu teléfono. Si tu teléfono entiende la voz por sí solo y tiene descargado el paquete de español, todo pasa dentro del aparato y tu voz no sale de ahí. Si tu teléfono no lo trae, Android hace lo que hace siempre en ese caso: manda el audio a sus servidores para entenderlo, y por eso ahí el dictado necesita conexión. Eso lo hace Android, no nosotros, pero pasa igual y tienes derecho a saberlo.',
-          'La app le pregunta a tu teléfono cuál de los dos casos es el suyo, y si el audio va a salir te lo dice en pantalla antes de abrir el micrófono. No lo supone: lo comprueba cada vez. Así que si no ves ningún aviso, es que en tu teléfono la voz se queda dentro.',
-          'Puedes ver la respuesta para tu aparato, con calma, en Más → Ajustes → Detalle de este aparato.',
-          'Cuando Android manda ese audio a sus servidores, lo que pase con él ya depende de Google y de los ajustes de voz de tu propio teléfono, no de esta app.',
-          'Si usas la app desde un navegador en vez de instalada, el dictado lo hace el navegador, que necesita conexión y manda la voz a sus servidores. Ahí también te avisamos antes de abrir el micrófono.',
-          'Y si prefieres no usar nada de esto: escribir a mano funciona siempre, en todos los campos. Puedes negar el permiso de micrófono y la app sigue completa.'
-        ]
-      },
-      {
-        titulo: 'El permiso de internet, y cuándo se usa de verdad',
-        parrafos: [
-          'La app pide el permiso de internet y lo usa para una sola cosa: las cuentas. Ni una más.',
-          'Sin cuenta, la app no llama a ninguna parte. Ni al abrirse, ni al guardar, ni de fondo. Los alimentos, la canasta, el menú, la compra y el inventario salen todos de tu propio teléfono, y puedes usarla el mes completo en modo avión.',
+          'La app pide dos permisos que se notan y dos que no se notan, y conviene decir los cuatro.',
+          'El de internet lo usa para una sola cosa: las cuentas. Ni una más.',
+          'El de avisos, que el teléfono te pregunta, sirve para un único recordatorio: si a la hora que tú digas todavía no has decidido la cena de ese día, te lo recuerda. Viene apagado, se enciende en Ajustes → Avisos, y es entonces cuando se te pregunta, no al abrir la app.',
+          'Los otros dos no te los pregunta nadie porque no hacen falta preguntarlos: uno vuelve a poner ese recordatorio después de que apagues y enciendas el teléfono, y el otro deja que el aviso llegue con la pantalla apagada. Los dos son del recordatorio y de nada más.',
+          'Y esto es lo importante: el aviso lo prepara tu propio teléfono. No sale de él, no lo manda ningún servidor, y no hace falta cuenta ni internet para recibirlo.',
+          'Sin cuenta, la app no llama a ninguna parte. Ni al abrirse, ni al guardar, ni de fondo. Los alimentos, tus productos habituales, el plan de la semana y la lista de la compra salen todos de tu propio teléfono, y puedes usarla el mes completo en modo avión.',
           'Esto no es una promesa de buena fe, es cómo está escrito: al arrancar, la app mira si hay una sesión guardada en este teléfono, y si no la hay se detiene ahí mismo, sin tocar la red.',
           'Si creas una cuenta, la app habla con un sitio y solo con uno: el proyecto de Supabase donde viven las cuentas. Ahí van tu correo y tu contraseña al registrarte y al entrar, y ahí va tu casa solo si además enciendes la sincronización.',
           'No hay ninguna otra puerta de salida a la red, y hay una prueba automática que se pone en rojo el día que alguien abra una segunda o le cambie la dirección a esta.',
@@ -118,25 +108,26 @@ export const LEGAL = {
       {
         titulo: 'El respaldo lo guardas tú',
         parrafos: [
-          'En Más → Respaldo puedes escribir una copia de tus datos. Es un archivo que se descarga a tu teléfono y que tú guardas donde quieras.',
+          'En Ajustes → Respaldo puedes escribir una copia de tus datos. Es un archivo que se descarga a tu teléfono y que tú guardas donde quieras.',
           'La app no sube ese archivo a ningún sitio. Una vez descargado, esa copia es tuya y su cuidado también: si la mandas por chat o la subes a una nube, esos datos van a donde tú los mandes.',
-          'El respaldo lleva lo de tu casa y nada más: alimentos, cantidades, comidas, personas, compras y revisiones. No lleva identificadores tuyos ni nada que te señale a ti.'
+          'El respaldo lleva lo de tu casa y nada más: alimentos, cantidades, comidas, personas, compras, y las rutinas y revisiones que hayan quedado de antes. No lleva identificadores tuyos ni nada que te señale a ti.'
         ]
       },
       {
         titulo: 'Permisos que la app no pide',
         parrafos: [
-          'Vale la pena decir también lo que no está: no pide cámara, no pide galería ni fotos, no pide ubicación, no pide contactos, no pide teléfono ni llamadas, y no pide acceso a los archivos de tu teléfono.',
-          'Son dos permisos en total, micrófono e internet, y ninguno más. Hay una prueba automática que falla si alguno de los otros se cuela.'
+          'Vale la pena decir también lo que no está: no pide micrófono, no pide cámara, no pide galería ni fotos, no pide ubicación, no pide contactos, no pide teléfono ni llamadas, y no pide acceso a los archivos de tu teléfono.',
+          'Tampoco pide permiso de alarma exacta, que es el que haría falta para que un aviso salte al segundo. El recordatorio de la cena puede llegar unos minutos después y sirve igual, así que ese permiso no se pide.',
+          'Hay una prueba automática que falla si alguno de los que no están se cuela.'
         ]
       },
       {
         titulo: 'Cómo borrar tus datos',
         parrafos: [
           'Todos los caminos los recorres tú, desde tu teléfono, sin pedirle permiso a nadie ni esperar a que nadie apruebe nada.',
-          'Lo del teléfono, desde dentro de la app: Más → Respaldo → Borrar todos mis datos. Te pide confirmación y borra todo lo que la app guardó: alimentos, comidas, personas, compras, revisiones, la copia interna de seguridad y tus preferencias de pantalla.',
+          'Lo del teléfono, desde dentro de la app: Ajustes → Respaldo → Borrar todos mis datos. Te pide confirmación y borra todo lo que la app guardó: alimentos, comidas, personas, compras, revisiones, la copia interna de seguridad y tus preferencias de pantalla.',
           'Lo del teléfono, desinstalando: al desinstalar la app, Android se lleva por delante todo su almacenamiento, incluida la caché del sistema. También puedes hacerlo sin desinstalar, desde los ajustes de Android, en Aplicaciones, ¿Qué comemos?, Almacenamiento, Borrar datos.',
-          'La cuenta, si llegaste a crear una: Más → Mi cuenta → Borrar mi cuenta. Eso borra de una vez tu cuenta y todo lo que hubiera subido —tu correo, tu nombre y la casa que tuvieras guardada— y borra además lo que quede en este teléfono.',
+          'La cuenta, si llegaste a crear una: Ajustes → Mi cuenta → Borrar mi cuenta. Eso borra de una vez tu cuenta y todo lo que hubiera subido —tu correo, tu nombre y la casa que tuvieras guardada— y borra además lo que quede en este teléfono.',
           'Todos son inmediatos y no se pueden deshacer. Guarda una copia antes si la quieres.'
         ]
       },
@@ -145,8 +136,8 @@ export const LEGAL = {
         parrafos: [
           'En las apps con cuenta, uno le escribe a la empresa para que le enseñe sus datos, los corrija, se los lleve o se los borre. Aquí no hace falta esperar a nadie, porque los botones los tienes tú.',
           'Verlos y corregirlos: están en la app, en tus propias pantallas, y se cambian ahí mismo.',
-          'Llevártelos: Más → Respaldo escribe un archivo con todo lo tuyo, se descarga a tu teléfono y es tuyo.',
-          'Borrarlos: Más → Respaldo → Borrar todos mis datos para lo del teléfono, y Más → Mi cuenta → Borrar mi cuenta para lo de la cuenta, que se lleva las dos cosas de una vez.',
+          'Llevártelos: Ajustes → Respaldo escribe un archivo con todo lo tuyo, se descarga a tu teléfono y es tuyo.',
+          'Borrarlos: Ajustes → Respaldo → Borrar todos mis datos para lo del teléfono, y Ajustes → Mi cuenta → Borrar mi cuenta para lo de la cuenta, que se lleva las dos cosas de una vez.',
           'Si nunca creaste una cuenta, no tenemos absolutamente nada tuyo y no hay nada que pedirnos. Si la creaste, lo que hay es tu correo, tu nombre y la casa que hayas subido, y el botón para borrarlo está en la app.',
           'Si prefieres escribirnos, o algo de esto no te cuadra, escribe a nexocore.group@gmail.com y te contestamos.'
         ]
@@ -162,7 +153,7 @@ export const LEGAL = {
       {
         titulo: 'Esto no es consejo de alimentación ni médico',
         parrafos: [
-          'La app enseña cantidades de alimentos para organizar la casa y calcular la compra. Eso es todo lo que hace.',
+          'La app enseña cantidades de alimentos para organizar las comidas de la casa y escribir la lista de la compra. Eso es todo lo que hace: no calcula dietas, no lleva inventario y no promete una compra exacta.',
           'Las cantidades que ves salen de lo que tú misma escribiste, y las del ejemplo son datos inventados para que veas cómo funciona. No son recomendaciones nutricionales, ni dietas, ni consejo médico. Para eso hay que hablar con un profesional de la salud.'
         ]
       },
@@ -202,7 +193,7 @@ export const LEGAL = {
         parrafos: [
           'La app es gratis, sirve para organizar las comidas y la compra de tu casa, y funciona entera en tu teléfono sin cuenta y sin conexión.',
           'La cuenta es opcional y existe para una sola cosa: recuperar tu casa si cambias de aparato.',
-          'Los datos son tuyos y las copias también: guárdalas tú. La app hace cuentas con lo que tú escribes; no te dice qué debes comer.'
+          'Los datos son tuyos y las copias también: guárdalas tú. La app solo enseña lo que tú escribes; no te dice qué debes comer.'
         ]
       },
       {
@@ -215,7 +206,7 @@ export const LEGAL = {
       {
         titulo: 'Qué hace la app',
         parrafos: [
-          'Sirve para organizar las comidas de una casa y calcular la compra del mes. Te deja escribir una sola vez lo habitual de tu casa y luego, cada mes, solo revisar lo que va a ser diferente.',
+          'Sirve para organizar las comidas de una casa y escribir la lista de la compra. Te deja anotar una sola vez lo habitual de tu casa —lo que se compra de costumbre y lo que se sabe preparar— y luego planificar a mano la semana que viene, o las dos siguientes. La lista de cada compra la escribes tú, producto por producto: la app no calcula cuánto hace falta.',
           'Funciona entera en tu teléfono, sin cuenta y sin conexión. Si quieres, puedes crear una cuenta para recuperar tu casa al cambiar de aparato: es opcional, viene apagada y se explica con detalle en el aviso de privacidad.'
         ]
       },
@@ -241,7 +232,7 @@ export const LEGAL = {
           'Sin cuenta, todo vive en tu teléfono y hacer copias te toca a ti. Es importante que lo entiendas antes, no después.',
           'Si desinstalas la app, los datos se van con ella. Si pierdes, vendes o se te daña el teléfono, los datos se pierden con él. Si borras los datos de la app desde los ajustes de Android, se borran.',
           'La copia automática de Android está apagada a propósito, para que tus datos no se suban a la nube sin que nadie lo pida. Eso significa que tampoco vuelven solos en un teléfono nuevo.',
-          'Por eso Más → Respaldo existe y por eso la app insiste. Guarda una copia de vez en cuando, y guárdala en un sitio que sobreviva al teléfono.',
+          'Por eso Ajustes → Respaldo existe y por eso la app insiste. Guarda una copia de vez en cuando, y guárdala en un sitio que sobreviva al teléfono.',
           'Con cuenta y sincronización encendida hay además una copia en tu cuenta, y esa sí vuelve sola al entrar desde otro teléfono. Aun así, guarda respaldos: una cuenta no sustituye a una copia que tengas tú en la mano.',
           'Actualizar la app desde la tienda sí conserva los datos: es el mismo almacenamiento.'
         ]
@@ -249,9 +240,9 @@ export const LEGAL = {
       {
         titulo: 'La cuenta, si decides crearla',
         parrafos: [
-          'Crear una cuenta es opcional y sirve para recuperar tu casa al cambiar de teléfono. Guardar la casa en esa cuenta es además una segunda decisión, con su propio interruptor en Más → Mi cuenta, y viene apagada.',
+          'Crear una cuenta es opcional y sirve para recuperar tu casa al cambiar de teléfono. Guardar la casa en esa cuenta es además una segunda decisión, con su propio interruptor en Ajustes → Mi cuenta, y viene apagada.',
           'Cuando creas una cuenta te comprometes a dar un correo que sea tuyo, a cuidar tu contraseña y a no usar la cuenta de otra persona.',
-          'Podemos cerrar o suspender una cuenta que se use para algo ilegal o para atacar el servicio. Fuera de eso, la cuenta es tuya y la borras tú cuando quieras, desde Más → Mi cuenta → Borrar mi cuenta.',
+          'Podemos cerrar o suspender una cuenta que se use para algo ilegal o para atacar el servicio. Fuera de eso, la cuenta es tuya y la borras tú cuando quieras, desde Ajustes → Mi cuenta → Borrar mi cuenta.',
           'El servicio de cuentas lo opera Supabase. No podemos prometerte que esté disponible siempre, y por eso la app funciona entera sin él: si un día no se puede entrar, tu casa sigue en tu teléfono y no deja de servir.'
         ]
       },
@@ -260,21 +251,6 @@ export const LEGAL = {
         parrafos: [
           'No hay mucho que prohibir aquí, pero conviene decirlo: no la uses para nada ilegal, no la distribuyas haciéndola pasar por tuya, no la publiques en otra tienda como si fuera otra app, y no quites ni cambies las marcas, los nombres o los avisos legales para redistribuirla.',
           'El nombre «¿Qué comemos?», la marca NexoCore y el diseño gráfico de la app son nuestros. Usar la app no te da derecho sobre ellos.'
-        ]
-      },
-      {
-        titulo: 'La asistente vive aquí dentro',
-        parrafos: [
-          'La asistente entiende las frases aquí dentro, en tu teléfono, reconociéndolas por su forma. Por eso entiende unas cuantas maneras de decir las cosas y no cualquier frase suelta. Cuando no entiende algo, te dice lo que sí sabe hacer y te lleva a la pantalla que toca: no manda tu frase a ningún lado para que otro la interprete.',
-          'Todo lo que la asistente hace se puede hacer también a mano, en su pantalla. Es una comodidad, no un requisito.'
-        ]
-      },
-      {
-        titulo: 'El dictado depende de tu teléfono',
-        parrafos: [
-          'Poder dictar en vez de escribir depende del reconocedor de voz de tu propio Android y del idioma que tenga descargado. En unos teléfonos entiende sin conexión y en otros necesita internet.',
-          'Eso no lo controlamos nosotros, así que no te lo prometemos: la app le pregunta a tu teléfono qué puede hacer y, si al dictar el audio va a salir del aparato, te lo dice antes de abrir el micrófono. La respuesta para tu teléfono está en Más → Ajustes → Detalle de este aparato.',
-          'Escribir a mano funciona siempre, en todos los campos, con micrófono o sin él.'
         ]
       },
       {
@@ -332,17 +308,17 @@ export const LEGAL = {
       {
         titulo: 'Camino 1: borrar desde dentro de la app',
         parrafos: [
-          'Abre la app y toca Más, abajo a la derecha. Entra en Respaldo.',
+          'Abre la app y toca el engranaje de Ajustes. Entra en Respaldo.',
           'Si quieres conservar una copia, toca primero «Guardar una copia»: se descarga un archivo a tu teléfono.',
           'Toca «Borrar todos mis datos» y confirma.',
-          'Esto borra todo lo que la app guardó en tu teléfono: los alimentos, las cantidades, la canasta habitual, las comidas planificadas, las rutinas, las personas, las compras, las revisiones, el historial, la copia interna de seguridad y tus preferencias de pantalla. La app queda como recién instalada.',
+          'Esto borra todo lo que la app guardó en tu teléfono: los alimentos, las cantidades, los productos habituales, las comidas planificadas, las rutinas, las personas, las compras, las revisiones, el historial, la copia interna de seguridad y tus preferencias de pantalla. La app queda como recién instalada.',
           'Úsalo cuando quieras empezar de cero pero seguir usando la app.'
         ]
       },
       {
         titulo: 'Camino 2: desinstalar la app',
         parrafos: [
-          'Si quieres una copia, guárdala antes desde Más → Respaldo. Después de este paso no hay vuelta atrás.',
+          'Si quieres una copia, guárdala antes desde Ajustes → Respaldo. Después de este paso no hay vuelta atrás.',
           'Mantén pulsado el ícono de «¿Qué comemos?», elige Desinstalar y confirma.',
           'Al desinstalar, Android elimina todo el almacenamiento de la app. No queda nada en el teléfono.',
           'Si prefieres no desinstalarla, consigues lo mismo desde los ajustes de Android, en Aplicaciones, ¿Qué comemos?, Almacenamiento, Borrar datos.'
@@ -352,8 +328,8 @@ export const LEGAL = {
         titulo: 'Camino 3: borrar tu cuenta y lo que hayas subido',
         parrafos: [
           'Este camino solo hace falta si creaste una cuenta. Si nunca la creaste, no hay ninguna cuenta tuya que borrar y con los dos caminos de arriba ya está todo.',
-          'Si quieres una copia, guárdala antes desde Más → Respaldo. Después de este paso no hay vuelta atrás.',
-          'Abre la app, toca Más, entra en Mi cuenta y toca «Borrar mi cuenta». Confirma.',
+          'Si quieres una copia, guárdala antes desde Ajustes → Respaldo. Después de este paso no hay vuelta atrás.',
+          'Abre la app, toca el engranaje de Ajustes, entra en Mi cuenta y toca «Borrar mi cuenta». Confirma.',
           'Eso borra de una vez la cuenta entera: tu correo, tu nombre, la contraseña, la casa que tuvieras guardada y el registro de que existías. Y borra además lo que quede en este teléfono, para que no te quedes con media cosa.',
           'Lo hace el servidor en ese momento. No hay plazo de espera, ni revisión, ni nadie que lo apruebe.',
           'Si no recuerdas la contraseña, pídela de nuevo desde la pantalla de entrar: te llega un correo para ponerte una nueva, entras y borras la cuenta tú.',
@@ -371,7 +347,7 @@ export const LEGAL = {
       {
         titulo: 'Qué se borra con cada camino',
         parrafos: [
-          'Los caminos 1 y 2 borran lo que está en el teléfono: los alimentos y cantidades, la canasta habitual, las comidas y rutinas, las personas de la casa, las compras, las revisiones, el historial, la copia interna de seguridad y las preferencias de la pantalla.',
+          'Los caminos 1 y 2 borran lo que está en el teléfono: los alimentos y cantidades, los productos habituales, las comidas y rutinas, las personas de la casa, las compras, las revisiones, el historial, la copia interna de seguridad y las preferencias de la pantalla.',
           'Solo desinstalar borra además la caché del navegador interno de Android, y solo desinstalar quita la app del teléfono: con el botón de dentro, la app se queda instalada y lista para empezar de cero.',
           'El camino 3 borra lo que está en la cuenta —correo, nombre, contraseña y la casa que hubieras subido— y también lo del teléfono.',
           'Ninguno de los tres borra el archivo de respaldo que descargaste tú: ese es tuyo y está donde tú lo pusiste. Ni la app ni Android lo tocan. Si quieres deshacerte de él, bórralo tú del teléfono, del correo o de donde lo hayas guardado.'
@@ -381,14 +357,14 @@ export const LEGAL = {
         titulo: 'Cuánto tarda y qué se puede deshacer',
         parrafos: [
           'Los tres caminos son inmediatos. No hay un plazo de espera ni un periodo de gracia: el borrado ocurre en el momento en que confirmas.',
-          'No se puede deshacer, y no podemos recuperarlo nosotros. Lo único que devuelve tus datos es un respaldo que hayas guardado antes, que puedes volver a cargar desde Más → Respaldo.'
+          'No se puede deshacer, y no podemos recuperarlo nosotros. Lo único que devuelve tus datos es un respaldo que hayas guardado antes, que puedes volver a cargar desde Ajustes → Respaldo.'
         ]
       },
       {
         titulo: 'Y si me escribes pidiendo que borre mis datos',
         parrafos: [
           'Si nunca creaste una cuenta, te vamos a contestar lo mismo que dice esta página, porque es la verdad: no tenemos ningún dato tuyo. Ni tu nombre, ni tu correo, ni tu despensa. No hay una base de datos donde buscarte; lo que hay es tu teléfono, y ahí mandas tú.',
-          'Si creaste una cuenta, sí podemos borrarla, y lo hacemos. Escríbenos desde una dirección que podamos relacionar con ella. Aun así, el camino rápido es el de la propia app: Más → Mi cuenta → Borrar mi cuenta, que es inmediato y no depende de que nadie conteste.',
+          'Si creaste una cuenta, sí podemos borrarla, y lo hacemos. Escríbenos desde una dirección que podamos relacionar con ella. Aun así, el camino rápido es el de la propia app: Ajustes → Mi cuenta → Borrar mi cuenta, que es inmediato y no depende de que nadie conteste.',
           'Para cualquiera de los dos casos: nexocore.group@gmail.com'
         ]
       }

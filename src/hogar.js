@@ -23,21 +23,24 @@
 // un dato de salud que solo puede filtrarse.
 
 import { CLASES_DE_PERSONA, MOTIVOS_DE_RESTRICCION, activeProducts, esActiva, personasActivas, product, restriccionesDe, setPersonActive, upsertPerson } from './model.js';
-import { button, esc, notice, productDatalist } from './ui-kit.js';
+import { button, conteo, esc, notice, productDatalist } from './ui-kit.js';
 import { icono } from './icons.js';
 
 /* ── Vocabulario ───────────────────────────────────────────────────────── */
 
-// Las edades van entre paréntesis porque la clasificación no se usa para
-// calcular nada todavía: sirve para que quien cocina sepa si está sirviendo a
-// un niño de seis años o a un adolescente de dieciséis. Pedir la fecha de
-// nacimiento para deducirlo sería pedir un dato personal para no usarlo.
-export const CLASES = [
-  { id: 'adulto', etiqueta: 'Adulto', ayuda: '18 años o más' },
-  { id: 'adolescente', etiqueta: 'Adolescente', ayuda: 'De 12 a 17 años' },
-  { id: 'nino', etiqueta: 'Niño o niña', ayuda: 'Menos de 12 años' }
-];
-export const claseDe = id => CLASES.find(item => item.id === id) || CLASES[0];
+/* Aquí vivían `CLASES` y `claseDe`: adulto, adolescente o niño.
+
+   Se preguntaba una vez por persona y se pintaba en tres pantallas, y no
+   alimentaba nada. El argumento que la sostenía —«para que quien cocina sepa si
+   está sirviendo a un niño de seis años»— se cayó con el reparto por raciones,
+   que se retiró: hoy la app no calcula cantidades en ninguna parte, así que la
+   respuesta no cambiaba una sola línea de ninguna pantalla y la etiqueta decía
+   «Adulto» en todo el mundo.
+
+   El campo NO se borró de los datos. `person.kind` sigue en el modelo, lo sigue
+   defendiendo `upsertPerson` y lo sigue arrastrando la migración; quien lo
+   contestó lo conserva. Lo que se retiró es la pregunta, no el dato: si algún
+   día hace falta, vuelve a preguntarse sin haber perdido nada por el camino. */
 
 // `peso` ordena las restricciones en la tarjeta: lo que puede hacer daño va
 // primero. `tono` es la clase de CSS, y es lo único que cambia de aspecto.
@@ -172,15 +175,6 @@ export function cuerpoDeFicha(ctx, ficha, { prefijo = 'hogar' } = {}) {
       <small>Vale el apodo. Es solo para que tú sepas de quién se habla.</small>
     </label>
 
-    <div class="field">
-      <span>¿Qué es de la casa?</span>
-      <div class="hogar-clases">${CLASES.map(clase => `
-        <button type="button" class="hogar-clase ${ficha.kind === clase.id ? 'activa' : ''}"
-          data-action="${esc(prefijo)}-clase" data-clase="${clase.id}" aria-pressed="${ficha.kind === clase.id}">
-          <strong>${esc(clase.etiqueta)}</strong><small>${esc(clase.ayuda)}</small>
-        </button>`).join('')}</div>
-    </div>
-
     <div class="field hogar-evita">
       <span>¿Hay algo que ${aQuien} deba evitar?</span>
       <p class="small muted">Si no hay nada, pasa de largo: esto no es obligatorio.</p>
@@ -240,7 +234,7 @@ function pantallaCuantos(hogar) {
       ${button('+', 'hogar-mas', 'hogar-paso', 'aria-label="Una persona más"')}
       <button type="submit" class="btn btn-primary">Continuar</button>
     </form>
-    <p class="tiny muted">Puedes añadir o quitar personas después, desde Más → Familia y restricciones.</p>
+    <p class="tiny muted">Puedes añadir o quitar personas después, desde Ajustes → Familia y restricciones.</p>
     <div class="pantalla-acciones">${button('Salir', 'hogar-salir', 'btn-quiet btn-small')}</div>
   </section>`;
 }
@@ -294,15 +288,15 @@ function pantallaFinal(ctx) {
     <div class="hogar-head"><div><p class="eyebrow">Tu hogar</p><h2>Listo. Tu hogar quedó así.</h2></div></div>
     ${gente.length
       ? `<div class="grid grid-2">${gente.map(persona => `<article class="card hogar-tarjeta">
-          <div class="between"><h3>${esc(persona.name)}</h3><span class="pill gray">${esc(claseDe(persona.kind).etiqueta)}</span></div>
+          <div class="between"><h3>${esc(persona.name)}</h3></div>
           ${resumenDeRestricciones(state, persona)}
         </article>`).join('')}</div>`
-      : `<p class="muted">No quedó nadie registrado. Puedes hacerlo cuando quieras desde Más → Familia y restricciones.</p>`}
+      : `<p class="muted">No quedó nadie registrado. Puedes hacerlo cuando quieras desde Ajustes → Familia y restricciones.</p>`}
     ${conAlergia.length
       ? notice('Las alergias quedan avisadas', `Si una comida lleva algo que ${conAlergia.map(persona => esc(persona.name)).join(' o ')} no puede comer, la app no te deja guardarla sin decírtelo.`, 'warn')
       : ''}
     <p class="muted">Las comidas se preparan para toda la casa. Cuando alguien no coma, se marca ese día y ya.</p>
-    <p class="hogar-siguiente"><strong>Lo siguiente es la canasta base:</strong> los alimentos que compras todos los meses. Se pregunta por categorías y se tarda unos minutos.</p>
+    <p class="hogar-siguiente"><strong>Lo siguiente son tus productos habituales:</strong> lo que normalmente compras para tu casa. Se pregunta rubro por rubro, sin pedirte cantidades, y se tarda unos minutos.</p>
     <div class="pantalla-acciones">
       ${button('Continuar', 'setup-open', 'btn-primary btn-grande')}
       ${button('Ahora no', 'hogar-terminar', 'btn-quiet')}
@@ -387,10 +381,6 @@ export const HOGAR_ACTIONS = {
   'hogar-mas': (el, ctx) => ajustarTotal(ctx, 1),
   'hogar-menos': (el, ctx) => ajustarTotal(ctx, -1),
 
-  'hogar-clase': (el, ctx) => {
-    const ficha = leerDelFormulario(ctx, fichaActiva(ctx));
-    cambiarFicha(ctx, { ...ficha, kind: CLASES_DE_PERSONA.includes(el.dataset.clase) ? el.dataset.clase : 'adulto' });
-  },
   'hogar-motivo': (el, ctx) => {
     const ficha = leerDelFormulario(ctx, fichaActiva(ctx));
     // Tocar un motivo siempre lo elige, nunca lo quita. Un interruptor aquí
@@ -400,6 +390,10 @@ export const HOGAR_ACTIONS = {
     const motivo = el.dataset.motivo;
     if (!MOTIVOS_DE_RESTRICCION.includes(motivo)) return;
     cambiarFicha(ctx, { ...ficha, motivo, error: '' });
+    // Elegir el motivo no decía nada, y la pantalla se repinta entera: quien no
+    // la ve no tenía forma de saber si el toque entró. El desplazamiento y el
+    // foco ya los conserva `render()`; lo que faltaba era decirlo.
+    ctx.anunciar?.(`${el.textContent.trim()}, elegido.`);
   },
   'hogar-anadir': (el, ctx) => { anadirRestriccion(ctx); },
   'hogar-quitar': (el, ctx) => {
@@ -419,7 +413,7 @@ export const HOGAR_ACTIONS = {
     // Salir no descarta nada: el borrador se queda escrito donde estaba.
     ctx.ui.page = 'hoy';
     ctx.commit('');
-    ctx.toast('Guardado. Puedes retomarlo desde Más → Familia.');
+    ctx.toast('Guardado. Puedes retomarlo desde Ajustes → Familia.');
   },
   'hogar-terminar': (el, ctx) => {
     guardarHogar(ctx.state, { estado: 'listo', borrador: null });
@@ -537,7 +531,7 @@ export const HOGAR_FORMS = {
     ctx.closeModal();
     const sinMotivo = restriccionesDe(persona).filter(fila => !fila.motivo).length;
     ctx.commit(sinMotivo
-      ? `Guardado. Quedan ${sinMotivo} alimento(s) sin decir por qué se evitan.`
+      ? `Guardado. Queda${sinMotivo === 1 ? '' : 'n'} ${conteo(sinMotivo, 'alimento', 'alimentos')} sin decir por qué se evita${sinMotivo === 1 ? '' : 'n'}.`
       : 'Guardado.');
   }
 };

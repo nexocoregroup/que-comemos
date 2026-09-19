@@ -63,19 +63,10 @@ const DIBUJOS = {
     <path d="M12 7.1c1.7-1.5 4.1-2.1 7.3-1.9a.9.9 0 0 1 .9.9v11.4a.9.9 0 0 1-.9.9c-3 .2-5.6.7-7.3 2.1"/>
     <path d="M12 7.1v13.4"/>`,
 
-  burbuja: `<path d="M20.8 11.6c0 4.2-3.9 7.6-8.8 7.6a10 10 0 0 1-2.9-.4l-5 1.6 1.6-4a7.2 7.2 0 0 1-2.5-4.8C3.2 7.4 7.1 4 12 4s8.8 3.4 8.8 7.6Z"/>
-    <circle cx="8.4" cy="11.6" r=".95" ${RELLENO}/>
-    <circle cx="12" cy="11.6" r=".95" ${RELLENO}/>
-    <circle cx="15.6" cy="11.6" r=".95" ${RELLENO}/>`,
-
   hoja: `<path d="M4.8 19.2C4.2 10.8 10.2 4.8 20 4.8c.5 8.6-5.6 14.8-15.2 14.4Z"/>
     <path d="M4.8 19.2c2.8-2.9 6-5.9 9.9-7.9"/>`,
 
-  /* ── Gente, voz y tiempo ──────────────────────────────────────────────── */
-
-  microfono: `<rect x="9" y="2.8" width="6" height="11.4" rx="3"/>
-    <path d="M5.6 11.4a6.4 6.4 0 0 0 12.8 0"/>
-    <path d="M12 17.8v3.4M8.6 21.2h6.8"/>`,
+  /* ── Gente y tiempo ───────────────────────────────────────────────────── */
 
   persona: `<circle cx="12" cy="8" r="3.7"/><path d="M4.8 20.4a7.6 7.6 0 0 1 14.4 0"/>`,
 
@@ -85,11 +76,10 @@ const DIBUJOS = {
     <path d="M16.6 15.6a5 5 0 0 1 4.6 4.6"/>`,
 
   reloj: `<circle cx="12" cy="12" r="8.6"/><path d="M12 6.9V12l3.5 2.1"/>`,
-
-  repetir: `<path d="M4.2 10.4A8.2 8.2 0 0 1 19.3 7.9"/>
-    <path d="M19.8 3.6v4.6h-4.6"/>
-    <path d="M19.8 13.6a8.2 8.2 0 0 1-15.1 2.5"/>
-    <path d="M4.2 20.4v-4.6h4.6"/>`,
+  // La campana del recordatorio. El badajo es un arco corto y no un círculo:
+  // a 20 px un círculo ahí abajo se lee como una mancha pegada al borde.
+  campana: `<path d="M6.2 16.4V11a5.8 5.8 0 0 1 11.6 0v5.4l1.4 2.1H4.8Z"/>
+    <path d="M10.1 19.5a2 2 0 0 0 3.8 0"/>`,
 
   /* ── Ajustes y estado ─────────────────────────────────────────────────── */
 

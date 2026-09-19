@@ -42,10 +42,9 @@
 
 /* Montserrat es más ancha que la pila anterior: el interletrado negativo de los
    títulos se suaviza y el de las etiquetas en mayúscula se recorta un poco. */
-.brand, .card h2, .card h3, .section-head h2, .modal-head h2, .stat { letter-spacing: -.025em; }
+.brand, .card h2, .card h3, .section-head h2, .modal-head h2 { letter-spacing: -.025em; }
 .topline h1, .hero h2 { letter-spacing: -.038em; }
-.topline .eyebrow, .hero .eyebrow, .meal-card .slot, .day-cell .mini-slot,
-.data-table th { letter-spacing: .1em; }
+.topline .eyebrow, .hero .eyebrow, .meal-card .slot, .data-table th { letter-spacing: .1em; }
 
 /* Secciones plegadas dentro de un formulario: lo que casi nadie necesita no
    ocupa sitio, pero está a un toque. */
@@ -71,32 +70,20 @@
    Es de los pocos sitios donde `!important` está justificado: `hidden` no es
    una sugerencia de estilo, es un hecho sobre el documento. */
 [hidden] { display: none !important; }
-.cut-option { display: grid; gap: 1px; line-height: 1.25; }
-.cut-option .tiny { white-space: nowrap; }
-
-/* Una cantidad y su unidad son un solo dato, así que van pegadas en vez de
-   ocupar dos campos con dos etiquetas. */
-.paired { display: flex; gap: 8px; }
-.paired input { min-width: 0; }
-.paired select { flex: 0 0 118px; }
-
-/* La fila de la canasta no lleva la columna «para quién», y el nombre se
-   escribe en vez de elegirse, así que necesita más sitio que las demás. */
-.basket-row { grid-template-columns: minmax(130px, 2.4fr) minmax(70px, .8fr) minmax(95px, 1fr) 32px; }
-
 .sidebar { background: var(--sidebar-bg); border-right-color: var(--line); }
-/* En la app el isotipo va suelto, sin recuadro: el trazo en terracota sobre el
-   fondo de la barra. El fondo lleno queda solo para el ícono de la app y el
-   favicon, donde hace falta para separarlo de la pestaña. El selector repite
-   .mobile-brand porque styles.css le da su propio tamaño bajo 700 px. */
-/* El isotipo va suelto, sin recuadro: la marca sobre el fondo de la barra. El
-   fondo lleno queda solo para el ícono de la app, donde hace falta para
-   separarlo del escritorio.
-   flex-shrink: 0 no es un detalle. Sin él, la cabecera —que es flex— apretaba
-   el isotipo de 48 px a 35 para hacerle sitio al nombre, y era justo por eso
-   que «casi no se notaba». */
+/* El isotipo va suelto, sin recuadro: el trazo en terracota sobre el fondo de
+   la barra. El fondo lleno queda solo para el ícono de la app y el favicon,
+   donde hace falta para separarlo de la pestaña o del escritorio.
+
+   `flex-shrink: 0` no es un detalle. Sin él, la barra —que es flex— apretaba el
+   isotipo de 48 px a 35 para hacerle sitio al nombre, y era justo por eso que
+   «casi no se notaba».
+
+   Hubo una segunda regla, `.mobile-brand .brand-mark`, para el isotipo de la
+   cabecera del teléfono. Esa cabecera ya no lleva isotipo ni nombre: dentro de
+   una app instalada decían en qué app estás, que es lo que ya sabes. El
+   porqué entero está en la corrección 18 de sistema.css. */
 .brand-mark { background: none; box-shadow: none; border-radius: 0; width: 48px; height: 48px; flex-shrink: 0; }
-.mobile-brand .brand-mark { width: 40px; height: 40px; }
 .brand { line-height: 1.12; }
 .brand-glyph { display: block; width: 100%; height: 100%; }
 .nav button, .secondary button { color: #594d45; }
@@ -121,7 +108,7 @@
 .card { background: var(--surface); border-color: var(--line); box-shadow: 0 5px 20px #3d2d1d0c; }
 .card.soft { background: #fffaf4; }
 .section-head p, .muted, .meal-people, .list-row-sub,
-.stat-label, .modal-head p { color: var(--ink-muted); }
+.modal-head p { color: var(--ink-muted); }
 .pill { background: var(--clay-light); color: var(--clay-dark); }
 .pill.warm { background: #fff0d7; color: #76501f; }
 .pill.gray { background: #f1ede8; color: #60554d; }
@@ -138,16 +125,6 @@
 .segmented { background: #eee4da; }
 .segmented button { color: var(--ink-muted); }
 .segmented button.active { background: var(--surface); color: var(--clay-dark); box-shadow: 0 2px 7px #3d2d1d15; }
-.day-head { color: var(--ink-muted); }
-.day-head strong { color: var(--ink); }
-.day-head.today strong, .month-cell.today .number { background: var(--clay); color: white; }
-.day-cell, .month-cell { background: var(--surface); border-color: var(--line); }
-.day-cell:hover { box-shadow: 0 4px 12px #75391626; }
-.day-cell .mini-slot, .month-meal span { color: var(--clay-dark); }
-.day-cell.empty-cell { background: #fbf8f4; color: var(--ink-muted); }
-.month-meal { background: #f8efe7; }
-.month-meal:hover { background: #f2dfd1; }
-.month-meal.missing { background: #fcf9f5; color: var(--ink-muted); border-color: #d9c8b8; }
 
 .list-row { border-top-color: #eee4da; }
 .field>span, .field>label { color: #514339; }
@@ -156,8 +133,6 @@ input.text, select.text, textarea.text { border-color: #d9c8b8; background: var(
 .field input:focus, .field select:focus, .field textarea:focus,
 input.text:focus, select.text:focus, textarea.text:focus { border-color: var(--clay); box-shadow: 0 0 0 3px #a04b2229; }
 .field small { color: var(--ink-muted); }
-.check-chip { background: #faf4ed; border-color: var(--line); }
-.check-chip input { accent-color: var(--clay); }
 .modal-overlay { background: #30241ca6; }
 .modal { background: var(--surface); box-shadow: 0 20px 70px #30241c4d; }
 .modal-head, .modal-actions { border-color: var(--line); }
@@ -168,7 +143,6 @@ input.text:focus, select.text:focus, textarea.text:focus { border-color: var(--c
 .data-table .good { color: var(--sage); }
 .progress { background: #eee4da; }
 .progress span { background: var(--sage); }
-.review-card { background: var(--surface); border-color: var(--line); }
 .divider { background: var(--line); }
 .badge-count { background: var(--clay-light); color: var(--clay-dark); }
 #toast { background: var(--ink); box-shadow: 0 8px 24px #30241c44; }
@@ -183,24 +157,11 @@ input.text:focus, select.text:focus, textarea.text:focus { border-color: var(--c
 @media (max-width: 700px) {
   /* El interruptor Menú/Canasta baja bajo el título en vez de estrujarlo a
      tres líneas, y sus dos mitades se reparten el ancho: se tocan mejor. */
-  .shop-head { flex-wrap: wrap; }
-  .shop-head .segmented { width: 100%; }
-  .shop-head .segmented button { flex: 1; }
   /* El nombre se lleva una línea entera; debajo van cantidad, unidad y quitar. */
-  .basket-row { grid-template-columns: minmax(0, 1fr) 100px 34px; }
-  .basket-row .basket-name { grid-column: 1 / -1; }
-  .shopping-period { grid-template-columns: minmax(0, 1fr); }
-  .shopping-period .field input, .shopping-period .field select { min-width: 0; }
-  .shopping-period .btn { grid-column: auto; }
   .mobile-nav { background: var(--surface); border-top-color: var(--line); box-shadow: 0 -5px 20px #3d2d1d14; }
   .mobile-nav button { color: #65574d; }
   .mobile-nav button.active { background: var(--clay-light); color: var(--clay-dark); }
 }
-
-/* La fila de la canasta ganó la columna de «cada cuánto falta». En escritorio
-   caben las cinco; en el móvil el nombre se lleva su línea y la prioridad baja
-   a la siguiente, porque cinco columnas en 360 px no se pueden ni tocar. */
-.basket-row { grid-template-columns: minmax(120px, 2.1fr) minmax(70px, .75fr) minmax(90px, 1fr) minmax(110px, 1.1fr) 32px; }
 
 /* Un alimento archivado sigue en la lista —su historial es cierto— pero no debe
    competir con los activos por la atención. */
@@ -212,27 +173,3 @@ input.text:focus, select.text:focus, textarea.text:focus { border-color: var(--c
 .start-hero { align-items: center; }
 .start-hero p { max-width: 54ch; }
 
-@media (max-width: 700px) {
-  .basket-row { grid-template-columns: minmax(0, 1fr) 100px 34px; }
-  .basket-row .basket-name { grid-column: 1 / -1; }
-  .basket-row .basket-priority { grid-column: 1 / -1; }
-}
-
-/* La lista de «lo que puede tu teléfono». Sustituye a la vieja pantalla de
-   configuración: antes lo primero que veías era un formulario pidiéndote un
-   servidor, y ahora es una respuesta a si te funciona o no. */
-.cap-list { display: grid; gap: 9px; margin: 6px 0 16px; }
-.cap-row { display: flex; align-items: flex-start; gap: 12px; padding: 13px 15px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
-.cap-row.si { border-color: #c6d0ae; background: #f7f9f1; }
-.cap-row > div { flex: 1; min-width: 0; display: grid; gap: 3px; }
-.cap-row strong { font-size: .93rem; }
-.cap-row span:not(.cap-mark):not(.pill) { font-size: .81rem; color: var(--ink-muted); line-height: 1.45; }
-.cap-mark { display: grid; place-items: center; width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%; background: #ece1d5; color: #6b5b51; font-weight: 900; }
-.cap-row.si .cap-mark { background: var(--sage); color: #fff; }
-.cap-row .pill { flex-shrink: 0; align-self: center; }
-
-@media (max-width: 700px) {
-  /* La etiqueta baja bajo el texto: tres columnas en 360 px parten las palabras. */
-  .cap-row { flex-wrap: wrap; }
-  .cap-row .pill { margin-left: 38px; }
-}

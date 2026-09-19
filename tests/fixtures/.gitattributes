@@ -1,0 +1,7 @@
+# Estos archivos se comprueban por su huella SHA-256, byte a byte, y por eso Git
+# no puede tocarles nada al guardarlos ni al sacarlos. En Windows convertiría los
+# finales de línea a CRLF, cada línea pesaría un byte más y la huella dejaría de
+# coincidir: `sha256sum -c SUMAS-v8.txt` fallaría en cualquier clon nuevo, y la
+# prueba diría que alguien manipuló el respaldo cuando lo único que pasó fue que
+# se clonó en otro sistema.
+* -text

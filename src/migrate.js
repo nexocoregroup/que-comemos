@@ -11,7 +11,31 @@
 
 import { normalizeName } from './nombres.js';
 
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 10;
+
+// Los ocho rubros con que se agrupan los productos habituales, y de qué
+// categoría fina sale cada uno.
+//
+// El mapa está escrito aquí, entero y a mano, y no se lee de `catalog-seed.js`
+// a propósito: una migración tiene que seguir convirtiendo igual un respaldo de
+// hoy dentro de dos años, y los rubros del catálogo pueden cambiar. Que no se
+// queden atrás lo comprueba una prueba, que recorre las categorías del catálogo
+// y exige que todas estén aquí.
+export const RUBROS_IDS = ['viveres', 'granos', 'proteinas', 'lacteos', 'frutas', 'vegetales', 'desayunos', 'otros'];
+const RUBRO_DE_CATEGORIA = {
+  viveres: 'viveres',
+  granos: 'granos',
+  carnes: 'proteinas', embutidos: 'proteinas', mar: 'proteinas',
+  lacteos: 'lacteos',
+  frutas: 'frutas',
+  vegetales: 'vegetales',
+  panes: 'desayunos',
+  condimentos: 'otros', bebidas: 'otros', limpieza: 'otros', higiene: 'otros', otros: 'otros'
+};
+// Una categoría que no conocemos cae en «otros» y no en un hueco: alguien puede
+// tener guardado un alimento de una versión anterior, y dejarlo sin rubro lo
+// sacaría de la lista de la compra sin decir por qué.
+export const rubroDeCategoria = categoria => RUBRO_DE_CATEGORIA[categoria] || 'otros';
 
 // Los momentos en que una preparación suele comerse. Viven aquí, igual que las
 // clases de persona, para que la migración pueda normalizarlas sin arrastrar el
@@ -70,7 +94,7 @@ function v1toV2(data) {
     createdAt: item.createdAt || fecha,
     updatedAt: item.updatedAt || fecha
   }));
-  if (products.length) notes.push(`${products.length} alimento(s) pasaron a la ficha de catálogo.`);
+  if (products.length) notes.push(`${products.length === 1 ? 'Un alimento pasó' : `${products.length} alimentos pasaron`} a la ficha de catálogo.`);
 
   // La canasta vieja no tenía prioridad. «Frecuente» es el término medio
   // honesto: decir que todo es obligatorio sería inventar una exigencia que el
@@ -87,7 +111,7 @@ function v1toV2(data) {
   const monthlyBaskets = {};
   if (lines.length) {
     monthlyBaskets[mesActual] = { month: mesActual, lines: clone(lines), createdAt: fecha, updatedAt: fecha, basedOn: fecha };
-    notes.push(`La canasta que tenías escrita es ahora la canasta base, y ${mesActual} se abrió con una copia.`);
+    notes.push(`La canasta que tenías escrita es ahora los productos habituales, y ${mesActual} se abrió con una copia.`);
   }
 
   return {
@@ -204,11 +228,11 @@ function v2toV3(data) {
     activity: data.activity || []
   };
 
-  notes.push('Tu canasta de siempre ahora se llama «canasta habitual» y es la misma de antes.');
-  if (totalCambios) notes.push(`De los meses que tenías escritos se guardaron ${totalCambios} cambio(s): solo aquello en lo que cada mes se apartaba de tu canasta. Lo que era igual no hacía falta repetirlo.`);
+  notes.push('Tu canasta de siempre ahora se llama «productos habituales» y es la misma de antes.');
+  if (totalCambios) notes.push(`De los meses que tenías escritos se guardó ${totalCambios === 1 ? 'un cambio' : `${totalCambios} cambios`}: solo aquello en lo que cada mes se apartaba de tu canasta. Lo que era igual no hacía falta repetirlo.`);
   else if (Object.keys(monthlyBaskets).length) notes.push('Los meses que tenías escritos eran iguales a tu canasta, así que no hizo falta guardar ningún cambio.');
-  if (Object.keys(monthPlans).length) notes.push(`${Object.keys(monthPlans).length} mes(es) quedaron marcados como abiertos.`);
-  if ((data.invoices || []).length) notes.push(`Las ${data.invoices.length} factura(s) guardadas salen de la app, pero siguen enteras en el respaldo anterior a la migración.`);
+  if (Object.keys(monthPlans).length) notes.push(`${Object.keys(monthPlans).length === 1 ? 'Un mes quedó marcado como abierto' : `${Object.keys(monthPlans).length} meses quedaron marcados como abiertos`}.`);
+  if ((data.invoices || []).length) notes.push(`${data.invoices.length === 1 ? 'La factura guardada sale' : `Las ${data.invoices.length} facturas guardadas salen`} de la app, pero ${data.invoices.length === 1 ? 'sigue entera' : 'siguen enteras'} en el respaldo anterior a la migración.`);
 
   return { state, notes };
 }
@@ -240,7 +264,7 @@ function v3toV4(data) {
   });
   state.version = 4;
   if (conMotivoPendiente) {
-    notes.push(`${conMotivoPendiente} persona(s) tenían alimentos anotados sin decir por qué. Se conservan y se sigue avisando igual; puedes marcar si es alergia, intolerancia o preferencia desde Más → Familia.`);
+    notes.push(`${conMotivoPendiente === 1 ? 'Una persona tenía' : `${conMotivoPendiente} personas tenían`} alimentos anotados sin decir por qué. Se conservan y se sigue avisando igual; puedes marcar si es alergia, intolerancia o preferencia desde Ajustes → Familia.`);
   }
   return { state, notes };
 }
@@ -313,7 +337,7 @@ function v4toV5(data) {
   });
   state.version = 5;
   if (conPersonas) {
-    notes.push(`${conPersonas} preparación(es) tenían anotado quién las comía. Esa pregunta ya no existe: una preparación es para toda la casa, y quien no coma se marca el día que toque. Las comidas que ya estaban en el calendario no cambian.`);
+    notes.push(`${conPersonas === 1 ? 'Una preparación tenía' : `${conPersonas} preparaciones tenían`} anotado quién las comía. Esa pregunta ya no existe: una preparación es para toda la casa, y quien no coma se marca el día que toque. Las comidas que ya estaban en el calendario no cambian.`);
   }
   return { state, notes };
 }
@@ -346,7 +370,7 @@ function v5toV6(data) {
   });
   state.version = 6;
   if (deducidas) {
-    notes.push(`${deducidas} comida(s) del calendario no decían de dónde venían. Las que puso una rutina y las que estaban marcadas fuera de casa o pedidas se reconocen solas; el resto quedan como cambio manual. Ninguna comida cambia de día, de plato ni de cantidad.`);
+    notes.push(`${deducidas === 1 ? 'Una comida del calendario no decía' : `${deducidas} comidas del calendario no decían`} de dónde ${deducidas === 1 ? 'venía' : 'venían'}. Las que puso una rutina y las que estaban marcadas fuera de casa o pedidas se reconocen solas; el resto quedan como cambio manual. Ninguna comida cambia de día, de plato ni de cantidad.`);
   }
   return { state, notes };
 }
@@ -401,11 +425,165 @@ function v7toV8(data) {
   return { state, notes: [] };
 }
 
-const STEPS = { 1: v1toV2, 2: v2toV3, 3: v3toV4, 4: v4toV5, 5: v5toV6, 6: v6toV7, 7: v7toV8 };
+/* ── v8 → v9. La app deja de calcular la compra y pasa a decidir la comida ──
+
+   Hasta aquí el centro de la aplicación era una cuenta: cuánto consume la casa
+   al mes, cuánto queda, cuánto falta comprar. Todo lo demás —las preparaciones,
+   el calendario, las rutinas— alimentaba esa cuenta. A partir de aquí el centro
+   es la pregunta que da nombre a la app, «¿qué comemos?», y la compra vuelve a
+   ser lo que es en una casa: una lista escrita a mano antes de salir, ayudada
+   por lo que siempre se compra.
+
+   Esta conversión no borra nada. Los tres cambios son de forma, y los tres
+   dejan lo viejo donde estaba para que el historial se siga leyendo:
+
+    1. Cada línea de la canasta dice a qué rubro pertenece. La cantidad sigue
+       ahí, con sus tramos y sus fechas, porque las compras de julio se
+       calcularon con ella; lo que cambia es que a partir de ahora puede faltar.
+
+    2. Una regla de repetición pasa a unir UNA preparación con UN momento. Las
+       que cubrían varios se parten en una por momento, y las comidas que cada
+       una había puesto se reasignan a la que les corresponde por su momento.
+       Sin eso, borrar la regla del desayuno se llevaría por delante las cenas.
+
+    3. Aparece dónde guardar las listas de compra: una lista es una salida
+       concreta al supermercado, no un inventario. Nace vacía, porque las
+       compras que ya están anotadas son historial y se quedan como están.
+
+   Es idempotente por construcción: todo lo que escribe lo escribe solo si falta,
+   y la partición de reglas solo ocurre cuando quedan reglas con más de un
+   momento —después de la primera pasada no queda ninguna—. */
+function v8toV9(data) {
+  const state = clone(data);
+  const partidas = asegurarV9(state);
+  state.version = 9;
+  const notes = [];
+  if (partidas) {
+    notes.push(`${partidas === 1 ? 'Una regla valía' : `${partidas} reglas valían`} para varios momentos del día a la vez. Ahora cada regla es de un momento, así que se partieron en una por momento —los días, las semanas y las comidas que ya habían puesto son exactamente los mismos— y así puedes cambiar el desayuno de los lunes sin tocar la cena.`);
+  }
+  return { state, notes };
+}
+
+// Lo que un estado necesita para ser de la v9, escrito una sola vez porque se
+// usa dos veces: en la conversión y en la última pasada de `migrate`, para los
+// respaldos exportados a media tarde de un día en que esto ya existía a medias.
+// Devuelve cuántas reglas hubo que partir; sobre datos ya convertidos, cero.
+function asegurarV9(state) {
+  const porId = new Map((Array.isArray(state.products) ? state.products : []).map(item => [item?.id, item]));
+  if (Array.isArray(state.habitualBasket?.lines)) {
+    state.habitualBasket.lines = state.habitualBasket.lines.map(linea => {
+      if (!linea || typeof linea !== 'object') return linea;
+      if (typeof linea.rubro === 'string' && linea.rubro) return linea;
+      return { ...linea, rubro: rubroDeCategoria(porId.get(linea.productId)?.category), nota: typeof linea.nota === 'string' ? linea.nota : '' };
+    });
+  }
+
+  let seq = Number.isInteger(state.seq) ? state.seq : 0;
+  const { reglas, reasignadas, partidas } = reglasDeUnMomento(state.mealRoutines, () => { seq += 1; return `regla-${seq}`; });
+  state.mealRoutines = reglas;
+  state.seq = seq;
+  // Las comidas que puso una regla partida pasan a colgar de la que cubre su
+  // momento. Una comida que se quedara apuntando a la regla vieja diría que
+  // viene de una rutina que ya no la pone, y al borrar esa rutina se iría con
+  // ella una cena que nadie quiso quitar.
+  if (Array.isArray(state.plans) && reasignadas.size) {
+    state.plans = state.plans.map(plan => {
+      const destino = reasignadas.get(`${plan?.routineId}|${plan?.slot}`);
+      return destino && destino !== plan.routineId ? { ...plan, routineId: destino } : plan;
+    });
+  }
+
+  if (!Array.isArray(state.listasDeCompra)) state.listasDeCompra = [];
+  // `comprada` —lo que de verdad se trajo— llegó después que las listas. Una
+  // línea sin ese campo se lee como «no se trajo nada», que es cierto, pero
+  // dejarlo sin escribir haría que la pantalla tuviera que distinguir entre
+  // «cero» y «no existe» en cada renglón.
+  for (const lista of state.listasDeCompra) {
+    if (!lista || typeof lista !== 'object') continue;
+    // `compraId` esperaba a que alguien uniera las listas con el registro de
+    // compras del inventario. Esa unión se decidió que no —el inventario se
+    // retiró— así que el campo se va: nadie lo lee.
+    delete lista.compraId;
+    if (!Array.isArray(lista.lineas)) continue;
+    lista.lineas = lista.lineas.map(linea => (
+      linea && typeof linea === 'object' && !('comprada' in linea)
+        ? { ...linea, comprada: linea.comprado ? (linea.cantidad ?? null) : null }
+        : linea
+    ));
+  }
+  return partidas;
+}
+
+// Los momentos de una regla, en el orden del día y sin repetidos. Se lee primero
+// el campo nuevo: una regla ya convertida no vuelve a partirse.
+const momentosDeLaRegla = regla => {
+  if (typeof regla.momento === 'string' && regla.momento) return MOMENTOS_DE_PREPARACION.includes(regla.momento) ? [regla.momento] : [];
+  const marcados = new Set(Array.isArray(regla.slots) ? regla.slots : []);
+  return MOMENTOS_DE_PREPARACION.filter(id => marcados.has(id));
+};
+
+function reglasDeUnMomento(rutinas, nuevoId) {
+  const reglas = [];
+  const reasignadas = new Map();
+  let partidas = 0;
+  for (const regla of Array.isArray(rutinas) ? rutinas : []) {
+    if (!regla || typeof regla !== 'object') { reglas.push(regla); continue; }
+    const momentos = momentosDeLaRegla(regla);
+    // Una regla sin ningún momento reconocible no pone nada en el calendario.
+    // Se conserva —borrarla sería decidir por la casa— con el campo escrito en
+    // nulo, para que nadie lo lea como «undefined».
+    if (!momentos.length) { reglas.push({ ...regla, momento: null, slots: [], grupoId: regla.grupoId || regla.id }); continue; }
+    // `grupoId` recuerda que estas reglas se escribieron de una vez, en una sola
+    // respuesta. No las ata: cada una se edita y se borra sola. Es lo que
+    // permite que las pantallas que todavía preguntan «¿en qué momentos?» de
+    // una sentada sigan enseñando una sola regla donde ahora hay tres.
+    const grupoId = regla.grupoId || regla.id;
+    momentos.forEach((momento, indice) => {
+      const id = indice === 0 ? regla.id : nuevoId();
+      reglas.push({ ...regla, id, momento, slots: [momento], grupoId });
+      reasignadas.set(`${regla.id}|${momento}`, id);
+    });
+    if (momentos.length > 1) partidas += 1;
+  }
+  return { reglas, reasignadas, partidas };
+}
+
+/* ── v9 → v10. Se cae el andamio ───────────────────────────────────────────
+
+   La conversión anterior partió las reglas de varios momentos en una por
+   momento, y les puso a las hermanas un `grupoId` para recordar que se habían
+   escrito de una sentada. Ese campo era un andamio: las pantallas de entonces
+   preguntaban «¿en qué momentos?» con casillas y enseñaban una fila por
+   respuesta, así que necesitaban volver a juntarlas para dibujarlas.
+
+   Las pantallas ya no hacen eso. Ahora se añade, se edita, se pausa y se borra
+   una regla cada vez, que es lo que de verdad son. El andamio estorba: un campo
+   que nadie lee es una pregunta abierta para quien abra esto dentro de un año.
+
+   No se pierde nada. `grupoId` no decía nada que la regla no dijera —qué
+   preparación, qué momento, qué días—; solo decía con cuáles se había tecleado
+   a la vez, y eso ya no cambia nada de lo que la app hace. */
+function v9toV10(data) {
+  const state = clone(data);
+  quitarElAndamio(state);
+  state.version = 10;
+  return { state, notes: [] };
+}
+
+function quitarElAndamio(state) {
+  if (!Array.isArray(state.mealRoutines)) return;
+  state.mealRoutines = state.mealRoutines.map(reglaGuardada => {
+    if (!reglaGuardada || typeof reglaGuardada !== 'object' || !('grupoId' in reglaGuardada)) return reglaGuardada;
+    const { grupoId, ...resto } = reglaGuardada;
+    return resto;
+  });
+}
+
+const STEPS = { 1: v1toV2, 2: v2toV3, 3: v3toV4, 4: v4toV5, 5: v5toV6, 6: v6toV7, 7: v7toV8, 8: v8toV9, 9: v9toV10 };
 
 // Campos que aparecieron dentro de una misma versión del esquema. Un respaldo
 // exportado antes de que existieran se rellena en vez de rechazarse.
-const OPTIONAL_V3 = { mealRoutines: [], monthPlans: {}, monthOverrides: {}, activity: [], settings: { reviewWeekday: 5, onboarded: false } };
+const OPTIONAL_V3 = { mealRoutines: [], monthPlans: {}, monthOverrides: {}, activity: [], recados: {}, settings: { reviewWeekday: 5, onboarded: false } };
 
 export function migrate(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
@@ -456,6 +634,15 @@ export function migrate(data) {
       delete copia.covers;
       const marcados = new Set(Array.isArray(receta.uses) ? receta.uses : []);
       copia.uses = MOMENTOS_DE_PREPARACION.filter(id => marcados.has(id));
+      // Los alimentos de una preparación son un dato opcional, y desde la v9 su
+      // cantidad también: una casa apunta «locrio: arroz, pollo, aceitunas»
+      // mucho antes de saber cuántas tazas. Sin cantidad tampoco hay unidad que
+      // valga —«3 de nada» no significa nada—, así que las dos van juntas.
+      copia.items = (Array.isArray(receta.items) ? receta.items : []).map(item => {
+        if (!item || typeof item !== 'object') return item;
+        const vacia = item.quantity === undefined || item.quantity === null || item.quantity === '';
+        return { ...item, quantity: vacia ? null : item.quantity, unit: vacia ? null : (item.unit ?? null) };
+      });
       return copia;
     });
   }
@@ -487,6 +674,27 @@ export function migrate(data) {
       // devolvería la cantidad de otro mes sin que nada avisara.
       return { ...linea, tramos: [...linea.tramos].sort((a, b) => String(a.desde || '').localeCompare(String(b.desde || ''))) };
     });
+  }
+
+  // Y la última, la de la v9. Va después de la de la canasta a propósito: lee
+  // las líneas y necesita encontrarlas ya con sus tramos ordenados. Sobre un
+  // estado ya convertido no cambia nada, que es lo que la hace repetible.
+  asegurarV9(current);
+  // El andamio de aquella conversión, por si un respaldo se exportó a media
+  // tarde con él puesto.
+  quitarElAndamio(current);
+  // Y la clave con la que se reconoce un alimento repetido, que se guarda junto
+  // al producto. Se recalcula siempre porque la gramática de los plurales se
+  // corrigió —«galletas dulces» se guardaba como «galleta dulz», así que quien
+  // escribía «galleta dulce» se encontraba creando el alimento otra vez— y las
+  // claves escritas con la gramática vieja tenían que ponerse al día solas. Es
+  // repetible por construcción: sale del nombre, que no se toca.
+  if (Array.isArray(current.products)) {
+    current.products = current.products.map(item => (
+      item && typeof item === 'object' && item.name !== undefined
+        ? { ...item, normalized: normalizeName(item.name) }
+        : item
+    ));
   }
 
   return { ok: true, state: current, from, to: SCHEMA_VERSION, migrated: from < SCHEMA_VERSION, notes };

@@ -31,7 +31,7 @@ import {
   quedarseConLoDeAqui, sincronizar, vincular
 } from './sincronizar.js';
 import { BRAND_MARK } from './brand.js';
-import { button, esc, notice } from './ui-kit.js';
+import { button, conteo, esc, notice } from './ui-kit.js';
 
 export const emptyCuenta = () => ({
   vista: 'portada',   // portada · registro · entrar · recuperar · confirmar · cuenta · conflicto
@@ -91,7 +91,7 @@ function vistaPortada(cuenta) {
     <div class="cuenta-marca">
       <span class="cuenta-logo">${BRAND_MARK}</span>
       <h2>¿Qué comemos?</h2>
-      <p>Organiza una vez lo habitual de tu casa y prepara cada mes cambiando solamente lo diferente.</p>
+      <p>Organiza una vez lo habitual de tu casa y decide con calma qué se come esta semana.</p>
     </div>
     ${cuenta.error ? notice('No se pudo', esc(cuenta.error), 'error') : ''}
     ${cuenta.aviso ? notice('Aviso', esc(cuenta.aviso), 'warn') : ''}
@@ -198,7 +198,9 @@ function vistaCuenta(ctx, cuenta, sesion) {
 
     <div class="card">
       <h3>Guardar mi casa en la cuenta</h3>
-      <p class="muted">Hoy tus datos están solo en este teléfono. Si lo enciendes, la despensa, las comidas y las personas de tu casa se guardan también en tu cuenta, cifradas en el viaje, y vuelven solas si cambias de teléfono.</p>
+      <p class="muted">${sincronizando
+        ? 'Tu casa se está guardando también en tu cuenta —la despensa, las comidas y las personas—, cifrada en el viaje, y vuelve sola si cambias de teléfono.'
+        : 'Hoy tus datos están solo en este teléfono. Si lo enciendes, la despensa, las comidas y las personas de tu casa se guardan también en tu cuenta, cifradas en el viaje, y vuelven solas si cambias de teléfono.'}</p>
       <p class="tiny muted">Mientras esté apagado no sale nada de aquí. Puedes apagarlo cuando quieras; lo que ya se haya subido se borra al borrar la cuenta.</p>
       <div class="cuenta-interruptor">
         ${botonDeEspera(
@@ -247,16 +249,50 @@ function estadoDeLaSincronizacion(ctx, sesion) {
   return `<p class="tiny muted cuenta-estado ${esc(estado.resultado)}">${esc(dicho)}${estado.detalle ? ` ${esc(estado.detalle)}` : ''}</p>`;
 }
 
+/* Qué hay dentro de una de las dos versiones.
+
+   No es una comparación registro a registro —eso no cabe en esta pantalla y
+   tampoco se decide así— pero sí contesta la pregunta que hay que contestar
+   aquí: cuál de las dos es la casa que estabas usando. Antes, de la versión del
+   servidor solo se decía la fecha, y de la de este teléfono, nada; con eso no
+   se puede elegir entre dos cosas que se van a reemplazar entera una por otra. */
+function comoEsEsaCasa(estado) {
+  const casa = typeof estado === 'string'
+    ? (() => { try { return JSON.parse(estado); } catch { return null; } })()
+    : estado;
+  if (!casa || typeof casa !== 'object') return '';
+  const listas = Array.isArray(casa.listasDeCompra) ? casa.listasDeCompra : [];
+  const abierta = listas.find(lista => lista?.estado === 'abierta');
+  return [
+    conteo((casa.people || []).length, 'persona', 'personas'),
+    conteo((casa.habitualBasket?.lines || []).length, 'producto habitual', 'productos habituales'),
+    conteo((casa.recipes || []).length, 'preparación', 'preparaciones'),
+    conteo((casa.plans || []).length, 'comida puesta', 'comidas puestas'),
+    abierta ? `una compra abierta con ${conteo((abierta.lineas || []).length, 'renglón', 'renglones')}` : 'ninguna compra abierta'
+  ].join(' · ');
+}
+
 function vistaConflicto(ctx, cuenta) {
   const conflicto = cuenta.conflicto || {};
+  const aqui = comoEsEsaCasa(ctx.datosDeLaCasa?.());
+  const alla = comoEsEsaCasa(conflicto.estadoServidor);
+  const noSeLee = 'No se pudo leer qué hay dentro.';
   return `<section class="cuenta">
     ${cabecera('Hay dos versiones de tu casa', 'Una en este teléfono y otra en tu cuenta. No voy a tapar ninguna sin que me digas cuál.')}
-    ${notice('Qué pasó', 'Se guardaron cambios en los dos sitios desde la última vez que se sincronizaron. Elige con cuál te quedas; antes de reemplazar nada guardo una copia de la otra, por si acaso.', 'warn')}
-    <div class="cuenta-acciones">
-      ${botonDeEspera('Quedarme con lo de este teléfono', cargando(cuenta, 'conflicto-aqui'), 'cuenta-conflicto-aqui', 'btn-primary btn-grande')}
-      ${botonDeEspera('Traer lo que hay en mi cuenta', cargando(cuenta, 'conflicto-alla'), 'cuenta-conflicto-alla', 'btn-secondary btn-grande')}
+    ${notice('Qué pasó', 'Se guardaron cambios en los dos sitios desde la última vez que se sincronizaron. Elige con cuál te quedas. <strong>De la que descartes queda una copia guardada en este teléfono</strong>, así que esto no es una puerta de un solo sentido.', 'warn')}
+    <div class="conflicto-lados">
+      <div class="card conflicto-lado">
+        <h3>En este teléfono</h3>
+        <p class="small">${esc(aqui || noSeLee)}</p>
+        ${botonDeEspera('Quedarme con esta', cargando(cuenta, 'conflicto-aqui'), 'cuenta-conflicto-aqui', 'btn-primary')}
+      </div>
+      <div class="card conflicto-lado">
+        <h3>En tu cuenta</h3>
+        <p class="small">${esc(alla || noSeLee)}</p>
+        <p class="tiny muted">Se guardó ${esc(conflicto.cuando ? new Date(conflicto.cuando).toLocaleString('es-DO') : 'en otro momento')}.</p>
+        ${botonDeEspera('Traer esta', cargando(cuenta, 'conflicto-alla'), 'cuenta-conflicto-alla', 'btn-secondary')}
+      </div>
     </div>
-    <p class="tiny muted">Lo de tu cuenta se guardó ${esc(conflicto.cuando ? new Date(conflicto.cuando).toLocaleString('es-DO') : 'en otro momento')}.</p>
   </section>`;
 }
 

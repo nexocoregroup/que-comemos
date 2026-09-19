@@ -68,19 +68,10 @@
 .hogar-ficha-mini.hecha .hogar-ficha-num { background: var(--sage); color: #fff; }
 .hogar-ficha-nombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* ── Adulto, adolescente, niño ─────────────────────────────────────────── */
-
-.hogar-clases { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.hogar-clase {
-  display: grid; gap: 3px; text-align: left;
-  border: 1px solid var(--line); border-radius: 13px; padding: 12px;
-  background: var(--surface); color: var(--ink); min-height: 62px;
-}
-.hogar-clase strong { font-size: .92rem; letter-spacing: -.02em; }
-.hogar-clase small { color: var(--ink-muted); font-size: .74rem; line-height: 1.3; }
-.hogar-clase:hover { border-color: var(--clay-line); }
-.hogar-clase.activa { border-color: var(--clay); background: var(--clay-light); box-shadow: inset 0 0 0 1px var(--clay); }
-.hogar-clase.activa strong { color: var(--clay-dark); }
+/* Aquí vivía `.hogar-clase`, la tira de «Adulto · Adolescente · Niño o niña».
+   La pregunta se retiró: no alimentaba nada, y con el reparto por raciones fuera
+   la respuesta no cambiaba una sola línea de ninguna pantalla. El campo sigue en
+   los datos; lo que ya no hay es dónde pintarlo. */
 
 /* ── Lo que alguien evita ──────────────────────────────────────────────── */
 
@@ -158,8 +149,6 @@
 .familia-baja .card { background: var(--surface-soft); }
 
 @media (max-width: 700px) {
-  .hogar-clases { grid-template-columns: 1fr; }
-  .hogar-clase { display: flex; align-items: baseline; gap: 8px; min-height: 52px; }
   .hogar-tira { margin-right: -16px; padding-right: 16px; }
   .hogar-contador { gap: 10px; }
   .hogar-contador .btn-primary { flex: 1 1 100%; }
