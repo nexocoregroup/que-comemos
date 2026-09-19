@@ -157,6 +157,49 @@ test('Ajustes es un índice de filas, no ocho párrafos', () => {
   assert.ok(/\d+ compras? guardadas?|Todavía no hay ninguna compra/.test(html), 'la fila de Historial no dice cuántas compras hay');
 });
 
+test('el informe para soporte se llama igual en los tres sitios', () => {
+  /* Se llamaba «Si algo se rompe», que decía cuándo se abre y no qué hay
+     dentro: se leía como un botón que arreglara algo. Ahora es «Informe para
+     soporte».
+
+     Un renombrado se queda a medias solo. El nombre vive en tres sitios —la
+     fila de Ajustes, el botón de Funciones avanzadas y el título de la ventana
+     que abren los dos— y el de la ventana está en app.js, que no se puede
+     importar en Node, así que no hay forma de que un despiste salte por su
+     cuenta. Pulsar «Informe para soporte» y aterrizar en una ventana que se
+     llama de otra manera hace dudar de si se pulsó lo que se quería pulsar.
+
+     Esta prueba no fija el texto: fija que los tres digan lo mismo. Cambiar el
+     nombre otra vez es cambiarlo en los tres, que es justo lo que hay que
+     hacer. */
+  const ajustes = renderMas(contexto(createDemoState(), { page: 'ajustes' }));
+  const enLaFila = /data-action="open-diagnostico"[\s\S]*?<strong>([^<]+)<\/strong>/.exec(ajustes)?.[1];
+  assert.ok(enLaFila, 'la fila del informe desapareció de Ajustes');
+
+  const avanzado = renderMas(contexto(createDemoState(), { page: 'avanzado' }));
+  assert.ok(avanzado.includes('open-diagnostico'), 'Funciones avanzadas ya no lleva al informe');
+  assert.ok(avanzado.toLowerCase().includes(enLaFila.toLowerCase()),
+    `el botón de Funciones avanzadas no dice «${enLaFila}»`);
+
+  // El título de la ventana, leído como texto: app.js toca `document` al
+  // cargarse y no se puede importar aquí.
+  const cuerpo = /function modalDiagnostico\(\)[\s\S]*?\n}/.exec(fuente('app.js'))?.[0] || '';
+  const enLaVentana = /modal\('([^']+)'/.exec(cuerpo)?.[1];
+  assert.equal(enLaVentana, enLaFila,
+    'la fila de Ajustes y la ventana que abre se llaman distinto');
+
+  // Y el nombre viejo no sigue vivo en ninguna pantalla. En los comentarios sí
+  // puede estar —ahí es donde este proyecto pide que se escriba qué se retiró—,
+  // así que se quitan antes de mirar.
+  const sinComentarios = codigo => codigo.split(/\r?\n/)
+    .filter(linea => !/^\s*(\/\/|\*|\/\*)/.test(linea))
+    .join('\n');
+  for (const archivo of ['page-mas.js', 'app.js', 'fallos.js']) {
+    assert.ok(!/Si algo se rompe/.test(sinComentarios(fuente(archivo))),
+      `${archivo} sigue enseñando el nombre viejo`);
+  }
+});
+
 /* ── Plan semanal ──────────────────────────────────────────────────────── */
 
 test('los días ya vividos van plegados, y solo cuando hoy está a la vista', () => {

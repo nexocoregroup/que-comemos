@@ -1576,7 +1576,9 @@ function modalProducto(m) {
 function modalDiagnostico() {
   const instalada = Boolean(globalThis.Capacitor?.isNativePlatform?.());
   const plataforma = instalada ? `Aplicación instalada (${globalThis.Capacitor?.getPlatform?.() || 'android'})` : 'Navegador';
-  return modal('Detalle de este aparato', 'Para poder explicar un fallo sin tener el teléfono delante.',
+  // El mismo nombre que la fila que lo abre. Aterrizar en una ventana que se
+  // llama de otra manera hace dudar de si se pulsó lo que se quería pulsar.
+  return modal('Informe para soporte', 'Para poder explicar un fallo sin tener el teléfono delante.',
     `<table class="data-table"><tbody>
       <tr><td>Dónde corre</td><td class="num">${esc(plataforma)}</td></tr>
     </tbody></table>

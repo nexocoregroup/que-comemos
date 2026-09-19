@@ -811,8 +811,11 @@ function renderAjustes(ctx) {
       'Volver a marcar lo que compras de costumbre. No borra nada'],
     ['navigate', 'data-page="legal"', 'hoja', 'Privacidad y condiciones',
       'Qué guarda la app, dónde, y qué no hace'],
-    ['open-diagnostico', '', 'aviso', 'Si algo se rompe',
-      'Lo que ha fallado en este aparato desde que abriste la app']
+    /* «Si algo se rompe» decía cuándo se abre, no qué hay dentro: se leía como
+       un botón que arreglara algo. Esto es un informe —se lee y se enseña— y
+       existe para que alguien pueda ayudarte sin tener tu teléfono delante. */
+    ['open-diagnostico', '', 'aviso', 'Informe para soporte',
+      'Lo que ha fallado en este teléfono, para enseñarlo si pides ayuda']
   ];
 
   return `    ${copia.urgente && !sincronizando ? `<div class="notice warn">${icono('aviso')}<div><strong>${copia.ultima ? `Hace ${copia.dias} días que no guardas una copia.` : 'Todavía no has guardado ninguna copia.'}</strong>Todo lo que has escrito existe solo en este teléfono. <button type="button" class="enlace" data-action="navigate" data-page="respaldo">Guardar una ahora</button></div></div>` : ''}
@@ -994,7 +997,7 @@ function renderAvanzado(ctx) {
     <div class="card">
       <h3>Servicios externos</h3>
       <p class="muted small">Sin cuenta, esta app no llama a ninguna parte: no hay dirección que configurar ni clave que guardar. Con cuenta, lo único que sale de aquí son tus datos hacia el servidor que los guarda para que los encuentres en otro teléfono.</p>
-      ${button('Ver el detalle de este aparato', 'open-diagnostico', 'btn-quiet')}
+      ${button('Ver el informe para soporte', 'open-diagnostico', 'btn-quiet')}
     </div>`;
 }
 
